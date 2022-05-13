@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_marginTop="10dp"
+    android:layout_marginStart="10dp"
+    android:layout_marginBottom="10dp"
+    android:layout_marginEnd="10dp"
+    android:background="@color/white"
+    android:layout_height="wrap_content">
+
+    <ImageView
+        android:id="@+id/fotoProduto"
+        android:layout_width="160dp"
+        android:layout_height="160dp"
+        android:src="@drawable/drawer"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="10dp"
+        android:scaleType="centerCrop"
+        />
+    <TextView
+        android:id="@+id/nomeProduto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="SmartWacth Eco01x0"
+        android:textColor="@color/black"
+        android:textSize="18sp"
+        android:maxLength="50"
+        android:layout_toEndOf="@id/fotoProduto"
+        android:layout_marginTop="20dp"
+        android:layout_marginStart="10dp"
+        />
+    <TextView
+        android:id="@+id/precoProduto"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_below="@id/nomeProduto"
+        android:layout_toEndOf="@id/fotoProduto"
+        android:textSize="18sp"
+        android:text="R$ 159,00"
+        android:fontFamily="sans-serif-black"
+        android:layout_marginStart="20dp"
+        android:layout_marginTop="15dp"
+        />
+
+
+</RelativeLayout>
