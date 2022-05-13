@@ -12,7 +12,16 @@
       <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/sortudo">O Sortudo - Web site de compra de rifas</a></li>
       </ul>
       <ul>
+      <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/flutter_appbar">App Bar  - Criando AppBar customizada com flutter</a></li>
+      </ul>
+      <ul>
         <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/FlutterPortfolio-main">Flutter Page -  Page portfólio</a></li>
+      </ul>
+      <ul>
+        <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/shop">Shop - Versão de ecommerce em flutter</a></li>
+        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop1.png">imagem 1</li>
+        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop2.png">imagem 2</li>
+        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop3.png">imagem 3</li>
       </ul>         
     </td>
   <td>
