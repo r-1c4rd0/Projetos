@@ -19,9 +19,15 @@
       </ul>
       <ul>
         <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/shop">Shop - Versão de ecommerce em flutter</a></li>
-        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop1.png">imagem 1</li>
-        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop2.png">imagem 2</li>
-        <li><a href="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop3.png">imagem 3</li>
+        <li>imagem 1: </li>
+        <img src="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop1.png">
+        <br>
+        <li>imagem 2: </li>
+        <br>
+        <img src="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop2.png">
+        <li>imagem 3: </li>
+        <br>
+        <img src="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop3.png">
       </ul>         
     </td>
   <td>
