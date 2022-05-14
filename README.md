@@ -18,7 +18,7 @@
         <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/FlutterPortfolio-main">Flutter Page -  Page portfólio</a></li>
       </ul>
       <ul>
-        <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/shop">Shop - Versão de ecommerce em flutter</a></li>
+        <li><a href="https://github.com/r-1c4rd0/Projetos/tree/master/shop">Shop - Versão de ecommerce em flutter - desenvolvimento mobile</a></li>
         <li>imagem 1: </li>
         <img src="https://github.com/r-1c4rd0/codeTrabalho/blob/master/shop1.png">
         <br>
