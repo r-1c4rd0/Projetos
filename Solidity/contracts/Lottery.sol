@@ -33,7 +33,7 @@ contract Lottery {
 
     function pickWinner() public onlyOwner returns (address payable) {
         address payable winner = payable(players[random() % players.length]);
-        winner.transfer(address(this).balance);
+        winner.transfer(address(this).balance); //em contratos verdadeiros, nessa linha poderia subtrair o saldo do contrato//
         players = new address[](0);
         counter = counter + 5;
         return winner;
