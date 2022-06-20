@@ -6,6 +6,7 @@ class ControllerTodoList {
   int? position;
 
   void toDelete(Todo todo) => {todoItens.remove(todo)};
+  void toDescriptionUpDate(Todo todo) => {todoItens.remove(todo.description)};
   void toClean() => {todoItens.clear()};
   void storeTask(Todo todo, int p) => {itemRemoved = todo, position = p};
 
