@@ -3,15 +3,20 @@ import 'package:flutter_slidable/flutter_slidable.dart';
 import 'package:intl/intl.dart';
 
 import '../model/todo.dart';
+import '../pages/edit_page.dart';
 
 class TodoItens extends StatelessWidget {
   const TodoItens(
       {Key? key,
       required this.todo,
       required this.toDelete,
-      required this.toChange})
+      required this.toChange,
+      required this.toEdit
+      //required this.toDescriptionUpdate,
+      })
       : super(key: key);
   final Todo todo;
+  final Function toEdit;
   final Function(Todo) toDelete;
   final Function(Todo) toChange;
 
@@ -53,7 +58,7 @@ class TodoItens extends StatelessWidget {
         ),
         endActionPane: ActionPane(
           motion: const ScrollMotion(),
-          extentRatio: 0.44,
+          extentRatio: 1,
           children: [
             SlidableAction(
               onPressed: (context) => {toChange(todo)},
@@ -61,6 +66,19 @@ class TodoItens extends StatelessWidget {
               foregroundColor: Colors.white,
               icon: todo.done ? Icons.close : Icons.check,
               label: todo.done ? 'Desfazer' : 'Feito',
+            ),
+            SlidableAction(
+              onPressed: (context) => {
+                Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EditPage(edit: toEdit, todo: todo),
+                    ))
+              },
+              backgroundColor: todo.done ? Colors.grey : Colors.yellow,
+              foregroundColor: Colors.white,
+              icon: todo.done ? Icons.close : Icons.check,
+              label: 'Editar',
             ),
             SlidableAction(
               onPressed: (context) => {toDelete(todo)},

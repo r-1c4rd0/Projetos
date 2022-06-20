@@ -33,7 +33,7 @@ class _TodoListState extends State<TodoList> {
     return SafeArea(
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.purple,
+          backgroundColor: Colors.black,
           centerTitle: true,
           title: const Text('Your smart list'),
           leading: const Icon(Icons.person_rounded),
@@ -61,6 +61,7 @@ class _TodoListState extends State<TodoList> {
                         todo: todo,
                         toDelete: toDelete,
                         toChange: toChange,
+                        toEdit: toEdit,
                       ),
                   ],
                 ),
@@ -262,6 +263,19 @@ class _TodoListState extends State<TodoList> {
     });
     upDateJson();
   }
+
+  void toEdit(Todo todo, String title, String desc) {
+    setState(() {
+      int position = controllerTodoList.getList().indexOf(todo);
+
+      controllerTodoList.toDelete(todo);
+      Todo newTodo = Todo(
+          title: title, description: desc, date: DateTime.now(), done: false);
+      controllerTodoList.storeTask(newTodo, position);
+      controllerTodoList.returnTask();
+      upDateJson();
+    });
+  } //Criando função nova
 
   void upDateJson() =>
       {todoRespository.saveTodoList(controllerTodoList.getList())};
