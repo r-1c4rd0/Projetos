@@ -3,7 +3,11 @@ package com.comercio.petsphere.ui.theme
 import androidx.compose.ui.graphics.Color
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 val Purple80 = Color(0xF8DACDF8)
+=======
+val Purple80 = Color(0xFFD0BCFF)
+>>>>>>> 4435db2 (setup do projeto)
 =======
 val Purple80 = Color(0xFFD0BCFF)
 >>>>>>> 4435db2 (setup do projeto)
