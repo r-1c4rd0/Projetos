@@ -1,4 +1,4 @@
-package com.comercio.petsphere
+package com.comercio.petsphere.controller
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
