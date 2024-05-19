@@ -1,5 +1,6 @@
 package com.comercio.petsphere.controller
 
+import android.media.Image
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,15 +35,18 @@ fun MainScreen() {
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
+        
         Greeting("Pet Sphere")
         FloatingActionButtons()
+
     }
 }
 
 @Composable
 fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Row(
-
+    Box(
+        contentAlignment = Alignment.TopCenter,
+        modifier = modifier.fillMaxSize()
     )
     {
 
@@ -51,6 +55,12 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
             text = "Bem vindos ao $name!",
             modifier = modifier
         )
+    }
+}
+@Composable
+fun Image(){
+    Box (){
+
     }
 }
 
@@ -68,33 +78,34 @@ fun FloatingActionButtons() {
             horizontalAlignment = Alignment.End,
 
             modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
+                .padding(6.dp)
         ) {
-            FloatingActionButton(
-                onClick = { /* TODO: Handle Veterinário click */ },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = "Veterinário")
-            }
-            FloatingActionButton(
-                onClick = { /* TODO: Handle Nutrição click */ },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = "Nutrição")
-            }
-            FloatingActionButton(
-                onClick = { /* TODO: Handle Nutrição click */ },
-                modifier = Modifier.align(Alignment.End)
-            ) {
-                Text(text = "Exercícios")
-            }
             FloatingActionButton(
                 onClick = { /* TODO: Handle Perfil click */ },
                 modifier = Modifier.align(Alignment.End)
             ) {
-                Text(text = "Perfil")
+                Text(text = "Perfil", modifier = Modifier.padding(18.dp))
             }
+            FloatingActionButton(
+                onClick = { /* TODO: Handle Nutrição click */ },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(text = "Exercícios", modifier = Modifier.padding(8.dp))
+            }
+            FloatingActionButton(
+                onClick = { /* TODO: Handle Veterinário click */ },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(text = "Veterinário", modifier = Modifier.padding(8.dp))
+            }
+            FloatingActionButton(
+                onClick = { /* TODO: Handle Nutrição click */ },
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(text = "Nutrição", modifier = Modifier.padding(18.dp))
+            }
+
+
         }
     }
 }
