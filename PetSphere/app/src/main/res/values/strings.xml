@@ -6,7 +6,7 @@
     <string name="avalicao">Avaliação:</string>
     <string name="todo">TODO</string>
 
-    <!-- Preferências para o LoginActivity -->
+    <!-- Preferências para o com.comercio.petsphere.controller.LoginActivity -->
     <string name="file_preferences">petsphere_preferences</string>
     <string name="pref_remember">remember</string>
     <string name="pref_login">login</string>

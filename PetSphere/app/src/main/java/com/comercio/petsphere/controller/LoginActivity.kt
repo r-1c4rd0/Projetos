@@ -1,3 +1,5 @@
+package com.comercio.petsphere.controller
+
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
@@ -20,7 +22,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.comercio.petsphere.R
-import com.comercio.petsphere.controller.MainActivity
 import com.comercio.petsphere.model.Cliente
 
 class LoginActivity : ComponentActivity() {
