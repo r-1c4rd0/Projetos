@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "231897107967",
+    "firebase_url": "https://titans-bjj-app-default-rtdb.firebaseio.com",
+    "project_id": "titans-bjj-app",
+    "storage_bucket": "titans-bjj-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:231897107967:android:dc35c310ad79b117512bca",
+        "android_client_info": {
+          "package_name": "com.titans.titans_bjj"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "231897107967-8j76sd3mjg0j0mirjhnotfjb60o7qu02.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCHp9nIf9tUKLQ7LJzwZ6GjRky58-VgFd8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "231897107967-8j76sd3mjg0j0mirjhnotfjb60o7qu02.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "231897107967-e7hfch0f7jm8df8jflso4fpq6tufsvsn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.titans.titansBjj"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

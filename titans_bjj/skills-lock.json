@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "skills": {
+    "flutter-architecting-apps": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "8d4c005971a6dc098557a5511cfd683de25aa88cb595c5bc8b306168c35bc7ab"
+    },
+    "flutter-managing-state": {
+      "source": "flutter/skills",
+      "sourceType": "github",
+      "computedHash": "14b60303535c07f900097f2054613f0835668f202c289b0429446aba28941576"
+    }
+  }
+}
