@@ -1,29 +1,71 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../model/grading_rules.dart';
 
 class GradingRulesRepository {
-  final FirebaseFirestore db;
   const GradingRulesRepository(this.db);
 
-  DocumentReference<Map<String, dynamic>> _ref(String academyId) {
-    return db
-        .collection('academies')
-        .doc(academyId)
-        .collection('grading_rules')
-        .doc('default');
+  final FirebaseFirestore db;
+
+  static final GradingRulesRepository instance =
+      GradingRulesRepository(FirebaseFirestore.instance);
+
+  DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
+    return db.collection('academies').doc(academyId);
   }
 
-  Stream<GradingRules?> watch(String academyId) {
-    return _ref(academyId).snapshots().map((snap) {
-      if (!snap.exists) return null;
+  CollectionReference<Map<String, dynamic>> _collectionRef(String academyId) {
+    return _academyRef(academyId).collection('grading_rules');
+  }
+
+  DocumentReference<Map<String, dynamic>> _rulesRef(
+    String academyId, {
+    String docId = 'default',
+  }) {
+    return _collectionRef(academyId).doc(docId);
+  }
+
+  Future<GradingRules?> get(
+    String academyId, {
+    String docId = 'default',
+  }) async {
+    final snap = await _rulesRef(academyId, docId: docId).get();
+    final data = snap.data();
+    if (!snap.exists || data == null) return null;
+    return GradingRules.fromMap(data);
+  }
+
+  Stream<GradingRules?> watch(
+    String academyId, {
+    String docId = 'default',
+  }) {
+    return _rulesRef(academyId, docId: docId).snapshots().map((snap) {
       final data = snap.data();
-      if (data == null) return null;
+      if (!snap.exists || data == null) return null;
       return GradingRules.fromMap(data);
     });
   }
 
+  Future<void> upsert(
+    String academyId,
+    GradingRules rules, {
+    String docId = 'default',
+  }) async {
+    await _rulesRef(academyId, docId: docId).set(
+      rules.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> delete(
+    String academyId, {
+    String docId = 'default',
+  }) async {
+    await _rulesRef(academyId, docId: docId).delete();
+  }
+
   Future<void> ensureDefault(String academyId) async {
-    final ref = _ref(academyId);
+    final ref = _rulesRef(academyId);
     final snap = await ref.get();
     if (snap.exists) return;
 
@@ -52,6 +94,6 @@ class GradingRulesRepository {
       onlyAcademyPlace: false,
     );
 
-    await ref.set(rules.toMap());
+    await upsert(academyId, rules);
   }
 }

@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -9,17 +8,15 @@ import '../widgets/titans_scaffold.dart';
 class AthleteRegistrationScreen extends StatelessWidget {
   final String academyId;
 
-  const AthleteRegistrationScreen({
-    super.key,
-    required this.academyId,
-  });
+  const AthleteRegistrationScreen({super.key, required this.academyId});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => AthleteRegistrationViewModel(
-        repository: AthleteRegistrationRepository(FirebaseFirestore.instance),
-      ),
+      create:
+          (_) => AthleteRegistrationViewModel(
+            repository: AthleteRegistrationRepository.instance,
+          ),
       child: _AthleteRegistrationForm(academyId: academyId),
     );
   }
@@ -28,13 +25,11 @@ class AthleteRegistrationScreen extends StatelessWidget {
 class _AthleteRegistrationForm extends StatefulWidget {
   final String academyId;
 
-  const _AthleteRegistrationForm({
-    super.key,
-    required this.academyId,
-  });
+  const _AthleteRegistrationForm({required this.academyId});
 
   @override
-  State<_AthleteRegistrationForm> createState() => _AthleteRegistrationFormState();
+  State<_AthleteRegistrationForm> createState() =>
+      _AthleteRegistrationFormState();
 }
 
 class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
@@ -103,8 +98,11 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                         labelText: 'Nome completo',
                         prefixIcon: Icon(Icons.person_outline),
                       ),
-                      validator: (value) =>
-                          (value?.trim().length ?? 0) < 3 ? 'Informe o nome completo' : null,
+                      validator:
+                          (value) =>
+                              (value?.trim().length ?? 0) < 3
+                                  ? 'Informe o nome completo'
+                                  : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -131,32 +129,34 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                       children: [
                         Expanded(
                           child: DropdownButtonFormField<BeltColor>(
-                            value: vm.belt,
+                            initialValue: vm.belt,
                             decoration: const InputDecoration(
                               labelText: 'Faixa',
                               prefixIcon: Icon(Icons.horizontal_rule),
                             ),
-                            items: BeltColor.values
-                                .map(
-                                  (belt) => DropdownMenuItem(
-                                    value: belt,
-                                    child: Text(_beltLabel(belt)),
-                                  ),
-                                )
-                                .toList(),
+                            items:
+                                BeltColor.values
+                                    .map(
+                                      (belt) => DropdownMenuItem(
+                                        value: belt,
+                                        child: Text(_beltLabel(belt)),
+                                      ),
+                                    )
+                                    .toList(),
                             onChanged: vm.isLoading ? null : vm.updateBelt,
                           ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
                           child: DropdownButtonFormField<int>(
-                            value: vm.degree,
+                            key: ValueKey('${vm.belt.name}-${vm.degree}'),
+                            initialValue: vm.degree,
                             decoration: const InputDecoration(
                               labelText: 'Grau',
                               prefixIcon: Icon(Icons.star_outline),
                             ),
                             items: List.generate(
-                              9,
+                              vm.maxDegree + 1,
                               (index) => DropdownMenuItem(
                                 value: index,
                                 child: Text(index.toString()),
@@ -169,14 +169,20 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
-                      value: vm.sex,
+                      initialValue: vm.sex,
                       decoration: const InputDecoration(
                         labelText: 'Sexo',
                         prefixIcon: Icon(Icons.transgender_outlined),
                       ),
                       items: const [
-                        DropdownMenuItem(value: 'male', child: Text('Masculino')),
-                        DropdownMenuItem(value: 'female', child: Text('Feminino')),
+                        DropdownMenuItem(
+                          value: 'male',
+                          child: Text('Masculino'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'female',
+                          child: Text('Feminino'),
+                        ),
                         DropdownMenuItem(value: 'other', child: Text('Outro')),
                       ],
                       onChanged: vm.isLoading ? null : vm.updateSex,
@@ -197,7 +203,9 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                               labelText: 'Peso (kg)',
                               prefixIcon: Icon(Icons.monitor_weight_outlined),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -209,7 +217,9 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                               labelText: 'Altura (cm)',
                               prefixIcon: Icon(Icons.height),
                             ),
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                           ),
                         ),
                       ],
@@ -237,14 +247,15 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                               Text(
                                 _formatBirthDate(vm.birthDate),
                                 style: TextStyle(
-                                  color: vm.birthDate == null
-                                      ? cs.onSurface.withOpacity(0.6)
-                                      : cs.onSurface,
+                                  color:
+                                      vm.birthDate == null
+                                          ? cs.onSurface.withValues(alpha: 0.6)
+                                          : cs.onSurface,
                                 ),
                               ),
                               Icon(
                                 Icons.calendar_month_outlined,
-                                color: cs.onSurface.withOpacity(0.6),
+                                color: cs.onSurface.withValues(alpha: 0.6),
                               ),
                             ],
                           ),
@@ -267,7 +278,10 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           vm.errorMessage!,
-                          style: TextStyle(color: cs.error, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            color: cs.error,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     if (vm.successMessage != null)
@@ -275,24 +289,35 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                         padding: const EdgeInsets.only(bottom: 8),
                         child: Text(
                           vm.successMessage!,
-                          style: TextStyle(color: cs.primary, fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            color: cs.primary,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     FilledButton.icon(
                       onPressed: vm.isLoading ? null : _submit,
-                      icon: vm.isLoading
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: Text(vm.isLoading ? 'Cadastrando...' : 'Cadastrar atleta'),
+                      icon:
+                          vm.isLoading
+                              ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.save_outlined),
+                      label: Text(
+                        vm.isLoading ? 'Cadastrando...' : 'Cadastrar atleta',
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       'O cadastro cria o documento de usuário, progresso e nutrição que as telas do atleta esperam.',
-                      style: TextStyle(color: cs.onSurface.withOpacity(0.6), fontSize: 12),
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.6),
+                        fontSize: 12,
+                      ),
                     ),
                   ],
                 ),
@@ -334,6 +359,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
 
   BeltColor belt = BeltColor.white;
   int degree = 0;
+  int get maxDegree => GradingRules.fallbackMaxDegrees(belt);
   String sex = 'male';
   DateTime? birthDate;
 
@@ -344,12 +370,15 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
   void updateBelt(BeltColor? value) {
     if (value == null || belt == value) return;
     belt = value;
+    degree = degree.clamp(0, maxDegree).toInt();
     notifyListeners();
   }
 
   void updateDegree(int? value) {
-    if (value == null || degree == value) return;
-    degree = value;
+    if (value == null) return;
+    final nextDegree = value.clamp(0, maxDegree).toInt();
+    if (degree == nextDegree) return;
+    degree = nextDegree;
     notifyListeners();
   }
 
@@ -385,7 +414,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
         email: _optionalText(emailController),
         phone: _optionalText(phoneController),
         belt: belt,
-        degree: degree,
+        degree: degree.clamp(0, maxDegree).toInt(),
         weightKg: _parseDouble(weightController),
         heightCm: _parseDouble(heightController),
         sex: sex,

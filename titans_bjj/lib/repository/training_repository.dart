@@ -3,43 +3,103 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../model/training_session.dart';
 
 class TrainingRepository {
-  final FirebaseFirestore _db;
+  TrainingRepository._(this._db);
   TrainingRepository(this._db);
 
-  CollectionReference<Map<String, dynamic>> _col({
+  final FirebaseFirestore _db;
+
+  static final TrainingRepository instance =
+      TrainingRepository._(FirebaseFirestore.instance);
+
+  DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
+    return _db.collection('academies').doc(academyId);
+  }
+
+  DocumentReference<Map<String, dynamic>> _userRef({
     required String academyId,
     required String uid,
   }) {
-    return _db
-        .collection('academies')
-        .doc(academyId)
-        .collection('users')
-        .doc(uid)
+    return _academyRef(academyId).collection('users').doc(uid);
+  }
+
+  CollectionReference<Map<String, dynamic>> _collectionRef({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid)
         .collection('training_sessions');
+  }
+
+  DocumentReference<Map<String, dynamic>> _sessionRef({
+    required String academyId,
+    required String uid,
+    required String sessionId,
+  }) {
+    return _collectionRef(academyId: academyId, uid: uid).doc(sessionId);
+  }
+
+  Future<TrainingSession?> getSession({
+    required String academyId,
+    required String uid,
+    required String sessionId,
+  }) async {
+    final snap = await _sessionRef(
+      academyId: academyId,
+      uid: uid,
+      sessionId: sessionId,
+    ).get();
+    final data = snap.data();
+    if (!snap.exists || data == null) return null;
+    return TrainingSession.fromDoc(snap.id, data);
+  }
+
+  Future<List<TrainingSession>> listSessions({
+    required String academyId,
+    required String uid,
+  }) async {
+    final snap = await _collectionRef(academyId: academyId, uid: uid)
+        .orderBy('date', descending: false)
+        .get();
+    return snap.docs
+        .map((doc) => TrainingSession.fromDoc(doc.id, doc.data()))
+        .toList();
   }
 
   Stream<List<TrainingSession>> watchSessions({
     required String academyId,
     required String uid,
   }) {
-    return _col(academyId: academyId, uid: uid)
+    return _collectionRef(academyId: academyId, uid: uid)
         .orderBy('date', descending: false)
         .snapshots()
-        .map((q) => q.docs.map((d) => TrainingSession.fromDoc(d.id, d.data())).toList());
+        .map(
+          (snap) => snap.docs
+              .map((doc) => TrainingSession.fromDoc(doc.id, doc.data()))
+              .toList(),
+        );
+  }
 
+  Future<void> upsertSession({
+    required String academyId,
+    required String uid,
+    required TrainingSession session,
+  }) async {
+    await _sessionRef(
+      academyId: academyId,
+      uid: uid,
+      sessionId: session.id,
+    ).set(session.toMap(), SetOptions(merge: true));
   }
 
   Future<void> addSession({
     required String academyId,
     required String uid,
     required TrainingSession session,
-  }) async {
-    await _col(academyId: academyId, uid: uid)
-        .doc(session.id)
-        .set(session.toMap(), SetOptions(merge: true));
+  }) {
+    return upsertSession(academyId: academyId, uid: uid, session: session);
   }
 
-  Future<void> addSessionsBatch({
+  Future<void> upsertSessionsBatch({
     required String academyId,
     required String uid,
     required List<TrainingSession> sessions,
@@ -47,13 +107,26 @@ class TrainingRepository {
     if (sessions.isEmpty) return;
 
     final batch = _db.batch();
-    final col = _col(academyId: academyId, uid: uid);
+    final col = _collectionRef(academyId: academyId, uid: uid);
 
-    for (final s in sessions) {
-      batch.set(col.doc(s.id), s.toMap(), SetOptions(merge: true));
+    for (final session in sessions) {
+      batch.set(session.id.isEmpty ? col.doc() : col.doc(session.id),
+          session.toMap(), SetOptions(merge: true));
     }
 
     await batch.commit();
+  }
+
+  Future<void> addSessionsBatch({
+    required String academyId,
+    required String uid,
+    required List<TrainingSession> sessions,
+  }) {
+    return upsertSessionsBatch(
+      academyId: academyId,
+      uid: uid,
+      sessions: sessions,
+    );
   }
 
   Future<void> deleteSession({
@@ -61,9 +134,10 @@ class TrainingRepository {
     required String uid,
     required String sessionId,
   }) async {
-    await _col(academyId: academyId, uid: uid).doc(sessionId).delete();
+    await _sessionRef(
+      academyId: academyId,
+      uid: uid,
+      sessionId: sessionId,
+    ).delete();
   }
 }
-
-
-

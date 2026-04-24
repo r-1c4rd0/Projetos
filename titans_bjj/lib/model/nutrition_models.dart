@@ -49,7 +49,7 @@ class UserProfile {
 
 class FoodItem {
   final String name;
-  final int kcal; // por porção simples
+  final int kcal; // por porcao simples
   FoodItem(this.name, this.kcal);
 
   Map<String, dynamic> toMap() => {'name': name, 'kcal': kcal};
@@ -64,7 +64,7 @@ class FoodItem {
 
 class MealEntry {
   final DateTime date;
-  final String mealType; // Café/Almoço/Jantar/Lanche
+  final String mealType; // Cafe/Almoco/Jantar/Lanche
   final List<FoodItem> items;
 
   MealEntry({required this.date, required this.mealType, required this.items});
@@ -74,7 +74,7 @@ class MealEntry {
   Map<String, dynamic> toMap() => {
         'date': Timestamp.fromDate(date),
         'mealType': mealType,
-        'items': items.map((f) => f.toMap()).toList(),
+        'items': items.map((food) => food.toMap()).toList(),
         'createdAt': FieldValue.serverTimestamp(),
       };
 
@@ -87,72 +87,19 @@ class MealEntry {
       date = DateTime.tryParse(ts?.toString() ?? '') ?? DateTime.now();
     }
 
-    final mealType = (map['mealType'] ?? 'Almoço').toString();
+    final mealType = (map['mealType'] ?? 'Almoco').toString();
     final itemsRaw = (map['items'] as List?) ?? const [];
     final items = itemsRaw
         .whereType<Map>()
-        .map((it) => FoodItem(
-              (it['name'] ?? '').toString(),
-              (it['kcal'] ?? 0).toInt(),
-            ))
-        .where((f) => f.name.trim().isNotEmpty)
+        .map(
+          (item) => FoodItem(
+            (item['name'] ?? '').toString(),
+            (item['kcal'] ?? 0).toInt(),
+          ),
+        )
+        .where((food) => food.name.trim().isNotEmpty)
         .toList();
 
     return MealEntry(date: date, mealType: mealType, items: items);
-  }
-}
-
-abstract class INutritionRepository {
-  Future<void> upsertProfile(UserProfile p);
-  Future<UserProfile> getProfile();
-
-  Future<void> addMeal(MealEntry e);
-  Future<List<MealEntry>> listMeals();
-
-  List<FoodItem> foodDb(String query);
-}
-
-class InMemoryNutritionRepository implements INutritionRepository {
-  UserProfile _profile = UserProfile(weightKg: 80, heightCm: 180, age: 30, sex: Sex.male);
-  final _meals = <MealEntry>[];
-
-  final _db = <FoodItem>[
-    FoodItem('Arroz (1 concha)', 110),
-    FoodItem('Feijão (1 concha)', 90),
-    FoodItem('Frango grelhado (100g)', 165),
-    FoodItem('Ovo cozido (1 un)', 78),
-    FoodItem('Salada verde (1 prato)', 35),
-    FoodItem('Banana (1 un)', 95),
-    FoodItem('Maçã (1 un)', 80),
-    FoodItem('Pão integral (1 fatia)', 70),
-    FoodItem('Queijo minas (30g)', 85),
-    FoodItem('Aveia (30g)', 115),
-    FoodItem('Iogurte natural (170g)', 100),
-  ];
-
-  @override
-  Future<void> upsertProfile(UserProfile p) async {
-    _profile = p;
-  }
-
-  @override
-  Future<UserProfile> getProfile() async => _profile;
-
-  @override
-  Future<void> addMeal(MealEntry e) async {
-    _meals.add(e);
-  }
-
-  @override
-  Future<List<MealEntry>> listMeals() async {
-    _meals.sort((a, b) => a.date.compareTo(b.date));
-    return List.unmodifiable(_meals);
-  }
-
-  @override
-  List<FoodItem> foodDb(String query) {
-    final q = query.toLowerCase().trim();
-    if (q.isEmpty) return _db;
-    return _db.where((f) => f.name.toLowerCase().contains(q)).toList();
   }
 }

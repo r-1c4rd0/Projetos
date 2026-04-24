@@ -1,32 +1,60 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../model/user_progress_profile.dart';
+
 import '../model/grading_rules.dart';
+import '../model/user_progress_profile.dart';
 
 class UserProgressRepository {
-  final FirebaseFirestore db;
   const UserProgressRepository(this.db);
 
-  DocumentReference<Map<String, dynamic>> _ref({
+  final FirebaseFirestore db;
+
+  static final UserProgressRepository instance =
+      UserProgressRepository(FirebaseFirestore.instance);
+
+  DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
+    return db.collection('academies').doc(academyId);
+  }
+
+  DocumentReference<Map<String, dynamic>> _userRef({
     required String academyId,
     required String uid,
   }) {
-    return db
-        .collection('academies')
-        .doc(academyId)
-        .collection('users')
-        .doc(uid)
+    return _academyRef(academyId).collection('users').doc(uid);
+  }
+
+  DocumentReference<Map<String, dynamic>> _profileRef({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid)
         .collection('progress')
         .doc('profile');
+  }
+
+  Future<UserProgressProfile?> getProfile({
+    required String academyId,
+    required String uid,
+  }) async {
+    final snap = await _profileRef(academyId: academyId, uid: uid).get();
+    final data = snap.data();
+    if (!snap.exists || data == null) return null;
+    return UserProgressProfile.fromMap(data);
   }
 
   Stream<UserProgressProfile?> watch({
     required String academyId,
     required String uid,
   }) {
-    return _ref(academyId: academyId, uid: uid).snapshots().map((snap) {
-      if (!snap.exists) return null;
+    return watchProfile(academyId: academyId, uid: uid);
+  }
+
+  Stream<UserProgressProfile?> watchProfile({
+    required String academyId,
+    required String uid,
+  }) {
+    return _profileRef(academyId: academyId, uid: uid).snapshots().map((snap) {
       final data = snap.data();
-      if (data == null) return null;
+      if (!snap.exists || data == null) return null;
       return UserProgressProfile.fromMap(data);
     });
   }
@@ -35,7 +63,7 @@ class UserProgressRepository {
     required String academyId,
     required String uid,
   }) async {
-    final ref = _ref(academyId: academyId, uid: uid);
+    final ref = _profileRef(academyId: academyId, uid: uid);
     final snap = await ref.get();
     if (snap.exists) return;
 
@@ -46,14 +74,32 @@ class UserProgressRepository {
       beltStartAt: DateTime(2025, 4, 28),
     );
 
-    await ref.set(profile.toMap());
+    await upsertProfile(academyId: academyId, uid: uid, profile: profile);
+  }
+
+  Future<void> upsertProfile({
+    required String academyId,
+    required String uid,
+    required UserProgressProfile profile,
+  }) async {
+    await _profileRef(academyId: academyId, uid: uid).set(
+      profile.toMap(),
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> save({
     required String academyId,
     required String uid,
     required UserProgressProfile profile,
+  }) {
+    return upsertProfile(academyId: academyId, uid: uid, profile: profile);
+  }
+
+  Future<void> deleteProfile({
+    required String academyId,
+    required String uid,
   }) async {
-    await _ref(academyId: academyId, uid: uid).set(profile.toMap());
+    await _profileRef(academyId: academyId, uid: uid).delete();
   }
 }

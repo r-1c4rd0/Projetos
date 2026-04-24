@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 @immutable
 class TitansColors extends ThemeExtension<TitansColors> {
-
   final Color background;
   final Color overlay;
   final Color card;
@@ -63,19 +62,28 @@ TitansColors titansColors(BuildContext context) =>
 /// DARK
 ThemeData buildTitansDarkTheme() {
   const ext = TitansColors(
-    background: Color(0xFF0B0D10),
-    overlay: Color(0xB3000000),
-    card: Color(0xCC12161D),
-    cardBorder: Color(0x332B3240),
-    textPrimary: Color(0xFFF2F3F5),
-    textSecondary: Color(0xB3F2F3F5),
-    accent: Color(0xFFF5C84C),
+    background: Color(0xFF070A0F),
+    overlay: Color(0xD9000000),
+    card: Color(0xE60B111A),
+    cardBorder: Color(0x38FFFFFF),
+    textPrimary: Color(0xFFF6F7FA),
+    textSecondary: Color(0xC9D7DCE8),
+    accent: Color(0xFFE9C46A),
   );
 
-
-  final scheme = ColorScheme.fromSeed(
+  final baseScheme = ColorScheme.fromSeed(
     seedColor: ext.accent,
     brightness: Brightness.dark,
+  );
+
+  final scheme = baseScheme.copyWith(
+    primary: ext.accent,
+    secondary: const Color(0xFF2D6BFF),
+    tertiary: const Color(0xFFB026FF),
+    surface: ext.background,
+    surfaceContainerHighest: ext.card,
+    onSurface: ext.textPrimary,
+    outline: ext.cardBorder,
   );
 
   return ThemeData(
@@ -83,7 +91,7 @@ ThemeData buildTitansDarkTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: ext.background,
     extensions: const [ext],
-    appBarTheme:  AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: ext.textPrimary,
       elevation: 0,
@@ -97,9 +105,17 @@ ThemeData buildTitansDarkTheme() {
         side: BorderSide(color: ext.cardBorder),
       ),
     ),
-    textTheme:  TextTheme(
-      titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ext.textPrimary),
-      titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ext.textPrimary),
+    textTheme: TextTheme(
+      titleLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: ext.textPrimary,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: ext.textPrimary,
+      ),
       bodyMedium: TextStyle(fontSize: 14, color: ext.textSecondary),
     ),
   );
@@ -117,9 +133,17 @@ ThemeData buildTitansLightTheme() {
     accent: Color(0xFFB8860B), // dourado mais “sóbrio” no claro
   );
 
-  final scheme = ColorScheme.fromSeed(
+  final baseScheme = ColorScheme.fromSeed(
     seedColor: ext.accent,
     brightness: Brightness.light,
+  );
+
+  final scheme = baseScheme.copyWith(
+    primary: ext.accent,
+    surface: ext.background,
+    surfaceContainerHighest: ext.card,
+    onSurface: ext.textPrimary,
+    outline: ext.cardBorder,
   );
 
   return ThemeData(
@@ -127,7 +151,7 @@ ThemeData buildTitansLightTheme() {
     colorScheme: scheme,
     scaffoldBackgroundColor: ext.background,
     extensions: const [ext],
-    appBarTheme:  AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: ext.textPrimary,
       elevation: 0,
@@ -141,9 +165,17 @@ ThemeData buildTitansLightTheme() {
         side: BorderSide(color: ext.cardBorder),
       ),
     ),
-    textTheme:  TextTheme(
-      titleLarge: TextStyle(fontSize: 22, fontWeight: FontWeight.w700, color: ext.textPrimary),
-      titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: ext.textPrimary),
+    textTheme: TextTheme(
+      titleLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: ext.textPrimary,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: ext.textPrimary,
+      ),
       bodyMedium: TextStyle(fontSize: 14, color: ext.textSecondary),
     ),
   );

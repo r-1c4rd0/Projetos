@@ -4,10 +4,10 @@ class TitansUI {
   static const radius = 18.0;
 
   static const bg = Color(0xFF070A0F);
-  static const card = Color(0xFF0C111A);
-  static const card2 = Color(0xFF0A0F17);
+  static const card = Color(0xFF0B111A);
+  static const card2 = Color(0xFF080D14);
 
-  static const stroke = Color(0x14FFFFFF);
+  static const stroke = Color(0x24FFFFFF);
 
   static const neonRed = Color(0xFFFF2D2D);
   static const neonPurple = Color(0xFFB026FF);

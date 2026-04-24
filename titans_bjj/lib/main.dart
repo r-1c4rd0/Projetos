@@ -20,6 +20,7 @@ import 'screen/training_screen.dart';
 // 🔒 Seleção de aluno (mestre → console do aluno)
 import 'service/selected_student.dart';
 import 'service/selected_student_scope.dart';
+import 'service/session_lifecycle.dart';
 import 'service/user_session.dart';
 
 final ThemeController themeController = ThemeController(
@@ -36,8 +37,29 @@ Future<void> main() async {
   runApp(const TitansApp());
 }
 
-class TitansApp extends StatelessWidget {
+class TitansApp extends StatefulWidget {
   const TitansApp({super.key});
+
+  @override
+  State<TitansApp> createState() => _TitansAppState();
+}
+
+class _TitansAppState extends State<TitansApp> {
+  late final SessionLifecycleService _sessionLifecycleService;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionLifecycleService = SessionLifecycleService(
+      selectedStudentController: selectedStudentController,
+    )..register();
+  }
+
+  @override
+  void dispose() {
+    _sessionLifecycleService.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {

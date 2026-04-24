@@ -4,6 +4,8 @@ import '../model/event_models.dart';
 import '../main.dart';
 import 'package:uuid/uuid.dart';
 
+import '../repository/event_repository.dart';
+import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
 class EventScreen extends StatefulWidget {
@@ -14,16 +16,34 @@ class EventScreen extends StatefulWidget {
 }
 
 class _EventScreenState extends State<EventScreen> {
-  final IEventRepository repo = InMemoryEventRepository();
+  late final IEventRepository repo;
+  late Future<List<EventModel>> _eventsFuture;
   EventType? filterType;
+  bool _repoReady = false;
+  bool _seeded = false;
 
   @override
-  void initState() {
-    super.initState();
-    _seedDemo();
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_repoReady) return;
+
+    final user = UserScope.of(context);
+    repo = EventRepository.build(academyId: user.academyId);
+    _eventsFuture = _seedAndLoad();
+    _repoReady = true;
+  }
+
+  Future<List<EventModel>> _seedAndLoad() async {
+    if (repo is InMemoryEventRepository) {
+      await _seedDemo();
+    }
+    return repo.list();
   }
 
   Future<void> _seedDemo() async {
+    if (_seeded) return;
+    _seeded = true;
+
     final now = DateTime.now();
     await repo.create(EventModel(
       id: const Uuid().v4(),
@@ -52,11 +72,22 @@ class _EventScreenState extends State<EventScreen> {
       location: 'Ginásio Municipal',
       description: 'Equipe completa, categorias adulto e master.',
     ));
+    if (!mounted) return;
     setState(() {});
+  }
+
+  void _reloadEvents() {
+    setState(() {
+      _eventsFuture = repo.list();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
+    if (!_repoReady) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
     return DefaultTabController(
       length: 2,
       child: TitansScaffold(
@@ -84,6 +115,7 @@ class _EventScreenState extends State<EventScreen> {
           ],
         ),
         floatingActionButton: FloatingActionButton(
+          heroTag: 'events_fab',
           onPressed: _openCreate,
           child: const Icon(Icons.add),
         ),
@@ -97,7 +129,7 @@ class _EventScreenState extends State<EventScreen> {
 
   Widget _buildList({required bool upcoming}) {
     return FutureBuilder<List<EventModel>>(
-      future: repo.list(),
+      future: _eventsFuture,
       builder: (context, snap) {
         if (!snap.hasData) return const Center(child: CircularProgressIndicator());
         final now = DateTime.now();
@@ -141,7 +173,7 @@ class _EventScreenState extends State<EventScreen> {
     );
     if (created != null) {
       await repo.create(created);
-      if (mounted) setState(() {});
+      if (mounted) _reloadEvents();
     }
   }
 
@@ -153,7 +185,7 @@ class _EventScreenState extends State<EventScreen> {
     );
     if (updated == null) return;
     await repo.update(updated);
-    if (mounted) setState(() {});
+    if (mounted) _reloadEvents();
   }
 
   IconData _iconForType(EventType t) {
@@ -201,6 +233,14 @@ class _EventFormState extends State<_EventForm> {
       _start = e.start;
       _end = e.end;
     }
+  }
+
+  @override
+  void dispose() {
+    _title.dispose();
+    _location.dispose();
+    _description.dispose();
+    super.dispose();
   }
 
   @override

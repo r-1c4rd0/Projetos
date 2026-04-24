@@ -17,8 +17,20 @@ class UserProgressProfile {
   });
 
   static BeltColor _beltFromString(String s) {
+    final normalized = s.trim().toLowerCase().replaceFirst('beltcolor.', '');
+    const aliases = {
+      'branca': BeltColor.white,
+      'azul': BeltColor.blue,
+      'roxa': BeltColor.purple,
+      'marrom': BeltColor.brown,
+      'preta': BeltColor.black,
+    };
+
+    final alias = aliases[normalized];
+    if (alias != null) return alias;
+
     return BeltColor.values.firstWhere(
-          (b) => b.name == s,
+      (b) => b.name == normalized,
       orElse: () => BeltColor.white,
     );
   }
@@ -26,6 +38,7 @@ class UserProgressProfile {
   static DateTime _dt(dynamic v) {
     if (v is Timestamp) return v.toDate();
     if (v is DateTime) return v;
+    if (v is num) return DateTime.fromMillisecondsSinceEpoch(v.toInt());
     return DateTime.tryParse(v?.toString() ?? '') ?? DateTime.now();
   }
 
@@ -35,14 +48,19 @@ class UserProgressProfile {
     return int.tryParse(v?.toString() ?? '') ?? fallback;
   }
 
+  static int? _nullableInt(dynamic v) {
+    if (v == null) return null;
+    if (v is int) return v;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString());
+  }
+
   factory UserProgressProfile.fromMap(Map<String, dynamic> map) {
     return UserProgressProfile(
       beltStartAt: _dt(map['beltStartAt']),
       currentBelt: _beltFromString((map['currentBelt'] ?? 'white').toString()),
       currentDegree: _int(map['currentDegree'], fallback: 0),
-      estimatedSessionsInBelt: map.containsKey('estimatedSessionsInBelt')
-          ? _int(map['estimatedSessionsInBelt'], fallback: 0)
-          : null,
+      estimatedSessionsInBelt: _nullableInt(map['estimatedSessionsInBelt']),
     );
   }
 

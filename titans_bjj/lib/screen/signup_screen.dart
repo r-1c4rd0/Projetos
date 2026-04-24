@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../model/grading_rules.dart';
 import '../repository/user_repository.dart';
@@ -26,11 +25,12 @@ class _SignupScreenState extends State<SignupScreen> {
 
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  late final UserRepository _repo = UserRepository.instance;
 
   BeltColor _belt = BeltColor.white;
   int _degree = 0;
 
-  String _role = 'athlete'; // athlete | master | admin
+  String _role = 'athlete'; // athlete | professor | admin
   bool _saving = false;
   Object? _error;
 
@@ -107,7 +107,7 @@ class _SignupScreenState extends State<SignupScreen> {
                         ),
                         items: const [
                           DropdownMenuItem(value: 'athlete', child: Text('Aluno')),
-                          DropdownMenuItem(value: 'master', child: Text('Mestre')),
+                          DropdownMenuItem(value: 'professor', child: Text('Mestre')),
                           DropdownMenuItem(value: 'admin', child: Text('Admin')),
                         ],
                         onChanged: (v) => setState(() => _role = v ?? 'athlete'),
@@ -206,28 +206,24 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() => _saving = true);
 
     try {
-      final repo = UserRepository(FirebaseFirestore.instance);
-
-
       final name = _nameCtrl.text.trim();
       final email = _emailCtrl.text.trim();
 
       // 1) upsert user doc (academies/{academyId}/users/{uid})
-      await repo.upsertUser(
+      await _repo.upsertUser(
         academyId: widget.academyId,
         uid: widget.uid,
         payload: {
           'name': name,
           'email': email,
-          'role': _role, // athlete/master/admin
+          'role': _role, // athlete/professor/admin
           'belt': _belt.name,
           'degree': _degree,
-          'createdAt': FieldValue.serverTimestamp(),
         },
       );
 
       // 2) bootstrap progress + nutrition (ids padrão que suas telas esperam)
-      await repo.ensureBootstrapDocs(
+      await _repo.ensureBootstrapDocs(
         academyId: widget.academyId,
         uid: widget.uid,
         belt: _belt,
@@ -235,7 +231,7 @@ class _SignupScreenState extends State<SignupScreen> {
       );
 
       // 3) ler AppUser e subir UserScope
-      final user = await repo.getUser(academyId: widget.academyId, uid: widget.uid);
+      final user = await _repo.getUser(academyId: widget.academyId, uid: widget.uid);
       if (!mounted) return;
       if (user == null) {
         throw Exception('Falha ao ler usuário após salvar cadastro.');

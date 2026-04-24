@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
@@ -35,7 +34,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
 
   bool _saving = false;
 
-  late final TrainingRepository repo = TrainingRepository(FirebaseFirestore.instance);
+  late final TrainingRepository repo = TrainingRepository.instance;
 
   @override
   void dispose() {

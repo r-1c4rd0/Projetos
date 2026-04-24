@@ -1,4 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../repository/user_repository.dart';
@@ -7,7 +6,7 @@ import '../widgets/titans_scaffold.dart';
 import '../model/app_user.dart';
 import 'signup_screen.dart';
 
-class SignupGateScreen extends StatelessWidget {
+class SignupGateScreen extends StatefulWidget {
   final String academyId;
   final String uid;
   final String? email;
@@ -20,14 +19,29 @@ class SignupGateScreen extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final repo = UserRepository(FirebaseFirestore.instance);
+  State<SignupGateScreen> createState() => _SignupGateScreenState();
+}
 
+class _SignupGateScreenState extends State<SignupGateScreen> {
+  late final UserRepository _repo = UserRepository.instance;
+  late final Future<AppUser?> _userFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _userFuture = _repo.getUser(
+      academyId: widget.academyId,
+      uid: widget.uid,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
     return TitansScaffold(
       scroll: false,
       appBar: AppBar(title: const Text('Verificando cadastro')),
       body: FutureBuilder<AppUser?>(
-        future: repo.getUser(academyId: academyId, uid: uid),
+        future: _userFuture,
         builder: (context, snap) {
           if (!snap.hasData && snap.connectionState != ConnectionState.done) {
             return const Center(child: CircularProgressIndicator());
@@ -45,9 +59,9 @@ class SignupGateScreen extends StatelessWidget {
           if (user == null) {
             // ✅ não existe no firestore -> cadastro
             return SignupScreen(
-              academyId: academyId,
-              uid: uid,
-              email: email,
+              academyId: widget.academyId,
+              uid: widget.uid,
+              email: widget.email,
             );
           }
 

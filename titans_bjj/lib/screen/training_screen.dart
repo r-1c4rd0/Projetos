@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../model/progress_period.dart';
 import '../model/training_session.dart';
@@ -25,8 +24,7 @@ class TrainingScreen extends StatefulWidget {
 class _TrainingScreenState extends State<TrainingScreen> {
   ProgressPeriod _period = ProgressPeriod.month;
 
-  late final TrainingRepository _repo =
-  TrainingRepository(FirebaseFirestore.instance);
+  late final TrainingRepository _repo = TrainingRepository.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +69,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'training_fab',
         onPressed: () async {
           await Navigator.of(context).push(
             MaterialPageRoute(

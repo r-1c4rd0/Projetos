@@ -46,6 +46,7 @@ class _ShoppingScreenState extends State<ShoppingScreen> {
         title: const Text('Compras'),
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'shopping_fab',
         onPressed: _addItem,
         child: const Icon(Icons.add_shopping_cart),
       ),

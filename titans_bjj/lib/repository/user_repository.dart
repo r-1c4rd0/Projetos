@@ -1,111 +1,159 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
 
 class UserRepository {
-  /// Named private constructor used by [instance].
   UserRepository._(this.db);
-
-  /// Public constructor so screens can instantiate directly:
-  ///   `UserRepository(FirebaseFirestore.instance)`
   UserRepository(this.db);
 
   final FirebaseFirestore db;
 
-  static final UserRepository instance = UserRepository._(FirebaseFirestore.instance);
+  static final UserRepository instance =
+      UserRepository._(FirebaseFirestore.instance);
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Internal helpers
-  // ────────────────────────────────────────────────────────────────────────
+  DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
+    return db.collection('academies').doc(academyId);
+  }
+
+  CollectionReference<Map<String, dynamic>> _usersCollectionRef(
+    String academyId,
+  ) {
+    return _academyRef(academyId).collection('users');
+  }
 
   DocumentReference<Map<String, dynamic>> _userRef({
     required String academyId,
     required String uid,
   }) {
-    return db.collection('academies').doc(academyId).collection('users').doc(uid);
+    return _usersCollectionRef(academyId).doc(uid);
   }
 
-  // ────────────────────────────────────────────────────────────────────────
-  // Public API
-  // ────────────────────────────────────────────────────────────────────────
+  DocumentReference<Map<String, dynamic>> _progressProfileRef({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid)
+        .collection('progress')
+        .doc('profile');
+  }
 
-  /// Reads and returns an [AppUser], or `null` if the document doesn't exist.
+  DocumentReference<Map<String, dynamic>> _nutritionProfileRef({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid)
+        .collection('nutrition')
+        .doc('profile');
+  }
+
   Future<AppUser?> getUser({
     required String academyId,
     required String uid,
   }) async {
     final snap = await _userRef(academyId: academyId, uid: uid).get();
-    if (!snap.exists) return null;
     final data = snap.data();
-    if (data == null) return null;
+    if (!snap.exists || data == null) return null;
     return AppUser.fromMap(uid, data);
   }
 
-  /// Writes (merge) an arbitrary [payload] to the user document.
-  /// Used by signup_screen to persist name, role, belt, etc.
+  Stream<AppUser?> watchUser({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid).snapshots().map((snap) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      return AppUser.fromMap(uid, data);
+    });
+  }
+
   Future<void> upsertUser({
     required String academyId,
     required String uid,
     required Map<String, dynamic> payload,
   }) async {
+    final ref = _userRef(academyId: academyId, uid: uid);
+    final snap = await ref.get();
+    final data = {
+      ...payload,
+      'academyId': academyId,
+      'updatedAt': FieldValue.serverTimestamp(),
+      if (!snap.exists && !payload.containsKey('createdAt'))
+        'createdAt': FieldValue.serverTimestamp(),
+    };
+
+    await ref.set(data, SetOptions(merge: true));
+  }
+
+  Future<void> updateBeltDegree({
+    required String academyId,
+    required String uid,
+    BeltColor? belt,
+    int? degree,
+  }) async {
+    if (belt == null && degree == null) return;
+
+    final maxDegree =
+        belt == null ? 12 : GradingRules.fallbackMaxDegrees(belt);
+    final payload = <String, dynamic>{
+      if (belt != null) 'belt': belt.name,
+      if (degree != null) 'degree': degree.clamp(0, maxDegree).toInt(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+
     await _userRef(academyId: academyId, uid: uid).set(
-      {
-        ...payload,
-        'academyId': academyId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
+      payload,
       SetOptions(merge: true),
     );
   }
 
-  /// Ensures a default user doc exists; creates one with role=athlete if absent.
-  /// Returns the (possibly newly created) [AppUser].
+  Future<void> deleteUser({
+    required String academyId,
+    required String uid,
+  }) async {
+    await _userRef(academyId: academyId, uid: uid).delete();
+  }
+
   Future<AppUser> ensureUserDoc({
     required String uid,
     required String email,
     required String academyId,
   }) async {
     final ref = _userRef(academyId: academyId, uid: uid);
-
     final snap = await ref.get();
+
     if (!snap.exists) {
-      // MVP: default athlete
-      // Você pode promover mestre manualmente no Firestore (role=professor/admin)
+      // MVP: default athlete. Promote professor/admin manually in Firestore.
       await ref.set({
         'email': email,
         'academyId': academyId,
         'role': UserRole.athlete.name,
+        'belt': BeltColor.white.name,
+        'degree': 0,
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      // bootstrap docs que suas telas esperam
-      await ensureBootstrapDocs(academyId: academyId, uid: uid);
     } else {
-      // garante campos essenciais e não "quebra" role existente
       final data = snap.data() ?? {};
-      final roleStr = (data['role'] ?? UserRole.athlete.name) as String;
+      final roleStr = (data['role'] ?? UserRole.athlete.name).toString();
 
       await ref.set({
         'email': email,
         'academyId': academyId,
         'role': roleStr,
+        if (!data.containsKey('belt')) 'belt': BeltColor.white.name,
+        if (!data.containsKey('degree')) 'degree': 0,
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
-
-      await ensureBootstrapDocs(academyId: academyId, uid: uid);
     }
 
+    await ensureBootstrapDocs(academyId: academyId, uid: uid);
+
     final fresh = await ref.get();
-    final data = fresh.data() ?? {};
-    return AppUser.fromMap(uid, data);
+    return AppUser.fromMap(uid, fresh.data() ?? {});
   }
 
-  /// Creates the default Firestore sub-documents (progress/profile,
-  /// nutrition/profile) that the app screens expect.
-  ///
-  /// Also accepts optional [belt] and [degree] so that signup_screen can
-  /// seed progress data at registration time.
   Future<void> ensureBootstrapDocs({
     required String academyId,
     required String uid,
@@ -114,15 +162,10 @@ class UserRepository {
   }) async {
     final batch = db.batch();
 
-    // progress/profile
-    final progressProfile = db
-        .collection('academies')
-        .doc(academyId)
-        .collection('users')
-        .doc(uid)
-        .collection('progress')
-        .doc('profile');
-
+    final progressProfile = _progressProfileRef(
+      academyId: academyId,
+      uid: uid,
+    );
     batch.set(progressProfile, {
       'currentBelt': belt?.name ?? 'white',
       'currentDegree': degree ?? 0,
@@ -131,15 +174,10 @@ class UserRepository {
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
 
-    // nutrition/profile
-    final nutritionProfile = db
-        .collection('academies')
-        .doc(academyId)
-        .collection('users')
-        .doc(uid)
-        .collection('nutrition')
-        .doc('profile');
-
+    final nutritionProfile = _nutritionProfileRef(
+      academyId: academyId,
+      uid: uid,
+    );
     batch.set(nutritionProfile, {
       'age': 30,
       'sex': 'male',

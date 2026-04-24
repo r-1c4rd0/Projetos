@@ -1,5 +1,8 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import '../core/titans_theme.dart';
 
 class BackgroundScaffold extends StatelessWidget {
   final Widget child;
@@ -13,27 +16,33 @@ class BackgroundScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final tc = titansColors(context);
+    final hasImage = backgroundImagePath != null &&
+        backgroundImagePath!.isNotEmpty &&
+        File(backgroundImagePath!).existsSync();
 
     return Stack(
       children: [
         Positioned.fill(
-          child: (backgroundImagePath != null &&
-              backgroundImagePath!.isNotEmpty &&
-              File(backgroundImagePath!).existsSync())
+          child: hasImage
               ? Image.file(File(backgroundImagePath!), fit: BoxFit.cover)
-              : Container(color: theme.scaffoldBackgroundColor),
+              : Container(color: tc.background),
         ),
-
-        // overlay
         Positioned.fill(
-          child: Container(
-            color: (theme.brightness == Brightness.dark)
-                ? Colors.black.withValues(alpha: 0.55)
-                : Colors.white.withValues(alpha: 0.55),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: tc.overlay.withValues(alpha: hasImage ? 0.82 : 0.18),
+              gradient: RadialGradient(
+                center: const Alignment(-0.85, -0.9),
+                radius: 1.15,
+                colors: [
+                  tc.accent.withValues(alpha: 0.08),
+                  Colors.transparent,
+                ],
+              ),
+            ),
           ),
         ),
-
         SafeArea(child: child),
       ],
     );

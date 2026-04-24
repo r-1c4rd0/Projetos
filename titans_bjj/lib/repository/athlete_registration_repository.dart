@@ -12,7 +12,69 @@ class AthleteRegistrationRepository {
   final UserRepository _userRepository;
   final Uuid _uuid = const Uuid();
 
-  /// Persists the athlete profile and boots the progress/nutrition docs.
+  static final AthleteRegistrationRepository instance =
+      AthleteRegistrationRepository(FirebaseFirestore.instance);
+
+  DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
+    return db.collection('academies').doc(academyId);
+  }
+
+  CollectionReference<Map<String, dynamic>> _usersCollectionRef(
+    String academyId,
+  ) {
+    return _academyRef(academyId).collection('users');
+  }
+
+  DocumentReference<Map<String, dynamic>> _userRef({
+    required String academyId,
+    required String uid,
+  }) {
+    return _usersCollectionRef(academyId).doc(uid);
+  }
+
+  Future<Map<String, dynamic>?> getAthlete({
+    required String academyId,
+    required String uid,
+  }) async {
+    final snap = await _userRef(academyId: academyId, uid: uid).get();
+    final data = snap.data();
+    if (!snap.exists || data == null) return null;
+    return data;
+  }
+
+  Stream<Map<String, dynamic>?> watchAthlete({
+    required String academyId,
+    required String uid,
+  }) {
+    return _userRef(academyId: academyId, uid: uid).snapshots().map((snap) {
+      final data = snap.data();
+      if (!snap.exists || data == null) return null;
+      return data;
+    });
+  }
+
+  Future<void> upsertAthletePayload({
+    required String academyId,
+    required String uid,
+    required Map<String, dynamic> payload,
+  }) async {
+    await _userRef(academyId: academyId, uid: uid).set(
+      {
+        ...payload,
+        'academyId': academyId,
+        'updatedAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+  }
+
+  Future<void> deleteAthlete({
+    required String academyId,
+    required String uid,
+  }) async {
+    await _userRef(academyId: academyId, uid: uid).delete();
+  }
+
   Future<void> registerAthlete({
     required String academyId,
     required String name,
@@ -43,7 +105,7 @@ class AthleteRegistrationRepository {
 
     final uid = _uuid.v4();
 
-    await _userRepository.upsertUser(
+    await upsertAthletePayload(
       academyId: academyId,
       uid: uid,
       payload: payload,

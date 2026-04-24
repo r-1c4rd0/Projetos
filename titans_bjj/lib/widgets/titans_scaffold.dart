@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/titans_theme.dart';
+
 class TitansScaffold extends StatelessWidget {
+  static const double _fabScreenMargin = 16;
+  static const double _homeNavigationBarHeight = 72;
+
   final PreferredSizeWidget? appBar;
   final Widget body;
   final Widget? floatingActionButton;
@@ -9,6 +14,13 @@ class TitansScaffold extends StatelessWidget {
   /// When true, wraps [body] in a [SingleChildScrollView].
   final bool scroll;
 
+  /// Bottom margin for FAB to avoid overlapping with bottom navigation or safe area.
+  /// Used to position FAB above NavigationBar in HomeShell layout.
+  final double floatingActionButtonMarginBottom;
+
+  /// Keeps FABs above HomeShell's NavigationBar when the parent Scaffold uses extendBody.
+  final bool avoidBottomNavigationBarOverlap;
+
   const TitansScaffold({
     super.key,
     this.appBar,
@@ -16,11 +28,22 @@ class TitansScaffold extends StatelessWidget {
     this.floatingActionButton,
     this.padding,
     this.scroll = false,
+    this.floatingActionButtonMarginBottom = 0,
+    this.avoidBottomNavigationBarOverlap = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final tc = titansColors(context);
+    final media = MediaQuery.of(context);
+    final defaultFabBottomOffset =
+        media.viewPadding.bottom + _homeNavigationBarHeight;
+    final fabBottomOffset = floatingActionButtonMarginBottom > 0
+        ? floatingActionButtonMarginBottom
+        : avoidBottomNavigationBarOverlap && floatingActionButton != null
+            ? defaultFabBottomOffset
+            : 0.0;
 
     Widget content = Padding(
       padding: padding ?? const EdgeInsets.all(16),
@@ -32,30 +55,55 @@ class TitansScaffold extends StatelessWidget {
     }
 
     return Scaffold(
-      extendBody: true,
       appBar: appBar,
       floatingActionButton: floatingActionButton,
+      floatingActionButtonLocation: fabBottomOffset > 0
+          ? _TitansFabLocation(bottomOffset: fabBottomOffset)
+          : null,
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
-          gradient: RadialGradient(
-            center: const Alignment(-0.85, -0.9),
-            radius: 1.4,
+          color: tc.background,
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
             colors: [
-              cs.primary.withValues(alpha: 0.14),
-              cs.surface.withValues(alpha: 0.02),
-              cs.surface,
+              tc.background,
+              Color.lerp(tc.background, cs.secondary, 0.08)!,
+              Color.lerp(tc.background, cs.tertiary, 0.05)!,
+              tc.background,
             ],
+            stops: const [0, 0.38, 0.72, 1],
           ),
         ),
         child: Stack(
           children: [
-            // "grid/noise" simples (barato e dá textura)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.9, -0.95),
+                      radius: 1.15,
+                      colors: [
+                        tc.accent.withValues(alpha: 0.10),
+                        cs.secondary.withValues(alpha: 0.045),
+                        Colors.transparent,
+                      ],
+                      stops: const [0, 0.42, 1],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            // "grid/noise" simples (barato e da textura)
             IgnorePointer(
               child: Opacity(
-                opacity: 0.08,
+                opacity: 0.06,
                 child: CustomPaint(
-                  painter: _DotGridPainter(color: cs.onSurface.withValues(alpha: 0.9)),
+                  painter: _DotGridPainter(
+                    color: tc.textPrimary.withValues(alpha: 0.75),
+                  ),
                   size: Size.infinite,
                 ),
               ),
@@ -71,8 +119,8 @@ class TitansScaffold extends StatelessWidget {
                       end: Alignment.bottomCenter,
                       colors: [
                         Colors.transparent,
-                        cs.surface.withValues(alpha: 0.55),
-                        cs.surface.withValues(alpha: 0.85),
+                        tc.background.withValues(alpha: 0.74),
+                        tc.background.withValues(alpha: 0.96),
                       ],
                     ),
                   ),
@@ -86,6 +134,32 @@ class TitansScaffold extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TitansFabLocation extends FloatingActionButtonLocation {
+  final double bottomOffset;
+
+  const _TitansFabLocation({required this.bottomOffset});
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final fabSize = scaffoldGeometry.floatingActionButtonSize;
+    final scaffoldSize = scaffoldGeometry.scaffoldSize;
+
+    final fabX = scaffoldGeometry.textDirection == TextDirection.rtl
+        ? TitansScaffold._fabScreenMargin
+        : scaffoldSize.width - fabSize.width - TitansScaffold._fabScreenMargin;
+
+    final fabY = scaffoldSize.height -
+        fabSize.height -
+        TitansScaffold._fabScreenMargin -
+        bottomOffset;
+
+    return Offset(
+      fabX,
+      fabY.clamp(0.0, scaffoldSize.height - fabSize.height).toDouble(),
     );
   }
 }
