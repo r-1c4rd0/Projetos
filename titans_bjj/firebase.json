@@ -1,1 +1,26 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"titans-bjj-app","appId":"1:231897107967:android:dc35c310ad79b117512bca","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"titans-bjj-app","configurations":{"android":"1:231897107967:android:dc35c310ad79b117512bca","ios":"1:231897107967:ios:2a576981943660ad512bca","web":"1:231897107967:web:8d8d8f73a35c1859512bca"}}}}}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "titans-bjj-app",
+          "appId": "1:231897107967:android:dc35c310ad79b117512bca",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "titans-bjj-app",
+          "configurations": {
+            "android": "1:231897107967:android:dc35c310ad79b117512bca",
+            "ios": "1:231897107967:ios:2a576981943660ad512bca",
+            "web": "1:231897107967:web:8d8d8f73a35c1859512bca"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules"
+  }
+}

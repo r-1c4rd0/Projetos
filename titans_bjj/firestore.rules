@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isSelf(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    function academyUserDoc(academyId, uid) {
+      return get(/databases/$(database)/documents/academies/$(academyId)/users/$(uid));
+    }
+
+    function hasAcademyUserDoc(academyId, uid) {
+      return exists(/databases/$(database)/documents/academies/$(academyId)/users/$(uid));
+    }
+
+    function currentUserRole(academyId) {
+      return hasAcademyUserDoc(academyId, request.auth.uid)
+        ? academyUserDoc(academyId, request.auth.uid).data.role
+        : null;
+    }
+
+    function isAcademyAdmin(academyId) {
+      return isAcademyMember(academyId)
+        && currentUserRole(academyId) == 'admin';
+    }
+
+    function isAcademyProfessor(academyId) {
+      return isAcademyMember(academyId)
+        && currentUserRole(academyId) == 'professor';
+    }
+
+    function isAcademyStaff(academyId) {
+      return isAcademyAdmin(academyId) || isAcademyProfessor(academyId);
+    }
+
+    function isAcademyMember(academyId) {
+      return signedIn()
+        && hasAcademyUserDoc(academyId, request.auth.uid)
+        && academyUserDoc(academyId, request.auth.uid).data.academyId == academyId;
+    }
+
+    function keepsSameAcademyId(academyId) {
+      return request.resource.data.academyId == academyId
+        && (!resource.data.keys().hasAny(['academyId']) || resource.data.academyId == academyId);
+    }
+
+    function keepsSafeRole() {
+      return !resource.data.keys().hasAny(['role'])
+        || request.resource.data.role == resource.data.role;
+    }
+
+    function hasAthleteRole(data) {
+      return !data.keys().hasAny(['role']) || data.role == 'athlete';
+    }
+
+    function selfCreateAcademyUserPayload(academyId) {
+      return request.resource.data.academyId == academyId
+        && hasAthleteRole(request.resource.data);
+    }
+
+    function selfUpdateAcademyUserPayload(academyId) {
+      return keepsSameAcademyId(academyId) && keepsSafeRole();
+    }
+
+    function staffCreateStudentPayload(academyId) {
+      return request.resource.data.academyId == academyId
+        && hasAthleteRole(request.resource.data);
+    }
+
+    function staffUpdateStudentPayload(academyId) {
+      return keepsSameAcademyId(academyId)
+        && hasAthleteRole(resource.data)
+        && hasAthleteRole(request.resource.data);
+    }
+
+    function selfCreateRootUserPayload() {
+      return hasAthleteRole(request.resource.data);
+    }
+
+    function selfUpdateRootUserPayload() {
+      return keepsSafeRole()
+        && (!resource.data.keys().hasAny(['academyId'])
+          || request.resource.data.academyId == resource.data.academyId);
+    }
+
+    match /users/{uid} {
+      allow get: if isSelf(uid);
+      allow list: if false;
+      allow create: if isSelf(uid) && selfCreateRootUserPayload();
+      allow update: if isSelf(uid) && selfUpdateRootUserPayload();
+      allow delete: if false;
+
+      match /private/{docId} {
+        allow read, write: if isSelf(uid);
+      }
+
+      match /academyMemberships/{academyId} {
+        allow read: if isSelf(uid);
+        allow write: if false;
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /academies/{academyId} {
+      allow get: if isAcademyMember(academyId);
+      allow list: if false;
+      allow create, update, delete: if isAcademyAdmin(academyId);
+
+      match /users/{uid} {
+        allow get: if isSelf(uid) || isAcademyStaff(academyId);
+        allow list: if isAcademyStaff(academyId);
+
+        allow create: if (isSelf(uid) && selfCreateAcademyUserPayload(academyId))
+          || (isAcademyStaff(academyId) && staffCreateStudentPayload(academyId));
+
+        allow update: if (isSelf(uid) && selfUpdateAcademyUserPayload(academyId))
+          || (isAcademyStaff(academyId) && staffUpdateStudentPayload(academyId));
+
+        allow delete: if isAcademyStaff(academyId)
+          && hasAthleteRole(resource.data);
+
+        match /{document=**} {
+          allow read, write: if isSelf(uid) || isAcademyStaff(academyId);
+        }
+      }
+
+      match /grading_rules/{docId} {
+        allow get, list: if isAcademyMember(academyId);
+        allow create, update, delete: if isAcademyStaff(academyId);
+      }
+
+      match /{document=**} {
+        allow read, write: if false;
+      }
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
