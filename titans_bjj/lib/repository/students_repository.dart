@@ -193,12 +193,16 @@ class StudentRepository implements IStudentRepository {
 }
 
 class InMemoryStudentRepository implements IStudentRepository {
-  final List<StudentVm> _students = const [
+  // TODO multi-academy: substituir pelo academyId ativo quando mocks suportarem
+  // selecao de academia.
+  static String get _fallbackAcademyId => AppConfig.resolveActiveAcademyId();
+
+  late final List<StudentVm> _students = [
     StudentVm(
       uid: 'mock1',
       name: 'Marco "Caveira" Santos',
       role: 'athlete',
-      academyId: 'default',
+      academyId: _fallbackAcademyId,
       belt: BeltColor.black,
       degree: 2,
     ),
@@ -206,7 +210,7 @@ class InMemoryStudentRepository implements IStudentRepository {
       uid: 'mock2',
       name: 'Luna Cyberfist',
       role: 'athlete',
-      academyId: 'default',
+      academyId: _fallbackAcademyId,
       belt: BeltColor.purple,
       degree: 3,
     ),
@@ -214,7 +218,7 @@ class InMemoryStudentRepository implements IStudentRepository {
       uid: 'mock3',
       name: 'Renato "Blade" Silva',
       role: 'athlete',
-      academyId: 'default',
+      academyId: _fallbackAcademyId,
       belt: BeltColor.blue,
       degree: 1,
     ),

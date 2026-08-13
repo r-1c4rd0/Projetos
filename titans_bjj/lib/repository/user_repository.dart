@@ -13,7 +13,11 @@ class UserRepository {
       UserRepository._(FirebaseFirestore.instance);
 
   DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
-    return db.collection('academies').doc(academyId);
+    final resolvedAcademyId = academyId.trim();
+    if (resolvedAcademyId.isEmpty) {
+      throw ArgumentError.value(academyId, 'academyId', 'nao pode ser vazio');
+    }
+    return db.collection('academies').doc(resolvedAcademyId);
   }
 
   CollectionReference<Map<String, dynamic>> _usersCollectionRef(
@@ -124,7 +128,7 @@ class UserRepository {
     final snap = await ref.get();
 
     if (!snap.exists) {
-      // MVP: default athlete. Promote professor/admin manually in Firestore.
+      // MVP: new users start as athlete. Promote professor/admin manually in Firestore.
       await ref.set({
         'email': email,
         'academyId': academyId,

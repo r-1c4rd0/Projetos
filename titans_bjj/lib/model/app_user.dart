@@ -1,3 +1,4 @@
+import '../config/app_config.dart';
 import 'grading_rules.dart';
 
 enum UserRole { admin, professor, athlete }
@@ -27,11 +28,17 @@ class AppUser {
       (r) => r.name == roleStr,
       orElse: () => UserRole.athlete,
     );
+    final mappedAcademyId = map['academyId']?.toString().trim();
+
     return AppUser(
       uid: uid,
       name: (map['name'] ?? '').toString(),
       email: (map['email'] ?? '') as String,
-      academyId: (map['academyId'] ?? 'default') as String,
+      academyId: mappedAcademyId == null || mappedAcademyId.isEmpty
+          // TODO multi-academy: remover fallback apos documentos legados terem
+          // membership/academia ativa obrigatoria.
+          ? AppConfig.resolveActiveAcademyId()
+          : mappedAcademyId,
       role: role,
       belt: beltColorFromString(map['belt']),
       degree: _degreeFromValue(map['degree']),
