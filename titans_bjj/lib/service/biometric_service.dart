@@ -1,51 +1,60 @@
+// ignore_for_file: avoid_print
+
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
+class BioStatus {
+  const BioStatus({
+    required this.supported,
+    required this.enrolled,
+    required this.types,
+    required this.reason,
+  });
+
+  final bool supported;
+  final bool enrolled;
+  final List<BiometricType> types;
+  final String reason;
+}
+
 class BiometricService {
   BiometricService._();
-  static final instance = BiometricService._();
 
-  final LocalAuthentication _auth = LocalAuthentication();
-  String? lastErrorMessage;
+  static final _auth = LocalAuthentication();
 
-  Future<bool> isAvailable() async {
-    lastErrorMessage = null;
-
+  static Future<BioStatus> status() async {
     try {
       final supported = await _auth.isDeviceSupported();
-      if (!supported) {
-        lastErrorMessage = 'Biometria indisponivel neste aparelho.';
-        return false;
-      }
-
       final canCheck = await _auth.canCheckBiometrics;
-      if (!canCheck) {
-        lastErrorMessage = 'Cadastre uma biometria nas configuracoes.';
-        return false;
-      }
+      final types = await _auth.getAvailableBiometrics();
+      final enrolled = canCheck && types.isNotEmpty;
+      final reason = _reasonFor(
+        supported: supported,
+        canCheck: canCheck,
+        types: types,
+      );
 
-      final biometrics = await _auth.getAvailableBiometrics();
-      if (biometrics.isEmpty) {
-        lastErrorMessage = 'Cadastre uma biometria nas configuracoes.';
-        return false;
-      }
+      print(
+        '[BIO] supported=$supported canCheck=$canCheck types=$types enrolled=$enrolled reason=$reason',
+      );
 
-      return true;
+      return BioStatus(
+        supported: supported,
+        enrolled: enrolled,
+        types: types,
+        reason: reason,
+      );
     } on PlatformException catch (e) {
-      return _handleAvailabilityException(e);
-    } catch (_) {
-      lastErrorMessage = 'Nao foi possivel verificar a biometria.';
-      return false;
+      print('[BIO][ERR] code=${e.code} msg=${e.message}');
+      return _fallbackStatus();
+    } catch (e) {
+      print('[BIO][ERR] $e');
+      return _fallbackStatus();
     }
   }
 
-  Future<bool> authenticate({
-    String reason = 'Desbloquear com biometria',
-  }) async {
+  static Future<bool> authenticate(String reason) async {
     try {
-      final available = await isAvailable();
-      if (!available) return false;
-
       return await _auth.authenticate(
         localizedReason: reason,
         options: const AuthenticationOptions(
@@ -55,57 +64,42 @@ class BiometricService {
         ),
       );
     } on PlatformException catch (e) {
-      _setAuthenticationError(e);
+      print('[BIO][ERR] code=${e.code} msg=${e.message}');
       return false;
-    } catch (_) {
-      lastErrorMessage = 'Nao foi possivel confirmar a biometria.';
+    } catch (e) {
+      print('[BIO][ERR] $e');
       return false;
     }
   }
 
-  bool _handleAvailabilityException(PlatformException e) {
-    switch (_normalizeCode(e.code)) {
-      case 'notenrolled':
-      case 'nobiometrics':
-        lastErrorMessage = 'Cadastre uma biometria nas configuracoes.';
-        return false;
-      case 'notavailable':
-      case 'nohardware':
-        lastErrorMessage = 'Biometria indisponivel neste aparelho.';
-        return false;
-      case 'lockedout':
-      case 'permanentlylockedout':
-        lastErrorMessage = 'Biometria bloqueada. Tente novamente mais tarde.';
-        return false;
-      case 'passcodenotset':
-        lastErrorMessage = 'Configure o bloqueio de tela para usar biometria.';
-        return false;
-      default:
-        lastErrorMessage = 'Nao foi possivel verificar a biometria.';
-        return false;
+  static String _reasonFor({
+    required bool supported,
+    required bool canCheck,
+    required List<BiometricType> types,
+  }) {
+    if (!supported) {
+      return 'device_not_supported';
     }
+    if (!canCheck) {
+      return 'cannot_check';
+    }
+    if (types.isEmpty) {
+      return 'not_enrolled';
+    }
+
+    return 'ok';
   }
 
-  void _setAuthenticationError(PlatformException e) {
-    switch (_normalizeCode(e.code)) {
-      case 'lockedout':
-      case 'permanentlylockedout':
-        lastErrorMessage = 'Biometria bloqueada. Tente novamente mais tarde.';
-        return;
-      case 'notenrolled':
-      case 'nobiometrics':
-        lastErrorMessage = 'Cadastre uma biometria nas configuracoes.';
-        return;
-      case 'notavailable':
-      case 'nohardware':
-        lastErrorMessage = 'Biometria indisponivel neste aparelho.';
-        return;
-      default:
-        lastErrorMessage = 'Biometria nao confirmada.';
-    }
-  }
-
-  String _normalizeCode(String code) {
-    return code.toLowerCase().replaceAll(RegExp(r'[_\-\s]'), '');
+  static BioStatus _fallbackStatus() {
+    const status = BioStatus(
+      supported: false,
+      enrolled: false,
+      types: [],
+      reason: 'status_error',
+    );
+    print(
+      '[BIO] supported=${status.supported} canCheck=false types=${status.types} enrolled=${status.enrolled} reason=${status.reason}',
+    );
+    return status;
   }
 }

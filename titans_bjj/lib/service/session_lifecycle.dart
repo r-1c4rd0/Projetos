@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/widgets.dart';
 
 import 'selected_student.dart';
+import 'session_lock_controller.dart';
 
 class SessionLifecycleService with WidgetsBindingObserver {
   SessionLifecycleService({this.selectedStudentController});
@@ -11,8 +11,6 @@ class SessionLifecycleService with WidgetsBindingObserver {
   final SelectedStudentController? selectedStudentController;
 
   bool _registered = false;
-  bool _signingOut = false;
-  DateTime? _lastSignOutAt;
 
   void register() {
     if (_registered) return;
@@ -32,32 +30,16 @@ class SessionLifecycleService with WidgetsBindingObserver {
   }
 
   Future<void> onAppLifecycleStateChanged(AppLifecycleState state) async {
-    if (state != AppLifecycleState.paused &&
+    if (state != AppLifecycleState.inactive &&
+        state != AppLifecycleState.paused &&
         state != AppLifecycleState.detached) {
       return;
     }
 
-    if (_signingOut || _isDebounced()) return;
-
-    _signingOut = true;
-    _lastSignOutAt = DateTime.now();
-
     try {
-      selectedStudentController?.clear();
-      await FirebaseAuth.instance.signOut();
+      SessionLockController.instance.lock();
     } catch (_) {
-      // Best effort: forced app termination by the OS may not deliver lifecycle
-      // callbacks, and sign-out must never crash the app while closing.
-    } finally {
-      _signingOut = false;
+      // Best effort: lifecycle callbacks must never crash while the app closes.
     }
-  }
-
-  bool _isDebounced() {
-    final lastSignOutAt = _lastSignOutAt;
-    if (lastSignOutAt == null) return false;
-
-    return DateTime.now().difference(lastSignOutAt) <
-        const Duration(milliseconds: 800);
   }
 }

@@ -1,11 +1,18 @@
-import 'package:firebase_auth/firebase_auth.dart';
+﻿import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../service/biometric_service.dart';
+import '../service/session_lock_controller.dart';
 import '../widgets/titans_logo.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  final bool unlockOnly;
+
+  const LoginScreen({
+    super.key,
+    this.unlockOnly = false,
+  });
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
@@ -13,64 +20,57 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   final _email = TextEditingController();
   final _pass = TextEditingController();
-  bool _loading = false;
-  String? _error;
 
-  bool _bioAvailable = false;
+  bool _loading = false;
+  bool _bioReady = false;
   bool _hasSession = false;
+  bool _refreshingBio = false;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _refreshBioState();
+    _reloadBio();
   }
 
-  Future<void> _refreshBioState({
-    bool showLoading = false,
-    bool showUnavailableError = false,
-  }) async {
-    if (showLoading) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-    }
+  @override
+  void dispose() {
+    _email.dispose();
+    _pass.dispose();
+    super.dispose();
+  }
 
-    try {
-      final available = await BiometricService.instance.isAvailable();
-      final hasUser = FirebaseAuth.instance.currentUser != null;
+  Future<void> _reloadBio() async {
+    if (_refreshingBio) return;
 
-      if (!mounted) return;
+    setState(() {
+      _refreshingBio = true;
+      _error = null;
+    });
 
-      setState(() {
-        _bioAvailable = available;
-        _hasSession = hasUser;
-        _error =
-            showUnavailableError && !available
-                ? BiometricService.instance.lastErrorMessage ??
-                    'Biometria indisponivel neste aparelho.'
-                : null;
-      });
-    } catch (_) {
-      if (!mounted) return;
+    final st = await BiometricService.status();
+    final sess = FirebaseAuth.instance.currentUser != null;
 
-      setState(() {
-        _bioAvailable = false;
-        _hasSession = FirebaseAuth.instance.currentUser != null;
-        _error = 'Nao foi possivel recarregar a biometria.';
-      });
-    } finally {
-      if (showLoading && mounted) {
-        setState(() => _loading = false);
+    if (!mounted) return;
+
+    setState(() {
+      _bioReady = st.enrolled && st.supported;
+      _hasSession = sess;
+      _refreshingBio = false;
+      if (!_bioReady && sess) {
+        _error = 'Biometria: ${st.reason}';
       }
-    }
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final showBio = _bioAvailable && _hasSession;
+    final showBio = _bioReady && _hasSession;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final subtitle = widget.unlockOnly
+        ? 'Desbloqueie sua sessao ativa com biometria'
+        : 'Entre com e-mail ou desbloqueie com biometria';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -114,14 +114,13 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Entre com e-mail ou desbloqueie com biometria',
+                          subtitle,
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: cs.onSurface.withValues(alpha: 0.75),
                           ),
                         ),
                         const SizedBox(height: 16),
-
                         TextField(
                           controller: _email,
                           decoration: const InputDecoration(
@@ -137,7 +136,6 @@ class _LoginScreenState extends State<LoginScreen> {
                           obscureText: true,
                           enabled: !_loading,
                         ),
-
                         const SizedBox(height: 12),
                         if (_error != null)
                           Padding(
@@ -147,49 +145,53 @@ class _LoginScreenState extends State<LoginScreen> {
                               style: const TextStyle(color: Colors.redAccent),
                             ),
                           ),
-
+                        if (!_hasSession)
+                          const Padding(
+                            padding: EdgeInsets.only(bottom: 8),
+                            child: Text(
+                              'Faca login com e-mail primeiro. A biometria apenas desbloqueia uma sessao ativa.',
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: _loading ? null : _loginEmail,
-                            child:
-                                _loading
-                                    ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                    : const Text('Entrar'),
+                            onPressed: (_loading || _refreshingBio)
+                                ? null
+                                : _loginEmail,
+                            child: _loading
+                                ? const SizedBox(
+                                    height: 18,
+                                    width: 18,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Text('Entrar'),
                           ),
                         ),
-
                         const SizedBox(height: 10),
-
                         if (showBio)
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.fingerprint),
                               label: const Text('Desbloquear com biometria'),
-                              onPressed:
-                                  _loading ? null : _unlockWithBiometrics,
+                              onPressed: (_loading || _refreshingBio)
+                                  ? null
+                                  : _unlockWithBiometrics,
                             ),
                           ),
-
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed:
-                              _loading
-                                  ? null
-                                  : () async {
-                                    await _refreshBioState(
-                                      showLoading: true,
-                                      showUnavailableError: true,
-                                    );
-                                  },
-                          child: const Text('Recarregar biometria'),
+                          onPressed: (_loading || _refreshingBio)
+                              ? null
+                              : _reloadBio,
+                          child: Text(
+                            _refreshingBio
+                                ? 'Recarregando biometria...'
+                                : 'Recarregar biometria',
+                          ),
                         ),
                       ],
                     ),
@@ -214,12 +216,15 @@ class _LoginScreenState extends State<LoginScreen> {
         email: _email.text.trim(),
         password: _pass.text.trim(),
       );
-      await _refreshBioState();
+      SessionLockController.instance.unlock();
+      await _reloadBio();
     } catch (e) {
       if (!mounted) return;
       setState(() => _error = 'Falha no login: $e');
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -229,20 +234,32 @@ class _LoginScreenState extends State<LoginScreen> {
       _error = null;
     });
 
-    final ok = await BiometricService.instance.authenticate(
-      reason: 'Confirme sua biometria para desbloquear',
-    );
+    try {
+      await _reloadBio();
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    if (!ok) {
-      setState(() {
-        _error =
-            BiometricService.instance.lastErrorMessage ??
-            'Biometria nao confirmada.';
-      });
+      if (!(_bioReady && _hasSession)) {
+        setState(() => _error = 'Biometria indisponivel ou sem sessao.');
+        return;
+      }
+
+      final ok = await BiometricService.authenticate(
+        'Confirme sua biometria para desbloquear',
+      );
+
+      if (!mounted) return;
+
+      if (ok) {
+        SessionLockController.instance.unlock();
+        return;
+      }
+
+      setState(() => _error = 'Biometria nao confirmada.');
+    } finally {
+      if (mounted) {
+        setState(() => _loading = false);
+      }
     }
-
-    if (mounted) setState(() => _loading = false);
   }
 }

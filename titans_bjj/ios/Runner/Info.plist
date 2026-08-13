@@ -45,12 +45,10 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-
 	<key>NSFaceIDUsageDescription</key>
-    <string>Usamos Face ID/biometria para desbloquear o app com segurança.</string>
-
-    <!-- ✅ Galeria (para selecionar a logo da equipe) -->
-    <key>NSPhotoLibraryUsageDescription</key>
-    <string>Precisamos acessar sua galeria para selecionar a logo da equipe.</string>
+	<string>Usamos biometria para desbloquear sua sessão no Titans BJJ.</string>
+	<!-- Galeria (para selecionar a logo da equipe) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Precisamos acessar sua galeria para selecionar a logo da equipe.</string>
 </dict>
 </plist>

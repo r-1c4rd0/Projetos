@@ -45,51 +45,17 @@ class _AuthGateState extends State<AuthGate> {
         final firebaseUser = authSnap.data;
         if (firebaseUser == null) return const LoginScreen();
 
-        return FutureBuilder<AppUser>(
-          future: UserRepository.instance
-              .ensureUserDoc(
-            uid: firebaseUser.uid,
-            email: firebaseUser.email ?? '',
-            academyId: 'default', // MVP
-          )
-              .timeout(const Duration(seconds: 12)),
-          builder: (context, userSnap) {
-            if (userSnap.connectionState == ConnectionState.waiting) {
-              return const Scaffold(body: Center(child: CircularProgressIndicator()));
+        return AnimatedBuilder(
+          animation: SessionLockController.instance,
+          builder: (context, _) {
+            if (SessionLockController.instance.locked) {
+              return const LoginScreen(unlockOnly: true);
             }
 
-            if (userSnap.hasError) {
-              final err = userSnap.error?.toString() ?? '';
-              final isOfflineFirestore =
-                  err.contains('client is offline') ||
-                      err.contains('cloud_firestore/unavailable');
-
-              // ✅ fallback web pra destravar UI
-              if (kIsWeb && isOfflineFirestore) {
-                final appUser = AppUser(
-                  uid: firebaseUser.uid,
-                  email: firebaseUser.email ?? '',
-                  academyId: 'default',
-                  role: UserRole.athlete, // ✅ enum correto
-                );
-                return UserScope(user: appUser, child: app);
-              }
-
-              return _ErrorScreen(
-                title: 'Erro ao criar/ler academies/{academyId}/users/{uid}',
-                error: userSnap.error,
-              );
-            }
-
-            final appUser = userSnap.data;
-            if (appUser == null) {
-              return const _ErrorScreen(
-                title: 'Usuário não carregou',
-                error: 'ensureUserDoc retornou null',
-              );
-            }
-
-            return UserScope(user: appUser, child: app);
+            return _AuthenticatedApp(
+              firebaseUser: firebaseUser,
+              app: widget.app,
+            );
           },
         );
       },
