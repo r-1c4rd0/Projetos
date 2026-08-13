@@ -1,0 +1,95 @@
+# Firebase Schema Spec
+
+## Objetivo do modulo
+Documentar o schema desejado de Firebase/Firestore para suportar multi-academia, roles, treinos, progresso, nutricao, eventos, presenca e graduacao com isolamento por academia.
+
+## Responsabilidades
+- Definir colecoes e ownership de dados.
+- Explicitar campos obrigatorios para `academyId`.
+- Orientar rules futuras para admin, professor e athlete.
+- Reduzir duplicidade de fontes e inconsistencias.
+
+## Dados usados
+- Firebase Auth uid.
+- Perfil de usuario e role.
+- Academia e configuracoes.
+- Alunos, treinos, presencas, progresso, nutricao, eventos e graduacao.
+
+## Telas envolvidas
+- AuthGate, login e cadastro.
+- Cadastro de atleta.
+- Painel do mestre.
+- Console/dashboard do atleta.
+- Treinos, progresso, nutricao, eventos e academia.
+
+## Repositories envolvidas
+- `UserRepository`
+- `StudentsRepository`
+- `AthleteRegistrationRepository`
+- `TrainingRepository`
+- `UserProgressRepository`
+- `NutritionRepository`
+- `EventRepository` / `FirebaseEventRepository`
+- `GradingRulesRepository`
+
+## Regras de negocio
+- Todo documento de dominio deve ter `academyId` ou estar sob o path da academia.
+- Admin acessa a academia administrada.
+- Professor acessa alunos e operacoes das academias permitidas.
+- Athlete acessa primariamente seu proprio perfil e dados derivados.
+- Regras de leitura/escrita devem ser simetricas ao contrato de produto.
+
+## Problemas atuais
+- Uso de `academyId` default pode mascarar falta de configuracao real.
+- Multi-academia ainda nao define fronteira unica de path.
+- Rules de professor/admin estao pendentes.
+- Graduacao pode estar duplicada entre perfil e regras.
+
+## Arquitetura desejada
+Schema alvo sugerido:
+
+```text
+academies/{academyId}
+  settings/{settingsDoc}
+  memberships/{uid}
+  students/{studentId}
+  trainingSessions/{sessionId}
+  attendanceRecords/{attendanceId}
+  progressProfiles/{studentId}
+  nutritionPlans/{planId}
+  events/{eventId}
+  gradingRules/{modalityId}
+  modalities/{modalityId}
+
+users/{uid}
+  private/profile
+  academyMemberships/{academyId}
+```
+
+Campos comuns:
+- `academyId`
+- `createdAt`
+- `updatedAt`
+- `createdBy`
+- `updatedBy`
+- `status`
+
+## Plano de migracao incremental
+1. Inventariar colecoes reais antes de mudar schema.
+2. Introduzir validacao de `academyId` em camada de repository.
+3. Definir adapters para ler legado e novo schema.
+4. Migrar dados por academia.
+5. Ativar rules por role em rollout controlado.
+6. Remover fallback default apos usuarios existentes estarem normalizados.
+
+## Riscos de regressao
+- Documentos legados sem `academyId` ficarem inacessiveis.
+- Rules bloquearem usuarios validos.
+- Duplicidade de paths durante migracao causar leituras divergentes.
+- Queries exigirem indices nao criados.
+
+## Criterios de aceite
+- Schema alvo registra isolamento por academia.
+- Roles e permissoes futuras estao documentadas.
+- `academyId` default esta marcado como problema a eliminar.
+- Nenhuma colecao foi alterada nesta etapa.
