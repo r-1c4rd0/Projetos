@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
 import '../model/grading_rules.dart';
 import '../model/app_user.dart';
 import '../model/progress_period.dart';
@@ -101,15 +102,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     if (academyId == null || uid == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Selecione um aluno no Painel do Mestre para acessar Progresso.',
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Progresso.'),
       );
     }
 
@@ -146,7 +139,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 builder: (context, rulesSnap) {
                   if (_ensuringRules &&
                       rulesSnap.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const TitansStateView.loading();
                   }
 
                   if (rulesSnap.hasError) {
@@ -169,7 +162,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     stream: _athleteStream,
                     builder: (context, userSnap) {
                       if (userSnap.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const TitansStateView.loading();
                       }
 
                       if (userSnap.hasError) {
@@ -267,17 +260,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 (a, b) => a + b,
                               );
 
-                              final bottomPad =
-                                  MediaQuery.of(context).padding.bottom;
-                              final extraBottom = 80.0 + bottomPad + 32.0;
+                              final listPadding = TitansUI.listPadding(context);
 
                               return ListView(
-                                padding: EdgeInsets.fromLTRB(
-                                  16,
-                                  16,
-                                  16,
-                                  extraBottom,
-                                ),
+                                padding: listPadding,
                                 children: [
                                   _BeltProgressCard(progress: beltProgress),
                                   const SizedBox(height: 12),

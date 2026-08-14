@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../core/titans_ui.dart';
 import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
@@ -52,15 +53,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (academyId == null || uid == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Selecione um aluno no Painel do Mestre para acessar Treinos.',
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Treinos.'),
       );
     }
 
@@ -103,19 +96,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
         stream: _sessionsStream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const TitansStateView.loading();
           }
 
           if (snap.hasError) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Erro ao carregar treinos:\n${snap.error}',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            );
+            return TitansStateView.error(title: 'Erro ao carregar treinos', message: snap.error.toString());
           }
 
           final sessions = List<TrainingSession>.from(
@@ -125,11 +110,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           final series = _buildSeries(sessions, _period);
           final totalInWindow = series.values.fold<int>(0, (a, b) => a + b);
 
-          final bottomPad = MediaQuery.of(context).padding.bottom;
-          final extraBottom = 80.0 + bottomPad + 80.0; // Espaço pro FAB e pro Nav
+          final listPadding = TitansUI.listPadding(context, extra: 80);
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, extraBottom),
+            padding: listPadding,
             children: [
               glassCard(
                 context,
@@ -168,13 +152,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
               const SizedBox(height: 12),
               if (sessions.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Text(
-                    'Sem treinos registrados',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
-                  ),
+                const TitansStateView.empty(
+                  title: 'Sem treinos registrados',
+                  message: 'Use o botao Treino para adicionar a primeira sessao.',
+                  compact: true,
                 )
               else
                 ...sessions.reversed.map((s) {

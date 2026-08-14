@@ -97,6 +97,68 @@ ThemeData buildTitansDarkTheme() {
       elevation: 0,
       centerTitle: false,
     ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: ext.accent,
+      foregroundColor: const Color(0xFF121212),
+      extendedPadding: const EdgeInsets.symmetric(horizontal: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      minLeadingWidth: 36,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      titleTextStyle: TextStyle(
+        color: ext.textPrimary,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+      subtitleTextStyle: TextStyle(
+        color: ext.textSecondary,
+        fontSize: 13,
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 72,
+      indicatorColor: ext.accent.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          color: selected ? ext.textPrimary : ext.textSecondary,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? ext.accent : ext.textSecondary,
+          size: selected ? 26 : 24,
+        );
+      }),
+    ),
     cardTheme: CardThemeData(
       color: ext.card,
       elevation: 0,
@@ -156,6 +218,68 @@ ThemeData buildTitansLightTheme() {
       foregroundColor: ext.textPrimary,
       elevation: 0,
       centerTitle: false,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: ext.accent,
+      foregroundColor: const Color(0xFF121212),
+      extendedPadding: const EdgeInsets.symmetric(horizontal: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      minLeadingWidth: 36,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      titleTextStyle: TextStyle(
+        color: ext.textPrimary,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+      subtitleTextStyle: TextStyle(
+        color: ext.textSecondary,
+        fontSize: 13,
+      ),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 72,
+      indicatorColor: ext.accent.withValues(alpha: 0.16),
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          color: selected ? ext.textPrimary : ext.textSecondary,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? ext.accent : ext.textSecondary,
+          size: selected ? 26 : 24,
+        );
+      }),
     ),
     cardTheme: CardThemeData(
       color: ext.card,

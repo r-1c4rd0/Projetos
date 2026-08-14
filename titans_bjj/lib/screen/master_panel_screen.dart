@@ -84,7 +84,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
         builder: (context, rulesSnap) {
           if (rulesSnap.connectionState == ConnectionState.waiting &&
               !rulesSnap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const TitansStateView.loading();
           }
           if (rulesSnap.hasError) {
             return Center(
@@ -104,7 +104,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
             stream: _studentRepo.watchStudents(academyId: master.academyId),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const TitansStateView.loading();
               }
               if (snap.hasError) {
                 final error = snap.error;
@@ -125,22 +125,19 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
 
               final students = snap.data ?? const <StudentVm>[];
               if (students.isEmpty) {
-                return Center(
-                  child: Text(
-                    'Nenhum aluno encontrado',
-                    style:
-                        TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
-                  ),
+                return const TitansStateView.empty(
+                  title: 'Nenhum aluno encontrado',
+                  message: 'Cadastre o primeiro atleta para iniciar o acompanhamento.',
                 );
               }
 
               return GridView.builder(
                 padding: EdgeInsets.fromLTRB(16, 16, 16, extraBottom),
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
                   maxCrossAxisExtent: 520,
                   mainAxisSpacing: 12,
                   crossAxisSpacing: 12,
-                  childAspectRatio: 2.1,
+                  childAspectRatio: MediaQuery.of(context).size.width < 420 ? 1.55 : 2.1,
                 ),
                 itemCount: students.length,
                 itemBuilder: (context, i) {
@@ -315,14 +312,14 @@ class _StudentCard extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                        padding: const EdgeInsets.all(8),
                         onPressed: onMinusDegree,
                         icon: const Icon(Icons.remove_circle_outline, size: 20),
                       ),
                       IconButton(
-                        constraints: const BoxConstraints(),
-                        padding: const EdgeInsets.all(4),
+                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                        padding: const EdgeInsets.all(8),
                         onPressed: onPlusDegree,
                         icon: const Icon(Icons.add_circle_outline, size: 20),
                       ),
@@ -419,20 +416,6 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold)),
-          const SizedBox(height: 8),
-          Text(
-            message,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: cs.error),
-          ),
-        ]),
-      ),
-    );
+    return TitansStateView.error(title: title, message: message);
   }
 }

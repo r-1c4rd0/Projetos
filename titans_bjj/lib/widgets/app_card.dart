@@ -1,28 +1,27 @@
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
+
 class AppCard extends StatelessWidget {
   final Widget child;
+  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry margin;
+  final Color? accent;
 
-  const AppCard({super.key, required this.child});
+  const AppCard({
+    super.key,
+    required this.child,
+    this.padding = TitansUI.cardPadding,
+    this.margin = const EdgeInsets.symmetric(vertical: 6),
+    this.accent,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Container(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 12,
-            offset: const Offset(0, 6),
-          ),
-        ],
-      ),
+      margin: margin,
+      padding: padding,
+      decoration: TitansUI.cardDecoration(context, accent: accent),
       child: child,
     );
   }

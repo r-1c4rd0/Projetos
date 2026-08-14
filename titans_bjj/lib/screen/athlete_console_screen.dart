@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
 import '../service/selected_student.dart';
 import '../service/target_resolver.dart';
 import '../widgets/require_selected_student_gate.dart';
@@ -78,27 +79,108 @@ class _ConsoleBody extends StatelessWidget {
             ],
           ),
         ),
-        body: TabBarView(
+        body: Column(
           children: [
-            AthleteDashboardScreen(
-              athleteNameOverride: athleteNameOverride,
-              titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
-              targetMode: targetMode,
+            _ConsoleContextBanner(
+              selectedMode: selectedMode,
+              athleteName: athleteNameOverride,
+              masterView: masterView,
             ),
-            TrainingScreen(
-              titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
-              targetMode: targetMode,
-            ),
-            ProgressScreen(
-              titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
-              targetMode: targetMode,
-            ),
-            NutritionScreen(
-              titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
-              targetMode: targetMode,
+            const SizedBox(height: TitansUI.spaceSm),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  AthleteDashboardScreen(
+                    athleteNameOverride: athleteNameOverride,
+                    titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
+                    targetMode: targetMode,
+                  ),
+                  TrainingScreen(
+                    titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
+                    targetMode: targetMode,
+                  ),
+                  ProgressScreen(
+                    titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
+                    targetMode: targetMode,
+                  ),
+                  NutritionScreen(
+                    titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
+                    targetMode: targetMode,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+class _ConsoleContextBanner extends StatelessWidget {
+  final bool selectedMode;
+  final bool masterView;
+  final String? athleteName;
+
+  const _ConsoleContextBanner({
+    required this.selectedMode,
+    required this.masterView,
+    this.athleteName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final title = selectedMode
+        ? 'Aluno selecionado'
+        : masterView
+            ? 'Meu perfil'
+            : 'Area do atleta';
+    final subtitle = selectedMode
+        ? (athleteName == null || athleteName!.trim().isEmpty
+            ? 'Dados do aluno ativo no Painel do Mestre'
+            : athleteName!.trim())
+        : masterView
+            ? 'Visualizando seus dados, nao os de um aluno'
+            : 'Seus treinos, progresso e nutricao';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(
+        horizontal: TitansUI.spaceMd,
+        vertical: TitansUI.spaceSm,
+      ),
+      decoration: TitansUI.cardDecoration(
+        context,
+        accent: selectedMode ? cs.primary : cs.secondary,
+        radius: TitansUI.radiusSmall,
+      ),
+      child: Row(
+        children: [
+          Icon(
+            selectedMode ? Icons.person_pin_circle_outlined : Icons.badge_outlined,
+            color: selectedMode ? cs.primary : cs.secondary,
+          ),
+          const SizedBox(width: TitansUI.spaceSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

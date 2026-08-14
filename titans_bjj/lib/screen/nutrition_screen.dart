@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
 import '../main.dart';
 import '../model/nutrition_models.dart';
 import '../repository/nutrition_repository.dart';
@@ -96,19 +97,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
       if (target == null) {
         return TitansScaffold(
           appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
-          body: const Center(
-            child: Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ),
+          body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Nutricao.'),
         );
       }
 
-      return const Center(child: CircularProgressIndicator());
+      return const TitansStateView.loading();
     }
 
     return TitansScaffold(
@@ -125,15 +118,14 @@ class _NutritionScreenState extends State<NutritionScreen> {
         future: _mealsFuture,
         builder: (context, snap) {
           if (!snap.hasData) {
-            return const Center(child: CircularProgressIndicator());
+            return const TitansStateView.loading();
           }
 
           final meals = snap.data!;
-          final bottomPad = MediaQuery.of(context).padding.bottom;
-          final extraBottom = 80.0 + bottomPad + 80.0;
+          final listPadding = TitansUI.listPadding(context, extra: 80);
 
           return ListView(
-            padding: EdgeInsets.fromLTRB(16, 16, 16, extraBottom),
+            padding: listPadding,
             children: [
               if (_fallbackToMock)
                 Card(
@@ -219,16 +211,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
               ),
               if (meals.isEmpty)
-                Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Text(
-                      'Sem refeições registradas',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurface,
-                      ),
-                    ),
-                  ),
+                const TitansStateView.empty(
+                  title: 'Sem refeicoes registradas',
+                  message: 'Use o botao adicionar para registrar a primeira refeicao.',
+                  compact: true,
                 ),
             ],
           );

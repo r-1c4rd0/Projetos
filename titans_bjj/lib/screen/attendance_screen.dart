@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/attendance_models.dart';
 import '../model/grading_rules.dart';
@@ -58,13 +59,13 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             )
           : null,
       body: sessionsStream == null
-          ? const Center(child: CircularProgressIndicator())
+          ? const TitansStateView.loading()
           : StreamBuilder<List<AttendanceSession>>(
               stream: sessionsStream,
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting &&
                     !snap.hasData) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const TitansStateView.loading();
                 }
 
                 if (snap.hasError) {
@@ -72,10 +73,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 }
 
                 final sessions = snap.data ?? const <AttendanceSession>[];
-                if (sessions.isEmpty) return const _EmptyState();
+                if (sessions.isEmpty) return _EmptyState(isStaff: _isStaff);
 
                 return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+                  padding: TitansUI.listPadding(context),
                   itemCount: sessions.length,
                   separatorBuilder: (_, __) => const SizedBox(height: 10),
                   itemBuilder: (context, index) {
@@ -287,7 +288,7 @@ class _AttendanceSessionDetailsScreenState
 
   Widget _buildBody(AttendanceSession session) {
     if (_loadingCheckIns) {
-      return const Center(child: CircularProgressIndicator());
+      return const TitansStateView.loading();
     }
 
     final error = _checkInsError;
@@ -298,7 +299,7 @@ class _AttendanceSessionDetailsScreenState
         : _checkIns.where((item) => item.uid == widget.currentUser.uid).toList();
 
     return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+      padding: TitansUI.listPadding(context),
       children: [
         _SessionHeader(session: session),
         const SizedBox(height: 16),
@@ -674,7 +675,7 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting &&
                         !snap.hasData) {
-                      return const Center(child: CircularProgressIndicator());
+                      return const TitansStateView.loading();
                     }
 
                     if (snap.hasError) {
@@ -934,20 +935,17 @@ class _AttendanceSessionDraft {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState();
+  final bool isStaff;
+
+  const _EmptyState({required this.isStaff});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          'Nenhuma sessao de presenca encontrada.',
-          textAlign: TextAlign.center,
-          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
-        ),
-      ),
+    return TitansStateView.empty(
+      title: 'Nenhuma sessao de presenca',
+      message: isStaff
+          ? 'Crie uma nova aula para registrar presencas.'
+          : 'Nenhuma aula de presenca esta aberta no momento.',
     );
   }
 }
@@ -978,22 +976,7 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: cs.error),
-            ),
-          ),
-        ),
-      ),
-    );
+    return TitansStateView.error(title: 'Erro ao carregar presenca', message: message);
   }
 }
 

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
 import '../model/training_session.dart';
@@ -69,15 +70,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     if (target == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
-        body: const Center(
-          child: Padding(
-            padding: EdgeInsets.all(16),
-            child: Text(
-              'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
+        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar o console do atleta.'),
       );
     }
 
@@ -103,7 +96,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         stream: _athleteStream,
         builder: (context, userSnap) {
           if (userSnap.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
+            return const TitansStateView.loading();
           }
           if (userSnap.hasError) {
             return _ErrorState(
@@ -138,7 +131,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             stream: _profileStream,
             builder: (context, profileSnap) {
               if (profileSnap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator());
+                return const TitansStateView.loading();
               }
               if (profileSnap.hasError) {
                 return _ErrorState(
@@ -161,7 +154,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 builder: (context, rulesSnap) {
                   if (rulesSnap.connectionState == ConnectionState.waiting &&
                       !rulesSnap.hasData) {
-                    return const Center(child: CircularProgressIndicator());
+                    return const TitansStateView.loading();
                   }
                   if (rulesSnap.hasError) {
                     return _ErrorState(
@@ -177,7 +170,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                     builder: (context, trainSnap) {
                       if (trainSnap.connectionState ==
                           ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                        return const TitansStateView.loading();
                       }
                       if (trainSnap.hasError) {
                         return _ErrorState(
@@ -211,19 +204,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          final bottomPad =
-                              MediaQuery.of(context).padding.bottom;
-                          final extraBottom = 80.0 + bottomPad + 32.0;
 
                           return SafeArea(
                             bottom: false,
                             child: SingleChildScrollView(
-                              padding: EdgeInsets.fromLTRB(
-                                16,
-                                16,
-                                16,
-                                extraBottom,
-                              ),
+                              padding: TitansUI.listPadding(context),
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
                                   minHeight: constraints.maxHeight,
