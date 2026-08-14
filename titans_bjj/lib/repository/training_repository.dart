@@ -38,6 +38,49 @@ class TrainingRepository {
     return _collectionRef(academyId: academyId, uid: uid).doc(sessionId);
   }
 
+  String attendanceLinkedSessionId({
+    required String attendanceSessionId,
+    required String attendanceCheckInUid,
+  }) {
+    return 'attendance_${_docSafe(attendanceSessionId)}_${_docSafe(attendanceCheckInUid)}';
+  }
+
+  void setAttendanceDerivedSessionInBatch({
+    required WriteBatch batch,
+    required String academyId,
+    required String uid,
+    required TrainingSession session,
+  }) {
+    batch.set(
+      _sessionRef(
+        academyId: academyId,
+        uid: uid,
+        sessionId: session.id,
+      ),
+      session.toMap(),
+      SetOptions(merge: true),
+    );
+  }
+
+  void deleteAttendanceDerivedSessionInBatch({
+    required WriteBatch batch,
+    required String academyId,
+    required String uid,
+    required String attendanceSessionId,
+    required String attendanceCheckInUid,
+  }) {
+    batch.delete(
+      _sessionRef(
+        academyId: academyId,
+        uid: uid,
+        sessionId: attendanceLinkedSessionId(
+          attendanceSessionId: attendanceSessionId,
+          attendanceCheckInUid: attendanceCheckInUid,
+        ),
+      ),
+    );
+  }
+
   Future<TrainingSession?> getSession({
     required String academyId,
     required String uid,
@@ -110,8 +153,11 @@ class TrainingRepository {
     final col = _collectionRef(academyId: academyId, uid: uid);
 
     for (final session in sessions) {
-      batch.set(session.id.isEmpty ? col.doc() : col.doc(session.id),
-          session.toMap(), SetOptions(merge: true));
+      batch.set(
+        session.id.isEmpty ? col.doc() : col.doc(session.id),
+        session.toMap(),
+        SetOptions(merge: true),
+      );
     }
 
     await batch.commit();
@@ -139,5 +185,9 @@ class TrainingRepository {
       uid: uid,
       sessionId: sessionId,
     ).delete();
+  }
+
+  String _docSafe(String value) {
+    return value.trim().replaceAll('/', '_');
   }
 }

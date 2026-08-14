@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../model/app_user.dart';
 import '../model/attendance_models.dart';
+import '../model/grading_rules.dart';
 import '../repository/attendance_repository.dart';
+import '../repository/students_repository.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -15,6 +19,7 @@ class AttendanceScreen extends StatefulWidget {
 
 class _AttendanceScreenState extends State<AttendanceScreen> {
   final AttendanceRepository _repository = AttendanceRepository.instance;
+  final IStudentRepository _studentRepository = StudentRepository.create();
 
   AppUser? _user;
   Stream<List<AttendanceSession>>? _sessionsStream;
@@ -43,9 +48,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     return TitansScaffold(
       scroll: false,
-      appBar: AppBar(
-        title: const Text('Presenca'),
-      ),
+      appBar: AppBar(title: const Text('Presenca')),
       floatingActionButton: _isStaff
           ? FloatingActionButton.extended(
               heroTag: 'attendance_fab',
@@ -69,9 +72,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 }
 
                 final sessions = snap.data ?? const <AttendanceSession>[];
-                if (sessions.isEmpty) {
-                  return const _EmptyState();
-                }
+                if (sessions.isEmpty) return const _EmptyState();
 
                 return ListView.separated(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
@@ -83,6 +84,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                       session: session,
                       isStaff: _isStaff,
                       isBusy: _submitting,
+                      onTap: () => _openSessionDetails(session),
                       onClose: session.status == AttendanceSessionStatus.open
                           ? () => _closeSession(session)
                           : null,
@@ -122,17 +124,29 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         endsAt: draft.endsAt,
       );
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Sessao criada.')),
-      );
+      _showMessage('Sessao criada.');
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nao foi possivel criar a sessao: $error')),
-      );
+      _showMessage('Nao foi possivel criar a sessao: $error');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _openSessionDetails(AttendanceSession session) {
+    final user = _user;
+    if (user == null) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => _AttendanceSessionDetailsScreen(
+          session: session,
+          currentUser: user,
+          attendanceRepository: _repository,
+          studentRepository: _studentRepository,
+        ),
+      ),
+    );
   }
 
   Future<void> _closeSession(AttendanceSession session) async {
@@ -168,17 +182,219 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     try {
       await action();
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(successMessage)),
-      );
+      _showMessage(successMessage);
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('$errorMessage: $error')),
-      );
+      _showMessage('$errorMessage: $error');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
+  }
+}
+
+class _AttendanceSessionDetailsScreen extends StatefulWidget {
+  const _AttendanceSessionDetailsScreen({
+    required this.session,
+    required this.currentUser,
+    required this.attendanceRepository,
+    required this.studentRepository,
+  });
+
+  final AttendanceSession session;
+  final AppUser currentUser;
+  final AttendanceRepository attendanceRepository;
+  final IStudentRepository studentRepository;
+
+  @override
+  State<_AttendanceSessionDetailsScreen> createState() =>
+      _AttendanceSessionDetailsScreenState();
+}
+
+class _AttendanceSessionDetailsScreenState
+    extends State<_AttendanceSessionDetailsScreen> {
+  late final StreamSubscription<List<AttendanceCheckIn>> _checkInsSubscription;
+  List<AttendanceCheckIn> _checkIns = const <AttendanceCheckIn>[];
+  Object? _checkInsError;
+  bool _loadingCheckIns = true;
+  bool _submitting = false;
+
+  bool get _isStaff {
+    return widget.currentUser.role == UserRole.admin ||
+        widget.currentUser.role == UserRole.professor;
+  }
+
+  bool get _canEdit {
+    return _isStaff && widget.session.status == AttendanceSessionStatus.open;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _checkInsSubscription = widget.attendanceRepository
+        .watchSessionCheckIns(
+          academyId: widget.session.academyId,
+          sessionId: widget.session.id,
+        )
+        .listen(
+      (checkIns) {
+        if (!mounted) return;
+        setState(() {
+          _checkIns = checkIns;
+          _loadingCheckIns = false;
+          _checkInsError = null;
+        });
+      },
+      onError: (Object error) {
+        if (!mounted) return;
+        setState(() {
+          _checkInsError = error;
+          _loadingCheckIns = false;
+        });
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _checkInsSubscription.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final session = widget.session;
+
+    return TitansScaffold(
+      scroll: false,
+      appBar: AppBar(title: const Text('Presenca da aula')),
+      floatingActionButton: _canEdit
+          ? FloatingActionButton.extended(
+              heroTag: 'attendance_checkin_fab_${session.id}',
+              icon: const Icon(Icons.person_add_alt_1_outlined),
+              label: const Text('Adicionar aluno'),
+              onPressed: _submitting ? null : _openAddStudentSheet,
+            )
+          : null,
+      body: _buildBody(session),
+    );
+  }
+
+  Widget _buildBody(AttendanceSession session) {
+    if (_loadingCheckIns) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    final error = _checkInsError;
+    if (error != null) return _ErrorState(message: error.toString());
+
+    final visibleCheckIns = _isStaff
+        ? _checkIns
+        : _checkIns.where((item) => item.uid == widget.currentUser.uid).toList();
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 112),
+      children: [
+        _SessionHeader(session: session),
+        const SizedBox(height: 16),
+        Text(
+          'Alunos presentes',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+        ),
+        const SizedBox(height: 10),
+        if (visibleCheckIns.isEmpty)
+          const _InlineEmptyState(
+            message: 'Nenhum aluno presente nesta sessao.',
+          )
+        else
+          ...visibleCheckIns.map(
+            (checkIn) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _CheckInTile(
+                checkIn: checkIn,
+                canRemove: _canEdit && !_submitting,
+                onRemove: () => _removeCheckIn(checkIn),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  Future<void> _openAddStudentSheet() async {
+    if (!_canEdit) return;
+
+    final checkedUids = _checkIns.map((item) => item.uid).toSet();
+    final student = await showModalBottomSheet<StudentVm?>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _AddStudentSheet(
+        academyId: widget.session.academyId,
+        studentRepository: widget.studentRepository,
+        checkedUids: checkedUids,
+      ),
+    );
+
+    if (student == null) return;
+
+    final latestCheckedUids = _checkIns.map((item) => item.uid).toSet();
+    if (latestCheckedUids.contains(student.uid)) {
+      _showMessage('Aluno ja esta presente nesta sessao.');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await widget.attendanceRepository.addManualCheckIn(
+        academyId: widget.session.academyId,
+        sessionId: widget.session.id,
+        uid: student.uid,
+        studentName: student.name,
+        belt: student.belt,
+        degree: student.degree,
+        createdByUid: widget.currentUser.uid,
+      );
+      if (!mounted) return;
+      _showMessage('Aluno adicionado.');
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Nao foi possivel adicionar aluno: $error');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _removeCheckIn(AttendanceCheckIn checkIn) async {
+    if (!_canEdit || _submitting) return;
+
+    setState(() => _submitting = true);
+    try {
+      await widget.attendanceRepository.removeCheckIn(
+        academyId: widget.session.academyId,
+        sessionId: widget.session.id,
+        uid: checkIn.uid,
+      );
+      if (!mounted) return;
+      _showMessage('Check-in removido.');
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Nao foi possivel remover check-in: $error');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 }
 
@@ -187,6 +403,7 @@ class _AttendanceSessionCard extends StatelessWidget {
     required this.session,
     required this.isStaff,
     required this.isBusy,
+    required this.onTap,
     required this.onClose,
     required this.onCancel,
   });
@@ -194,6 +411,7 @@ class _AttendanceSessionCard extends StatelessWidget {
   final AttendanceSession session;
   final bool isStaff;
   final bool isBusy;
+  final VoidCallback onTap;
   final VoidCallback? onClose;
   final VoidCallback? onCancel;
 
@@ -204,8 +422,113 @@ class _AttendanceSessionCard extends StatelessWidget {
     final statusColor = _statusColor(cs, session.status);
 
     return Card(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          session.title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          session.classType,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.68),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Chip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text(status),
+                    side: BorderSide(color: statusColor.withValues(alpha: 0.5)),
+                    backgroundColor: statusColor.withValues(alpha: 0.12),
+                    labelStyle: TextStyle(
+                      color: statusColor,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 16,
+                runSpacing: 8,
+                children: [
+                  _InfoItem(
+                    icon: Icons.schedule,
+                    label:
+                        '${_formatDateTime(session.startsAt)} - ${_formatTime(session.endsAt)}',
+                  ),
+                  _InfoItem(
+                    icon: Icons.person_outline,
+                    label: session.instructorName.isEmpty
+                        ? session.instructorUid
+                        : session.instructorName,
+                  ),
+                ],
+              ),
+              if (isStaff) ...[
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton.icon(
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Cancelar'),
+                      onPressed: isBusy ? null : onCancel,
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      icon: const Icon(Icons.lock_outline),
+                      label: const Text('Fechar'),
+                      onPressed: isBusy ? null : onClose,
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionHeader extends StatelessWidget {
+  const _SessionHeader({required this.session});
+
+  final AttendanceSession session;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final statusColor = _statusColor(cs, session.status);
+
+    return Card(
       child: Padding(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -213,33 +536,17 @@ class _AttendanceSessionCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        session.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w800,
-                            ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        session.classType,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.68),
+                  child: Text(
+                    session.title,
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
                         ),
-                      ),
-                    ],
                   ),
                 ),
                 const SizedBox(width: 12),
                 Chip(
                   visualDensity: VisualDensity.compact,
-                  label: Text(status),
+                  label: Text(_statusLabel(session.status)),
                   side: BorderSide(color: statusColor.withValues(alpha: 0.5)),
                   backgroundColor: statusColor.withValues(alpha: 0.12),
                   labelStyle: TextStyle(
@@ -249,14 +556,16 @@ class _AttendanceSessionCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 16,
               runSpacing: 8,
               children: [
+                _InfoItem(icon: Icons.school_outlined, label: session.classType),
                 _InfoItem(
                   icon: Icons.schedule,
-                  label: '${_formatDateTime(session.startsAt)} - ${_formatTime(session.endsAt)}',
+                  label:
+                      '${_formatDateTime(session.startsAt)} - ${_formatTime(session.endsAt)}',
                 ),
                 _InfoItem(
                   icon: Icons.person_outline,
@@ -266,51 +575,158 @@ class _AttendanceSessionCard extends StatelessWidget {
                 ),
               ],
             ),
-            if (isStaff) ...[
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton.icon(
-                    icon: const Icon(Icons.cancel_outlined),
-                    label: const Text('Cancelar'),
-                    onPressed: isBusy ? null : onCancel,
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.lock_outline),
-                    label: const Text('Fechar'),
-                    onPressed: isBusy ? null : onClose,
-                  ),
-                ],
-              ),
-            ],
           ],
         ),
       ),
     );
   }
+}
 
-  String _statusLabel(AttendanceSessionStatus status) {
-    switch (status) {
-      case AttendanceSessionStatus.open:
-        return 'Aberta';
-      case AttendanceSessionStatus.closed:
-        return 'Fechada';
-      case AttendanceSessionStatus.cancelled:
-        return 'Cancelada';
-    }
+class _CheckInTile extends StatelessWidget {
+  const _CheckInTile({
+    required this.checkIn,
+    required this.canRemove,
+    required this.onRemove,
+  });
+
+  final AttendanceCheckIn checkIn;
+  final bool canRemove;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: CircleAvatar(
+          child: Text(_initials(checkIn.studentName)),
+        ),
+        title: Text(
+          checkIn.studentName,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(
+          '${_beltName(checkIn.belt)} - G${checkIn.degree} - Manual',
+        ),
+        trailing: canRemove
+            ? IconButton(
+                tooltip: 'Remover check-in',
+                icon: const Icon(Icons.delete_outline),
+                onPressed: onRemove,
+              )
+            : null,
+      ),
+    );
+  }
+}
+
+class _AddStudentSheet extends StatefulWidget {
+  const _AddStudentSheet({
+    required this.academyId,
+    required this.studentRepository,
+    required this.checkedUids,
+  });
+
+  final String academyId;
+  final IStudentRepository studentRepository;
+  final Set<String> checkedUids;
+
+  @override
+  State<_AddStudentSheet> createState() => _AddStudentSheetState();
+}
+
+class _AddStudentSheetState extends State<_AddStudentSheet> {
+  late final Stream<List<StudentVm>> _studentsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _studentsStream = widget.studentRepository.watchStudents(
+      academyId: widget.academyId,
+    );
   }
 
-  Color _statusColor(ColorScheme cs, AttendanceSessionStatus status) {
-    switch (status) {
-      case AttendanceSessionStatus.open:
-        return cs.primary;
-      case AttendanceSessionStatus.closed:
-        return Colors.green;
-      case AttendanceSessionStatus.cancelled:
-        return cs.error;
-    }
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SafeArea(
+        top: false,
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.72,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Text(
+                  'Adicionar aluno',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                ),
+              ),
+              Expanded(
+                child: StreamBuilder<List<StudentVm>>(
+                  stream: _studentsStream,
+                  builder: (context, snap) {
+                    if (snap.connectionState == ConnectionState.waiting &&
+                        !snap.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    if (snap.hasError) {
+                      return _ErrorState(message: snap.error.toString());
+                    }
+
+                    final students = snap.data ?? const <StudentVm>[];
+                    if (students.isEmpty) {
+                      return const _InlineEmptyState(
+                        message: 'Nenhum aluno encontrado.',
+                      );
+                    }
+
+                    return ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+                      itemCount: students.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final student = students[index];
+                        final checked = widget.checkedUids.contains(student.uid);
+                        return Card(
+                          child: ListTile(
+                            enabled: !checked,
+                            leading: CircleAvatar(
+                              child: Text(_initials(student.name)),
+                            ),
+                            title: Text(
+                              student.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              '${_beltName(student.belt)} - G${student.degree}',
+                            ),
+                            trailing: checked
+                                ? const Icon(Icons.check_circle_outline)
+                                : const Icon(Icons.add_circle_outline),
+                            onTap: checked
+                                ? null
+                                : () => Navigator.of(context).pop(student),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -536,6 +952,25 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
+class _InlineEmptyState extends StatelessWidget {
+  const _InlineEmptyState({required this.message});
+
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Text(
+        message,
+        textAlign: TextAlign.center,
+        style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+      ),
+    );
+  }
+}
+
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message});
 
@@ -560,6 +995,53 @@ class _ErrorState extends StatelessWidget {
       ),
     );
   }
+}
+
+String _statusLabel(AttendanceSessionStatus status) {
+  switch (status) {
+    case AttendanceSessionStatus.open:
+      return 'Aberta';
+    case AttendanceSessionStatus.closed:
+      return 'Fechada';
+    case AttendanceSessionStatus.cancelled:
+      return 'Cancelada';
+  }
+}
+
+Color _statusColor(ColorScheme cs, AttendanceSessionStatus status) {
+  switch (status) {
+    case AttendanceSessionStatus.open:
+      return cs.primary;
+    case AttendanceSessionStatus.closed:
+      return Colors.green;
+    case AttendanceSessionStatus.cancelled:
+      return cs.error;
+  }
+}
+
+String _beltName(BeltColor belt) {
+  switch (belt) {
+    case BeltColor.white:
+      return 'Branca';
+    case BeltColor.blue:
+      return 'Azul';
+    case BeltColor.purple:
+      return 'Roxa';
+    case BeltColor.brown:
+      return 'Marrom';
+    case BeltColor.black:
+      return 'Preta';
+  }
+}
+
+String _initials(String value) {
+  final parts = value.trim().split(RegExp(r'\s+'));
+  if (parts.isEmpty || parts.first.isEmpty) return 'A';
+  final first = parts.first.characters.first;
+  final second = parts.length > 1 && parts.last.isNotEmpty
+      ? parts.last.characters.first
+      : '';
+  return '$first$second'.toUpperCase();
 }
 
 String _formatDateTime(DateTime value) {

@@ -2,12 +2,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../model/attendance_models.dart';
 import '../model/grading_rules.dart';
+import '../model/training_session.dart';
+import 'training_repository.dart';
 
 class AttendanceRepository {
-  AttendanceRepository._(this._db);
-  AttendanceRepository(this._db);
+  AttendanceRepository._(FirebaseFirestore db)
+      : _db = db,
+        _trainingRepository = TrainingRepository(db);
+
+  AttendanceRepository(
+    FirebaseFirestore db, {
+    TrainingRepository? trainingRepository,
+  })  : _db = db,
+        _trainingRepository = trainingRepository ?? TrainingRepository(db);
 
   final FirebaseFirestore _db;
+  final TrainingRepository _trainingRepository;
 
   static final AttendanceRepository instance =
       AttendanceRepository._(FirebaseFirestore.instance);
@@ -136,22 +146,76 @@ class AttendanceRepository {
     required int degree,
     required String createdByUid,
   }) async {
+    final resolvedAcademyId = _requiredId(academyId, 'academyId');
+    final resolvedSessionId = _requiredId(sessionId, 'sessionId');
     final resolvedUid = _requiredId(uid, 'uid');
+    final resolvedCreatedByUid = _requiredId(createdByUid, 'createdByUid');
 
-    await _checkInRef(
-      academyId: academyId,
-      sessionId: sessionId,
+    final sessionSnap = await _sessionRef(
+      academyId: resolvedAcademyId,
+      sessionId: resolvedSessionId,
+    ).get();
+    final sessionData = sessionSnap.data();
+    if (!sessionSnap.exists || sessionData == null) {
+      throw StateError('Sessao de presenca nao encontrada.');
+    }
+
+    final attendanceSession = AttendanceSession.fromDoc(
+      sessionSnap.id,
+      sessionData,
+    );
+    if (attendanceSession.status != AttendanceSessionStatus.open) {
+      throw StateError('Check-in permitido somente em sessao aberta.');
+    }
+
+    final trainingSessionId = _trainingRepository.attendanceLinkedSessionId(
+      attendanceSessionId: resolvedSessionId,
+      attendanceCheckInUid: resolvedUid,
+    );
+
+    final trainingSession = TrainingSession(
+      id: trainingSessionId,
+      date: attendanceSession.startsAt,
+      place: TrainingPlace.academy,
+      notes: _attendanceTrainingNotes(attendanceSession),
+      academyId: resolvedAcademyId,
       uid: resolvedUid,
-    ).set({
-      'uid': resolvedUid,
-      'studentName': studentName.trim(),
-      'belt': belt.name,
-      'degree': degree.clamp(0, 12).toInt(),
-      'source': AttendanceCheckInSource.manual.name,
-      'checkedInAt': FieldValue.serverTimestamp(),
-      'createdByUid': createdByUid.trim(),
-      'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+      source: 'attendance',
+      attendanceSessionId: resolvedSessionId,
+      attendanceCheckInUid: resolvedUid,
+      classType: attendanceSession.classType,
+      instructorUid: attendanceSession.instructorUid,
+      instructorName: attendanceSession.instructorName,
+    );
+
+    final batch = _db.batch();
+    batch.set(
+      _checkInRef(
+        academyId: resolvedAcademyId,
+        sessionId: resolvedSessionId,
+        uid: resolvedUid,
+      ),
+      {
+        'uid': resolvedUid,
+        'studentName': studentName.trim(),
+        'belt': belt.name,
+        'degree': degree.clamp(0, 12).toInt(),
+        'source': AttendanceCheckInSource.manual.name,
+        'checkedInAt': FieldValue.serverTimestamp(),
+        'createdByUid': resolvedCreatedByUid,
+        'createdAt': FieldValue.serverTimestamp(),
+      },
+      SetOptions(merge: true),
+    );
+
+    _trainingRepository.setAttendanceDerivedSessionInBatch(
+      batch: batch,
+      academyId: resolvedAcademyId,
+      uid: resolvedUid,
+      session: trainingSession,
+    );
+
+    await batch.commit();
   }
 
   Future<void> removeCheckIn({
@@ -159,11 +223,28 @@ class AttendanceRepository {
     required String sessionId,
     required String uid,
   }) async {
-    await _checkInRef(
-      academyId: academyId,
-      sessionId: sessionId,
-      uid: uid,
-    ).delete();
+    final resolvedAcademyId = _requiredId(academyId, 'academyId');
+    final resolvedSessionId = _requiredId(sessionId, 'sessionId');
+    final resolvedUid = _requiredId(uid, 'uid');
+
+    final batch = _db.batch();
+    batch.delete(
+      _checkInRef(
+        academyId: resolvedAcademyId,
+        sessionId: resolvedSessionId,
+        uid: resolvedUid,
+      ),
+    );
+
+    _trainingRepository.deleteAttendanceDerivedSessionInBatch(
+      batch: batch,
+      academyId: resolvedAcademyId,
+      uid: resolvedUid,
+      attendanceSessionId: resolvedSessionId,
+      attendanceCheckInUid: resolvedUid,
+    );
+
+    await batch.commit();
   }
 
   Future<void> closeSession({
@@ -197,5 +278,17 @@ class AttendanceRepository {
       'status': status.name,
       'updatedAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+  }
+
+  String _attendanceTrainingNotes(AttendanceSession session) {
+    final instructor = session.instructorName.trim().isEmpty
+        ? session.instructorUid.trim()
+        : session.instructorName.trim();
+    final title = session.title.trim().isEmpty ? 'Aula' : session.title.trim();
+    final classType = session.classType.trim().isEmpty
+        ? 'Treino'
+        : session.classType.trim();
+
+    return 'Presenca confirmada: $title - $classType. Instrutor: $instructor.';
   }
 }

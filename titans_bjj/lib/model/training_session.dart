@@ -8,8 +8,17 @@ class TrainingSession {
   final TrainingPlace place;
   final String? notes;
 
-  /// Mapa alunoId -> pontuação 1..5
+  /// Mapa alunoId -> pontuacao 1..5
   final Map<String, int> scores;
+
+  final String? academyId;
+  final String? uid;
+  final String? source;
+  final String? attendanceSessionId;
+  final String? attendanceCheckInUid;
+  final String? classType;
+  final String? instructorUid;
+  final String? instructorName;
 
   TrainingSession({
     required this.id,
@@ -17,6 +26,14 @@ class TrainingSession {
     required this.place,
     this.notes,
     Map<String, int>? scores,
+    this.academyId,
+    this.uid,
+    this.source,
+    this.attendanceSessionId,
+    this.attendanceCheckInUid,
+    this.classType,
+    this.instructorUid,
+    this.instructorName,
   }) : scores = scores ?? const {};
 
   TrainingSession copyWith({
@@ -24,6 +41,14 @@ class TrainingSession {
     TrainingPlace? place,
     String? notes,
     Map<String, int>? scores,
+    String? academyId,
+    String? uid,
+    String? source,
+    String? attendanceSessionId,
+    String? attendanceCheckInUid,
+    String? classType,
+    String? instructorUid,
+    String? instructorName,
   }) {
     return TrainingSession(
       id: id,
@@ -31,23 +56,41 @@ class TrainingSession {
       place: place ?? this.place,
       notes: notes ?? this.notes,
       scores: scores ?? this.scores,
+      academyId: academyId ?? this.academyId,
+      uid: uid ?? this.uid,
+      source: source ?? this.source,
+      attendanceSessionId: attendanceSessionId ?? this.attendanceSessionId,
+      attendanceCheckInUid: attendanceCheckInUid ?? this.attendanceCheckInUid,
+      classType: classType ?? this.classType,
+      instructorUid: instructorUid ?? this.instructorUid,
+      instructorName: instructorName ?? this.instructorName,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'date': Timestamp.fromDate(date),
-      'place': place.name, // 'academy' | 'home' | 'other'
+      'place': place.name,
       'notes': notes,
       'scores': scores,
+      if (academyId != null) 'academyId': academyId,
+      if (uid != null) 'uid': uid,
+      if (source != null) 'source': source,
+      if (attendanceSessionId != null)
+        'attendanceSessionId': attendanceSessionId,
+      if (attendanceCheckInUid != null)
+        'attendanceCheckInUid': attendanceCheckInUid,
+      if (classType != null) 'classType': classType,
+      if (instructorUid != null) 'instructorUid': instructorUid,
+      if (instructorName != null) 'instructorName': instructorName,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
 
   static TrainingSession fromDoc(
-      String id,
-      Map<String, dynamic> data,
-      ) {
+    String id,
+    Map<String, dynamic> data,
+  ) {
     final rawDate = data['date'];
     DateTime date;
 
@@ -61,7 +104,7 @@ class TrainingSession {
 
     final placeRaw = (data['place'] ?? 'academy').toString();
     final place = TrainingPlace.values.firstWhere(
-          (e) => e.name == placeRaw,
+      (e) => e.name == placeRaw,
       orElse: () => TrainingPlace.academy,
     );
 
@@ -84,6 +127,14 @@ class TrainingSession {
       place: place,
       notes: notes,
       scores: scores,
+      academyId: data['academyId']?.toString(),
+      uid: data['uid']?.toString(),
+      source: data['source']?.toString(),
+      attendanceSessionId: data['attendanceSessionId']?.toString(),
+      attendanceCheckInUid: data['attendanceCheckInUid']?.toString(),
+      classType: data['classType']?.toString(),
+      instructorUid: data['instructorUid']?.toString(),
+      instructorName: data['instructorName']?.toString(),
     );
   }
 }
