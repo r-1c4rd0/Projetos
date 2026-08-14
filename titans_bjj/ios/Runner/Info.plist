@@ -45,6 +45,8 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Usamos a camera para escanear QR Code de check-in de presenca.</string>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Usamos biometria para desbloquear sua sessão no Titans BJJ.</string>
 	<!-- Galeria (para selecionar a logo da equipe) -->

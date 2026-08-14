@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../model/app_user.dart';
 import '../model/attendance_models.dart';
 import '../model/grading_rules.dart';
 import '../model/training_session.dart';
@@ -216,6 +217,67 @@ class AttendanceRepository {
     );
 
     await batch.commit();
+  }
+
+  Future<void> addQrCheckIn({
+    required String academyId,
+    required String sessionId,
+    required AppUser student,
+  }) async {
+    final resolvedAcademyId = _requiredId(academyId, 'academyId');
+    final resolvedSessionId = _requiredId(sessionId, 'sessionId');
+    final resolvedUid = _requiredId(student.uid, 'student.uid');
+
+    if (student.academyId != resolvedAcademyId) {
+      throw StateError('QR Code pertence a outra academia.');
+    }
+
+    final sessionRef = _sessionRef(
+      academyId: resolvedAcademyId,
+      sessionId: resolvedSessionId,
+    );
+    final checkInRef = _checkInRef(
+      academyId: resolvedAcademyId,
+      sessionId: resolvedSessionId,
+      uid: resolvedUid,
+    );
+
+    await _db.runTransaction((transaction) async {
+      final sessionSnap = await transaction.get(sessionRef);
+      final sessionData = sessionSnap.data();
+      if (!sessionSnap.exists || sessionData == null) {
+        throw StateError('Sessao de presenca nao encontrada.');
+      }
+
+      final attendanceSession = AttendanceSession.fromDoc(
+        sessionSnap.id,
+        sessionData,
+      );
+      if (attendanceSession.academyId != resolvedAcademyId) {
+        throw StateError('Sessao de presenca pertence a outra academia.');
+      }
+      if (attendanceSession.status != AttendanceSessionStatus.open) {
+        throw StateError('Check-in permitido somente em sessao aberta.');
+      }
+
+      final existingCheckIn = await transaction.get(checkInRef);
+      if (existingCheckIn.exists) {
+        throw StateError('Check-in ja registrado para esta sessao.');
+      }
+
+      transaction.set(checkInRef, {
+        'uid': resolvedUid,
+        'studentName': student.name.trim().isEmpty
+            ? student.email.trim()
+            : student.name.trim(),
+        'belt': student.belt.name,
+        'degree': student.degree.clamp(0, 12).toInt(),
+        'source': AttendanceCheckInSource.qr.name,
+        'checkedInAt': FieldValue.serverTimestamp(),
+        'createdByUid': resolvedUid,
+        'createdAt': FieldValue.serverTimestamp(),
+      });
+    });
   }
 
   Future<void> removeCheckIn({

@@ -1,6 +1,9 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
@@ -219,7 +222,7 @@ class _AttendanceSessionDetailsScreen extends StatefulWidget {
 
 class _AttendanceSessionDetailsScreenState
     extends State<_AttendanceSessionDetailsScreen> {
-  late final StreamSubscription<List<AttendanceCheckIn>> _checkInsSubscription;
+  StreamSubscription<List<AttendanceCheckIn>>? _checkInsSubscription;
   List<AttendanceCheckIn> _checkIns = const <AttendanceCheckIn>[];
   Object? _checkInsError;
   bool _loadingCheckIns = true;
@@ -237,6 +240,12 @@ class _AttendanceSessionDetailsScreenState
   @override
   void initState() {
     super.initState();
+
+    if (!_isStaff) {
+      _loadingCheckIns = false;
+      return;
+    }
+
     _checkInsSubscription = widget.attendanceRepository
         .watchSessionCheckIns(
           academyId: widget.session.academyId,
@@ -263,7 +272,7 @@ class _AttendanceSessionDetailsScreenState
 
   @override
   void dispose() {
-    _checkInsSubscription.cancel();
+    _checkInsSubscription?.cancel();
     super.dispose();
   }
 
@@ -302,6 +311,15 @@ class _AttendanceSessionDetailsScreenState
       padding: TitansUI.listPadding(context),
       children: [
         _SessionHeader(session: session),
+        if (session.status == AttendanceSessionStatus.open) ...[
+          const SizedBox(height: 12),
+          _QrCheckInActionCard(
+            isStaff: _isStaff,
+            isBusy: _submitting,
+            onShowQr: _isStaff ? () => _showQrCode(session) : null,
+            onScanQr: !_isStaff ? () => _scanQrCode(session) : null,
+          ),
+        ],
         const SizedBox(height: 16),
         Text(
           'Alunos presentes',
@@ -327,6 +345,111 @@ class _AttendanceSessionDetailsScreenState
           ),
       ],
     );
+  }
+
+  Future<void> _showQrCode(AttendanceSession session) async {
+    if (!_canEdit) return;
+
+    final payload = _AttendanceQrPayload(
+      academyId: session.academyId,
+      sessionId: session.id,
+      generatedAt: DateTime.now().toUtc(),
+    ).encode();
+
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'QR Code da aula',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Aluno escaneia para registrar presenca',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurface
+                        .withValues(alpha: 0.72),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: QrImageView(
+                      data: payload,
+                      version: QrVersions.auto,
+                      size: 240,
+                      backgroundColor: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _scanQrCode(AttendanceSession session) async {
+    if (_isStaff || session.status != AttendanceSessionStatus.open || _submitting) {
+      return;
+    }
+
+    final rawPayload = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const _QrScannerScreen()),
+    );
+    if (rawPayload == null || rawPayload.trim().isEmpty) return;
+
+    late final _AttendanceQrPayload payload;
+    try {
+      payload = _AttendanceQrPayload.decode(rawPayload);
+    } catch (_) {
+      _showMessage('QR Code invalido para presenca.');
+      return;
+    }
+
+    if (payload.academyId != widget.currentUser.academyId) {
+      _showMessage('QR Code pertence a outra academia.');
+      return;
+    }
+    if (payload.sessionId != session.id) {
+      _showMessage('QR Code pertence a outra sessao.');
+      return;
+    }
+
+    setState(() => _submitting = true);
+    try {
+      await widget.attendanceRepository.addQrCheckIn(
+        academyId: payload.academyId,
+        sessionId: payload.sessionId,
+        student: widget.currentUser,
+      );
+      if (!mounted) return;
+      _showMessage('Presenca registrada por QR Code.');
+    } catch (error) {
+      if (!mounted) return;
+      _showMessage('Nao foi possivel registrar QR Code: $error');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _openAddStudentSheet() async {
@@ -583,6 +706,189 @@ class _SessionHeader extends StatelessWidget {
   }
 }
 
+class _QrCheckInActionCard extends StatelessWidget {
+  const _QrCheckInActionCard({
+    required this.isStaff,
+    required this.isBusy,
+    required this.onShowQr,
+    required this.onScanQr,
+  });
+
+  final bool isStaff;
+  final bool isBusy;
+  final VoidCallback? onShowQr;
+  final VoidCallback? onScanQr;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final title = isStaff ? 'Check-in por QR Code' : 'Registrar presenca';
+    final message = isStaff
+        ? 'Exiba o QR Code para os alunos presentes nesta aula.'
+        : 'Escaneie o QR Code da aula aberta para registrar sua presenca.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.qr_code_2_outlined, color: cs.primary),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        message,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.72),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                icon: Icon(isStaff
+                    ? Icons.qr_code_2_outlined
+                    : Icons.qr_code_scanner_outlined),
+                label: Text(isStaff ? 'Exibir QR Code' : 'Escanear QR Code'),
+                onPressed: isBusy ? null : (isStaff ? onShowQr : onScanQr),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QrScannerScreen extends StatefulWidget {
+  const _QrScannerScreen();
+
+  @override
+  State<_QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<_QrScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController();
+  bool _handled = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TitansScaffold(
+      scroll: false,
+      appBar: AppBar(title: const Text('Escanear QR Code')),
+      body: ClipRRect(
+        borderRadius: BorderRadius.circular(TitansUI.radius),
+        child: Stack(
+          children: [
+            MobileScanner(
+              controller: _controller,
+              onDetect: (capture) {
+                if (_handled) return;
+                String? rawValue;
+                for (final barcode in capture.barcodes) {
+                  final value = barcode.rawValue?.trim();
+                  if (value == null || value.isEmpty) continue;
+                  rawValue = value;
+                  break;
+                }
+                if (rawValue == null) return;
+
+                _handled = true;
+                Navigator.of(context).pop(rawValue);
+              },
+            ),
+            Align(
+              alignment: Alignment.bottomCenter,
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                color: Colors.black.withValues(alpha: 0.62),
+                child: const Text(
+                  'Aponte a camera para o QR Code da aula aberta.',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AttendanceQrPayload {
+  static const type = 'attendance_checkin';
+
+  final String academyId;
+  final String sessionId;
+  final DateTime generatedAt;
+
+  const _AttendanceQrPayload({
+    required this.academyId,
+    required this.sessionId,
+    required this.generatedAt,
+  });
+
+  String encode() {
+    return jsonEncode({
+      'type': type,
+      'academyId': academyId,
+      'sessionId': sessionId,
+      'generatedAt': generatedAt.toUtc().toIso8601String(),
+    });
+  }
+
+  static _AttendanceQrPayload decode(String raw) {
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) {
+      throw const FormatException('Payload QR invalido.');
+    }
+
+    final payloadType = decoded['type']?.toString();
+    final academyId = decoded['academyId']?.toString().trim() ?? '';
+    final sessionId = decoded['sessionId']?.toString().trim() ?? '';
+    final generatedAtRaw = decoded['generatedAt']?.toString() ?? '';
+    final generatedAt = DateTime.tryParse(generatedAtRaw);
+
+    if (payloadType != type ||
+        academyId.isEmpty ||
+        sessionId.isEmpty ||
+        generatedAt == null) {
+      throw const FormatException('Payload QR invalido.');
+    }
+
+    return _AttendanceQrPayload(
+      academyId: academyId,
+      sessionId: sessionId,
+      generatedAt: generatedAt,
+    );
+  }
+}
+
 class _CheckInTile extends StatelessWidget {
   const _CheckInTile({
     required this.checkIn,
@@ -607,7 +913,7 @@ class _CheckInTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
         ),
         subtitle: Text(
-          '${_beltName(checkIn.belt)} - G${checkIn.degree} - Manual',
+          '${_beltName(checkIn.belt)} - G${checkIn.degree} - ${_sourceLabel(checkIn.source)}',
         ),
         trailing: canRemove
             ? IconButton(
@@ -1000,6 +1306,12 @@ Color _statusColor(ColorScheme cs, AttendanceSessionStatus status) {
     case AttendanceSessionStatus.cancelled:
       return cs.error;
   }
+}
+
+String _sourceLabel(AttendanceCheckInSource source) {
+  if (source == AttendanceCheckInSource.manual) return 'Manual';
+  if (source == AttendanceCheckInSource.qr) return 'QR Code';
+  return source.name.toUpperCase();
 }
 
 String _beltName(BeltColor belt) {
