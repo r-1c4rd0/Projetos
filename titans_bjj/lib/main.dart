@@ -11,6 +11,7 @@ import 'model/academy_models.dart';
 import 'model/app_user.dart';
 import 'screen/athlete_dashboard_screen.dart';
 import 'screen/athlete_registration_screen.dart';
+import 'screen/attendance_screen.dart';
 import 'screen/event_screen.dart';
 // Telas
 import 'screen/master_panel_screen.dart';
@@ -151,6 +152,7 @@ class _HomeShellState extends State<HomeShell> {
       return <Widget>[
         const MasterPanelScreen(),
         const EventScreen(),
+        const AttendanceScreen(),
         AthleteRegistrationScreen(academyId: user.academyId),
         // (Opcional)
         // AcademyScreen(),
@@ -180,6 +182,10 @@ class _HomeShellState extends State<HomeShell> {
         NavigationDestination(
           icon: Icon(Icons.event_outlined),
           label: 'Eventos',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.fact_check_outlined),
+          label: 'Presenca',
         ),
         NavigationDestination(
           icon: Icon(Icons.person_add_alt_1_outlined),
