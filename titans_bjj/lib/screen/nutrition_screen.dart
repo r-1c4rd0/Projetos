@@ -9,6 +9,7 @@ import '../widgets/titans_scaffold.dart';
 
 class NutritionScreen extends StatefulWidget {
   final String? titleOverride;
+  final TargetMode targetMode;
 
   /// Mock condicional para teste/local.
   final bool useMock;
@@ -19,6 +20,7 @@ class NutritionScreen extends StatefulWidget {
   const NutritionScreen({
     super.key,
     this.titleOverride,
+    this.targetMode = TargetMode.self,
     this.useMock = false,
     this.showLeading = true,
   });
@@ -33,15 +35,31 @@ class _NutritionScreenState extends State<NutritionScreen> {
   late Future<List<MealEntry>> _mealsFuture;
 
   bool _repoReady = false;
+  String? _targetAcademyId;
+  String? _targetUid;
   bool _fallbackToMock = false;
   Object? _repoError;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_repoReady) return;
 
-    final target = TargetResolver.of(context);
+    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    if (target == null) {
+      _repoReady = false;
+      return;
+    }
+
+    if (_repoReady &&
+        _targetAcademyId == target.academyId &&
+        _targetUid == target.uid) {
+      return;
+    }
+
+    _targetAcademyId = target.academyId;
+    _targetUid = target.uid;
+    _fallbackToMock = false;
+    _repoError = null;
 
     _repo = NutritionRepositoryFactory.create(
       academyId: target.academyId,
@@ -74,6 +92,22 @@ class _NutritionScreenState extends State<NutritionScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_repoReady) {
+      final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+      if (target == null) {
+        return TitansScaffold(
+          appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
+          body: const Center(
+            child: Padding(
+              padding: EdgeInsets.all(16),
+              child: Text(
+                'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        );
+      }
+
       return const Center(child: CircularProgressIndicator());
     }
 

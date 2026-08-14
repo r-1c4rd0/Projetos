@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'selected_student.dart';
 
 class SelectedStudentScope extends InheritedNotifier<SelectedStudentController> {
@@ -9,9 +10,14 @@ class SelectedStudentScope extends InheritedNotifier<SelectedStudentController> 
   }) : super(notifier: controller);
 
   static SelectedStudentController of(BuildContext context) {
-    final scope =
-    context.dependOnInheritedWidgetOfExactType<SelectedStudentScope>();
-    assert(scope != null, 'SelectedStudentScope não encontrado no widget tree.');
-    return scope!.notifier!;
+    final controller = maybeOf(context);
+    assert(controller != null, 'SelectedStudentScope nao encontrado no widget tree.');
+    return controller!;
+  }
+
+  static SelectedStudentController? maybeOf(BuildContext context) {
+    return context
+        .dependOnInheritedWidgetOfExactType<SelectedStudentScope>()
+        ?.notifier;
   }
 }

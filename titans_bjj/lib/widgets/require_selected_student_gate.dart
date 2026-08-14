@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import '../service/selected_student.dart';
 import '../service/selected_student_scope.dart';
 
@@ -12,8 +13,8 @@ class RequireSelectedStudentGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final controller = SelectedStudentScope.of(context);
-    final selected = controller.selected;
+    final controller = SelectedStudentScope.maybeOf(context);
+    final selected = controller?.selected;
 
     if (selected == null) {
       return Center(
@@ -34,10 +35,13 @@ class RequireSelectedStudentGate extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Para acessar Treinos / Progresso / Nutrição, o mestre precisa clicar em um aluno.',
+                    'Para acessar Treinos, Progresso ou Nutricao, professor/admin precisa abrir o console a partir do card de um aluno.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+                      color: Theme.of(context)
+                          .colorScheme
+                          .onSurface
+                          .withValues(alpha: 0.7),
                     ),
                   ),
                 ],

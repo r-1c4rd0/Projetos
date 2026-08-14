@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -11,10 +13,12 @@ import 'add_training_session_screen.dart';
 
 class TrainingScreen extends StatefulWidget {
   final String? titleOverride;
+  final TargetMode targetMode;
 
   const TrainingScreen({
     super.key,
     this.titleOverride,
+    this.targetMode = TargetMode.self,
   });
 
   @override
@@ -26,9 +30,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   late final TrainingRepository _repo = TrainingRepository.instance;
 
+  String? _streamAcademyId;
+  String? _streamUid;
+  Stream<List<TrainingSession>>? _sessionsStream;
+
+  void _syncStream({required String academyId, required String uid}) {
+    if (_streamAcademyId == academyId && _streamUid == uid) return;
+
+    _streamAcademyId = academyId;
+    _streamUid = uid;
+    _sessionsStream = _repo.watchSessions(academyId: academyId, uid: uid);
+  }
+
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(context);
+    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
 
     final academyId = target?.academyId;
     final uid = target?.uid;
@@ -40,15 +56,15 @@ class _TrainingScreenState extends State<TrainingScreen> {
           child: Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'Não foi possível abrir Treinos.\n\n'
-                  'Motivo: não existe sessão (UserScope) e também não foram informados academyId/uid.\n\n'
-                  'Solução: quando o mestre abrir esta tela, passe academyIdOverride e uidOverride.',
+              'Selecione um aluno no Painel do Mestre para acessar Treinos.',
               textAlign: TextAlign.center,
             ),
           ),
         ),
       );
     }
+
+    _syncStream(academyId: academyId, uid: uid);
 
     final cs = Theme.of(context).colorScheme;
 
@@ -84,10 +100,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         label: const Text('Treino'),
       ),
       body: StreamBuilder<List<TrainingSession>>(
-        stream: _repo.watchSessions(
-          academyId: academyId,
-          uid: uid,
-        ),
+        stream: _sessionsStream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());

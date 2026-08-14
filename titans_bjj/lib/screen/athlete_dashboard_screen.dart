@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../model/app_user.dart';
@@ -16,12 +18,14 @@ class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteNameOverride;
   final String? athleteEmailOverride;
   final String? titleOverride;
+  final TargetMode targetMode;
 
   const AthleteDashboardScreen({
     super.key,
     this.athleteNameOverride,
     this.athleteEmailOverride,
     this.titleOverride,
+    this.targetMode = TargetMode.self,
   });
 
   @override
@@ -36,10 +40,49 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       UserProgressRepository.instance;
   late final UserRepository _userRepo = UserRepository.instance;
 
+  String? _streamAcademyId;
+  String? _streamUid;
+  Stream<AppUser?>? _athleteStream;
+  Stream<UserProgressProfile?>? _profileStream;
+  Stream<GradingRules?>? _rulesStream;
+  Stream<List<TrainingSession>>? _sessionsStream;
+
+  void _syncStreams({required String academyId, required String uid}) {
+    if (_streamAcademyId == academyId && _streamUid == uid) return;
+
+    _streamAcademyId = academyId;
+    _streamUid = uid;
+    _athleteStream = _userRepo.watchUser(academyId: academyId, uid: uid);
+    _profileStream = _progressRepo.watchProfile(academyId: academyId, uid: uid);
+    _rulesStream = _rulesRepo.watch(academyId);
+    _sessionsStream = _trainingRepo.watchSessions(
+      academyId: academyId,
+      uid: uid,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.of(context);
+    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
     final loggedUser = UserScope.maybeOf(context);
+
+    if (target == null) {
+      return TitansScaffold(
+        appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(16),
+            child: Text(
+              'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
+
+    _syncStreams(academyId: target.academyId, uid: target.uid);
+
     final cs = Theme.of(context).colorScheme;
 
     final academyId = target.academyId;
@@ -57,7 +100,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         ],
       ),
       body: StreamBuilder<AppUser?>(
-        stream: _userRepo.watchUser(academyId: academyId, uid: uid),
+        stream: _athleteStream,
         builder: (context, userSnap) {
           if (userSnap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
@@ -92,7 +135,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
               loggedUser?.role == UserRole.athlete && loggedUser?.uid == uid;
 
           return StreamBuilder<UserProgressProfile?>(
-            stream: _progressRepo.watchProfile(academyId: academyId, uid: uid),
+            stream: _profileStream,
             builder: (context, profileSnap) {
               if (profileSnap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
@@ -114,7 +157,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
               }
 
               return StreamBuilder<GradingRules?>(
-                stream: _rulesRepo.watch(academyId),
+                stream: _rulesStream,
                 builder: (context, rulesSnap) {
                   if (rulesSnap.connectionState == ConnectionState.waiting &&
                       !rulesSnap.hasData) {
@@ -130,10 +173,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                   final rules = rulesSnap.data ?? GradingRules.defaults();
 
                   return StreamBuilder<List<TrainingSession>>(
-                    stream: _trainingRepo.watchSessions(
-                      academyId: academyId,
-                      uid: uid,
-                    ),
+                    stream: _sessionsStream,
                     builder: (context, trainSnap) {
                       if (trainSnap.connectionState ==
                           ConnectionState.waiting) {

@@ -7,6 +7,7 @@ import '../repository/students_repository.dart';
 import '../repository/user_repository.dart';
 import '../service/selected_student.dart';
 import '../service/selected_student_scope.dart';
+import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_console_screen.dart';
@@ -39,6 +40,21 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
       appBar: AppBar(
         title: const Text('Painel do Mestre'),
         actions: [
+          IconButton(
+            tooltip: 'Meu perfil',
+            icon: const Icon(Icons.account_circle_outlined),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => const AthleteConsoleScreen(
+                    masterView: false,
+                    titleOverride: 'Meu perfil',
+                    targetMode: TargetMode.self,
+                  ),
+                ),
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.filter_alt_outlined),
             onPressed: () {},
@@ -169,6 +185,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                           builder: (_) => AthleteConsoleScreen(
                             masterView: true,
                             titleOverride: 'Aluno: ${student.name}',
+                            targetMode: TargetMode.selectedStudent,
                           ),
                         ),
                       );

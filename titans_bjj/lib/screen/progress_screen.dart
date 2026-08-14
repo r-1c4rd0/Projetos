@@ -17,8 +17,13 @@ import '../widgets/titans_scaffold.dart';
 
 class ProgressScreen extends StatefulWidget {
   final String? titleOverride;
+  final TargetMode targetMode;
 
-  const ProgressScreen({super.key, this.titleOverride});
+  const ProgressScreen({
+    super.key,
+    this.titleOverride,
+    this.targetMode = TargetMode.self,
+  });
 
   @override
   State<ProgressScreen> createState() => _ProgressScreenState();
@@ -53,7 +58,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     if (_ensuringRules) return;
 
-    final target = TargetResolver.maybeOf(context);
+    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
     final academyId = target?.academyId;
 
     if (academyId == null) return;
@@ -87,7 +92,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(context);
+    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
 
     final academyId = target?.academyId;
     final uid = target?.uid;
@@ -99,9 +104,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
           child: Padding(
             padding: EdgeInsets.all(16),
             child: Text(
-              'Não foi possível abrir Progresso.\n\n'
-              'Motivo: não existe sessão (UserScope) e também não foram informados academyId/uid.\n\n'
-              'Solução: quando o mestre abrir esta tela, passe academyIdOverride e uidOverride.',
+              'Selecione um aluno no Painel do Mestre para acessar Progresso.',
               textAlign: TextAlign.center,
             ),
           ),
