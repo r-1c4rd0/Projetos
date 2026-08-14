@@ -13,6 +13,7 @@ import '../repository/training_repository.dart';
 import '../repository/user_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/training_aggregator.dart';
 import '../widgets/titans_scaffold.dart';
 
 class ProgressScreen extends StatefulWidget {
@@ -230,8 +231,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 );
                               }
 
-                              final sessions = List<TrainingSession>.from(
-                                trainSnap.data ?? const <TrainingSession>[],
+                              final sessions = TrainingAggregator.uniqueSessions(
+                                List<TrainingSession>.from(
+                                  trainSnap.data ?? const <TrainingSession>[],
+                                ),
                               );
 
                               final filtered =
@@ -248,6 +251,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               filtered.sort(
                                 (a, b) => a.date.compareTo(b.date),
                               );
+
+                              final metrics = TrainingAggregator.metrics(filtered);
 
                               final beltProgress = _calcBeltProgress(
                                 rules: rules,
@@ -275,6 +280,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 ),
                                 children: [
                                   _BeltProgressCard(progress: beltProgress),
+                                  const SizedBox(height: 12),
+                                  _TrainingMetricsCard(metrics: metrics),
                                   const SizedBox(height: 12),
                                   _ConsistencyChartCard(
                                     title: _titleForPeriod(_period),
@@ -322,7 +329,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 .clamp(1, 1 << 30)
                 .toInt();
 
-    final percent = maxDeg <= 0 ? 0.0 : (degree / maxDeg).clamp(0.0, 1.0);
+    final percent = (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
 
     return _BeltProgress(
       belt: belt,
@@ -512,6 +519,102 @@ class _BeltProgressCard extends StatelessWidget {
   }
 }
 
+class _TrainingMetricsCard extends StatelessWidget {
+  final TrainingMetrics metrics;
+
+  const _TrainingMetricsCard({required this.metrics});
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Treinos realizados',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final columns = constraints.maxWidth >= 520 ? 4 : 2;
+                return GridView.count(
+                  crossAxisCount: columns,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: columns == 4 ? 1.9 : 2.2,
+                  children: [
+                    _MetricTile(label: 'Total', value: metrics.total.toString()),
+                    _MetricTile(label: 'Mes', value: metrics.month.toString()),
+                    _MetricTile(label: 'Ano', value: metrics.year.toString()),
+                    _MetricTile(
+                      label: '30 dias',
+                      value: '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricTile extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _MetricTile({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.7),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              value,
+              style: TextStyle(
+                color: cs.primary,
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
 class _ConsistencyChartCard extends StatelessWidget {
   final String title;
   final int totalInWindow;
