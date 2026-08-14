@@ -138,7 +138,7 @@ class _HomeShellState extends State<HomeShell> {
 
   // ✅ Corrigido: mestre = professor OU admin
   bool _isMaster(AppUser user) {
-    return user.role != UserRole.professor && user.role == UserRole.admin;
+    return user.role == UserRole.professor && user.role == UserRole.admin;
   }
 
   List<Widget> _buildPages(BuildContext context) {

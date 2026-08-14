@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../model/grading_rules.dart';
+import '../model/app_user.dart';
 import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../model/user_progress_profile.dart';
 import '../repository/grading_rules_repository.dart';
 import '../repository/training_repository.dart';
+import '../repository/user_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
 import '../widgets/titans_scaffold.dart';
@@ -30,6 +34,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   late final UserProgressRepository _progressRepo =
       UserProgressRepository.instance;
+
+  late final UserRepository _userRepo = UserRepository.instance;
+
+  String? _streamAcademyId;
+  String? _streamUid;
+  Stream<GradingRules?>? _rulesStream;
+  Stream<AppUser?>? _athleteStream;
+  Stream<UserProgressProfile?>? _profileStream;
+  Stream<List<TrainingSession>>? _sessionsStream;
 
   bool _ensuringRules = false;
   Object? _ensureError;
@@ -58,6 +71,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
     });
   }
 
+  void _syncStreams({required String academyId, required String uid}) {
+    if (_streamAcademyId == academyId && _streamUid == uid) return;
+
+    _streamAcademyId = academyId;
+    _streamUid = uid;
+    _rulesStream = _rulesRepo.watch(academyId);
+    _athleteStream = _userRepo.watchUser(academyId: academyId, uid: uid);
+    _profileStream = _progressRepo.watchProfile(academyId: academyId, uid: uid);
+    _sessionsStream = _trainingRepo.watchSessions(
+      academyId: academyId,
+      uid: uid,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final target = TargetResolver.maybeOf(context);
@@ -81,6 +108,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
         ),
       );
     }
+
+    _syncStreams(academyId: academyId, uid: uid);
 
     return TitansScaffold(
       appBar: AppBar(
@@ -109,7 +138,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 message: _ensureError.toString(),
               )
               : StreamBuilder<GradingRules?>(
-                stream: _rulesRepo.watch(academyId),
+                stream: _rulesStream,
                 builder: (context, rulesSnap) {
                   if (_ensuringRules &&
                       rulesSnap.connectionState == ConnectionState.waiting) {
@@ -132,101 +161,127 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     );
                   }
 
-                  return StreamBuilder<UserProgressProfile?>(
-                    stream: _progressRepo.watchProfile(
-                      academyId: academyId,
-                      uid: uid,
-                    ),
-                    builder: (context, profileSnap) {
-                      if (profileSnap.connectionState ==
-                          ConnectionState.waiting) {
+                  return StreamBuilder<AppUser?>(
+                    stream: _athleteStream,
+                    builder: (context, userSnap) {
+                      if (userSnap.connectionState == ConnectionState.waiting) {
                         return const Center(child: CircularProgressIndicator());
                       }
 
-                      if (profileSnap.hasError) {
+                      if (userSnap.hasError) {
                         return _ErrorState(
-                          title: 'Erro ao carregar perfil de progresso',
-                          message: profileSnap.error.toString(),
+                          title: 'Erro ao carregar atleta',
+                          message: userSnap.error.toString(),
                         );
                       }
 
-                      final profile = profileSnap.data;
-                      if (profile == null) {
+                      final athlete = userSnap.data;
+                      if (athlete == null) {
                         return const _EmptyState(
-                          title: 'Perfil de progresso não encontrado.',
+                          title: 'Atleta não encontrado.',
                           subtitle:
-                              'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, currentBelt, currentDegree).',
+                              'Crie academies/{academyId}/users/{uid} com belt e degree.',
                         );
                       }
 
-                      return StreamBuilder<List<TrainingSession>>(
-                        stream: _trainingRepo.watchSessions(
-                          academyId: academyId,
-                          uid: uid,
-                        ),
-                        builder: (context, trainSnap) {
-                          if (trainSnap.connectionState ==
+                      return StreamBuilder<UserProgressProfile?>(
+                        stream: _profileStream,
+                        builder: (context, profileSnap) {
+                          if (profileSnap.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
                               child: CircularProgressIndicator(),
                             );
                           }
 
-                          if (trainSnap.hasError) {
+                          if (profileSnap.hasError) {
                             return _ErrorState(
-                              title: 'Erro ao carregar treinos',
-                              message: trainSnap.error.toString(),
+                              title: 'Erro ao carregar perfil de progresso',
+                              message: profileSnap.error.toString(),
                             );
                           }
 
-                          final sessions = List<TrainingSession>.from(
-                            trainSnap.data ?? const <TrainingSession>[],
-                          );
+                          final profile = profileSnap.data;
+                          if (profile == null) {
+                            return const _EmptyState(
+                              title: 'Perfil de progresso não encontrado.',
+                              subtitle:
+                                  'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
+                            );
+                          }
 
-                          final filtered =
-                              rules.onlyAcademyPlace
-                                  ? sessions
-                                      .where(
-                                        (s) => s.place == TrainingPlace.academy,
-                                      )
-                                      .toList()
-                                  : List<TrainingSession>.from(sessions);
+                          return StreamBuilder<List<TrainingSession>>(
+                            stream: _sessionsStream,
+                            builder: (context, trainSnap) {
+                              if (trainSnap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const Center(
+                                  child: CircularProgressIndicator(),
+                                );
+                              }
 
-                          filtered.sort((a, b) => a.date.compareTo(b.date));
+                              if (trainSnap.hasError) {
+                                return _ErrorState(
+                                  title: 'Erro ao carregar treinos',
+                                  message: trainSnap.error.toString(),
+                                );
+                              }
 
-                          final beltProgress = _calcBeltProgress(
-                            rules: rules,
-                            profile: profile,
-                            sessions: filtered,
-                          );
+                              final sessions = List<TrainingSession>.from(
+                                trainSnap.data ?? const <TrainingSession>[],
+                              );
 
-                          final series = _buildSeries(filtered, _period);
-                          final totalInWindow = series.values.fold<int>(
-                            0,
-                            (a, b) => a + b,
-                          );
+                              final filtered =
+                                  rules.onlyAcademyPlace
+                                      ? sessions
+                                          .where(
+                                            (s) =>
+                                                s.place ==
+                                                TrainingPlace.academy,
+                                          )
+                                          .toList()
+                                      : List<TrainingSession>.from(sessions);
 
-                          final bottomPad =
-                              MediaQuery.of(context).padding.bottom;
-                          final extraBottom = 80.0 + bottomPad + 32.0;
+                              filtered.sort(
+                                (a, b) => a.date.compareTo(b.date),
+                              );
 
-                          return ListView(
-                            padding: EdgeInsets.fromLTRB(
-                              16,
-                              16,
-                              16,
-                              extraBottom,
-                            ),
-                            children: [
-                              _BeltProgressCard(progress: beltProgress),
-                              const SizedBox(height: 12),
-                              _ConsistencyChartCard(
-                                title: _titleForPeriod(_period),
-                                totalInWindow: totalInWindow,
-                                labels: series.labels,
-                                values: series.values,
-                              ),
-                            ],
+                              final beltProgress = _calcBeltProgress(
+                                rules: rules,
+                                athlete: athlete,
+                                profile: profile,
+                                sessions: filtered,
+                              );
+
+                              final series = _buildSeries(filtered, _period);
+                              final totalInWindow = series.values.fold<int>(
+                                0,
+                                (a, b) => a + b,
+                              );
+
+                              final bottomPad =
+                                  MediaQuery.of(context).padding.bottom;
+                              final extraBottom = 80.0 + bottomPad + 32.0;
+
+                              return ListView(
+                                padding: EdgeInsets.fromLTRB(
+                                  16,
+                                  16,
+                                  16,
+                                  extraBottom,
+                                ),
+                                children: [
+                                  _BeltProgressCard(progress: beltProgress),
+                                  const SizedBox(height: 12),
+                                  _ConsistencyChartCard(
+                                    title: _titleForPeriod(_period),
+                                    totalInWindow: totalInWindow,
+                                    labels: series.labels,
+                                    values: series.values,
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         },
                       );
@@ -239,17 +294,20 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   _BeltProgress _calcBeltProgress({
     required GradingRules rules,
+    required AppUser athlete,
     required UserProgressProfile profile,
     required List<TrainingSession> sessions,
   }) {
-    final belt = profile.currentBelt;
+    // TODO migration: currentBelt/currentDegree in progress/profile are legacy
+    // cache fields. Graduation is canonical in academies/{academyId}/users/{uid}.
+    final belt = athlete.belt;
     final maxDeg = rules.maxDegrees(belt).clamp(1, 12).toInt();
 
     final beltStart = profile.beltStartAt;
     final sessionsInBelt =
         sessions.where((s) => !s.date.isBefore(beltStart)).length;
 
-    final degree = profile.currentDegree.clamp(0, maxDeg).toInt();
+    final degree = athlete.degree.clamp(0, maxDeg).toInt();
 
     final estimated = profile.estimatedSessionsInBelt;
     final requiredByRules = rules.requiredSessions(belt);
@@ -338,6 +396,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 class _BeltProgressCard extends StatelessWidget {
   final _BeltProgress progress;
   const _BeltProgressCard({required this.progress});
+
 
   @override
   Widget build(BuildContext context) {
@@ -462,6 +521,7 @@ class _ConsistencyChartCard extends StatelessWidget {
     required this.labels,
     required this.values,
   });
+
 
   @override
   Widget build(BuildContext context) {
@@ -597,6 +657,7 @@ class _EmptyState extends StatelessWidget {
 
   const _EmptyState({required this.title, required this.subtitle});
 
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -633,6 +694,7 @@ class _ErrorState extends StatelessWidget {
   final String message;
 
   const _ErrorState({required this.title, required this.message});
+
 
   @override
   Widget build(BuildContext context) {

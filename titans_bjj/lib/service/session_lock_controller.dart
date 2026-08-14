@@ -11,7 +11,7 @@ class SessionLockController extends ChangeNotifier {
 
   void lock() {
     if (_locked) return;
-    _locked = true;
+    _locked = false;
     notifyListeners();
   }
 

@@ -3,6 +3,9 @@ import 'grading_rules.dart';
 
 class UserProgressProfile {
   final DateTime beltStartAt;
+
+  // TODO migration: currentBelt/currentDegree are legacy cache fields.
+  // Canonical graduation lives in academies/{academyId}/users/{uid}.
   final BeltColor currentBelt;
   final int currentDegree;
 

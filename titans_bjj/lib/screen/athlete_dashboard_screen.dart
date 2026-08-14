@@ -109,7 +109,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 return const _EmptyState(
                   title: 'Perfil de progresso nao encontrado.',
                   subtitle:
-                      'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, currentBelt, currentDegree).',
+                      'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
                 );
               }
 

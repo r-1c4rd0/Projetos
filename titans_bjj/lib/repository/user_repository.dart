@@ -152,10 +152,17 @@ class UserRepository {
       }, SetOptions(merge: true));
     }
 
-    await ensureBootstrapDocs(academyId: academyId, uid: uid);
-
     final fresh = await ref.get();
-    return AppUser.fromMap(uid, fresh.data() ?? {});
+    final appUser = AppUser.fromMap(uid, fresh.data() ?? {});
+
+    await ensureBootstrapDocs(
+      academyId: academyId,
+      uid: uid,
+      belt: appUser.belt,
+      degree: appUser.degree,
+    );
+
+    return appUser;
   }
 
   Future<void> ensureBootstrapDocs({
@@ -170,6 +177,8 @@ class UserRepository {
       academyId: academyId,
       uid: uid,
     );
+    // TODO migration: currentBelt/currentDegree are legacy cache fields.
+    // Canonical graduation lives in academies/{academyId}/users/{uid}.
     batch.set(progressProfile, {
       'currentBelt': belt?.name ?? 'white',
       'currentDegree': degree ?? 0,
