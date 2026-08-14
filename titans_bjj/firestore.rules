@@ -44,6 +44,12 @@ service cloud.firestore {
         && academyUserDoc(academyId, request.auth.uid).data.academyId == academyId;
     }
 
+    function isAcademyUser(academyId, uid) {
+      return signedIn()
+        && hasAcademyUserDoc(academyId, uid)
+        && academyUserDoc(academyId, uid).data.academyId == academyId;
+    }
+
     function keepsSameAcademyId(academyId) {
       return request.resource.data.academyId == academyId
         && (!resource.data.keys().hasAny(['academyId']) || resource.data.academyId == academyId);
@@ -76,6 +82,41 @@ service cloud.firestore {
       return keepsSameAcademyId(academyId)
         && hasAthleteRole(resource.data)
         && hasAthleteRole(request.resource.data);
+    }
+
+    function isAttendanceSessionStatus(status) {
+      return status in ['open', 'closed', 'cancelled'];
+    }
+
+    function attendanceSessionPayload(academyId) {
+      return request.resource.data.keys().hasAll([
+          'academyId',
+          'title',
+          'classType',
+          'instructorUid',
+          'instructorName',
+          'startsAt',
+          'endsAt',
+          'status'
+        ])
+        && request.resource.data.academyId == academyId
+        && isAttendanceSessionStatus(request.resource.data.status);
+    }
+
+    function attendanceCheckInPayload(academyId, uid) {
+      return request.resource.data.keys().hasAll([
+          'uid',
+          'studentName',
+          'belt',
+          'degree',
+          'source',
+          'checkedInAt',
+          'createdByUid'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.source == 'manual'
+        && request.resource.data.createdByUid == request.auth.uid
+        && isAcademyUser(academyId, uid);
     }
 
     function selfCreateRootUserPayload() {
@@ -135,6 +176,22 @@ service cloud.firestore {
       match /grading_rules/{docId} {
         allow get, list: if isAcademyMember(academyId);
         allow create, update, delete: if isAcademyStaff(academyId);
+      }
+
+      match /attendance_sessions/{sessionId} {
+        allow get, list: if isAcademyMember(academyId);
+        allow create, update: if isAcademyStaff(academyId)
+          && attendanceSessionPayload(academyId);
+        allow delete: if isAcademyStaff(academyId);
+
+        match /checkins/{uid} {
+          allow get: if (isSelf(uid) && isAcademyMember(academyId))
+            || isAcademyStaff(academyId);
+          allow list: if isAcademyStaff(academyId);
+          allow create, update: if isAcademyStaff(academyId)
+            && attendanceCheckInPayload(academyId, uid);
+          allow delete: if isAcademyStaff(academyId);
+        }
       }
 
       match /{document=**} {
