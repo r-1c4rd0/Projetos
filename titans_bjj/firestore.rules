@@ -103,7 +103,28 @@ service cloud.firestore {
         && isAttendanceSessionStatus(request.resource.data.status);
     }
 
-    function attendanceCheckInPayload(academyId, uid) {
+    function attendanceSessionUpdatePayload(academyId) {
+      return (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['academyId'])
+          || request.resource.data.academyId == academyId)
+        && request.resource.data.academyId == academyId
+        && isAttendanceSessionStatus(request.resource.data.status);
+    }
+
+    function attendanceSessionDoc(academyId, sessionId) {
+      return get(/databases/$(database)/documents/academies/$(academyId)/attendance_sessions/$(sessionId));
+    }
+
+    function hasAttendanceSessionDoc(academyId, sessionId) {
+      return exists(/databases/$(database)/documents/academies/$(academyId)/attendance_sessions/$(sessionId));
+    }
+
+    function isAttendanceSessionOpen(academyId, sessionId) {
+      return hasAttendanceSessionDoc(academyId, sessionId)
+        && attendanceSessionDoc(academyId, sessionId).data.academyId == academyId
+        && attendanceSessionDoc(academyId, sessionId).data.status == 'open';
+    }
+
+    function attendanceCheckInPayload(academyId, sessionId, uid) {
       return request.resource.data.keys().hasAll([
           'uid',
           'studentName',
@@ -116,7 +137,27 @@ service cloud.firestore {
         && request.resource.data.uid == uid
         && request.resource.data.source == 'manual'
         && request.resource.data.createdByUid == request.auth.uid
-        && isAcademyUser(academyId, uid);
+        && isAcademyUser(academyId, uid)
+        && isAttendanceSessionOpen(academyId, sessionId);
+    }
+
+    function attendanceQrCheckInPayload(academyId, sessionId, uid) {
+      return signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasAll([
+          'uid',
+          'studentName',
+          'belt',
+          'degree',
+          'source',
+          'checkedInAt',
+          'createdByUid'
+        ])
+        && request.resource.data.uid == uid
+        && request.resource.data.source == 'qr'
+        && request.resource.data.createdByUid == request.auth.uid
+        && isAcademyUser(academyId, uid)
+        && isAttendanceSessionOpen(academyId, sessionId);
     }
 
     function selfCreateRootUserPayload() {
@@ -180,16 +221,22 @@ service cloud.firestore {
 
       match /attendance_sessions/{sessionId} {
         allow get, list: if isAcademyMember(academyId);
-        allow create, update: if isAcademyStaff(academyId)
+        allow create: if isAcademyStaff(academyId)
           && attendanceSessionPayload(academyId);
+        allow update: if isAcademyStaff(academyId)
+          && attendanceSessionUpdatePayload(academyId);
         allow delete: if isAcademyStaff(academyId);
 
         match /checkins/{uid} {
           allow get: if (isSelf(uid) && isAcademyMember(academyId))
             || isAcademyStaff(academyId);
           allow list: if isAcademyStaff(academyId);
-          allow create, update: if isAcademyStaff(academyId)
-            && attendanceCheckInPayload(academyId, uid);
+          allow create: if (isAcademyStaff(academyId)
+              && attendanceCheckInPayload(academyId, sessionId, uid))
+            || (isSelf(uid)
+              && attendanceQrCheckInPayload(academyId, sessionId, uid));
+          allow update: if isAcademyStaff(academyId)
+            && attendanceCheckInPayload(academyId, sessionId, uid);
           allow delete: if isAcademyStaff(academyId);
         }
       }
