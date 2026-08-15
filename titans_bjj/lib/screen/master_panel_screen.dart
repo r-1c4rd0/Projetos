@@ -168,14 +168,13 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                               degree: degree + 1,
                             ),
                     onTap: () {
-                      final controller = SelectedStudentScope.of(context);
-                      controller.select(
-                        SelectedStudent(
-                          academyId: master.academyId,
-                          uid: student.uid,
-                          name: student.name,
-                        ),
+                      final selectedStudent = SelectedStudent(
+                        academyId: master.academyId,
+                        uid: student.uid,
+                        name: student.name,
                       );
+                      final controller = SelectedStudentScope.of(context);
+                      controller.select(selectedStudent);
 
                       Navigator.of(context).push(
                         MaterialPageRoute(
@@ -183,6 +182,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                             masterView: true,
                             titleOverride: 'Aluno: ${student.name}',
                             targetMode: TargetMode.selectedStudent,
+                            selectedStudent: selectedStudent,
                           ),
                         ),
                       );

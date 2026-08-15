@@ -21,7 +21,8 @@ class TargetProfile {
 /// Helper para centralizar a logica de "quem eu estou vendo".
 ///
 /// Regras:
-/// - athlete sempre usa o proprio UserScope;
+/// - explicitTarget, quando informado, vence o estado global;
+/// - athlete sempre usa o proprio UserScope quando nao ha explicitTarget;
 /// - professor/admin + TargetMode.self usa o proprio UserScope;
 /// - professor/admin + TargetMode.selectedStudent exige aluno selecionado;
 /// - nunca cai silenciosamente no usuario logado em contexto de aluno.
@@ -30,7 +31,10 @@ class TargetResolver {
   static TargetProfile? maybeOf(
     BuildContext context, {
     TargetMode mode = TargetMode.self,
+    TargetProfile? explicitTarget,
   }) {
+    if (explicitTarget != null) return explicitTarget;
+
     final loggedUser = UserScope.maybeOf(context);
     if (loggedUser == null) return null;
 
@@ -50,8 +54,13 @@ class TargetResolver {
   static TargetProfile of(
     BuildContext context, {
     TargetMode mode = TargetMode.self,
+    TargetProfile? explicitTarget,
   }) {
-    final profile = maybeOf(context, mode: mode);
+    final profile = maybeOf(
+      context,
+      mode: mode,
+      explicitTarget: explicitTarget,
+    );
     if (profile == null) {
       throw FlutterError(
         'TargetResolver.of(context) foi chamado, mas nao ha target valido.\n'

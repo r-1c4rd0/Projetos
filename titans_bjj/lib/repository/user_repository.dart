@@ -33,6 +33,10 @@ class UserRepository {
     return _usersCollectionRef(academyId).doc(uid);
   }
 
+  DocumentReference<Map<String, dynamic>> _rootUserRef(String uid) {
+    return db.collection('users').doc(uid);
+  }
+
   DocumentReference<Map<String, dynamic>> _progressProfileRef({
     required String academyId,
     required String uid,
@@ -101,6 +105,7 @@ class UserRepository {
     final maxDegree =
         belt == null ? 12 : GradingRules.fallbackMaxDegrees(belt);
     final payload = <String, dynamic>{
+      'academyId': academyId,
       if (belt != null) 'belt': belt.name,
       if (degree != null) 'degree': degree.clamp(0, maxDegree).toInt(),
       'updatedAt': FieldValue.serverTimestamp(),
@@ -126,26 +131,34 @@ class UserRepository {
   }) async {
     final ref = _userRef(academyId: academyId, uid: uid);
     final snap = await ref.get();
+    final rootData = await _readRootUserData(uid);
+    final rootRole = _staffRoleFromRoot(rootData);
+    final normalizedEmail = email.trim().isNotEmpty
+        ? email.trim()
+        : (rootData['email'] ?? '').toString();
 
     if (!snap.exists) {
-      // MVP: new users start as athlete. Promote professor/admin manually in Firestore.
       await ref.set({
-        'email': email,
+        if ((rootData['name'] ?? '').toString().trim().isNotEmpty)
+          'name': rootData['name'].toString().trim(),
+        'email': normalizedEmail,
         'academyId': academyId,
-        'role': UserRole.athlete.name,
-        'belt': BeltColor.white.name,
-        'degree': 0,
+        'role': rootRole ?? UserRole.athlete.name,
+        'belt': _beltNameFromData(rootData),
+        'degree': _degreeFromData(rootData),
         'createdAt': FieldValue.serverTimestamp(),
         'updatedAt': FieldValue.serverTimestamp(),
       }, SetOptions(merge: true));
     } else {
       final data = snap.data() ?? {};
       final roleStr = (data['role'] ?? UserRole.athlete.name).toString();
+      final rootName = (rootData['name'] ?? '').toString().trim();
 
       await ref.set({
-        'email': email,
+        if (!data.containsKey('name') && rootName.isNotEmpty) 'name': rootName,
+        'email': normalizedEmail,
         'academyId': academyId,
-        'role': roleStr,
+        'role': rootRole ?? roleStr,
         if (!data.containsKey('belt')) 'belt': BeltColor.white.name,
         if (!data.containsKey('degree')) 'degree': 0,
         'updatedAt': FieldValue.serverTimestamp(),
@@ -163,6 +176,37 @@ class UserRepository {
     );
 
     return appUser;
+  }
+
+  Future<Map<String, dynamic>> _readRootUserData(String uid) async {
+    try {
+      final snap = await _rootUserRef(uid).get();
+      return snap.data() ?? const <String, dynamic>{};
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied' || error.code == 'not-found') {
+        return const <String, dynamic>{};
+      }
+      rethrow;
+    }
+  }
+
+  String? _staffRoleFromRoot(Map<String, dynamic> data) {
+    final role = data['role']?.toString();
+    if (role == UserRole.admin.name || role == UserRole.professor.name) {
+      return role;
+    }
+    return null;
+  }
+
+  String _beltNameFromData(Map<String, dynamic> data) {
+    return beltColorFromString(data['belt']).name;
+  }
+
+  int _degreeFromData(Map<String, dynamic> data) {
+    final value = data['degree'];
+    if (value is int) return value.clamp(0, 12).toInt();
+    if (value is num) return value.toInt().clamp(0, 12).toInt();
+    return (int.tryParse(value?.toString() ?? '') ?? 0).clamp(0, 12).toInt();
   }
 
   Future<void> ensureBootstrapDocs({

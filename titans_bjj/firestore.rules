@@ -18,6 +18,22 @@ service cloud.firestore {
       return exists(/databases/$(database)/documents/academies/$(academyId)/users/$(uid));
     }
 
+    function rootUserDoc(uid) {
+      return get(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function hasRootUserDoc(uid) {
+      return exists(/databases/$(database)/documents/users/$(uid));
+    }
+
+    function isStaffRole(role) {
+      return role in ['admin', 'professor'];
+    }
+
+    function hasRootStaffRole(uid) {
+      return hasRootUserDoc(uid) && isStaffRole(rootUserDoc(uid).data.role);
+    }
+
     function currentUserRole(academyId) {
       return hasAcademyUserDoc(academyId, request.auth.uid)
         ? academyUserDoc(academyId, request.auth.uid).data.role
@@ -55,22 +71,28 @@ service cloud.firestore {
         && (!resource.data.keys().hasAny(['academyId']) || resource.data.academyId == academyId);
     }
 
-    function keepsSafeRole() {
+    function keepsSafeRole(uid) {
       return !resource.data.keys().hasAny(['role'])
-        || request.resource.data.role == resource.data.role;
+        || request.resource.data.role == resource.data.role
+        || (isSelf(uid)
+          && hasRootStaffRole(uid)
+          && request.resource.data.role == rootUserDoc(uid).data.role);
     }
 
     function hasAthleteRole(data) {
       return !data.keys().hasAny(['role']) || data.role == 'athlete';
     }
 
-    function selfCreateAcademyUserPayload(academyId) {
+    function selfCreateAcademyUserPayload(academyId, uid) {
       return request.resource.data.academyId == academyId
-        && hasAthleteRole(request.resource.data);
+        && (hasAthleteRole(request.resource.data)
+          || (isSelf(uid)
+            && hasRootStaffRole(uid)
+            && request.resource.data.role == rootUserDoc(uid).data.role));
     }
 
-    function selfUpdateAcademyUserPayload(academyId) {
-      return keepsSameAcademyId(academyId) && keepsSafeRole();
+    function selfUpdateAcademyUserPayload(academyId, uid) {
+      return keepsSameAcademyId(academyId) && keepsSafeRole(uid);
     }
 
     function staffCreateStudentPayload(academyId) {
@@ -164,8 +186,8 @@ service cloud.firestore {
       return hasAthleteRole(request.resource.data);
     }
 
-    function selfUpdateRootUserPayload() {
-      return keepsSafeRole()
+    function selfUpdateRootUserPayload(uid) {
+      return keepsSafeRole(uid)
         && (!resource.data.keys().hasAny(['academyId'])
           || request.resource.data.academyId == resource.data.academyId);
     }
@@ -174,7 +196,7 @@ service cloud.firestore {
       allow get: if isSelf(uid);
       allow list: if false;
       allow create: if isSelf(uid) && selfCreateRootUserPayload();
-      allow update: if isSelf(uid) && selfUpdateRootUserPayload();
+      allow update: if isSelf(uid) && selfUpdateRootUserPayload(uid);
       allow delete: if false;
 
       match /private/{docId} {
@@ -200,10 +222,10 @@ service cloud.firestore {
         allow get: if isSelf(uid) || isAcademyStaff(academyId);
         allow list: if isAcademyStaff(academyId);
 
-        allow create: if (isSelf(uid) && selfCreateAcademyUserPayload(academyId))
+        allow create: if (isSelf(uid) && selfCreateAcademyUserPayload(academyId, uid))
           || (isAcademyStaff(academyId) && staffCreateStudentPayload(academyId));
 
-        allow update: if (isSelf(uid) && selfUpdateAcademyUserPayload(academyId))
+        allow update: if (isSelf(uid) && selfUpdateAcademyUserPayload(academyId, uid))
           || (isAcademyStaff(academyId) && staffUpdateStudentPayload(academyId));
 
         allow delete: if isAcademyStaff(academyId)

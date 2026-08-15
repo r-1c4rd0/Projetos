@@ -11,6 +11,7 @@ import '../widgets/titans_scaffold.dart';
 class NutritionScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
+  final TargetProfile? explicitTarget;
 
   /// Mock condicional para teste/local.
   final bool useMock;
@@ -22,6 +23,7 @@ class NutritionScreen extends StatefulWidget {
     super.key,
     this.titleOverride,
     this.targetMode = TargetMode.self,
+    this.explicitTarget,
     this.useMock = false,
     this.showLeading = true,
   });
@@ -45,7 +47,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = TargetResolver.maybeOf(
+        context,
+        mode: widget.targetMode,
+        explicitTarget: widget.explicitTarget,
+      );
     if (target == null) {
       _repoReady = false;
       return;
@@ -93,11 +99,23 @@ class _NutritionScreenState extends State<NutritionScreen> {
   @override
   Widget build(BuildContext context) {
     if (!_repoReady) {
-      final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+      final target = TargetResolver.maybeOf(
+        context,
+        mode: widget.targetMode,
+        explicitTarget: widget.explicitTarget,
+      );
       if (target == null) {
         return TitansScaffold(
           appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
-          body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Nutricao.'),
+          body: widget.targetMode == TargetMode.selectedStudent
+            ? const TitansStateView.noStudent(
+                message: 'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
+              )
+            : const TitansStateView.error(
+                title: 'Perfil nao carregado',
+                message:
+                    'Nao foi possivel identificar seu usuario para carregar Nutricao.',
+              ),
         );
       }
 

@@ -20,11 +20,13 @@ import '../widgets/titans_scaffold.dart';
 class ProgressScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
+  final TargetProfile? explicitTarget;
 
   const ProgressScreen({
     super.key,
     this.titleOverride,
     this.targetMode = TargetMode.self,
+    this.explicitTarget,
   });
 
   @override
@@ -60,7 +62,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     if (_ensuringRules) return;
 
-    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+      explicitTarget: widget.explicitTarget,
+    );
     final academyId = target?.academyId;
 
     if (academyId == null) return;
@@ -94,7 +100,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+      explicitTarget: widget.explicitTarget,
+    );
 
     final academyId = target?.academyId;
     final uid = target?.uid;
@@ -102,7 +112,15 @@ class _ProgressScreenState extends State<ProgressScreen> {
     if (academyId == null || uid == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
-        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Progresso.'),
+        body: widget.targetMode == TargetMode.selectedStudent
+            ? const TitansStateView.noStudent(
+                message: 'Selecione um aluno no Painel do Mestre para acessar Progresso.',
+              )
+            : const TitansStateView.error(
+                title: 'Perfil nao carregado',
+                message:
+                    'Nao foi possivel identificar seu usuario para carregar Progresso.',
+              ),
       );
     }
 

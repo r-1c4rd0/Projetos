@@ -20,6 +20,7 @@ class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteEmailOverride;
   final String? titleOverride;
   final TargetMode targetMode;
+  final TargetProfile? explicitTarget;
 
   const AthleteDashboardScreen({
     super.key,
@@ -27,6 +28,7 @@ class AthleteDashboardScreen extends StatefulWidget {
     this.athleteEmailOverride,
     this.titleOverride,
     this.targetMode = TargetMode.self,
+    this.explicitTarget,
   });
 
   @override
@@ -64,13 +66,26 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+      explicitTarget: widget.explicitTarget,
+    );
     final loggedUser = UserScope.maybeOf(context);
 
     if (target == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
-        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar o console do atleta.'),
+        body: widget.targetMode == TargetMode.selectedStudent
+            ? const TitansStateView.noStudent(
+                message:
+                    'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
+              )
+            : const TitansStateView.error(
+                title: 'Perfil nao carregado',
+                message:
+                    'Nao foi possivel identificar seu usuario para carregar o dashboard.',
+              ),
       );
     }
 
@@ -124,8 +139,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
               (widget.athleteEmailOverride ?? '').trim().isNotEmpty
                   ? widget.athleteEmailOverride!.trim()
                   : athlete.email;
-          final canEditGraduation =
-              loggedUser?.role == UserRole.athlete && loggedUser?.uid == uid;
+          final canEditGraduation = loggedUser?.uid == uid;
 
           return StreamBuilder<UserProgressProfile?>(
             stream: _profileStream,

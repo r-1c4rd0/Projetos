@@ -15,11 +15,13 @@ import 'add_training_session_screen.dart';
 class TrainingScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
+  final TargetProfile? explicitTarget;
 
   const TrainingScreen({
     super.key,
     this.titleOverride,
     this.targetMode = TargetMode.self,
+    this.explicitTarget,
   });
 
   @override
@@ -45,7 +47,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+      explicitTarget: widget.explicitTarget,
+    );
 
     final academyId = target?.academyId;
     final uid = target?.uid;
@@ -53,7 +59,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (academyId == null || uid == null) {
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
-        body: const TitansStateView.noStudent(message: 'Selecione um aluno no Painel do Mestre para acessar Treinos.'),
+        body: widget.targetMode == TargetMode.selectedStudent
+            ? const TitansStateView.noStudent(
+                message:
+                    'Selecione um aluno no Painel do Mestre para acessar Treinos.',
+              )
+            : const TitansStateView.error(
+                title: 'Perfil nao carregado',
+                message:
+                    'Nao foi possivel identificar seu usuario para carregar Treinos.',
+              ),
       );
     }
 
