@@ -3,15 +3,18 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../main.dart';
+import '../model/app_user.dart';
 import '../model/nutrition_models.dart';
 import '../repository/nutrition_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
 class NutritionScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
+  final AppUser? loggedUser;
 
   /// Mock condicional para teste/local.
   final bool useMock;
@@ -24,6 +27,7 @@ class NutritionScreen extends StatefulWidget {
     this.titleOverride,
     this.targetMode = TargetMode.self,
     this.explicitTarget,
+    this.loggedUser,
     this.useMock = false,
     this.showLeading = true,
   });
@@ -43,20 +47,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
   bool _fallbackToMock = false;
   Object? _repoError;
 
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    final target = TargetResolver.maybeOf(
-        context,
-        mode: widget.targetMode,
-        explicitTarget: widget.explicitTarget,
-      );
-    if (target == null) {
-      _repoReady = false;
-      return;
-    }
-
+  TargetProfile? _resolveTarget(BuildContext context) {
+    return widget.explicitTarget ??
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+  }
+  void _syncRepository(TargetProfile target) {
     if (_repoReady &&
         _targetAcademyId == target.academyId &&
         _targetUid == target.uid) {
@@ -89,6 +84,39 @@ class _NutritionScreenState extends State<NutritionScreen> {
     _repoReady = true;
   }
 
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    final target = _resolveTarget(context);
+    if (target == null) {
+      _repoReady = false;
+      return;
+    }
+
+    _syncRepository(target);
+  }
+
+  @override
+  void didUpdateWidget(covariant NutritionScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    if (oldWidget.explicitTarget == widget.explicitTarget &&
+        oldWidget.targetMode == widget.targetMode &&
+        oldWidget.loggedUser == widget.loggedUser &&
+        oldWidget.useMock == widget.useMock) {
+      return;
+    }
+
+    final target = _resolveTarget(context);
+    if (target == null) {
+      _repoReady = false;
+      return;
+    }
+
+    _syncRepository(target);
+  }
+
   void _reloadNutritionData() {
     setState(() {
       _profileFuture = _repo.getProfileCached();
@@ -98,11 +126,23 @@ class _NutritionScreenState extends State<NutritionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+
     if (!_repoReady) {
-      final target = TargetResolver.maybeOf(
-        context,
-        mode: widget.targetMode,
-        explicitTarget: widget.explicitTarget,
+      final resolverTarget =
+          TargetResolver.maybeOf(context, mode: widget.targetMode);
+      final target = widget.explicitTarget ?? resolverTarget;
+      final canEditTarget = target != null &&
+          _canEditTarget(loggedUser: actor, target: target);
+      debugPrint(
+        '[NUTRITION_TARGET] screen=NutritionScreen '
+        'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
+        'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
+        'explicit.academyId=${widget.explicitTarget?.academyId} '
+        'resolver.uid=${resolverTarget?.uid} '
+        'resolver.academyId=${resolverTarget?.academyId} '
+        'target.uid=${target?.uid} target.academyId=${target?.academyId} '
+        'canEditTarget=$canEditTarget',
       );
       if (target == null) {
         return TitansScaffold(
@@ -122,16 +162,30 @@ class _NutritionScreenState extends State<NutritionScreen> {
       return const TitansStateView.loading();
     }
 
+    final target = _resolveTarget(context);
+    final canEditTarget = target != null &&
+        _canEditTarget(loggedUser: actor, target: target);
+    debugPrint(
+      '[NUTRITION_TARGET] screen=NutritionScreen '
+      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
+      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
+      'explicit.academyId=${widget.explicitTarget?.academyId} '
+      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
+      'canEditTarget=$canEditTarget',
+    );
+
     return TitansScaffold(
       appBar: AppBar(
         leading: widget.showLeading ? const AppLogoLeading() : null,
-        title: Text(widget.titleOverride ?? 'Nutrição'),
+        title: Text(widget.titleOverride ?? 'Nutricao'),
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'nutrition_fab',
-        onPressed: _addMeal,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton: canEditTarget
+          ? FloatingActionButton(
+              heroTag: 'nutrition_fab',
+              onPressed: _addMeal,
+              child: const Icon(Icons.add),
+            )
+          : null,
       body: FutureBuilder<List<MealEntry>>(
         future: _mealsFuture,
         builder: (context, snap) {
@@ -202,11 +256,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.edit),
-                              label: const Text('Editar perfil'),
-                              onPressed: _editProfile,
-                            ),
+                            child: canEditTarget
+                                ? OutlinedButton.icon(
+                                    icon: const Icon(Icons.edit),
+                                    label: const Text('Editar perfil'),
+                                    onPressed: _editProfile,
+                                  )
+                                : const SizedBox.shrink(),
                           ),
                         ],
                       ),
@@ -241,6 +297,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
+  bool _canEditTarget({
+    required AppUser? loggedUser,
+    required TargetProfile target,
+  }) {
+    if (loggedUser == null) return false;
+    final canManage = loggedUser.role == UserRole.admin ||
+        loggedUser.role == UserRole.professor;
+    return loggedUser.academyId == target.academyId &&
+        (loggedUser.uid == target.uid || canManage);
+  }
   Future<void> _editProfile() async {
     final profile = await _repo.getProfileCached();
     if (!mounted) return;

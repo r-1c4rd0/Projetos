@@ -14,6 +14,7 @@ import '../repository/training_repository.dart';
 import '../repository/user_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/user_session.dart';
 import '../service/training_aggregator.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -21,12 +22,14 @@ class ProgressScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
+  final AppUser? loggedUser;
 
   const ProgressScreen({
     super.key,
     this.titleOverride,
     this.targetMode = TargetMode.self,
     this.explicitTarget,
+    this.loggedUser,
   });
 
   @override
@@ -56,17 +59,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
   bool _ensuringRules = false;
   Object? _ensureError;
 
+  TargetProfile? _resolveTarget(BuildContext context) {
+    return widget.explicitTarget ??
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+  }
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
 
     if (_ensuringRules) return;
 
-    final target = TargetResolver.maybeOf(
-      context,
-      mode: widget.targetMode,
-      explicitTarget: widget.explicitTarget,
-    );
+    final target = _resolveTarget(context);
     final academyId = target?.academyId;
 
     if (academyId == null) return;
@@ -100,16 +103,28 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(
-      context,
-      mode: widget.targetMode,
-      explicitTarget: widget.explicitTarget,
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    final resolverTarget =
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = widget.explicitTarget ?? resolverTarget;
+    final canEditTarget = target != null &&
+        _canEditTarget(loggedUser: actor, target: target);
+    debugPrint(
+      '[PROGRESS_TARGET] screen=ProgressScreen '
+      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
+      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
+      'explicit.academyId=${widget.explicitTarget?.academyId} '
+      'resolver.uid=${resolverTarget?.uid} '
+      'resolver.academyId=${resolverTarget?.academyId} '
+      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
+      'canEditTarget=$canEditTarget',
     );
 
     final academyId = target?.academyId;
     final uid = target?.uid;
 
     if (academyId == null || uid == null) {
+
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
         body: widget.targetMode == TargetMode.selectedStudent
@@ -283,7 +298,17 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               return ListView(
                                 padding: listPadding,
                                 children: [
-                                  _BeltProgressCard(progress: beltProgress),
+                                  _BeltProgressCard(
+                                    progress: beltProgress,
+                                    onEditGraduation: canEditTarget
+                                        ? () => _showGraduationDialog(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              athlete: athlete,
+                                              rules: rules,
+                                            )
+                                        : null,
+                                  ),
                                   const SizedBox(height: 12),
                                   _TrainingMetricsCard(metrics: metrics),
                                   const SizedBox(height: 12),
@@ -306,6 +331,157 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
+  bool _canEditTarget({
+    required AppUser? loggedUser,
+    required TargetProfile target,
+  }) {
+    if (loggedUser == null) return false;
+    final canManage = loggedUser.role == UserRole.admin ||
+        loggedUser.role == UserRole.professor;
+    return loggedUser.academyId == target.academyId &&
+        (loggedUser.uid == target.uid || canManage);
+  }
+
+  Future<void> _showGraduationDialog({
+    required String academyId,
+    required String uid,
+    required AppUser athlete,
+    required GradingRules rules,
+  }) async {
+    var selectedBelt = athlete.belt;
+    var selectedDegree =
+        athlete.degree.clamp(0, rules.maxDegrees(selectedBelt)).toInt();
+    var saving = false;
+    String? errorMessage;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final maxDegree = rules.maxDegrees(selectedBelt);
+            final degreeItems = List.generate(
+              maxDegree + 1,
+              (index) =>
+                  DropdownMenuItem(value: index, child: Text(index.toString())),
+            );
+
+            return AlertDialog(
+              title: const Text('Editar graduacao'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  DropdownButtonFormField<BeltColor>(
+                    initialValue: selectedBelt,
+                    decoration: const InputDecoration(
+                      labelText: 'Faixa',
+                      prefixIcon: Icon(Icons.horizontal_rule),
+                    ),
+                    items: BeltColor.values
+                        .map(
+                          (belt) => DropdownMenuItem(
+                            value: belt,
+                            child: Text(_BeltProgressCard.beltName(belt)),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: saving
+                        ? null
+                        : (belt) {
+                            if (belt == null) return;
+                            setDialogState(() {
+                              selectedBelt = belt;
+                              selectedDegree = selectedDegree
+                                  .clamp(0, rules.maxDegrees(belt))
+                                  .toInt();
+                            });
+                          },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    key: ValueKey('${selectedBelt.name}-$selectedDegree'),
+                    initialValue: selectedDegree,
+                    decoration: const InputDecoration(
+                      labelText: 'Grau',
+                      prefixIcon: Icon(Icons.star_outline),
+                    ),
+                    items: degreeItems,
+                    onChanged: saving
+                        ? null
+                        : (degree) {
+                            if (degree == null) return;
+                            setDialogState(() => selectedDegree = degree);
+                          },
+                  ),
+                  if (errorMessage != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      errorMessage!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed:
+                      saving ? null : () => Navigator.of(dialogContext).pop(),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton.icon(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final navigator = Navigator.of(dialogContext);
+                          final messenger = ScaffoldMessenger.of(this.context);
+                          setDialogState(() {
+                            saving = true;
+                            errorMessage = null;
+                          });
+                          try {
+                            final clampedDegree = selectedDegree
+                                .clamp(0, rules.maxDegrees(selectedBelt))
+                                .toInt();
+                            await _userRepo.updateBeltDegree(
+                              academyId: academyId,
+                              uid: uid,
+                              belt: selectedBelt,
+                              degree: clampedDegree,
+                            );
+                            if (!mounted) return;
+                            navigator.pop();
+                            messenger.showSnackBar(
+                              const SnackBar(
+                                content: Text('Graduacao atualizada.'),
+                              ),
+                            );
+                          } catch (error) {
+                            setDialogState(() {
+                              saving = false;
+                              errorMessage =
+                                  'Nao foi possivel salvar. $error';
+                            });
+                          }
+                        },
+                  icon: saving
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: Text(saving ? 'Salvando...' : 'Salvar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
   _BeltProgress _calcBeltProgress({
     required GradingRules rules,
     required AppUser athlete,
@@ -409,7 +585,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
 class _BeltProgressCard extends StatelessWidget {
   final _BeltProgress progress;
-  const _BeltProgressCard({required this.progress});
+  final VoidCallback? onEditGraduation;
+
+  const _BeltProgressCard({
+    required this.progress,
+    this.onEditGraduation,
+  });
 
 
   @override
@@ -485,6 +666,14 @@ class _BeltProgressCard extends StatelessWidget {
               subtitle,
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
             ),
+            if (onEditGraduation != null) ...[
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                onPressed: onEditGraduation,
+                icon: const Icon(Icons.military_tech_outlined),
+                label: const Text('Editar graduacao'),
+              ),
+            ],
           ],
         ),
       ),
@@ -506,6 +695,8 @@ class _BeltProgressCard extends StatelessWidget {
         return cs.onSurface;
     }
   }
+
+  static String beltName(BeltColor belt) => _beltName(belt);
 
   static String _beltName(BeltColor belt) {
     switch (belt) {

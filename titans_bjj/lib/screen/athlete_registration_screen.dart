@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -7,25 +8,35 @@ import '../widgets/titans_scaffold.dart';
 
 class AthleteRegistrationScreen extends StatelessWidget {
   final String academyId;
+  final String? athleteUid;
 
-  const AthleteRegistrationScreen({super.key, required this.academyId});
+  const AthleteRegistrationScreen({
+    super.key,
+    required this.academyId,
+    this.athleteUid,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create:
-          (_) => AthleteRegistrationViewModel(
-            repository: AthleteRegistrationRepository.instance,
-          ),
-      child: _AthleteRegistrationForm(academyId: academyId),
+      create: (_) => AthleteRegistrationViewModel(
+        repository: AthleteRegistrationRepository.instance,
+      ),
+      child: _AthleteRegistrationForm(
+        academyId: academyId,
+        athleteUid: athleteUid,
+      ),
     );
   }
 }
-
 class _AthleteRegistrationForm extends StatefulWidget {
   final String academyId;
+  final String? athleteUid;
 
-  const _AthleteRegistrationForm({required this.academyId});
+  const _AthleteRegistrationForm({
+    required this.academyId,
+    this.athleteUid,
+  });
 
   @override
   State<_AthleteRegistrationForm> createState() =>
@@ -34,6 +45,23 @@ class _AthleteRegistrationForm extends StatefulWidget {
 
 class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
   final _formKey = GlobalKey<FormState>();
+
+  bool get _editing => widget.athleteUid != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final athleteUid = widget.athleteUid;
+    if (athleteUid != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<AthleteRegistrationViewModel>().loadAthlete(
+              academyId: widget.academyId,
+              uid: athleteUid,
+            );
+      });
+    }
+  }
 
   Future<void> _pickBirthDate(AthleteRegistrationViewModel vm) async {
     final now = DateTime.now();
@@ -53,13 +81,27 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
     final vm = context.read<AthleteRegistrationViewModel>();
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    final success = await vm.register(academyId: widget.academyId);
+    final success = _editing
+        ? await vm.update(
+            academyId: widget.academyId,
+            uid: widget.athleteUid!,
+          )
+        : await vm.register(academyId: widget.academyId);
     if (!success || !mounted) return;
-    _formKey.currentState?.reset();
-    vm.resetInputs();
+    if (!_editing) {
+      _formKey.currentState?.reset();
+      vm.resetInputs();
+    }
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Atleta cadastrado com sucesso')),
+      SnackBar(
+        content: Text(
+          _editing
+              ? 'Atleta atualizado com sucesso'
+              : 'Atleta cadastrado com sucesso',
+        ),
+      ),
     );
+    if (_editing) Navigator.of(context).pop();
   }
 
   String _formatBirthDate(DateTime? date) {
@@ -74,7 +116,9 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
 
     return TitansScaffold(
       scroll: true,
-      appBar: AppBar(title: const Text('Cadastro de atleta')),
+      appBar: AppBar(
+        title: Text(_editing ? 'Editar atleta' : 'Cadastro de atleta'),
+      ),
       body: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
@@ -308,7 +352,9 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                               )
                               : const Icon(Icons.save_outlined),
                       label: Text(
-                        vm.isLoading ? 'Cadastrando...' : 'Cadastrar atleta',
+                        vm.isLoading
+                            ? (_editing ? 'Salvando...' : 'Cadastrando...')
+                            : (_editing ? 'Salvar atleta' : 'Cadastrar atleta'),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -393,6 +439,82 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> loadAthlete({
+    required String academyId,
+    required String uid,
+  }) async {
+    isLoading = true;
+    errorMessage = null;
+    successMessage = null;
+    notifyListeners();
+
+    try {
+      final data = await repository.getAthlete(academyId: academyId, uid: uid);
+      if (data == null) {
+        errorMessage = 'Atleta nao encontrado.';
+        return;
+      }
+
+      nameController.text = (data['name'] ?? '').toString();
+      emailController.text = (data['email'] ?? '').toString();
+      phoneController.text = (data['phone'] ?? '').toString();
+      weightController.text = _numberText(data['weightKg']);
+      heightController.text = _numberText(data['heightCm']);
+      notesController.text = (data['notes'] ?? '').toString();
+      belt = beltColorFromString(data['belt']);
+      degree = _degreeFromValue(data['degree']).clamp(0, maxDegree).toInt();
+      sex = _sexFromValue(data['sex']);
+      birthDate = _dateFromValue(data['birthDate']);
+    } catch (e) {
+      errorMessage = 'Nao foi possivel carregar o atleta. ${e.toString()}';
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  Future<bool> update({
+    required String academyId,
+    required String uid,
+  }) async {
+    final athleteName = nameController.text.trim();
+    if (athleteName.length < 3) {
+      errorMessage = 'Nome precisa conter pelo menos 3 caracteres.';
+      successMessage = null;
+      notifyListeners();
+      return false;
+    }
+
+    isLoading = true;
+    errorMessage = null;
+    successMessage = null;
+    notifyListeners();
+
+    try {
+      await repository.updateAthlete(
+        academyId: academyId,
+        uid: uid,
+        name: athleteName,
+        email: _optionalText(emailController),
+        phone: _optionalText(phoneController),
+        belt: belt,
+        degree: degree.clamp(0, maxDegree).toInt(),
+        weightKg: _parseDouble(weightController),
+        heightCm: _parseDouble(heightController),
+        sex: sex,
+        birthDate: birthDate,
+        notes: _optionalText(notesController),
+      );
+      successMessage = 'Atleta atualizado com sucesso.';
+      return true;
+    } catch (e) {
+      errorMessage = 'Nao foi possivel atualizar o atleta. ${e.toString()}';
+      return false;
+    } finally {
+      isLoading = false;
+      notifyListeners();
+    }
+  }
   Future<bool> register({required String academyId}) async {
     final athleteName = nameController.text.trim();
     if (athleteName.length < 3) {
@@ -457,6 +579,29 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     return double.tryParse(value.replaceAll(',', '.'));
   }
 
+  String _numberText(Object? value) {
+    if (value == null) return '';
+    if (value is num) return value.toString();
+    return value.toString();
+  }
+
+  String _sexFromValue(Object? value) {
+    final text = value?.toString();
+    if (text == 'female' || text == 'other') return text!;
+    return 'male';
+  }
+
+  DateTime? _dateFromValue(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return null;
+  }
+
+  int _degreeFromValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse(value?.toString() ?? '') ?? 0;
+  }
   @override
   void dispose() {
     nameController.dispose();

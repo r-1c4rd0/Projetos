@@ -14,6 +14,7 @@ import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
+import 'athlete_registration_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteNameOverride;
@@ -21,6 +22,7 @@ class AthleteDashboardScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
+  final AppUser? loggedUser;
 
   const AthleteDashboardScreen({
     super.key,
@@ -29,6 +31,7 @@ class AthleteDashboardScreen extends StatefulWidget {
     this.titleOverride,
     this.targetMode = TargetMode.self,
     this.explicitTarget,
+    this.loggedUser,
   });
 
   @override
@@ -50,6 +53,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<GradingRules?>? _rulesStream;
   Stream<List<TrainingSession>>? _sessionsStream;
 
+  TargetProfile? _resolveTarget(BuildContext context) {
+    return widget.explicitTarget ??
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+  }
   void _syncStreams({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -66,14 +73,33 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(
-      context,
-      mode: widget.targetMode,
-      explicitTarget: widget.explicitTarget,
+    final resolverTarget =
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = widget.explicitTarget ?? resolverTarget;
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    final canEditTarget = target != null &&
+        _canEditTarget(loggedUser: actor, target: target);
+    debugPrint(
+      '[DASHBOARD_TARGET] screen=AthleteDashboardScreen '
+      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
+      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
+      'explicit.academyId=${widget.explicitTarget?.academyId} '
+      'resolver.uid=${resolverTarget?.uid} '
+      'resolver.academyId=${resolverTarget?.academyId} '
+      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
+      'canEditTarget=$canEditTarget',
     );
-    final loggedUser = UserScope.maybeOf(context);
 
     if (target == null) {
+      debugPrint(
+        '[DASHBOARD_TARGET] screen=AthleteDashboardScreen '
+        'targetMode=${widget.targetMode} '
+        'explicit.uid=${widget.explicitTarget?.uid} '
+        'explicit.academyId=${widget.explicitTarget?.academyId} '
+        'resolver.uid=${resolverTarget?.uid} '
+        'resolver.academyId=${resolverTarget?.academyId} '
+        'final.uid=${target?.uid} final.academyId=${target?.academyId}',
+      );
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
         body: widget.targetMode == TargetMode.selectedStudent
@@ -139,7 +165,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
               (widget.athleteEmailOverride ?? '').trim().isNotEmpty
                   ? widget.athleteEmailOverride!.trim()
                   : athlete.email;
-          final canEditGraduation = loggedUser?.uid == uid;
 
           return StreamBuilder<UserProgressProfile?>(
             stream: _profileStream,
@@ -241,8 +266,21 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           degree: beltProgress.degree,
                                           percentToNext:
                                               beltProgress.percentToNextBelt,
+                                          onEditProfile: canEditTarget
+                                              ? () {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (_) =>
+                                                          AthleteRegistrationScreen(
+                                                        academyId: academyId,
+                                                        athleteUid: uid,
+                                                      ),
+                                                    ),
+                                                  );
+                                                }
+                                              : null,
                                           onEditGraduation:
-                                              canEditGraduation
+                                              canEditTarget
                                                   ? () => _showGraduationDialog(
                                                     academyId: academyId,
                                                     uid: uid,
@@ -354,6 +392,16 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     );
   }
 
+  bool _canEditTarget({
+    required AppUser? loggedUser,
+    required TargetProfile target,
+  }) {
+    if (loggedUser == null) return false;
+    final canManage = loggedUser.role == UserRole.admin ||
+        loggedUser.role == UserRole.professor;
+    return loggedUser.academyId == target.academyId &&
+        (loggedUser.uid == target.uid || canManage);
+  }
   Future<void> _showGraduationDialog({
     required String academyId,
     required String uid,
@@ -616,6 +664,7 @@ class _AthleteCard extends StatelessWidget {
   final BeltColor belt;
   final int degree;
   final double percentToNext;
+  final VoidCallback? onEditProfile;
   final VoidCallback? onEditGraduation;
 
   const _AthleteCard({
@@ -625,6 +674,7 @@ class _AthleteCard extends StatelessWidget {
     required this.belt,
     required this.degree,
     required this.percentToNext,
+    this.onEditProfile,
     this.onEditGraduation,
   });
 
@@ -706,15 +756,25 @@ class _AthleteCard extends StatelessWidget {
               fontWeight: FontWeight.w600,
             ),
           ),
-          if (onEditGraduation != null) ...[
+          if (onEditProfile != null || onEditGraduation != null) ...[
             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: OutlinedButton.icon(
-                onPressed: onEditGraduation,
-                icon: const Icon(Icons.military_tech_outlined),
-                label: const Text('Editar graduacao'),
-              ),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onEditProfile != null)
+                  OutlinedButton.icon(
+                    onPressed: onEditProfile,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Editar perfil'),
+                  ),
+                if (onEditGraduation != null)
+                  OutlinedButton.icon(
+                    onPressed: onEditGraduation,
+                    icon: const Icon(Icons.military_tech_outlined),
+                    label: const Text('Editar graduacao'),
+                  ),
+              ],
             ),
           ],
         ],

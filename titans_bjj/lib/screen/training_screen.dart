@@ -4,10 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
 import '../core/titans_ui.dart';
+import '../model/app_user.dart';
 import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/titans_scaffold.dart';
 import 'add_training_session_screen.dart';
@@ -16,12 +18,14 @@ class TrainingScreen extends StatefulWidget {
   final String? titleOverride;
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
+  final AppUser? loggedUser;
 
   const TrainingScreen({
     super.key,
     this.titleOverride,
     this.targetMode = TargetMode.self,
     this.explicitTarget,
+    this.loggedUser,
   });
 
   @override
@@ -37,6 +41,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String? _streamUid;
   Stream<List<TrainingSession>>? _sessionsStream;
 
+  TargetProfile? _resolveTarget(BuildContext context) {
+    return widget.explicitTarget ??
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+  }
   void _syncStream({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -47,10 +55,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final target = TargetResolver.maybeOf(
-      context,
-      mode: widget.targetMode,
-      explicitTarget: widget.explicitTarget,
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    final resolverTarget =
+        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final target = widget.explicitTarget ?? resolverTarget;
+    final canEditTarget = target != null &&
+        _canEditTarget(loggedUser: actor, target: target);
+    debugPrint(
+      '[TRAINING_TARGET] screen=TrainingScreen '
+      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
+      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
+      'explicit.academyId=${widget.explicitTarget?.academyId} '
+      'resolver.uid=${resolverTarget?.uid} '
+      'resolver.academyId=${resolverTarget?.academyId} '
+      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
+      'canEditTarget=$canEditTarget',
     );
 
     final academyId = target?.academyId;
@@ -92,21 +111,23 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: 'training_fab',
-        onPressed: () async {
-          await Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => AddTrainingSessionScreen(
-                academyId: academyId,
-                uid: uid,
-              ),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('Treino'),
-      ),
+      floatingActionButton: canEditTarget
+          ? FloatingActionButton.extended(
+              heroTag: 'training_fab',
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => AddTrainingSessionScreen(
+                      academyId: academyId,
+                      uid: uid,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.add),
+              label: const Text('Treino'),
+            )
+          : null,
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
         builder: (context, snap) {
@@ -198,6 +219,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
   }
 
+  bool _canEditTarget({
+    required AppUser? loggedUser,
+    required TargetProfile target,
+  }) {
+    if (loggedUser == null) return false;
+    final canManage = loggedUser.role == UserRole.admin ||
+        loggedUser.role == UserRole.professor;
+    return loggedUser.academyId == target.academyId &&
+        (loggedUser.uid == target.uid || canManage);
+  }
   IconData _iconForPlace(TrainingPlace p) {
     switch (p) {
       case TrainingPlace.academy:

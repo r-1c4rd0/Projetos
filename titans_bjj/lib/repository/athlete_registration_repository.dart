@@ -75,6 +75,54 @@ class AthleteRegistrationRepository {
     await _userRef(academyId: academyId, uid: uid).delete();
   }
 
+  Future<void> updateAthlete({
+    required String academyId,
+    required String uid,
+    required String name,
+    String? email,
+    String? phone,
+    required BeltColor belt,
+    required int degree,
+    double? weightKg,
+    double? heightCm,
+    String? sex,
+    DateTime? birthDate,
+    String? notes,
+  }) async {
+    final existing = await getAthlete(academyId: academyId, uid: uid);
+    final existingRole = existing?['role']?.toString();
+    final role = existingRole == 'admin' || existingRole == 'professor'
+        ? existingRole
+        : 'athlete';
+
+    final payload = <String, dynamic>{
+      'name': name,
+      'role': role,
+      'belt': belt.name,
+      'degree': degree,
+      'sex': sex ?? 'male',
+      if (email != null) 'email': email,
+      if (phone != null) 'phone': phone,
+      if (weightKg != null) 'weightKg': weightKg,
+      if (heightCm != null) 'heightCm': heightCm,
+      if (birthDate != null) 'birthDate': Timestamp.fromDate(birthDate),
+      if (notes != null) 'notes': notes,
+    };
+
+    await upsertAthletePayload(
+      academyId: academyId,
+      uid: uid,
+      payload: payload,
+    );
+
+    await _userRepository.ensureBootstrapDocs(
+      academyId: academyId,
+      uid: uid,
+      belt: belt,
+      degree: degree,
+    );
+  }
+
   Future<void> registerAthlete({
     required String academyId,
     required String name,

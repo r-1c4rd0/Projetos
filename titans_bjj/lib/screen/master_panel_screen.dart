@@ -29,7 +29,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final master = UserScope.of(context);
+    final loggedUser = UserScope.of(context);
 
     final media = MediaQuery.of(context);
     final bottomPad = media.padding.bottom;
@@ -46,10 +46,11 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
             onPressed: () {
               Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => const AthleteConsoleScreen(
+                  builder: (_) => AthleteConsoleScreen(
                     masterView: false,
                     titleOverride: 'Meu perfil',
                     targetMode: TargetMode.self,
+                    loggedUser: loggedUser,
                   ),
                 ),
               );
@@ -73,14 +74,14 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
           Navigator.of(context).push(
             MaterialPageRoute(
               builder: (_) => AthleteRegistrationScreen(
-                academyId: master.academyId,
+                academyId: loggedUser.academyId,
               ),
             ),
           );
         },
       ),
       body: StreamBuilder<GradingRules?>(
-        stream: _rulesRepo.watch(master.academyId),
+        stream: _rulesRepo.watch(loggedUser.academyId),
         builder: (context, rulesSnap) {
           if (rulesSnap.connectionState == ConnectionState.waiting &&
               !rulesSnap.hasData) {
@@ -101,7 +102,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
           final rules = rulesSnap.data ?? GradingRules.defaults();
 
           return StreamBuilder<List<StudentVm>>(
-            stream: _studentRepo.watchStudents(academyId: master.academyId),
+            stream: _studentRepo.watchStudents(academyId: loggedUser.academyId),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const TitansStateView.loading();
@@ -154,7 +155,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                     onMinusDegree: degree == 0
                         ? null
                         : () => _updateStudentDegree(
-                              academyId: master.academyId,
+                              academyId: loggedUser.academyId,
                               uid: student.uid,
                               belt: student.belt,
                               degree: degree - 1,
@@ -162,14 +163,24 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                     onPlusDegree: degree == maxDegree
                         ? null
                         : () => _updateStudentDegree(
-                              academyId: master.academyId,
+                              academyId: loggedUser.academyId,
                               uid: student.uid,
                               belt: student.belt,
                               degree: degree + 1,
                             ),
+                    onEdit: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => AthleteRegistrationScreen(
+                            academyId: loggedUser.academyId,
+                            athleteUid: student.uid,
+                          ),
+                        ),
+                      );
+                    },
                     onTap: () {
                       final selectedStudent = SelectedStudent(
-                        academyId: master.academyId,
+                        academyId: loggedUser.academyId,
                         uid: student.uid,
                         name: student.name,
                       );
@@ -183,6 +194,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                             titleOverride: 'Aluno: ${student.name}',
                             targetMode: TargetMode.selectedStudent,
                             selectedStudent: selectedStudent,
+                            loggedUser: loggedUser,
                           ),
                         ),
                       );
@@ -226,6 +238,7 @@ class _StudentCard extends StatelessWidget {
   final ColorScheme cs;
   final VoidCallback? onPlusDegree;
   final VoidCallback? onMinusDegree;
+  final VoidCallback onEdit;
   final VoidCallback onTap;
 
   const _StudentCard({
@@ -235,6 +248,7 @@ class _StudentCard extends StatelessWidget {
     required this.cs,
     required this.onPlusDegree,
     required this.onMinusDegree,
+    required this.onEdit,
     required this.onTap,
   });
 
@@ -310,6 +324,13 @@ class _StudentCard extends StatelessWidget {
                             fontSize: 12,
                           ),
                         ),
+                      ),
+                      IconButton(
+                        tooltip: 'Editar atleta',
+                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                        padding: const EdgeInsets.all(8),
+                        onPressed: onEdit,
+                        icon: const Icon(Icons.edit_outlined, size: 20),
                       ),
                       IconButton(
                         constraints: const BoxConstraints(minWidth: 44, minHeight: 44),

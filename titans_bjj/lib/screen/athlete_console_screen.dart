@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../model/app_user.dart';
 import '../service/selected_student.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
@@ -17,6 +18,7 @@ class AthleteConsoleScreen extends StatelessWidget {
   final String? titleOverride;
   final TargetMode targetMode;
   final SelectedStudent? selectedStudent;
+  final AppUser? loggedUser;
 
   const AthleteConsoleScreen({
     super.key,
@@ -24,10 +26,32 @@ class AthleteConsoleScreen extends StatelessWidget {
     this.titleOverride,
     this.targetMode = TargetMode.self,
     this.selectedStudent,
+    this.loggedUser,
   });
 
   @override
   Widget build(BuildContext context) {
+    final actor = loggedUser ?? UserScope.maybeOf(context);
+    debugPrint(
+      '[ATHLETE_CONSOLE] build targetMode=$targetMode '
+      'titleOverride=$titleOverride masterView=$masterView '
+      'selectedStudent.uid=${selectedStudent?.uid} '
+      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
+      'actor.academyId=${actor?.academyId}',
+    );
+
+    if (actor == null) {
+      return TitansScaffold(
+        scroll: false,
+        appBar: AppBar(title: Text(titleOverride ?? 'Inicio')),
+        body: const TitansStateView.error(
+          title: 'Usuario logado nao encontrado',
+          message:
+              'Nao foi possivel identificar o usuario logado para carregar o console.',
+        ),
+      );
+    }
+
     if (targetMode == TargetMode.selectedStudent) {
       final explicitSelected = selectedStudent;
       if (explicitSelected != null) {
@@ -39,6 +63,7 @@ class AthleteConsoleScreen extends StatelessWidget {
             academyId: explicitSelected.academyId,
             uid: explicitSelected.uid,
           ),
+          loggedUser: actor,
           masterView: true,
         );
       }
@@ -53,22 +78,24 @@ class AthleteConsoleScreen extends StatelessWidget {
               academyId: selected.academyId,
               uid: selected.uid,
             ),
+            loggedUser: actor,
             masterView: true,
           );
         },
       );
     }
 
-    final loggedUser = UserScope.maybeOf(context);
-    final selfTarget = loggedUser == null
-        ? null
-        : TargetProfile(uid: loggedUser.uid, academyId: loggedUser.academyId);
+    final selfTarget = TargetProfile(
+      uid: actor.uid,
+      academyId: actor.academyId,
+    );
 
     return _ConsoleBody(
       title: titleOverride ?? 'Inicio',
       athleteNameOverride: null,
       targetMode: TargetMode.self,
       target: selfTarget,
+      loggedUser: actor,
       masterView: masterView || titleOverride == 'Meu perfil',
     );
   }
@@ -78,20 +105,29 @@ class _ConsoleBody extends StatelessWidget {
   final String title;
   final String? athleteNameOverride;
   final TargetMode targetMode;
-  final TargetProfile? target;
+  final TargetProfile target;
   final bool masterView;
+  final AppUser loggedUser;
 
   const _ConsoleBody({
     required this.title,
     required this.masterView,
     required this.targetMode,
     required this.target,
+    required this.loggedUser,
     this.athleteNameOverride,
   });
 
   @override
   Widget build(BuildContext context) {
     final selectedMode = targetMode == TargetMode.selectedStudent;
+    final canEditTarget = _canEditTarget(loggedUser, target);
+    debugPrint(
+      '[ATHLETE_CONSOLE] tabs targetMode=$targetMode title=$title '
+      'masterView=$masterView actor.uid=${loggedUser.uid} '
+      'actor.role=${loggedUser.role} target.uid=${target.uid} '
+      'target.academyId=${target.academyId} canEditTarget=$canEditTarget',
+    );
 
     return DefaultTabController(
       length: 4,
@@ -124,22 +160,26 @@ class _ConsoleBody extends StatelessWidget {
                     titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
                     targetMode: targetMode,
                     explicitTarget: target,
+                    loggedUser: loggedUser,
                   ),
                   TrainingScreen(
                     titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
                     targetMode: targetMode,
                     explicitTarget: target,
+                    loggedUser: loggedUser,
                   ),
                   ProgressScreen(
                     titleOverride:
                         selectedMode ? 'Progresso do aluno' : 'Progresso',
                     targetMode: targetMode,
                     explicitTarget: target,
+                    loggedUser: loggedUser,
                   ),
                   NutritionScreen(
                     titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
                     targetMode: targetMode,
                     explicitTarget: target,
+                    loggedUser: loggedUser,
                   ),
                 ],
               ),
@@ -148,6 +188,12 @@ class _ConsoleBody extends StatelessWidget {
         ),
       ),
     );
+  }
+  bool _canEditTarget(AppUser actor, TargetProfile target) {
+    final canManage = actor.role == UserRole.admin ||
+        actor.role == UserRole.professor;
+    return actor.academyId == target.academyId &&
+        (actor.uid == target.uid || canManage);
   }
 }
 
