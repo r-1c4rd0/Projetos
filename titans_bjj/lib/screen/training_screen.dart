@@ -208,6 +208,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 )
               else
                 ...sessions.reversed.map((s) {
+                  debugPrint(
+                    '[TRAINING_EDIT] canEditTarget=$canEditTarget '
+                    'actor.uid=${actor?.uid} target.uid=$uid '
+                    'academyId=$academyId session.id=${s.id}',
+                  );
                   return Card(
                     child: ListTile(
                       leading: Icon(
@@ -215,13 +220,45 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         color: cs.primary,
                       ),
                       title: Text(_fmtDateTime(s.date)),
-                      subtitle: Text(
-                        (s.notes ?? '').trim().isEmpty ? '—' : s.notes!.trim(),
-                      ),
-                      trailing: Text(
-                        'Notas: ${s.scores.length}',
-                        style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
-                      ),
+                      subtitle: Text(_sessionSummary(s)),
+                      trailing: canEditTarget
+                          ? Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  'Notas: ${s.scores.length}',
+                                  style: TextStyle(
+                                    color: cs.onSurface.withValues(alpha: 0.7),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Editar treino',
+                                  onPressed: () async {
+                                    debugPrint(
+                                      '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                                      'target.uid=$uid canEditTarget=$canEditTarget '
+                                      'academyId=$academyId session.id=${s.id}',
+                                    );
+                                    await Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder: (_) => AddTrainingSessionScreen(
+                                          academyId: academyId,
+                                          uid: uid,
+                                          session: s,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                  icon: const Icon(Icons.edit_outlined),
+                                ),
+                              ],
+                            )
+                          : Text(
+                              'Notas: ${s.scores.length}',
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.7),
+                              ),
+                            ),
                     ),
                   );
                 }),
@@ -314,6 +351,32 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   String _fmtDateTime(DateTime d) {
     return '${_fmt2(d.day)}/${_fmt2(d.month)}/${d.year} ${_fmt2(d.hour)}:${_fmt2(d.minute)}';
+  }
+  String _sessionSummary(TrainingSession session) {
+    final lines = <String>[];
+    final notes = session.notes?.trim();
+    if (notes != null && notes.isNotEmpty) {
+      lines.add(notes);
+    }
+
+    final debrief = <String>[];
+    final technique = session.technique?.trim();
+    final position = session.position?.trim();
+    if (technique != null && technique.isNotEmpty) {
+      debrief.add('Tecnica: $technique');
+    }
+    if (position != null && position.isNotEmpty) {
+      debrief.add('Posicao: $position');
+    }
+    if (session.intensity != null) {
+      debrief.add('Intensidade: ${session.intensity}/5');
+    }
+
+    if (debrief.isNotEmpty) {
+      lines.add(debrief.join(' - '));
+    }
+
+    return lines.isEmpty ? '-' : lines.join('\n');
   }
 }
 

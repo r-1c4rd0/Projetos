@@ -1,17 +1,20 @@
 // ignore_for_file: avoid_print
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 
 class BioStatus {
   const BioStatus({
     required this.supported,
+    required this.canCheck,
     required this.enrolled,
     required this.types,
     required this.reason,
   });
 
   final bool supported;
+  final bool canCheck;
   final bool enrolled;
   final List<BiometricType> types;
   final String reason;
@@ -23,6 +26,10 @@ class BiometricService {
   static final _auth = LocalAuthentication();
 
   static Future<BioStatus> status() async {
+    if (kIsWeb) {
+      return _webUnsupportedStatus();
+    }
+
     try {
       final supported = await _auth.isDeviceSupported();
       final canCheck = await _auth.canCheckBiometrics;
@@ -40,6 +47,7 @@ class BiometricService {
 
       return BioStatus(
         supported: supported,
+        canCheck: canCheck,
         enrolled: enrolled,
         types: types,
         reason: reason,
@@ -54,6 +62,11 @@ class BiometricService {
   }
 
   static Future<bool> authenticate(String reason) async {
+    if (kIsWeb) {
+      print('[BIO] web unsupported, skipping local_auth');
+      return false;
+    }
+
     try {
       return await _auth.authenticate(
         localizedReason: reason,
@@ -93,12 +106,28 @@ class BiometricService {
   static BioStatus _fallbackStatus() {
     const status = BioStatus(
       supported: false,
+      canCheck: false,
       enrolled: false,
       types: [],
       reason: 'status_error',
     );
     print(
       '[BIO] supported=${status.supported} canCheck=false types=${status.types} enrolled=${status.enrolled} reason=${status.reason}',
+    );
+    return status;
+  }
+
+  static BioStatus _webUnsupportedStatus() {
+    const status = BioStatus(
+      supported: false,
+      canCheck: false,
+      enrolled: false,
+      types: [],
+      reason: 'web_unsupported',
+    );
+    print('[BIO] web unsupported, skipping local_auth');
+    print(
+      '[BIO] supported=${status.supported} canCheck=${status.canCheck} types=${status.types} enrolled=${status.enrolled} reason=${status.reason}',
     );
     return status;
   }

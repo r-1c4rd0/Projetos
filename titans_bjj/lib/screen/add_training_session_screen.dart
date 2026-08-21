@@ -4,15 +4,18 @@ import 'package:uuid/uuid.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/recurrence_generator.dart';
+import '../service/user_session.dart';
 
 class AddTrainingSessionScreen extends StatefulWidget {
   final String academyId;
   final String uid;
+  final TrainingSession? session;
 
   const AddTrainingSessionScreen({
     super.key,
     required this.academyId,
     required this.uid,
+    this.session,
   });
 
   @override
@@ -22,6 +25,11 @@ class AddTrainingSessionScreen extends StatefulWidget {
 class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   final _form = GlobalKey<FormState>();
   final _notes = TextEditingController();
+  final _position = TextEditingController();
+  final _technique = TextEditingController();
+  final _successes = TextEditingController();
+  final _difficulties = TextEditingController();
+  final _debriefNotes = TextEditingController();
 
   bool _recurring = false;
 
@@ -32,13 +40,38 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
 
   final Set<int> _weekdays = {DateTime.monday, DateTime.wednesday};
 
+  int? _intensity;
   bool _saving = false;
 
   late final TrainingRepository repo = TrainingRepository.instance;
 
+  bool get _editing => widget.session != null;
+
+  @override
+  void initState() {
+    super.initState();
+
+    final session = widget.session;
+    if (session == null) return;
+
+    _singleDate = session.date;
+    _notes.text = session.notes ?? '';
+    _position.text = session.position ?? '';
+    _technique.text = session.technique ?? '';
+    _successes.text = session.successes ?? '';
+    _difficulties.text = session.difficulties ?? '';
+    _debriefNotes.text = session.debriefNotes ?? '';
+    _intensity = session.intensity;
+  }
+
   @override
   void dispose() {
     _notes.dispose();
+    _position.dispose();
+    _technique.dispose();
+    _successes.dispose();
+    _difficulties.dispose();
+    _debriefNotes.dispose();
     super.dispose();
   }
 
@@ -47,20 +80,24 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Adicionar treino')),
+      appBar: AppBar(
+        title: Text(_editing ? 'Editar treino' : 'Novo treino'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Form(
           key: _form,
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              SwitchListTile(
-                value: _recurring,
-                onChanged: (v) => setState(() => _recurring = v),
-                title: const Text('Treino recorrente'),
-                subtitle: const Text('Criar vários treinos em um intervalo'),
-              ),
-              const SizedBox(height: 12),
+              if (!_editing)
+                SwitchListTile(
+                  value: _recurring,
+                  onChanged: (v) => setState(() => _recurring = v),
+                  title: const Text('Treino recorrente'),
+                  subtitle: const Text('Criar varios treinos em um intervalo'),
+                ),
+              if (!_editing) const SizedBox(height: 12),
               if (!_recurring) ...[
                 _DateField(
                   label: 'Data do treino',
@@ -100,7 +137,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Ex: seg/qua/sáb para treinos da equipe',
+                    'Ex: seg/qua/sab para treinos da equipe',
                     style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
                   ),
                 ),
@@ -108,7 +145,75 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
               const SizedBox(height: 12),
               TextFormField(
                 controller: _notes,
-                decoration: const InputDecoration(labelText: 'Observações (opcional)'),
+                decoration: const InputDecoration(labelText: 'Observacoes (opcional)'),
+                maxLines: 3,
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Debrief pos-treino',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _position,
+                decoration: const InputDecoration(
+                  labelText: 'Posicao trabalhada',
+                  prefixIcon: Icon(Icons.sports_mma_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _technique,
+                decoration: const InputDecoration(
+                  labelText: 'Tecnica trabalhada',
+                  prefixIcon: Icon(Icons.psychology_alt_outlined),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _successes,
+                decoration: const InputDecoration(
+                  labelText: 'Sucessos do treino',
+                  prefixIcon: Icon(Icons.check_circle_outline),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _difficulties,
+                decoration: const InputDecoration(
+                  labelText: 'Dificuldades encontradas',
+                  prefixIcon: Icon(Icons.report_problem_outlined),
+                ),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<int?>(
+                initialValue: _intensity,
+                decoration: const InputDecoration(
+                  labelText: 'Intensidade percebida',
+                  prefixIcon: Icon(Icons.local_fire_department_outlined),
+                ),
+                items: const [
+                  DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('Nao informado'),
+                  ),
+                  DropdownMenuItem<int?>(value: 1, child: Text('1 - Leve')),
+                  DropdownMenuItem<int?>(value: 2, child: Text('2')),
+                  DropdownMenuItem<int?>(value: 3, child: Text('3 - Moderada')),
+                  DropdownMenuItem<int?>(value: 4, child: Text('4')),
+                  DropdownMenuItem<int?>(value: 5, child: Text('5 - Muito intensa')),
+                ],
+                onChanged: (value) => setState(() => _intensity = value),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _debriefNotes,
+                decoration: const InputDecoration(
+                  labelText: 'Observacoes do debrief',
+                  prefixIcon: Icon(Icons.notes_outlined),
+                ),
                 maxLines: 3,
               ),
               const SizedBox(height: 16),
@@ -118,10 +223,10 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                   onPressed: _saving ? null : _save,
                   icon: _saving
                       ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
                       : const Icon(Icons.save),
                   label: Text(_saving ? 'Salvando...' : 'Salvar'),
                 ),
@@ -139,17 +244,44 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
 
     try {
       const uuid = Uuid();
-      final notes = _notes.text.trim();
-      final notesOrNull = notes.isEmpty ? null : notes;
+      final notesOrNull = _optionalText(_notes);
+      final position = _optionalText(_position);
+      final technique = _optionalText(_technique);
+      final successes = _optionalText(_successes);
+      final difficulties = _optionalText(_difficulties);
+      final debriefNotes = _optionalText(_debriefNotes);
 
       if (!_recurring) {
+        final existing = widget.session;
         final s = TrainingSession(
-          id: uuid.v4(),
+          id: existing?.id ?? uuid.v4(),
           date: DateTime(_singleDate.year, _singleDate.month, _singleDate.day),
-          place: TrainingPlace.academy,
+          place: existing?.place ?? TrainingPlace.academy,
           notes: notesOrNull,
+          scores: existing?.scores,
+          academyId: existing?.academyId,
+          uid: existing?.uid,
+          source: existing?.source,
+          attendanceSessionId: existing?.attendanceSessionId,
+          attendanceCheckInUid: existing?.attendanceCheckInUid,
+          classType: existing?.classType,
+          instructorUid: existing?.instructorUid,
+          instructorName: existing?.instructorName,
+          position: position,
+          technique: technique,
+          successes: successes,
+          difficulties: difficulties,
+          intensity: _intensity,
+          debriefNotes: debriefNotes,
         );
 
+        final actor = UserScope.maybeOf(context);
+        debugPrint(
+          "[TRAINING_SAVE] mode=${_editing ? 'edit' : 'create'} "
+          'actor.uid=${actor?.uid} target.uid=${widget.uid} '
+          'academyId=${widget.academyId} uid=${widget.uid} '
+          'session.id=${s.id}',
+        );
         await repo.addSession(
           academyId: widget.academyId,
           uid: widget.uid,
@@ -174,7 +306,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Confirmar cadastro'),
-            content: Text('Serão criados ${dates.length} treinos. Deseja continuar?'),
+            content: Text('Serao criados ${dates.length} treinos. Deseja continuar?'),
             actions: [
               TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
               FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmar')),
@@ -190,14 +322,26 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
         final sessions = dates
             .map(
               (d) => TrainingSession(
-            id: uuid.v4(),
-            date: d,
-            place: TrainingPlace.academy,
-            notes: notesOrNull,
-          ),
-        )
+                id: uuid.v4(),
+                date: d,
+                place: TrainingPlace.academy,
+                notes: notesOrNull,
+                position: position,
+                technique: technique,
+                successes: successes,
+                difficulties: difficulties,
+                intensity: _intensity,
+                debriefNotes: debriefNotes,
+              ),
+            )
             .toList();
 
+        final actor = UserScope.maybeOf(context);
+        debugPrint(
+          '[TRAINING_SAVE] mode=create actor.uid=${actor?.uid} '
+          'target.uid=${widget.uid} academyId=${widget.academyId} '
+          'uid=${widget.uid} session.id=multiple(${sessions.length})',
+        );
         await repo.addSessionsBatch(
           academyId: widget.academyId,
           uid: widget.uid,
@@ -215,6 +359,11 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  String? _optionalText(TextEditingController controller) {
+    final text = controller.text.trim();
+    return text.isEmpty ? null : text;
   }
 }
 
@@ -269,7 +418,7 @@ class _WeekdayPicker extends StatelessWidget {
       (DateTime.wednesday, 'Qua'),
       (DateTime.thursday, 'Qui'),
       (DateTime.friday, 'Sex'),
-      (DateTime.saturday, 'Sáb'),
+      (DateTime.saturday, 'Sab'),
       (DateTime.sunday, 'Dom'),
     ];
 

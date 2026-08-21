@@ -20,6 +20,13 @@ class TrainingSession {
   final String? instructorUid;
   final String? instructorName;
 
+  final String? position;
+  final String? technique;
+  final String? successes;
+  final String? difficulties;
+  final int? intensity;
+  final String? debriefNotes;
+
   TrainingSession({
     required this.id,
     required this.date,
@@ -34,6 +41,12 @@ class TrainingSession {
     this.classType,
     this.instructorUid,
     this.instructorName,
+    this.position,
+    this.technique,
+    this.successes,
+    this.difficulties,
+    this.intensity,
+    this.debriefNotes,
   }) : scores = scores ?? const {};
 
   TrainingSession copyWith({
@@ -49,6 +62,12 @@ class TrainingSession {
     String? classType,
     String? instructorUid,
     String? instructorName,
+    String? position,
+    String? technique,
+    String? successes,
+    String? difficulties,
+    int? intensity,
+    String? debriefNotes,
   }) {
     return TrainingSession(
       id: id,
@@ -64,6 +83,12 @@ class TrainingSession {
       classType: classType ?? this.classType,
       instructorUid: instructorUid ?? this.instructorUid,
       instructorName: instructorName ?? this.instructorName,
+      position: position ?? this.position,
+      technique: technique ?? this.technique,
+      successes: successes ?? this.successes,
+      difficulties: difficulties ?? this.difficulties,
+      intensity: intensity ?? this.intensity,
+      debriefNotes: debriefNotes ?? this.debriefNotes,
     );
   }
 
@@ -83,6 +108,12 @@ class TrainingSession {
       if (classType != null) 'classType': classType,
       if (instructorUid != null) 'instructorUid': instructorUid,
       if (instructorName != null) 'instructorName': instructorName,
+      if (position != null) 'position': position,
+      if (technique != null) 'technique': technique,
+      if (successes != null) 'successes': successes,
+      if (difficulties != null) 'difficulties': difficulties,
+      if (intensity != null) 'intensity': intensity,
+      if (debriefNotes != null) 'debriefNotes': debriefNotes,
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -135,6 +166,24 @@ class TrainingSession {
       classType: data['classType']?.toString(),
       instructorUid: data['instructorUid']?.toString(),
       instructorName: data['instructorName']?.toString(),
+      position: _optionalString(data['position']),
+      technique: _optionalString(data['technique']),
+      successes: _optionalString(data['successes']),
+      difficulties: _optionalString(data['difficulties']),
+      intensity: _intensityFromValue(data['intensity']),
+      debriefNotes: _optionalString(data['debriefNotes']),
     );
+  }
+
+  static String? _optionalString(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
+  }
+
+  static int? _intensityFromValue(Object? value) {
+    final parsed = value is int ? value : int.tryParse(value?.toString() ?? '');
+    if (parsed == null || parsed < 1 || parsed > 5) return null;
+    return parsed;
   }
 }
