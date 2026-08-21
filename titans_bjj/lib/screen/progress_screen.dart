@@ -124,6 +124,12 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final uid = target?.uid;
 
     if (academyId == null || uid == null) {
+      debugPrint(
+        '[PROGRESS_ACTIONS] showEditGraduation=false canEditTarget=$canEditTarget '
+        'hiddenBy=missing-target-or-academy-or-uid actor.uid=${actor?.uid} '
+        'actor.role=${actor?.role} target.uid=${target?.uid} '
+        'target.academyId=${target?.academyId}',
+      );
 
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
@@ -140,6 +146,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
 
     _syncStreams(academyId: academyId, uid: uid);
+
+    debugPrint(
+      '[PROGRESS_ACTIONS] showEditGraduation=$canEditTarget '
+      "canEditTarget=$canEditTarget hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
+      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
+      'target.uid=$uid target.academyId=$academyId',
+    );
 
     return TitansScaffold(
       appBar: AppBar(

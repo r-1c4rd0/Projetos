@@ -145,6 +145,11 @@ class _NutritionScreenState extends State<NutritionScreen> {
         'canEditTarget=$canEditTarget',
       );
       if (target == null) {
+        debugPrint(
+          '[NUTRITION_ACTIONS] showAddMeal=false showEditNutritionProfile=false '
+          'canEditTarget=$canEditTarget hiddenBy=missing-target '
+          'actor.uid=${actor?.uid} actor.role=${actor?.role}',
+        );
         return TitansScaffold(
           appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
           body: widget.targetMode == TargetMode.selectedStudent
@@ -165,6 +170,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final target = _resolveTarget(context);
     final canEditTarget = target != null &&
         _canEditTarget(loggedUser: actor, target: target);
+    debugPrint(
+      '[NUTRITION_ACTIONS] showAddMeal=$canEditTarget '
+      'showEditNutritionProfile=$canEditTarget canEditTarget=$canEditTarget '
+      "hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
+      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
+      'target.uid=${target?.uid} target.academyId=${target?.academyId}',
+    );
     debugPrint(
       '[NUTRITION_TARGET] screen=NutritionScreen '
       'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '

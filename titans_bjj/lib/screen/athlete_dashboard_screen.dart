@@ -258,6 +258,12 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     LayoutBuilder(
                                       builder: (context, c) {
                                         final isWide = c.maxWidth >= 980;
+                                        debugPrint(
+                                          '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
+                                          'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
+                                          'actor.role=${actor?.role} target.uid=$uid '
+                                          'target.academyId=$academyId',
+                                        );
                                         final athleteCard = _AthleteCard(
                                           name: headerName,
                                           email: headerEmail,
@@ -268,6 +274,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                               beltProgress.percentToNextBelt,
                                           onEditProfile: canEditTarget
                                               ? () {
+                                                  debugPrint(
+                                                    '[DASHBOARD_EDIT_CLICK] clicked=true '
+                                                    'athleteUid=$uid academyId=$academyId',
+                                                  );
                                                   Navigator.of(context).push(
                                                     MaterialPageRoute(
                                                       builder: (_) =>

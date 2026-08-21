@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 
 import '../model/grading_rules.dart';
 import '../repository/athlete_registration_repository.dart';
+import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
 class AthleteRegistrationScreen extends StatelessWidget {
@@ -18,6 +19,12 @@ class AthleteRegistrationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final actor = UserScope.maybeOf(context);
+    debugPrint(
+      '[ATHLETE_FORM] screenBuild editMode=${athleteUid != null} '
+      'athleteUid=$athleteUid academyId=$academyId '
+      'actor.uid=${actor?.uid} actor.role=${actor?.role}',
+    );
     return ChangeNotifierProvider(
       create: (_) => AthleteRegistrationViewModel(
         repository: AthleteRegistrationRepository.instance,
@@ -51,10 +58,18 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
   @override
   void initState() {
     super.initState();
+    debugPrint(
+      '[ATHLETE_FORM] initState editMode=$_editing '
+      'athleteUid=${widget.athleteUid} academyId=${widget.academyId}',
+    );
     final athleteUid = widget.athleteUid;
     if (athleteUid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
+        debugPrint(
+          '[ATHLETE_FORM] loadExisting start athleteUid=$athleteUid '
+          'academyId=${widget.academyId}',
+        );
         context.read<AthleteRegistrationViewModel>().loadAthlete(
               academyId: widget.academyId,
               uid: athleteUid,
@@ -79,8 +94,15 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
 
   Future<void> _submit() async {
     final vm = context.read<AthleteRegistrationViewModel>();
+    final actor = UserScope.maybeOf(context);
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
+    debugPrint(
+      "[ATHLETE_SAVE] submit mode=${_editing ? 'updateAthlete' : 'registerAthlete'} "
+      'editMode=$_editing uid=${widget.athleteUid} academyId=${widget.academyId} '
+      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
+      'belt=${vm.belt.name} degree=${vm.degree}',
+    );
     final success = _editing
         ? await vm.update(
             academyId: widget.academyId,
@@ -450,6 +472,11 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
 
     try {
       final data = await repository.getAthlete(academyId: academyId, uid: uid);
+      debugPrint(
+        '[ATHLETE_FORM] loadExisting result loaded=${data != null} '
+        'athleteUid=$uid academyId=$academyId role=${data?['role']} '
+        'belt=${data?['belt']} degree=${data?['degree']}',
+      );
       if (data == null) {
         errorMessage = 'Atleta nao encontrado.';
         return;
@@ -491,6 +518,12 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      final existing = await repository.getAthlete(academyId: academyId, uid: uid);
+      debugPrint(
+        '[ATHLETE_SAVE] before updateAthlete uid=$uid academyId=$academyId '
+        'roleBefore=${existing?['role']} roleAfterExpected=${existing?['role']} '
+        'belt=${belt.name} degree=${degree.clamp(0, maxDegree).toInt()}',
+      );
       await repository.updateAthlete(
         academyId: academyId,
         uid: uid,
@@ -530,6 +563,11 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
+      debugPrint(
+        '[ATHLETE_SAVE] before registerAthlete academyId=$academyId '
+        'roleBefore=null roleAfterExpected=athlete '
+        'belt=${belt.name} degree=${degree.clamp(0, maxDegree).toInt()}',
+      );
       await repository.registerAthlete(
         academyId: academyId,
         name: athleteName,

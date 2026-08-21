@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../model/grading_rules.dart';
@@ -109,18 +110,39 @@ class AthleteRegistrationRepository {
       if (notes != null) 'notes': notes,
     };
 
-    await upsertAthletePayload(
-      academyId: academyId,
-      uid: uid,
-      payload: payload,
+    debugPrint(
+      '[ATHLETE_REPO_UPDATE] path=academies/$academyId/users/$uid '
+      'payload=$payload',
     );
 
-    await _userRepository.ensureBootstrapDocs(
-      academyId: academyId,
-      uid: uid,
-      belt: belt,
-      degree: degree,
-    );
+    try {
+      await upsertAthletePayload(
+        academyId: academyId,
+        uid: uid,
+        payload: payload,
+      );
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[ATHLETE_REPO_UPDATE] FirebaseException '
+        'code=${error.code} message=${error.message}',
+      );
+      rethrow;
+    }
+
+    try {
+      await _userRepository.ensureBootstrapDocs(
+        academyId: academyId,
+        uid: uid,
+        belt: belt,
+        degree: degree,
+      );
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[ATHLETE_REPO_UPDATE] FirebaseException bootstrap '
+        'code=${error.code} message=${error.message}',
+      );
+      rethrow;
+    }
   }
 
   Future<void> registerAthlete({

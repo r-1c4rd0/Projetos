@@ -76,6 +76,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final uid = target?.uid;
 
     if (academyId == null || uid == null) {
+      debugPrint(
+        '[TRAINING_ACTIONS] showAddTraining=false canEditTarget=$canEditTarget '
+        'hiddenBy=missing-target-or-academy-or-uid actor.uid=${actor?.uid} '
+        'actor.role=${actor?.role} target.uid=${target?.uid} '
+        'target.academyId=${target?.academyId}',
+      );
       return TitansScaffold(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
         body: widget.targetMode == TargetMode.selectedStudent
@@ -92,6 +98,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
 
     _syncStream(academyId: academyId, uid: uid);
+
+    debugPrint(
+      '[TRAINING_ACTIONS] showAddTraining=$canEditTarget '
+      "canEditTarget=$canEditTarget hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
+      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
+      'target.uid=$uid target.academyId=$academyId',
+    );
 
     final cs = Theme.of(context).colorScheme;
 
