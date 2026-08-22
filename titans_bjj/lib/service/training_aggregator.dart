@@ -1,5 +1,6 @@
-import '../model/progress_period.dart';
+﻿import '../model/progress_period.dart';
 import '../model/training_session.dart';
+import '../service/jiu_jitsu_taxonomy.dart';
 
 class TrainingMetrics {
   final int total;
@@ -56,23 +57,82 @@ class GameMapTechniqueSummary {
   });
 }
 
+class SkillMatrixCategoryEntry {
+  final JiuJitsuSkillCategory category;
+  final List<SkillMatrixTechniqueEntry> techniques;
+  final List<String> attentionPoints;
+  final List<String> strengths;
+
+  const SkillMatrixCategoryEntry({
+    required this.category,
+    required this.techniques,
+    required this.attentionPoints,
+    required this.strengths,
+  });
+
+  int get techniquesCount => techniques.length;
+
+  int get sessionsCount => techniques.fold<int>(
+        0,
+        (sum, technique) => sum + technique.sessionsCount,
+      );
+
+  int get knowledgeCount => techniques.where((entry) => entry.knowledge).length;
+
+  int get drillCount => techniques.where((entry) => entry.drill).length;
+
+  int get consistencyCount =>
+      techniques.where((entry) => entry.consistent).length;
+
+  DateTime get lastTrainedAt {
+    return techniques
+        .map((technique) => technique.lastTrainedAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
+  double? get averageIntensity {
+    final values = techniques
+        .map((technique) => technique.averageIntensity)
+        .whereType<double>()
+        .toList();
+    if (values.isEmpty) return null;
+    return values.fold<double>(0, (sum, value) => sum + value) / values.length;
+  }
+}
+
+class SkillMatrixTechniqueEntry {
+  final JiuJitsuSkillCategory category;
+  final String technique;
+  final String? position;
+  final int sessionsCount;
+  final DateTime lastTrainedAt;
+  final double? averageIntensity;
+  final String? recentSuccess;
+  final String? recentDifficulty;
+  final bool knowledge;
+  final bool drill;
+  final bool? application;
+  final bool consistent;
+
+  const SkillMatrixTechniqueEntry({
+    required this.category,
+    required this.technique,
+    required this.position,
+    required this.sessionsCount,
+    required this.lastTrainedAt,
+    required this.averageIntensity,
+    required this.recentSuccess,
+    required this.recentDifficulty,
+    required this.knowledge,
+    required this.drill,
+    required this.application,
+    required this.consistent,
+  });
+}
+
 class TrainingAggregator {
   static const int recentWindowDays = 30;
   static const String undefinedPositionLabel = 'Sem posicao definida';
-
-  static const Map<String, String> _gameMapAliases = {
-    'arm bar': 'armbar',
-    'chave de braco': 'armbar',
-    'chave de braÃ§o': 'armbar',
-    'guarda fechada': 'closed guard',
-    'closed guard': 'closed guard',
-    'meia guarda': 'half guard',
-    'half guard': 'half guard',
-    'montada': 'mount',
-    'mount': 'mount',
-    'costas': 'back',
-    'back control': 'back',
-  };
 
   static List<TrainingSession> uniqueSessions(List<TrainingSession> sessions) {
     final byKey = <String, TrainingSession>{};
@@ -128,8 +188,8 @@ class TrainingAggregator {
       final positionLabel = _cleanText(session.position);
       final positionKey = positionLabel == null
           ? '__undefined_position'
-          : _normalizeGameMapText(positionLabel);
-      final techniqueKey = _normalizeGameMapText(techniqueLabel);
+          : JiuJitsuTaxonomy.normalizedKey(positionLabel);
+      final techniqueKey = JiuJitsuTaxonomy.normalizedKey(techniqueLabel);
       if (techniqueKey.isEmpty) continue;
 
       final positionDraft = byPosition.putIfAbsent(
@@ -165,6 +225,72 @@ class TrainingAggregator {
       ..sort(_compareGameMapEntry);
 
     return entries;
+  }
+
+  static List<SkillMatrixCategoryEntry> buildSkillMatrix(
+    List<TrainingSession> sessions, {
+    int limit = 50,
+  }) {
+    final ordered = List<TrainingSession>.from(sessions)
+      ..sort((a, b) => b.date.compareTo(a.date));
+    final byTechnique = <String, _SkillMatrixTechniqueDraft>{};
+
+    for (final session in ordered.take(limit)) {
+      final techniqueLabel = _cleanText(session.technique);
+      if (techniqueLabel == null) continue;
+
+      final positionLabel = _cleanText(session.position);
+      final category = JiuJitsuTaxonomy.categoryFor(
+        position: positionLabel,
+        technique: techniqueLabel,
+      );
+      final techniqueKey = JiuJitsuTaxonomy.normalizedKey(techniqueLabel);
+      if (techniqueKey.isEmpty) continue;
+
+      final key = '${category.name}:$techniqueKey';
+      final draft = byTechnique.putIfAbsent(
+        key,
+        () => _SkillMatrixTechniqueDraft(category: category),
+      );
+      draft.addSession(
+        session: session,
+        techniqueLabel: techniqueLabel,
+        positionLabel: positionLabel,
+      );
+    }
+
+    final byCategory = <JiuJitsuSkillCategory, List<SkillMatrixTechniqueEntry>>{};
+    for (final draft in byTechnique.values) {
+      final entry = draft.toEntry();
+      byCategory.putIfAbsent(entry.category, () => []).add(entry);
+    }
+
+    final categories = byCategory.entries.map((entry) {
+      final techniques = entry.value..sort(_compareSkillTechniqueEntry);
+      final attention = <String>[];
+      final strengths = <String>[];
+
+      for (final technique in techniques) {
+        final difficulty = _cleanText(technique.recentDifficulty);
+        if (difficulty != null && !attention.contains(difficulty)) {
+          attention.add(difficulty);
+        }
+        final success = _cleanText(technique.recentSuccess);
+        if (success != null && !strengths.contains(success)) {
+          strengths.add(success);
+        }
+      }
+
+      return SkillMatrixCategoryEntry(
+        category: entry.key,
+        techniques: techniques,
+        attentionPoints: attention.take(3).toList(),
+        strengths: strengths.take(3).toList(),
+      );
+    }).toList()
+      ..sort(_compareSkillCategoryEntry);
+
+    return categories;
   }
 
   /// Retorna uma lista de pontos ja agregados.
@@ -218,78 +344,35 @@ class TrainingAggregator {
     return a.technique.toLowerCase().compareTo(b.technique.toLowerCase());
   }
 
+  static int _compareSkillCategoryEntry(
+    SkillMatrixCategoryEntry a,
+    SkillMatrixCategoryEntry b,
+  ) {
+    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
+    if (dateCompare != 0) return dateCompare;
+    final consistentCompare = b.consistencyCount.compareTo(a.consistencyCount);
+    if (consistentCompare != 0) return consistentCompare;
+    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
+    if (countCompare != 0) return countCompare;
+    return a.category.label.compareTo(b.category.label);
+  }
+
+  static int _compareSkillTechniqueEntry(
+    SkillMatrixTechniqueEntry a,
+    SkillMatrixTechniqueEntry b,
+  ) {
+    if (a.consistent != b.consistent) return a.consistent ? -1 : 1;
+    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
+    if (dateCompare != 0) return dateCompare;
+    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
+    if (countCompare != 0) return countCompare;
+    return a.technique.toLowerCase().compareTo(b.technique.toLowerCase());
+  }
+
   static String? _cleanText(String? value) {
     final raw = value?.trim();
     if (raw == null || raw.isEmpty) return null;
     return raw.replaceAll(RegExp(r'\s+'), ' ');
-  }
-
-  static String _normalizeGameMapText(String value) {
-    final normalized = _removeAccents(value)
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    return _gameMapAliases[normalized] ?? normalized;
-  }
-
-  static String _removeAccents(String value) {
-    const accents = {
-      'Ã¡': 'a',
-      'Ã ': 'a',
-      'Ã¢': 'a',
-      'Ã£': 'a',
-      'Ã¤': 'a',
-      'Ã': 'A',
-      'Ã€': 'A',
-      'Ã‚': 'A',
-      'Ãƒ': 'A',
-      'Ã„': 'A',
-      'Ã©': 'e',
-      'Ã¨': 'e',
-      'Ãª': 'e',
-      'Ã«': 'e',
-      'Ã‰': 'E',
-      'Ãˆ': 'E',
-      'ÃŠ': 'E',
-      'Ã‹': 'E',
-      'Ã­': 'i',
-      'Ã¬': 'i',
-      'Ã®': 'i',
-      'Ã¯': 'i',
-      'Ã': 'I',
-      'ÃŒ': 'I',
-      'ÃŽ': 'I',
-      'Ã': 'I',
-      'Ã³': 'o',
-      'Ã²': 'o',
-      'Ã´': 'o',
-      'Ãµ': 'o',
-      'Ã¶': 'o',
-      'Ã“': 'O',
-      'Ã’': 'O',
-      'Ã”': 'O',
-      'Ã•': 'O',
-      'Ã–': 'O',
-      'Ãº': 'u',
-      'Ã¹': 'u',
-      'Ã»': 'u',
-      'Ã¼': 'u',
-      'Ãš': 'U',
-      'Ã™': 'U',
-      'Ã›': 'U',
-      'Ãœ': 'U',
-      'Ã§': 'c',
-      'Ã‡': 'C',
-    };
-
-    final buffer = StringBuffer();
-    for (final codeUnit in value.codeUnits) {
-      final char = String.fromCharCode(codeUnit);
-      buffer.write(accents[char] ?? char);
-    }
-    return buffer.toString();
   }
 
   static List<int> _byDay(List<TrainingSession> sessions, DateTime now) {
@@ -388,6 +471,77 @@ class _GameMapTechniqueDraft {
       averageIntensity: averageIntensity,
       recentSuccess: recentSuccess,
       recentDifficulty: recentDifficulty,
+    );
+  }
+}
+
+class _SkillMatrixTechniqueDraft {
+  final JiuJitsuSkillCategory category;
+  final techniqueLabels = <String, _GameMapLabelScore>{};
+  final positionLabels = <String, _GameMapLabelScore>{};
+  final intensities = <int>[];
+  int sessionsCount = 0;
+  DateTime? lastTrainedAt;
+  String? recentSuccess;
+  String? recentDifficulty;
+
+  _SkillMatrixTechniqueDraft({required this.category});
+
+  void addSession({
+    required TrainingSession session,
+    required String techniqueLabel,
+    required String? positionLabel,
+  }) {
+    sessionsCount += 1;
+    techniqueLabels
+        .putIfAbsent(techniqueLabel, () => _GameMapLabelScore(techniqueLabel))
+        .add(session.date);
+
+    if (positionLabel != null) {
+      positionLabels
+          .putIfAbsent(positionLabel, () => _GameMapLabelScore(positionLabel))
+          .add(session.date);
+    }
+
+    if (lastTrainedAt == null || session.date.isAfter(lastTrainedAt!)) {
+      lastTrainedAt = session.date;
+    }
+
+    final intensity = session.intensity;
+    if (intensity != null && intensity >= 1 && intensity <= 5) {
+      intensities.add(intensity);
+    }
+
+    final success = TrainingAggregator._cleanText(session.successes);
+    if (success != null && recentSuccess == null) {
+      recentSuccess = success;
+    }
+
+    final difficulty = TrainingAggregator._cleanText(session.difficulties);
+    if (difficulty != null && recentDifficulty == null) {
+      recentDifficulty = difficulty;
+    }
+  }
+
+  SkillMatrixTechniqueEntry toEntry() {
+    final averageIntensity = intensities.isEmpty
+        ? null
+        : intensities.fold<int>(0, (sum, value) => sum + value) /
+            intensities.length;
+
+    return SkillMatrixTechniqueEntry(
+      category: category,
+      technique: _bestLabel(techniqueLabels),
+      position: positionLabels.isEmpty ? null : _bestLabel(positionLabels),
+      sessionsCount: sessionsCount,
+      lastTrainedAt: lastTrainedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+      averageIntensity: averageIntensity,
+      recentSuccess: recentSuccess,
+      recentDifficulty: recentDifficulty,
+      knowledge: sessionsCount >= 1,
+      drill: sessionsCount >= 1,
+      application: null,
+      consistent: sessionsCount >= 3,
     );
   }
 }

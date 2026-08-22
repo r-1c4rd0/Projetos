@@ -1,10 +1,11 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
+import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -58,8 +59,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
             );
           }
 
+          final sessions = snapshot.data ?? const <TrainingSession>[];
+          final skillMatrix = TrainingAggregator.buildSkillMatrix(
+            sessions,
+            limit: 50,
+          );
           final entries = TrainingAggregator.buildGameMap(
-            snapshot.data ?? const <TrainingSession>[],
+            sessions,
             limit: 20,
           );
 
@@ -69,6 +75,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
               _HeaderCard(
                 colorScheme: cs,
                 targetName: widget.targetName,
+              ),
+              const SizedBox(height: 12),
+              _SkillMatrixCard(
+                colorScheme: cs,
+                entries: skillMatrix,
               ),
               const SizedBox(height: 12),
               if (entries.isEmpty)
@@ -131,6 +142,167 @@ class _HeaderCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SkillMatrixCard extends StatelessWidget {
+  final ColorScheme colorScheme;
+  final List<SkillMatrixCategoryEntry> entries;
+
+  const _SkillMatrixCard({
+    required this.colorScheme,
+    required this.entries,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Skill Matrix',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Matriz tecnica derivada dos debriefs recentes',
+              style: TextStyle(
+                color: colorScheme.onSurface.withValues(alpha: 0.68),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (entries.isEmpty)
+              Text(
+                'Registre tecnicas nos debriefs para montar a Skill Matrix.',
+                style: TextStyle(
+                  color: colorScheme.onSurface.withValues(alpha: 0.68),
+                ),
+              )
+            else
+              for (var i = 0; i < entries.length; i++) ...[
+                _SkillMatrixCategoryBlock(entry: entries[i]),
+                if (i != entries.length - 1)
+                  Divider(color: colorScheme.onSurface.withValues(alpha: 0.08)),
+              ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkillMatrixCategoryBlock extends StatelessWidget {
+  final SkillMatrixCategoryEntry entry;
+
+  const _SkillMatrixCategoryBlock({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final intensity = entry.averageIntensity;
+    final summary = <String>[
+      '${entry.techniquesCount} ${entry.techniquesCount == 1 ? 'tecnica' : 'tecnicas'}',
+      '${entry.sessionsCount} ${entry.sessionsCount == 1 ? 'sessao' : 'sessoes'}',
+      '${entry.consistencyCount} recorrente${entry.consistencyCount == 1 ? '' : 's'}',
+      if (intensity != null) 'intensidade ${intensity.toStringAsFixed(1)}/5',
+    ];
+    final visibleTechniques = entry.techniques.take(4).toList();
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.category.label,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            summary.join(' - '),
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.66)),
+          ),
+          const SizedBox(height: 10),
+          for (final technique in visibleTechniques) ...[
+            _SkillMatrixTechniqueRow(entry: technique),
+            if (technique != visibleTechniques.last)
+              SizedBox(
+                height: 10,
+                child: Center(
+                  child: Container(
+                    height: 1,
+                    color: cs.onSurface.withValues(alpha: 0.05),
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkillMatrixTechniqueRow extends StatelessWidget {
+  final SkillMatrixTechniqueEntry entry;
+
+  const _SkillMatrixTechniqueRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final intensity = entry.averageIntensity;
+    final details = <String>[
+      '${entry.sessionsCount} ${entry.sessionsCount == 1 ? 'sessao' : 'sessoes'}',
+      'ultima em ${_formatShortDate(entry.lastTrainedAt)}',
+      if (intensity != null) 'intensidade ${intensity.toStringAsFixed(1)}/5',
+    ];
+    final statuses = <String>[
+      if (entry.knowledge) 'Registrada',
+      if (entry.drill) 'Treinada',
+      if (entry.consistent) 'Recorrente',
+      'Aplicacao: sem dados ainda',
+    ];
+    final difficulty = _shortText(entry.recentDifficulty, maxLength: 64);
+    final success = _shortText(entry.recentSuccess, maxLength: 64);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          entry.technique,
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          details.join(' - '),
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.66)),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          statuses.join(' - '),
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+        ),
+        if (success != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            'Forca recente: $success',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+          ),
+        ],
+        if (difficulty != null) ...[
+          const SizedBox(height: 3),
+          Text(
+            'Atencao: $difficulty',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+          ),
+        ],
+      ],
     );
   }
 }

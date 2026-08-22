@@ -182,6 +182,39 @@ service cloud.firestore {
         && isAttendanceSessionOpen(academyId, sessionId);
     }
 
+    function taxonomyItemPayload(academyId) {
+      return request.resource.data.keys().hasOnly([
+          'academyId',
+          'type',
+          'label',
+          'normalizedKey',
+          'createdByUid',
+          'createdAt',
+          'updatedAt',
+          'isActive'
+        ])
+        && request.resource.data.keys().hasAll([
+          'academyId',
+          'type',
+          'label',
+          'normalizedKey',
+          'createdByUid',
+          'isActive'
+        ])
+        && request.resource.data.academyId == academyId
+        && request.resource.data.type in ['position', 'technique']
+        && request.resource.data.label is string
+        && request.resource.data.normalizedKey is string
+        && request.resource.data.createdByUid == request.auth.uid
+        && request.resource.data.isActive is bool;
+    }
+
+    function taxonomyItemUpdatePayload(academyId) {
+      return taxonomyItemPayload(academyId)
+        && resource.data.academyId == academyId
+        && request.resource.data.type == resource.data.type
+        && request.resource.data.normalizedKey == resource.data.normalizedKey;
+    }
     function selfCreateRootUserPayload() {
       return hasAthleteRole(request.resource.data);
     }
@@ -241,6 +274,15 @@ service cloud.firestore {
         allow create, update, delete: if isAcademyStaff(academyId);
       }
 
+      match /jiu_jitsu_taxonomy/{itemId} {
+        allow get, list: if isAcademyMember(academyId)
+          && resource.data.isActive == true;
+        allow create: if isAcademyStaff(academyId)
+          && taxonomyItemPayload(academyId);
+        allow update: if isAcademyStaff(academyId)
+          && taxonomyItemUpdatePayload(academyId);
+        allow delete: if false;
+      }
       match /attendance_sessions/{sessionId} {
         allow get, list: if isAcademyMember(academyId);
         allow create: if isAcademyStaff(academyId)
