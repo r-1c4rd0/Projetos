@@ -246,7 +246,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       final metrics = TrainingAggregator.metrics(filtered);
                       final debriefInsights =
                           _buildDebriefInsights(recentSessions);
-                      final gameMapLite = _buildGameMapLite(recentSessions);
+                      final gameMapLite = TrainingAggregator.buildGameMap(
+                          recentSessions,
+                          limit: 10,
+                        );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -694,84 +697,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     }
 
     return best?.value;
-  }
-
-  List<_GameMapLiteEntry> _buildGameMapLite(List<TrainingSession> sessions) {
-    final byPosition = <String, Map<String, _GameMapTechniqueDraft>>{};
-
-    for (final session in sessions.take(10)) {
-      final technique = _cleanDebriefText(session.technique);
-      if (technique == null) continue;
-
-      final position = _cleanDebriefText(session.position) ??
-          'Sem posicao definida';
-      final positionMap = byPosition.putIfAbsent(position, () => {});
-      final techniqueKey = technique.toLowerCase();
-      final draft = positionMap.putIfAbsent(
-        techniqueKey,
-        () => _GameMapTechniqueDraft(technique: technique),
-      );
-
-      draft.sessionsCount += 1;
-      if (draft.lastTrainedAt == null ||
-          session.date.isAfter(draft.lastTrainedAt!)) {
-        draft.lastTrainedAt = session.date;
-      }
-
-      final intensity = session.intensity;
-      if (intensity != null && intensity >= 1 && intensity <= 5) {
-        draft.intensities.add(intensity);
-      }
-
-      final difficulty = _cleanDebriefText(session.difficulties);
-      if (difficulty != null && draft.recentDifficulty == null) {
-        draft.recentDifficulty = difficulty;
-      }
-
-      final success = _cleanDebriefText(session.successes);
-      if (success != null && draft.recentSuccess == null) {
-        draft.recentSuccess = success;
-      }
-    }
-
-    final entries = byPosition.entries.map((positionEntry) {
-      final techniques = positionEntry.value.values
-          .map((draft) => draft.toSummary())
-          .toList()
-        ..sort(_compareTechniqueSummary);
-
-      return _GameMapLiteEntry(
-        position: positionEntry.key,
-        techniques: techniques,
-      );
-    }).where((entry) => entry.techniques.isNotEmpty).toList()
-      ..sort(_compareGameMapEntry);
-
-    return entries;
-  }
-
-  int _compareGameMapEntry(
-    _GameMapLiteEntry a,
-    _GameMapLiteEntry b,
-  ) {
-    final lastA = a.lastTrainedAt;
-    final lastB = b.lastTrainedAt;
-    final dateCompare = lastB.compareTo(lastA);
-    if (dateCompare != 0) return dateCompare;
-    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
-    if (countCompare != 0) return countCompare;
-    return a.position.toLowerCase().compareTo(b.position.toLowerCase());
-  }
-
-  int _compareTechniqueSummary(
-    _GameMapTechniqueSummary a,
-    _GameMapTechniqueSummary b,
-  ) {
-    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
-    if (dateCompare != 0) return dateCompare;
-    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
-    if (countCompare != 0) return countCompare;
-    return a.technique.toLowerCase().compareTo(b.technique.toLowerCase());
   }
 
   String _weekKey(DateTime d) {
@@ -1292,7 +1217,7 @@ class _InsightBlock extends StatelessWidget {
 
 class _GameMapLiteCard extends StatelessWidget {
   final ColorScheme cs;
-  final List<_GameMapLiteEntry> entries;
+  final List<GameMapEntry> entries;
   final VoidCallback onOpenFullMap;
 
   const _GameMapLiteCard({
@@ -1347,7 +1272,7 @@ class _GameMapLiteCard extends StatelessWidget {
   }
 }
 class _GameMapPositionBlock extends StatelessWidget {
-  final _GameMapLiteEntry entry;
+  final GameMapEntry entry;
 
   const _GameMapPositionBlock({required this.entry});
 
@@ -1385,7 +1310,7 @@ class _GameMapPositionBlock extends StatelessWidget {
 }
 
 class _GameMapTechniqueBlock extends StatelessWidget {
-  final _GameMapTechniqueSummary technique;
+  final GameMapTechniqueSummary technique;
 
   const _GameMapTechniqueBlock({required this.technique});
 
@@ -1608,71 +1533,6 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
-class _GameMapLiteEntry {
-  final String position;
-  final List<_GameMapTechniqueSummary> techniques;
-
-  const _GameMapLiteEntry({
-    required this.position,
-    required this.techniques,
-  });
-
-  int get sessionsCount => techniques.fold<int>(
-        0,
-        (sum, technique) => sum + technique.sessionsCount,
-      );
-
-  DateTime get lastTrainedAt {
-    return techniques
-        .map((technique) => technique.lastTrainedAt)
-        .reduce((a, b) => a.isAfter(b) ? a : b);
-  }
-}
-
-class _GameMapTechniqueSummary {
-  final String technique;
-  final int sessionsCount;
-  final DateTime lastTrainedAt;
-  final double? averageIntensity;
-  final String? recentDifficulty;
-  final String? recentSuccess;
-
-  const _GameMapTechniqueSummary({
-    required this.technique,
-    required this.sessionsCount,
-    required this.lastTrainedAt,
-    required this.averageIntensity,
-    required this.recentDifficulty,
-    required this.recentSuccess,
-  });
-}
-
-class _GameMapTechniqueDraft {
-  final String technique;
-  int sessionsCount = 0;
-  DateTime? lastTrainedAt;
-  final List<int> intensities = [];
-  String? recentDifficulty;
-  String? recentSuccess;
-
-  _GameMapTechniqueDraft({required this.technique});
-
-  _GameMapTechniqueSummary toSummary() {
-    final intensityAverage = intensities.isEmpty
-        ? null
-        : intensities.fold<int>(0, (sum, value) => sum + value) /
-            intensities.length;
-
-    return _GameMapTechniqueSummary(
-      technique: technique,
-      sessionsCount: sessionsCount,
-      lastTrainedAt: lastTrainedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-      averageIntensity: intensityAverage,
-      recentDifficulty: recentDifficulty,
-      recentSuccess: recentSuccess,
-    );
-  }
-}
 class _DebriefInsights {
   final String? technicalFocus;
   final String? attentionPoint;

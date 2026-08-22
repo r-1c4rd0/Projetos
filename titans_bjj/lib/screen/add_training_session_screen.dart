@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
+import '../model/app_user.dart';
+import '../model/jiu_jitsu_taxonomy_item.dart';
 import '../model/training_session.dart';
+import '../repository/jiu_jitsu_taxonomy_repository.dart';
 import '../repository/training_repository.dart';
+import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/recurrence_generator.dart';
 import '../service/user_session.dart';
 
@@ -19,7 +23,8 @@ class AddTrainingSessionScreen extends StatefulWidget {
   });
 
   @override
-  State<AddTrainingSessionScreen> createState() => _AddTrainingSessionScreenState();
+  State<AddTrainingSessionScreen> createState() =>
+      _AddTrainingSessionScreenState();
 }
 
 class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
@@ -44,12 +49,25 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   bool _saving = false;
 
   late final TrainingRepository repo = TrainingRepository.instance;
+  late final JiuJitsuTaxonomyRepository _taxonomyRepo =
+      JiuJitsuTaxonomyRepository.instance;
+  late final Stream<List<JiuJitsuTaxonomyItem>> _positionItemsStream;
+  late final Stream<List<JiuJitsuTaxonomyItem>> _techniqueItemsStream;
 
   bool get _editing => widget.session != null;
 
   @override
   void initState() {
     super.initState();
+
+    _positionItemsStream = _taxonomyRepo.watchItems(
+      academyId: widget.academyId,
+      type: JiuJitsuTaxonomyType.position,
+    );
+    _techniqueItemsStream = _taxonomyRepo.watchItems(
+      academyId: widget.academyId,
+      type: JiuJitsuTaxonomyType.technique,
+    );
 
     final session = widget.session;
     debugPrint(
@@ -84,164 +102,276 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final actor = UserScope.maybeOf(context);
+    final canAddToAcademy = actor != null &&
+        actor.academyId == widget.academyId &&
+        (actor.role == UserRole.admin || actor.role == UserRole.professor);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(_editing ? 'Editar treino' : 'Novo treino'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Form(
-          key: _form,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (!_editing)
-                SwitchListTile(
-                  value: _recurring,
-                  onChanged: (v) => setState(() => _recurring = v),
-                  title: const Text('Treino recorrente'),
-                  subtitle: const Text('Criar varios treinos em um intervalo'),
-                ),
-              if (!_editing) const SizedBox(height: 12),
-              if (!_recurring) ...[
-                _DateField(
-                  label: 'Data do treino',
-                  value: _singleDate,
-                  onPick: (d) => setState(() => _singleDate = d),
-                ),
-              ] else ...[
-                Row(
-                  children: [
-                    Expanded(
-                      child: _DateField(
-                        label: 'Data inicial',
-                        value: _start,
-                        onPick: (d) => setState(() => _start = d),
+      body: StreamBuilder<List<JiuJitsuTaxonomyItem>>(
+        stream: _positionItemsStream,
+        builder: (context, positionSnap) {
+          return StreamBuilder<List<JiuJitsuTaxonomyItem>>(
+            stream: _techniqueItemsStream,
+            builder: (context, techniqueSnap) {
+              final positionOptions = JiuJitsuTaxonomy.mergeStaticAndCustom(
+                staticItems: JiuJitsuTaxonomy.positions,
+                customItems:
+                    (positionSnap.data ?? const <JiuJitsuTaxonomyItem>[])
+                        .where((item) => item.isActive)
+                        .map((item) => item.label),
+              );
+              final techniqueOptions = JiuJitsuTaxonomy.mergeStaticAndCustom(
+                staticItems: JiuJitsuTaxonomy.techniques,
+                customItems:
+                    (techniqueSnap.data ?? const <JiuJitsuTaxonomyItem>[])
+                        .where((item) => item.isActive)
+                        .map((item) => item.label),
+              );
+
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Form(
+                  key: _form,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (!_editing)
+                        SwitchListTile(
+                          value: _recurring,
+                          onChanged: (v) => setState(() => _recurring = v),
+                          title: const Text('Treino recorrente'),
+                          subtitle: const Text(
+                            'Criar varios treinos em um intervalo',
+                          ),
+                        ),
+                      if (!_editing) const SizedBox(height: 12),
+                      if (!_recurring) ...[
+                        _DateField(
+                          label: 'Data do treino',
+                          value: _singleDate,
+                          onPick: (d) => setState(() => _singleDate = d),
+                        ),
+                      ] else ...[
+                        Row(
+                          children: [
+                            Expanded(
+                              child: _DateField(
+                                label: 'Data inicial',
+                                value: _start,
+                                onPick: (d) => setState(() => _start = d),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: _DateField(
+                                label: 'Data final',
+                                value: _end,
+                                onPick: (d) => setState(() => _end = d),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        _WeekdayPicker(
+                          selected: _weekdays,
+                          onChanged: (s) => setState(() {
+                            _weekdays
+                              ..clear()
+                              ..addAll(s);
+                          }),
+                        ),
+                        const SizedBox(height: 8),
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Ex: seg/qua/sab para treinos da equipe',
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _notes,
+                        decoration: const InputDecoration(
+                          labelText: 'Observacoes (opcional)',
+                        ),
+                        maxLines: 3,
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _DateField(
-                        label: 'Data final',
-                        value: _end,
-                        onPick: (d) => setState(() => _end = d),
+                      const SizedBox(height: 20),
+                      Text(
+                        'Debrief pos-treino',
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                _WeekdayPicker(
-                  selected: _weekdays,
-                  onChanged: (s) => setState(() {
-                    _weekdays
-                      ..clear()
-                      ..addAll(s);
-                  }),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text(
-                    'Ex: seg/qua/sab para treinos da equipe',
-                    style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
+                      const SizedBox(height: 12),
+                      _DebriefSelectCard(
+                        label: 'Posicao trabalhada',
+                        placeholder: 'Selecionar posicao',
+                        value: _optionalText(_position),
+                        icon: Icons.sports_mma_outlined,
+                        loading: positionSnap.connectionState ==
+                                ConnectionState.waiting &&
+                            !positionSnap.hasData,
+                        onTap: () => _selectDebriefValue(
+                          title: 'Posicao trabalhada',
+                          placeholder: 'Buscar posicao',
+                          type: JiuJitsuTaxonomyType.position,
+                          options: positionOptions,
+                          controller: _position,
+                          canAddToAcademy: canAddToAcademy,
+                          actorUid: actor?.uid,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _DebriefSelectCard(
+                        label: 'Tecnica trabalhada',
+                        placeholder: 'Selecionar tecnica',
+                        value: _optionalText(_technique),
+                        icon: Icons.psychology_alt_outlined,
+                        loading: techniqueSnap.connectionState ==
+                                ConnectionState.waiting &&
+                            !techniqueSnap.hasData,
+                        onTap: () => _selectDebriefValue(
+                          title: 'Tecnica trabalhada',
+                          placeholder: 'Buscar tecnica',
+                          type: JiuJitsuTaxonomyType.technique,
+                          options: techniqueOptions,
+                          controller: _technique,
+                          canAddToAcademy: canAddToAcademy,
+                          actorUid: actor?.uid,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _successes,
+                        decoration: const InputDecoration(
+                          labelText: 'Sucessos do treino',
+                          prefixIcon: Icon(Icons.check_circle_outline),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _difficulties,
+                        decoration: const InputDecoration(
+                          labelText: 'Dificuldades encontradas',
+                          prefixIcon: Icon(Icons.report_problem_outlined),
+                        ),
+                        maxLines: 2,
+                      ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<int?>(
+                        initialValue: _intensity,
+                        decoration: const InputDecoration(
+                          labelText: 'Intensidade percebida',
+                          prefixIcon: Icon(Icons.local_fire_department_outlined),
+                        ),
+                        items: const [
+                          DropdownMenuItem<int?>(
+                            value: null,
+                            child: Text('Nao informado'),
+                          ),
+                          DropdownMenuItem<int?>(
+                            value: 1,
+                            child: Text('1 - Leve'),
+                          ),
+                          DropdownMenuItem<int?>(value: 2, child: Text('2')),
+                          DropdownMenuItem<int?>(
+                            value: 3,
+                            child: Text('3 - Moderada'),
+                          ),
+                          DropdownMenuItem<int?>(value: 4, child: Text('4')),
+                          DropdownMenuItem<int?>(
+                            value: 5,
+                            child: Text('5 - Muito intensa'),
+                          ),
+                        ],
+                        onChanged: (value) => setState(() => _intensity = value),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _debriefNotes,
+                        decoration: const InputDecoration(
+                          labelText: 'Observacoes do debrief',
+                          prefixIcon: Icon(Icons.notes_outlined),
+                        ),
+                        maxLines: 3,
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _saving ? null : _save,
+                          icon: _saving
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.save),
+                          label: Text(_saving ? 'Salvando...' : 'Salvar'),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _notes,
-                decoration: const InputDecoration(labelText: 'Observacoes (opcional)'),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Debrief pos-treino',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _position,
-                decoration: const InputDecoration(
-                  labelText: 'Posicao trabalhada',
-                  prefixIcon: Icon(Icons.sports_mma_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _technique,
-                decoration: const InputDecoration(
-                  labelText: 'Tecnica trabalhada',
-                  prefixIcon: Icon(Icons.psychology_alt_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _successes,
-                decoration: const InputDecoration(
-                  labelText: 'Sucessos do treino',
-                  prefixIcon: Icon(Icons.check_circle_outline),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _difficulties,
-                decoration: const InputDecoration(
-                  labelText: 'Dificuldades encontradas',
-                  prefixIcon: Icon(Icons.report_problem_outlined),
-                ),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              DropdownButtonFormField<int?>(
-                initialValue: _intensity,
-                decoration: const InputDecoration(
-                  labelText: 'Intensidade percebida',
-                  prefixIcon: Icon(Icons.local_fire_department_outlined),
-                ),
-                items: const [
-                  DropdownMenuItem<int?>(
-                    value: null,
-                    child: Text('Nao informado'),
-                  ),
-                  DropdownMenuItem<int?>(value: 1, child: Text('1 - Leve')),
-                  DropdownMenuItem<int?>(value: 2, child: Text('2')),
-                  DropdownMenuItem<int?>(value: 3, child: Text('3 - Moderada')),
-                  DropdownMenuItem<int?>(value: 4, child: Text('4')),
-                  DropdownMenuItem<int?>(value: 5, child: Text('5 - Muito intensa')),
-                ],
-                onChanged: (value) => setState(() => _intensity = value),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _debriefNotes,
-                decoration: const InputDecoration(
-                  labelText: 'Observacoes do debrief',
-                  prefixIcon: Icon(Icons.notes_outlined),
-                ),
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _saving ? null : _save,
-                  icon: _saving
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save),
-                  label: Text(_saving ? 'Salvando...' : 'Salvar'),
-                ),
-              ),
-            ],
-          ),
-        ),
+              );
+            },
+          );
+        },
       ),
     );
+  }
+
+  Future<void> _selectDebriefValue({
+    required String title,
+    required String placeholder,
+    required JiuJitsuTaxonomyType type,
+    required List<String> options,
+    required TextEditingController controller,
+    required bool canAddToAcademy,
+    required String? actorUid,
+  }) async {
+    final selected = await showModalBottomSheet<_DebriefSelection>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _DebriefSelectSheet(
+        title: title,
+        placeholder: placeholder,
+        options: options,
+        currentValue: controller.text,
+        canAddToAcademy: canAddToAcademy,
+      ),
+    );
+
+    if (selected == null) return;
+
+    var label = selected.label;
+    if (selected.addToAcademy && canAddToAcademy && actorUid != null) {
+      try {
+        final item = await _taxonomyRepo.addCustomItem(
+          academyId: widget.academyId,
+          type: type,
+          label: selected.label,
+          createdByUid: actorUid,
+        );
+        label = item.label;
+      } catch (error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erro ao adicionar termo: $error')),
+        );
+      }
+    }
+
+    if (!mounted) return;
+    setState(() => controller.text = label);
   }
 
   Future<void> _save() async {
@@ -317,10 +447,18 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           context: context,
           builder: (_) => AlertDialog(
             title: const Text('Confirmar cadastro'),
-            content: Text('Serao criados ${dates.length} treinos. Deseja continuar?'),
+            content: Text(
+              'Serao criados ${dates.length} treinos. Deseja continuar?',
+            ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
-              FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirmar')),
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Confirmar'),
+              ),
             ],
           ),
         );
@@ -380,6 +518,262 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   String? _optionalText(TextEditingController controller) {
     final text = controller.text.trim();
     return text.isEmpty ? null : text;
+  }
+}
+
+class _DebriefSelectCard extends StatelessWidget {
+  final String label;
+  final String placeholder;
+  final String? value;
+  final IconData icon;
+  final bool loading;
+  final VoidCallback onTap;
+
+  const _DebriefSelectCard({
+    required this.label,
+    required this.placeholder,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasValue = value != null && value!.trim().isNotEmpty;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon),
+          suffixIcon: loading
+              ? const Padding(
+                  padding: EdgeInsets.all(14),
+                  child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                )
+              : const Icon(Icons.keyboard_arrow_down),
+        ),
+        child: Text(
+          hasValue ? value!.trim() : placeholder,
+          style: TextStyle(
+            color: hasValue ? cs.onSurface : cs.onSurface.withValues(alpha: 0.55),
+            fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DebriefSelection {
+  final String label;
+  final bool addToAcademy;
+
+  const _DebriefSelection({
+    required this.label,
+    required this.addToAcademy,
+  });
+}
+
+class _DebriefSelectSheet extends StatefulWidget {
+  final String title;
+  final String placeholder;
+  final List<String> options;
+  final String currentValue;
+  final bool canAddToAcademy;
+
+  const _DebriefSelectSheet({
+    required this.title,
+    required this.placeholder,
+    required this.options,
+    required this.currentValue,
+    required this.canAddToAcademy,
+  });
+
+  @override
+  State<_DebriefSelectSheet> createState() => _DebriefSelectSheetState();
+}
+
+class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
+  late final TextEditingController _search;
+  late String _selected;
+  bool _addSelectedToAcademy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.currentValue.trim();
+    _search = TextEditingController(text: _selected);
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final query = _search.text.trim();
+    final queryKey = JiuJitsuTaxonomy.normalizedKey(query);
+    final filtered = widget.options
+        .where((option) => option.toLowerCase().contains(query.toLowerCase()))
+        .toList();
+    final exactMatch = widget.options.any(
+      (option) => JiuJitsuTaxonomy.normalizedKey(option) == queryKey,
+    );
+    final showCustom = query.isNotEmpty && !exactMatch;
+    final valueToConfirm = showCustom ? query : _selected;
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.title,
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _search,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: widget.placeholder,
+                  prefixIcon: const Icon(Icons.search),
+                ),
+                onChanged: (_) => setState(() {
+                  _addSelectedToAcademy = false;
+                }),
+              ),
+              const SizedBox(height: 12),
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    if (showCustom) ...[
+                      _DebriefOptionTile(
+                        label: 'Usar "$query"',
+                        selected: _selected == query && !_addSelectedToAcademy,
+                        accent: true,
+                        onTap: () => setState(() {
+                          _selected = query;
+                          _addSelectedToAcademy = false;
+                        }),
+                      ),
+                      if (widget.canAddToAcademy)
+                        _DebriefOptionTile(
+                          label: 'Adicionar "$query" a lista da academia',
+                          selected: _selected == query && _addSelectedToAcademy,
+                          accent: true,
+                          onTap: () => setState(() {
+                            _selected = query;
+                            _addSelectedToAcademy = true;
+                          }),
+                        ),
+                    ],
+                    for (final option in filtered)
+                      _DebriefOptionTile(
+                        label: option,
+                        selected: JiuJitsuTaxonomy.normalizedKey(option) ==
+                                JiuJitsuTaxonomy.normalizedKey(_selected) &&
+                            !_addSelectedToAcademy,
+                        onTap: () => setState(() {
+                          _selected = option;
+                          _addSelectedToAcademy = false;
+                        }),
+                      ),
+                    if (filtered.isEmpty && !showCustom)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'Nenhuma opcao encontrada.',
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.62),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: valueToConfirm.trim().isEmpty
+                      ? null
+                      : () => Navigator.pop(
+                            context,
+                            _DebriefSelection(
+                              label: valueToConfirm.trim(),
+                              addToAcademy:
+                                  showCustom && _addSelectedToAcademy,
+                            ),
+                          ),
+                  icon: const Icon(Icons.check),
+                  label: const Text('Confirmar selecao'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DebriefOptionTile extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final bool accent;
+  final VoidCallback onTap;
+
+  const _DebriefOptionTile({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+    this.accent = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Card(
+      color: selected
+          ? cs.primaryContainer.withValues(alpha: 0.55)
+          : accent
+              ? cs.secondaryContainer.withValues(alpha: 0.35)
+              : null,
+      child: ListTile(
+        onTap: onTap,
+        title: Text(
+          label,
+          style: TextStyle(
+            fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+          ),
+        ),
+        trailing: selected ? const Icon(Icons.check) : null,
+      ),
+    );
   }
 }
 

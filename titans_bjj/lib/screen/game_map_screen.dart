@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../core/titans_ui.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
+import '../service/training_aggregator.dart';
 import '../widgets/titans_scaffold.dart';
 
 class GameMapScreen extends StatefulWidget {
@@ -57,11 +58,10 @@ class _GameMapScreenState extends State<GameMapScreen> {
             );
           }
 
-          final sessions = List<TrainingSession>.from(
+          final entries = TrainingAggregator.buildGameMap(
             snapshot.data ?? const <TrainingSession>[],
-          )..sort((a, b) => b.date.compareTo(a.date));
-          final recentSessions = sessions.take(20).toList();
-          final entries = _buildGameMap(recentSessions);
+            limit: 20,
+          );
 
           return ListView(
             padding: TitansUI.listPadding(context),
@@ -83,75 +83,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
         },
       ),
     );
-  }
-
-  List<_GameMapEntry> _buildGameMap(List<TrainingSession> sessions) {
-    final byPosition = <String, Map<String, _TechniqueDraft>>{};
-
-    for (final session in sessions.take(20)) {
-      final technique = _cleanText(session.technique);
-      if (technique == null) continue;
-
-      final position = _cleanText(session.position) ?? 'Sem posicao definida';
-      final techniquesByKey = byPosition.putIfAbsent(position, () => {});
-      final key = technique.toLowerCase();
-      final draft = techniquesByKey.putIfAbsent(
-        key,
-        () => _TechniqueDraft(technique: technique),
-      );
-
-      draft.sessionsCount += 1;
-      if (draft.lastTrainedAt == null ||
-          session.date.isAfter(draft.lastTrainedAt!)) {
-        draft.lastTrainedAt = session.date;
-      }
-
-      final intensity = session.intensity;
-      if (intensity != null && intensity >= 1 && intensity <= 5) {
-        draft.intensities.add(intensity);
-      }
-
-      final difficulty = _cleanText(session.difficulties);
-      if (difficulty != null && draft.recentDifficulty == null) {
-        draft.recentDifficulty = difficulty;
-      }
-
-      final success = _cleanText(session.successes);
-      if (success != null && draft.recentSuccess == null) {
-        draft.recentSuccess = success;
-      }
-    }
-
-    final entries = byPosition.entries.map((entry) {
-      final techniques = entry.value.values
-          .map((draft) => draft.toSummary())
-          .toList()
-        ..sort(_compareTechnique);
-
-      return _GameMapEntry(
-        position: entry.key,
-        techniques: techniques,
-      );
-    }).where((entry) => entry.techniques.isNotEmpty).toList()
-      ..sort(_comparePosition);
-
-    return entries;
-  }
-
-  int _comparePosition(_GameMapEntry a, _GameMapEntry b) {
-    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
-    if (dateCompare != 0) return dateCompare;
-    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
-    if (countCompare != 0) return countCompare;
-    return a.position.toLowerCase().compareTo(b.position.toLowerCase());
-  }
-
-  int _compareTechnique(_TechniqueSummary a, _TechniqueSummary b) {
-    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
-    if (dateCompare != 0) return dateCompare;
-    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
-    if (countCompare != 0) return countCompare;
-    return a.technique.toLowerCase().compareTo(b.technique.toLowerCase());
   }
 }
 
@@ -224,7 +155,7 @@ class _EmptyGameMapCard extends StatelessWidget {
 }
 
 class _GameMapPositionCard extends StatelessWidget {
-  final _GameMapEntry entry;
+  final GameMapEntry entry;
 
   const _GameMapPositionCard({required this.entry});
 
@@ -258,7 +189,7 @@ class _GameMapPositionCard extends StatelessWidget {
 }
 
 class _TechniqueTile extends StatelessWidget {
-  final _TechniqueSummary summary;
+  final GameMapTechniqueSummary summary;
 
   const _TechniqueTile({required this.summary});
 
@@ -305,72 +236,6 @@ class _TechniqueTile extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _GameMapEntry {
-  final String position;
-  final List<_TechniqueSummary> techniques;
-
-  const _GameMapEntry({
-    required this.position,
-    required this.techniques,
-  });
-
-  int get sessionsCount => techniques.fold<int>(
-        0,
-        (sum, technique) => sum + technique.sessionsCount,
-      );
-
-  DateTime get lastTrainedAt {
-    return techniques
-        .map((technique) => technique.lastTrainedAt)
-        .reduce((a, b) => a.isAfter(b) ? a : b);
-  }
-}
-
-class _TechniqueSummary {
-  final String technique;
-  final int sessionsCount;
-  final DateTime lastTrainedAt;
-  final double? averageIntensity;
-  final String? recentSuccess;
-  final String? recentDifficulty;
-
-  const _TechniqueSummary({
-    required this.technique,
-    required this.sessionsCount,
-    required this.lastTrainedAt,
-    required this.averageIntensity,
-    required this.recentSuccess,
-    required this.recentDifficulty,
-  });
-}
-
-class _TechniqueDraft {
-  final String technique;
-  int sessionsCount = 0;
-  DateTime? lastTrainedAt;
-  final List<int> intensities = [];
-  String? recentSuccess;
-  String? recentDifficulty;
-
-  _TechniqueDraft({required this.technique});
-
-  _TechniqueSummary toSummary() {
-    final averageIntensity = intensities.isEmpty
-        ? null
-        : intensities.fold<int>(0, (sum, value) => sum + value) /
-            intensities.length;
-
-    return _TechniqueSummary(
-      technique: technique,
-      sessionsCount: sessionsCount,
-      lastTrainedAt: lastTrainedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
-      averageIntensity: averageIntensity,
-      recentSuccess: recentSuccess,
-      recentDifficulty: recentDifficulty,
     );
   }
 }
