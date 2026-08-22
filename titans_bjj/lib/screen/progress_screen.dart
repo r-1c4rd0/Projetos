@@ -668,7 +668,7 @@ class _BeltProgressCard extends StatelessWidget {
                 Text(
                   pctText,
                   style: TextStyle(
-                    color: cs.primary,
+                    color: beltColor,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -694,21 +694,8 @@ class _BeltProgressCard extends StatelessWidget {
   }
 
   static Color _beltUiColor(BeltColor belt, BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    switch (belt) {
-      case BeltColor.white:
-        return Colors.white.withValues(alpha: 0.90);
-      case BeltColor.blue:
-        return Colors.blueAccent;
-      case BeltColor.purple:
-        return Colors.purpleAccent;
-      case BeltColor.brown:
-        return const Color(0xFF8D6E63);
-      case BeltColor.black:
-        return cs.onSurface;
-    }
+    return TitansUI.beltColor(belt.name);
   }
-
   static String beltName(BeltColor belt) => _beltName(belt);
 
   static String _beltName(BeltColor belt) {

@@ -213,6 +213,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
                     'actor.uid=${actor?.uid} target.uid=$uid '
                     'academyId=$academyId session.id=${s.id}',
                   );
+                  if (_hasDebrief(s)) {
+                    debugPrint(
+                      '[TRAINING_DEBRIEF_CARD] mode=card session.id=${s.id} '
+                      'target.uid=$uid position=${s.position} '
+                      'technique=${s.technique} intensity=${s.intensity}',
+                    );
+                  }
                   return Card(
                     child: ListTile(
                       leading: Icon(
@@ -352,6 +359,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String _fmtDateTime(DateTime d) {
     return '${_fmt2(d.day)}/${_fmt2(d.month)}/${d.year} ${_fmt2(d.hour)}:${_fmt2(d.minute)}';
   }
+  bool _hasDebrief(TrainingSession session) {
+    return (session.position?.trim().isNotEmpty ?? false) ||
+        (session.technique?.trim().isNotEmpty ?? false) ||
+        session.intensity != null;
+  }
+
   String _sessionSummary(TrainingSession session) {
     final lines = <String>[];
     final notes = session.notes?.trim();

@@ -12,6 +12,7 @@ import '../repository/training_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_registration_screen.dart';
@@ -239,7 +240,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         degree: athlete.degree,
                         sessions: filtered,
                       );
-                      final lastSessions = filtered.reversed.take(5).toList();
+                      final recentSessions = filtered.reversed.take(10).toList();
+                      final lastSessions = recentSessions.take(5).toList();
+                      final metrics = TrainingAggregator.metrics(filtered);
+                      final debriefInsights =
+                          _buildDebriefInsights(recentSessions);
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -312,11 +317,9 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                               const SizedBox(width: 12),
                                               Expanded(
                                                 flex: 6,
-                                                child: _NextTrainingCard(
+                                                child: _GraduationProgressCard(
                                                   cs: cs,
-                                                  title: 'Sparring de Elite',
-                                                  subtitle:
-                                                      'Professor: Willian Vox - 20:00 - 21:00',
+                                                  progress: beltProgress,
                                                 ),
                                               ),
                                             ],
@@ -327,11 +330,9 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           children: [
                                             athleteCard,
                                             const SizedBox(height: 12),
-                                            _NextTrainingCard(
+                                            _GraduationProgressCard(
                                               cs: cs,
-                                              title: 'Sparring de Elite',
-                                              subtitle:
-                                                  'Professor: Marco Santos - 19:30 - 21:00',
+                                              progress: beltProgress,
                                             ),
                                           ],
                                         );
@@ -344,18 +345,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         final left = _StatsCard(
                                           cs: cs,
                                           frequency: _calcFrequency(filtered),
-                                          readiness: _calcReadiness(filtered),
-                                          trainingCount: filtered.length,
-                                          sparring: _calcSparring(
-                                            filtered,
-                                            uid,
-                                          ),
+                                          metrics: metrics,
                                         );
-                                        final right = _FeedbackCard(
+                                        final right = _DebriefInsightsCard(
                                           cs: cs,
-                                          feedback:
-                                              'Controle de quadril melhorou. Cuidado com a esgrima. Foque em estabilizar antes de transitar.',
-                                          task: 'Tarefa: 30 drills',
+                                          insights: debriefInsights,
                                         );
 
                                         if (isWide) {
@@ -595,6 +589,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       belt: belt,
       degree: safeDegree,
       maxDegree: maxDeg,
+      sessionsInBelt: sessionsInBelt,
+      sessionsRequired: sessionsRequired,
       percentToNextBelt: pctSegment,
     );
   }
@@ -616,30 +612,70 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     return ((hit / total) * 100).round();
   }
 
-  int _calcReadiness(List<TrainingSession> sessions) {
-    final now = DateTime.now();
-    final count =
-        sessions
-            .where(
-              (s) => s.date.isAfter(now.subtract(const Duration(days: 14))),
-            )
-            .length;
-    final pct = (count / 12).clamp(0.0, 1.0);
-    return (pct * 100).round();
+  _DebriefInsights _buildDebriefInsights(List<TrainingSession> sessions) {
+    final focus = <String>[];
+    final attention = <String>[];
+    final strength = <String>[];
+    final intensities = <int>[];
+
+    for (final session in sessions) {
+      final technique = _cleanDebriefText(session.technique);
+      final position = _cleanDebriefText(session.position);
+      final focusParts = <String>[];
+      if (technique != null) focusParts.add('Tecnica: $technique');
+      if (position != null) focusParts.add('Posicao: $position');
+      if (focusParts.isNotEmpty) focus.add(focusParts.join(' - '));
+
+      final difficulties = _cleanDebriefText(session.difficulties);
+      if (difficulties != null) attention.add(difficulties);
+
+      final successes = _cleanDebriefText(session.successes);
+      if (successes != null) strength.add(successes);
+
+      final intensity = session.intensity;
+      if (intensity != null && intensity >= 1 && intensity <= 5) {
+        intensities.add(intensity);
+      }
+    }
+
+    final intensityAverage = intensities.isEmpty
+        ? null
+        : intensities.fold<int>(0, (sum, value) => sum + value) /
+            intensities.length;
+
+    return _DebriefInsights(
+      technicalFocus: _mostRecurringRecent(focus),
+      attentionPoint: _mostRecurringRecent(attention),
+      strengthPoint: _mostRecurringRecent(strength),
+      averageIntensity: intensityAverage,
+    );
   }
 
-  String _calcSparring(List<TrainingSession> sessions, String uid) {
-    final scores =
-        sessions
-            .map((s) => s.scores[uid])
-            .whereType<int>()
-            .where((score) => score > 0)
-            .toList();
-    if (scores.isEmpty) return '-';
+  String? _mostRecurringRecent(List<String> values) {
+    final scores = <String, _InsightScore>{};
 
-    final total = scores.fold<int>(0, (sum, score) => sum + score);
-    final avg = total / scores.length;
-    return avg.toStringAsFixed(1);
+    for (var index = 0; index < values.length; index++) {
+      final value = values[index].trim();
+      if (value.isEmpty) continue;
+      final key = value.toLowerCase();
+      final score = scores[key];
+      if (score == null) {
+        scores[key] = _InsightScore(value: value, count: 1, firstIndex: index);
+      } else {
+        score.count += 1;
+      }
+    }
+
+    _InsightScore? best;
+    for (final score in scores.values) {
+      if (best == null ||
+          score.count > best.count ||
+          (score.count == best.count && score.firstIndex < best.firstIndex)) {
+        best = score;
+      }
+    }
+
+    return best?.value;
   }
 
   String _weekKey(DateTime d) {
@@ -651,6 +687,19 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 }
 
 // ---------------- UI ----------------
+
+String? _cleanDebriefText(String? value) {
+  final text = value?.trim();
+  if (text == null || text.isEmpty) return null;
+  return text;
+}
+
+String? _shortDebriefText(String? value, {int maxLength = 72}) {
+  final text = _cleanDebriefText(value);
+  if (text == null) return null;
+  if (text.length <= maxLength) return text;
+  return '${text.substring(0, maxLength - 3).trimRight()}...';
+}
 
 String _beltLabel(BeltColor belt) {
   switch (belt) {
@@ -691,7 +740,7 @@ class _AthleteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final beltColor = _beltUiColor(belt, cs);
+    final beltColor = TitansUI.beltColor(belt.name);
 
     return _GlassCard(
       child: Column(
@@ -792,20 +841,6 @@ class _AthleteCard extends StatelessWidget {
     );
   }
 
-  Color _beltUiColor(BeltColor belt, ColorScheme cs) {
-    switch (belt) {
-      case BeltColor.white:
-        return Colors.white.withValues(alpha: 0.95);
-      case BeltColor.blue:
-        return Colors.blueAccent;
-      case BeltColor.purple:
-        return Colors.purpleAccent;
-      case BeltColor.brown:
-        return const Color(0xFF8D6E63);
-      case BeltColor.black:
-        return Colors.black;
-    }
-  }
 }
 
 class _BeltPill extends StatelessWidget {
@@ -843,84 +878,86 @@ class _BeltPill extends StatelessWidget {
   }
 }
 
-class _NextTrainingCard extends StatelessWidget {
+class _GraduationProgressCard extends StatelessWidget {
   final ColorScheme cs;
-  final String title;
-  final String subtitle;
+  final _BeltProgress progress;
 
-  const _NextTrainingCard({
+  const _GraduationProgressCard({
     required this.cs,
-    required this.title,
-    required this.subtitle,
+    required this.progress,
   });
 
   @override
   Widget build(BuildContext context) {
+    final percent = (progress.percentToNextBelt * 100).round();
+    final beltColor = TitansUI.beltColor(progress.belt.name);
+    final remaining = (progress.sessionsRequired - progress.sessionsInBelt)
+        .clamp(0, 1 << 30)
+        .toInt();
+
     return _GlassCard(
-      accent: cs.error.withValues(alpha: 0.55),
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final compact = c.maxWidth < 520;
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  subtitle,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.75)),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  width: double.infinity,
-                  child: FilledButton(
-                    onPressed: () {},
-                    child: const Text('CHECK-IN AGORA'),
-                  ),
-                ),
-              ],
-            );
-          }
-
-          return Row(
+      accent: beltColor.withValues(alpha: 0.45),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'PROGRESSO DE GRADUACAO',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            '${_beltLabel(progress.belt)} - grau ${progress.degree}/${progress.maxDegree}',
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              minHeight: 10,
+              value: progress.percentToNextBelt,
+              backgroundColor: cs.onSurface.withValues(alpha: 0.12),
+              color: beltColor,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Row(
             children: [
               Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title.toUpperCase(),
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      subtitle,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.75),
-                      ),
-                    ),
-                  ],
+                child: _StatMini(
+                  title: 'NA FAIXA',
+                  value: progress.sessionsInBelt.toString(),
+                  highlight: beltColor,
                 ),
               ),
-              const SizedBox(width: 12),
-              FilledButton(
-                onPressed: () {},
-                child: const Text('CHECK-IN AGORA'),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatMini(
+                  title: 'ESTIMADO',
+                  value: progress.sessionsRequired.toString(),
+                  highlight: Colors.amber,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatMini(
+                  title: 'PROX. GRAU',
+                  value: '$percent%',
+                  highlight: cs.error,
+                ),
               ),
             ],
-          );
-        },
+          ),
+          const SizedBox(height: 10),
+          Text(
+            remaining == 0
+                ? 'Meta estimada desta etapa atingida pelos treinos registrados.'
+                : 'Faltam cerca de $remaining sessoes para a referencia estimada da faixa.',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+          ),
+        ],
       ),
     );
   }
@@ -929,16 +966,12 @@ class _NextTrainingCard extends StatelessWidget {
 class _StatsCard extends StatelessWidget {
   final ColorScheme cs;
   final int frequency;
-  final int readiness;
-  final String sparring;
-  final int trainingCount;
+  final TrainingMetrics metrics;
 
   const _StatsCard({
     required this.cs,
     required this.frequency,
-    required this.readiness,
-    required this.sparring,
-    required this.trainingCount,
+    required this.metrics,
   });
 
   @override
@@ -948,7 +981,7 @@ class _StatsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'STATUS',
+            'FREQUENCIA RECENTE',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
@@ -959,7 +992,7 @@ class _StatsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatMini(
-                  title: 'FREQUENCIA',
+                  title: '8 SEMANAS',
                   value: '$frequency%',
                   highlight: cs.primary,
                 ),
@@ -967,8 +1000,8 @@ class _StatsCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _StatMini(
-                  title: 'PRONTIDAO',
-                  value: '$readiness%',
+                  title: '30 DIAS',
+                  value: metrics.recent.toString(),
                   highlight: cs.error,
                 ),
               ),
@@ -979,20 +1012,26 @@ class _StatsCard extends StatelessWidget {
             children: [
               Expanded(
                 child: _StatMini(
-                  title: 'SPARRING',
-                  value: sparring,
+                  title: 'MES',
+                  value: metrics.month.toString(),
                   highlight: Colors.purpleAccent,
                 ),
               ),
               const SizedBox(width: 10),
               Expanded(
                 child: _StatMini(
-                  title: 'TREINOS',
-                  value: trainingCount.toString(),
+                  title: 'ANO',
+                  value: metrics.year.toString(),
                   highlight: Colors.amber,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 10),
+          _StatMini(
+            title: 'TOTAL DE TREINOS',
+            value: metrics.total.toString(),
+            highlight: Colors.lightGreenAccent,
           ),
         ],
       ),
@@ -1054,43 +1093,54 @@ class _StatMini extends StatelessWidget {
   }
 }
 
-class _FeedbackCard extends StatelessWidget {
+class _DebriefInsightsCard extends StatelessWidget {
   final ColorScheme cs;
-  final String feedback;
-  final String task;
+  final _DebriefInsights insights;
 
-  const _FeedbackCard({
+  const _DebriefInsightsCard({
     required this.cs,
-    required this.feedback,
-    required this.task,
+    required this.insights,
   });
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      accent: cs.error.withValues(alpha: 0.45),
+      accent: cs.error.withValues(alpha: 0.35),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'FEEDBACK DO MESTRE',
+            'INTELLIGENCE LITE',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(height: 10),
-          Text(
-            feedback,
-            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.85)),
+          const SizedBox(height: 12),
+          _InsightBlock(
+            title: 'FOCO TECNICO',
+            value: insights.technicalFocus,
+            empty: 'Registre debriefs nos treinos para gerar foco tecnico.',
           ),
           const SizedBox(height: 12),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              onPressed: () {},
-              child: Text(task.toUpperCase()),
-            ),
+          _InsightBlock(
+            title: 'PONTO DE ATENCAO',
+            value: insights.attentionPoint,
+            empty: 'Sem dificuldades registradas nos debriefs recentes.',
+          ),
+          const SizedBox(height: 12),
+          _InsightBlock(
+            title: 'PONTO FORTE RECENTE',
+            value: insights.strengthPoint,
+            empty: 'Sem sucessos registrados nos debriefs recentes.',
+          ),
+          const SizedBox(height: 12),
+          _InsightBlock(
+            title: 'INTENSIDADE RECENTE',
+            value: insights.averageIntensity == null
+                ? null
+                : 'Media recente: ${insights.averageIntensity!.toStringAsFixed(1)}/5',
+            empty: 'Sem intensidade registrada nos debriefs recentes.',
           ),
         ],
       ),
@@ -1098,9 +1148,49 @@ class _FeedbackCard extends StatelessWidget {
   }
 }
 
+class _InsightBlock extends StatelessWidget {
+  final String title;
+  final String? value;
+  final String empty;
+
+  const _InsightBlock({
+    required this.title,
+    required this.value,
+    required this.empty,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final text = value?.trim();
+    final hasValue = text != null && text.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.58),
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          hasValue ? text! : empty,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: hasValue ? 0.86 : 0.62),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _RecentActivityCard extends StatelessWidget {
   final ColorScheme cs;
-  final List items;
+  final List<TrainingSession> items;
 
   const _RecentActivityCard({required this.cs, required this.items});
 
@@ -1111,7 +1201,7 @@ class _RecentActivityCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'LOG DE ATIVIDADES RECENTES',
+            'ULTIMOS TREINOS',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
@@ -1120,17 +1210,105 @@ class _RecentActivityCard extends StatelessWidget {
           const SizedBox(height: 10),
           if (items.isEmpty)
             Text(
-              'Sem atividades.',
+              'Sem treinos registrados.',
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
             )
           else
-            Text(
-              'TODO: renderizar lista de treinos aqui (mantido do seu original).',
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
+            Column(
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  _TrainingActivityRow(session: items[i]),
+                  if (i != items.length - 1)
+                    Divider(color: cs.onSurface.withValues(alpha: 0.08)),
+                ],
+              ],
             ),
         ],
       ),
     );
+  }
+}
+
+class _TrainingActivityRow extends StatelessWidget {
+  final TrainingSession session;
+
+  const _TrainingActivityRow({required this.session});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final details = <String>[
+      _placeLabel(session.place),
+      if ((session.classType ?? '').trim().isNotEmpty)
+        session.classType!.trim(),
+      if ((session.instructorName ?? '').trim().isNotEmpty)
+        session.instructorName!.trim(),
+    ];
+    final debrief = <String>[
+      if ((session.position ?? '').trim().isNotEmpty)
+        'Posicao: ${session.position!.trim()}',
+      if ((session.technique ?? '').trim().isNotEmpty)
+        'Tecnica: ${session.technique!.trim()}',
+      if (session.intensity != null) 'Intensidade: ${session.intensity}/5',
+      if (_shortDebriefText(session.difficulties) != null)
+        'Dificuldade: ${_shortDebriefText(session.difficulties)}',
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _formatDate(session.date),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Flexible(
+                child: Text(
+                  details.join(' - '),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (debrief.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              debrief.join(' - '),
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
+  }
+
+  String _placeLabel(TrainingPlace place) {
+    switch (place) {
+      case TrainingPlace.academy:
+        return 'Academia';
+      case TrainingPlace.home:
+        return 'Casa';
+      case TrainingPlace.other:
+        return 'Outro';
+    }
   }
 }
 
@@ -1186,16 +1364,46 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
+class _DebriefInsights {
+  final String? technicalFocus;
+  final String? attentionPoint;
+  final String? strengthPoint;
+  final double? averageIntensity;
+
+  const _DebriefInsights({
+    required this.technicalFocus,
+    required this.attentionPoint,
+    required this.strengthPoint,
+    required this.averageIntensity,
+  });
+}
+
+class _InsightScore {
+  final String value;
+  final int firstIndex;
+  int count;
+
+  _InsightScore({
+    required this.value,
+    required this.firstIndex,
+    required this.count,
+  });
+}
+
 class _BeltProgress {
   final BeltColor belt;
   final int degree;
   final int maxDegree;
+  final int sessionsInBelt;
+  final int sessionsRequired;
   final double percentToNextBelt;
 
   const _BeltProgress({
     required this.belt,
     required this.degree,
     required this.maxDegree,
+    required this.sessionsInBelt,
+    required this.sessionsRequired,
     required this.percentToNextBelt,
   });
 }

@@ -52,6 +52,12 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     super.initState();
 
     final session = widget.session;
+    debugPrint(
+      "[TRAINING_DEBRIEF_FORM] mode=${session == null ? 'create' : 'edit'} "
+      'session.id=${session?.id} target.uid=${widget.uid} '
+      'position=${session?.position} technique=${session?.technique} '
+      'intensity=${session?.intensity}',
+    );
     if (session == null) return;
 
     _singleDate = session.date;
@@ -277,6 +283,11 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
 
         final actor = UserScope.maybeOf(context);
         debugPrint(
+          "[TRAINING_DEBRIEF_SAVE] mode=${_editing ? 'edit' : 'create'} "
+          'session.id=${s.id} target.uid=${widget.uid} '
+          'position=$position technique=$technique intensity=$_intensity',
+        );
+        debugPrint(
           "[TRAINING_SAVE] mode=${_editing ? 'edit' : 'create'} "
           'actor.uid=${actor?.uid} target.uid=${widget.uid} '
           'academyId=${widget.academyId} uid=${widget.uid} '
@@ -337,6 +348,11 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
             .toList();
 
         final actor = UserScope.maybeOf(context);
+        debugPrint(
+          '[TRAINING_DEBRIEF_SAVE] mode=create '
+          'session.id=multiple(${sessions.length}) target.uid=${widget.uid} '
+          'position=$position technique=$technique intensity=$_intensity',
+        );
         debugPrint(
           '[TRAINING_SAVE] mode=create actor.uid=${actor?.uid} '
           'target.uid=${widget.uid} academyId=${widget.academyId} '
