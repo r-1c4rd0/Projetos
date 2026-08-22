@@ -16,6 +16,7 @@ import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_registration_screen.dart';
+import 'game_map_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteNameOverride;
@@ -245,6 +246,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       final metrics = TrainingAggregator.metrics(filtered);
                       final debriefInsights =
                           _buildDebriefInsights(recentSessions);
+                      final gameMapLite = _buildGameMapLite(recentSessions);
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -370,6 +372,22 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                             const SizedBox(height: 12),
                                             right,
                                           ],
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _GameMapLiteCard(
+                                      cs: cs,
+                                      entries: gameMapLite,
+                                      onOpenFullMap: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => GameMapScreen(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              targetName: headerName,
+                                            ),
+                                          ),
                                         );
                                       },
                                     ),
@@ -678,6 +696,84 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     return best?.value;
   }
 
+  List<_GameMapLiteEntry> _buildGameMapLite(List<TrainingSession> sessions) {
+    final byPosition = <String, Map<String, _GameMapTechniqueDraft>>{};
+
+    for (final session in sessions.take(10)) {
+      final technique = _cleanDebriefText(session.technique);
+      if (technique == null) continue;
+
+      final position = _cleanDebriefText(session.position) ??
+          'Sem posicao definida';
+      final positionMap = byPosition.putIfAbsent(position, () => {});
+      final techniqueKey = technique.toLowerCase();
+      final draft = positionMap.putIfAbsent(
+        techniqueKey,
+        () => _GameMapTechniqueDraft(technique: technique),
+      );
+
+      draft.sessionsCount += 1;
+      if (draft.lastTrainedAt == null ||
+          session.date.isAfter(draft.lastTrainedAt!)) {
+        draft.lastTrainedAt = session.date;
+      }
+
+      final intensity = session.intensity;
+      if (intensity != null && intensity >= 1 && intensity <= 5) {
+        draft.intensities.add(intensity);
+      }
+
+      final difficulty = _cleanDebriefText(session.difficulties);
+      if (difficulty != null && draft.recentDifficulty == null) {
+        draft.recentDifficulty = difficulty;
+      }
+
+      final success = _cleanDebriefText(session.successes);
+      if (success != null && draft.recentSuccess == null) {
+        draft.recentSuccess = success;
+      }
+    }
+
+    final entries = byPosition.entries.map((positionEntry) {
+      final techniques = positionEntry.value.values
+          .map((draft) => draft.toSummary())
+          .toList()
+        ..sort(_compareTechniqueSummary);
+
+      return _GameMapLiteEntry(
+        position: positionEntry.key,
+        techniques: techniques,
+      );
+    }).where((entry) => entry.techniques.isNotEmpty).toList()
+      ..sort(_compareGameMapEntry);
+
+    return entries;
+  }
+
+  int _compareGameMapEntry(
+    _GameMapLiteEntry a,
+    _GameMapLiteEntry b,
+  ) {
+    final lastA = a.lastTrainedAt;
+    final lastB = b.lastTrainedAt;
+    final dateCompare = lastB.compareTo(lastA);
+    if (dateCompare != 0) return dateCompare;
+    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
+    if (countCompare != 0) return countCompare;
+    return a.position.toLowerCase().compareTo(b.position.toLowerCase());
+  }
+
+  int _compareTechniqueSummary(
+    _GameMapTechniqueSummary a,
+    _GameMapTechniqueSummary b,
+  ) {
+    final dateCompare = b.lastTrainedAt.compareTo(a.lastTrainedAt);
+    if (dateCompare != 0) return dateCompare;
+    final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
+    if (countCompare != 0) return countCompare;
+    return a.technique.toLowerCase().compareTo(b.technique.toLowerCase());
+  }
+
   String _weekKey(DateTime d) {
     final firstDay = DateTime(d.year, 1, 1);
     final diff = d.difference(firstDay).inDays;
@@ -699,6 +795,12 @@ String? _shortDebriefText(String? value, {int maxLength = 72}) {
   if (text == null) return null;
   if (text.length <= maxLength) return text;
   return '${text.substring(0, maxLength - 3).trimRight()}...';
+}
+
+String _formatShortDate(DateTime date) {
+  final day = date.day.toString().padLeft(2, '0');
+  final month = date.month.toString().padLeft(2, '0');
+  return '$day/$month';
 }
 
 String _beltLabel(BeltColor belt) {
@@ -1188,6 +1290,148 @@ class _InsightBlock extends StatelessWidget {
   }
 }
 
+class _GameMapLiteCard extends StatelessWidget {
+  final ColorScheme cs;
+  final List<_GameMapLiteEntry> entries;
+  final VoidCallback onOpenFullMap;
+
+  const _GameMapLiteCard({
+    required this.cs,
+    required this.entries,
+    required this.onOpenFullMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.secondary.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'GAME MAP LITE',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (entries.isEmpty)
+            Text(
+              'Registre posicao e tecnica nos debriefs para montar o Game Map.',
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
+            )
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var i = 0; i < entries.length; i++) ...[
+                  _GameMapPositionBlock(entry: entries[i]),
+                  if (i != entries.length - 1)
+                    Divider(color: cs.onSurface.withValues(alpha: 0.08)),
+                ],
+              ],
+            ),
+          const SizedBox(height: 12),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onOpenFullMap,
+              icon: const Icon(Icons.account_tree_outlined),
+              label: const Text('Ver mapa completo'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _GameMapPositionBlock extends StatelessWidget {
+  final _GameMapLiteEntry entry;
+
+  const _GameMapPositionBlock({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.position,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          for (final technique in entry.techniques) ...[
+            _GameMapTechniqueBlock(technique: technique),
+            if (technique != entry.techniques.last)
+              SizedBox(
+                height: 12,
+                child: Center(
+                  child: Container(
+                    height: 1,
+                    color: cs.onSurface.withValues(alpha: 0.05),
+                  ),
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GameMapTechniqueBlock extends StatelessWidget {
+  final _GameMapTechniqueSummary technique;
+
+  const _GameMapTechniqueBlock({required this.technique});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final intensity = technique.averageIntensity;
+    final summary = <String>[
+      '${technique.sessionsCount} ${technique.sessionsCount == 1 ? 'sessao' : 'sessoes'}',
+      'ultima em ${_formatShortDate(technique.lastTrainedAt)}',
+      if (intensity != null)
+        'intensidade media ${intensity.toStringAsFixed(1)}/5',
+    ];
+    final difficulty = _shortDebriefText(technique.recentDifficulty);
+    final success = _shortDebriefText(technique.recentSuccess);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '- ${technique.technique}',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          summary.join(' - '),
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.66)),
+        ),
+        if (difficulty != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Dificuldade recente: $difficulty',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+          ),
+        ],
+        if (success != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Sucesso recente: $success',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+          ),
+        ],
+      ],
+    );
+  }
+}
 class _RecentActivityCard extends StatelessWidget {
   final ColorScheme cs;
   final List<TrainingSession> items;
@@ -1364,6 +1608,71 @@ class _GlassCard extends StatelessWidget {
   }
 }
 
+class _GameMapLiteEntry {
+  final String position;
+  final List<_GameMapTechniqueSummary> techniques;
+
+  const _GameMapLiteEntry({
+    required this.position,
+    required this.techniques,
+  });
+
+  int get sessionsCount => techniques.fold<int>(
+        0,
+        (sum, technique) => sum + technique.sessionsCount,
+      );
+
+  DateTime get lastTrainedAt {
+    return techniques
+        .map((technique) => technique.lastTrainedAt)
+        .reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+}
+
+class _GameMapTechniqueSummary {
+  final String technique;
+  final int sessionsCount;
+  final DateTime lastTrainedAt;
+  final double? averageIntensity;
+  final String? recentDifficulty;
+  final String? recentSuccess;
+
+  const _GameMapTechniqueSummary({
+    required this.technique,
+    required this.sessionsCount,
+    required this.lastTrainedAt,
+    required this.averageIntensity,
+    required this.recentDifficulty,
+    required this.recentSuccess,
+  });
+}
+
+class _GameMapTechniqueDraft {
+  final String technique;
+  int sessionsCount = 0;
+  DateTime? lastTrainedAt;
+  final List<int> intensities = [];
+  String? recentDifficulty;
+  String? recentSuccess;
+
+  _GameMapTechniqueDraft({required this.technique});
+
+  _GameMapTechniqueSummary toSummary() {
+    final intensityAverage = intensities.isEmpty
+        ? null
+        : intensities.fold<int>(0, (sum, value) => sum + value) /
+            intensities.length;
+
+    return _GameMapTechniqueSummary(
+      technique: technique,
+      sessionsCount: sessionsCount,
+      lastTrainedAt: lastTrainedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+      averageIntensity: intensityAverage,
+      recentDifficulty: recentDifficulty,
+      recentSuccess: recentSuccess,
+    );
+  }
+}
 class _DebriefInsights {
   final String? technicalFocus;
   final String? attentionPoint;
