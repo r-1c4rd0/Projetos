@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
+import '../model/grading_rules.dart';
+import '../repository/user_repository.dart';
 import '../service/selected_student.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
@@ -124,7 +126,31 @@ class _ConsoleBody extends StatefulWidget {
 }
 
 class _ConsoleBodyState extends State<_ConsoleBody> {
+  late final UserRepository _userRepo = UserRepository.instance;
+  late Stream<AppUser?> _targetUserStream;
   int _selectedModuleIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _targetUserStream = _watchTargetUser();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConsoleBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.target.academyId != widget.target.academyId ||
+        oldWidget.target.uid != widget.target.uid) {
+      _targetUserStream = _watchTargetUser();
+    }
+  }
+
+  Stream<AppUser?> _watchTargetUser() {
+    return _userRepo.watchUser(
+      academyId: widget.target.academyId,
+      uid: widget.target.uid,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -140,15 +166,41 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
       'target.academyId=${widget.target.academyId} canEditTarget=$canEditTarget',
     );
 
+    final isStaffProfile = widget.loggedUser.role == UserRole.admin ||
+        widget.loggedUser.role == UserRole.professor;
+    final isSelfProfile = widget.targetMode == TargetMode.self &&
+        widget.loggedUser.uid == widget.target.uid &&
+        isStaffProfile;
+    debugPrint(
+      '[ATHLETE_CONSOLE_HEADER] targetMode=${widget.targetMode} '
+      'actor.uid=${widget.loggedUser.uid} target.uid=${widget.target.uid} '
+      'isSelfProfile=$isSelfProfile isSelectedStudent=$selectedMode',
+    );
+
     return TitansScaffold(
       scroll: false,
-      appBar: AppBar(title: Text(widget.title)),
       body: Column(
         children: [
-          _ConsoleContextBanner(
-            selectedMode: selectedMode,
-            athleteName: widget.athleteNameOverride,
-            masterView: widget.masterView,
+          StreamBuilder<AppUser?>(
+            initialData: widget.target.uid == widget.loggedUser.uid
+                ? widget.loggedUser
+                : null,
+            stream: _targetUserStream,
+            builder: (context, targetSnap) {
+              final targetUser = targetSnap.data;
+              final fallbackName = selectedMode
+                  ? widget.athleteNameOverride
+                  : widget.loggedUser.name;
+
+              return _ConsoleContextHeader(
+                targetMode: widget.targetMode,
+                actor: widget.loggedUser,
+                target: widget.target,
+                targetUser: targetUser,
+                fallbackName: fallbackName,
+                isSelfProfile: isSelfProfile,
+              );
+            },
           ),
           const SizedBox(height: TitansUI.spaceSm),
           _ModuleHub(
@@ -205,10 +257,11 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         description: 'Resumo do perfil',
         builder: (context) => AthleteDashboardScreen(
           athleteNameOverride: widget.athleteNameOverride,
-          titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
+          titleOverride: 'Inicio',
           targetMode: widget.targetMode,
           explicitTarget: target,
           loggedUser: loggedUser,
+          embedded: true,
         ),
       ),
       _ConsoleModule(
@@ -222,6 +275,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
           targetMode: widget.targetMode,
           explicitTarget: target,
           loggedUser: loggedUser,
+          embedded: true,
         ),
       ),
       _ConsoleModule(
@@ -235,6 +289,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
           targetMode: widget.targetMode,
           explicitTarget: target,
           loggedUser: loggedUser,
+          embedded: true,
         ),
       ),
       _ConsoleModule(
@@ -247,7 +302,8 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
           academyId: target.academyId,
           uid: target.uid,
           title: selectedMode ? 'Game Map do aluno' : 'Game Map',
-          targetName: widget.athleteNameOverride,
+          targetName: null,
+          embedded: true,
         ),
       ),
       _ConsoleModule(
@@ -262,6 +318,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
           explicitTarget: target,
           loggedUser: loggedUser,
           showLeading: false,
+          embedded: true,
         ),
       ),
     ];
@@ -455,68 +512,89 @@ class _ModuleCardState extends State<_ModuleCard> {
   }
 }
 
-class _ConsoleContextBanner extends StatelessWidget {
-  final bool selectedMode;
-  final bool masterView;
-  final String? athleteName;
+class _ConsoleContextHeader extends StatelessWidget {
+  final TargetMode targetMode;
+  final AppUser actor;
+  final TargetProfile target;
+  final AppUser? targetUser;
+  final String? fallbackName;
+  final bool isSelfProfile;
 
-  const _ConsoleContextBanner({
-    required this.selectedMode,
-    required this.masterView,
-    this.athleteName,
+  const _ConsoleContextHeader({
+    required this.targetMode,
+    required this.actor,
+    required this.target,
+    required this.targetUser,
+    required this.fallbackName,
+    required this.isSelfProfile,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final title = selectedMode
-        ? 'Aluno selecionado'
-        : masterView
-            ? 'Meu perfil'
-            : 'Area do atleta';
-    final subtitle = selectedMode
-        ? (athleteName == null || athleteName!.trim().isEmpty
-            ? 'Dados do aluno ativo no Painel do Mestre'
-            : athleteName!.trim())
-        : masterView
-            ? 'Visualizando seus dados, nao os de um aluno'
-            : 'Seus treinos, progresso e nutricao';
+    final isSelectedStudent = targetMode == TargetMode.selectedStudent;
+    final user = targetUser ?? (target.uid == actor.uid ? actor : null);
+    final displayName = _displayName(user, fallbackName);
+    final title = isSelfProfile ? 'MEU PERFIL' : displayName;
+    final subtitle = isSelfProfile
+        ? '$displayName - ${_roleLabel(actor.role)}'
+        : user == null
+            ? 'Faixa carregando - Grau --'
+            : 'Faixa ${_beltName(user.belt)} - Grau ${user.degree}';
+    final accent = isSelectedStudent ? cs.primary : cs.secondary;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(
-        horizontal: TitansUI.spaceMd,
-        vertical: TitansUI.spaceSm,
-      ),
-      decoration: TitansUI.cardDecoration(
-        context,
-        accent: selectedMode ? cs.primary : cs.secondary,
-        radius: TitansUI.radiusSmall,
-      ),
+    return TitansCard(
+      accent: accent,
+      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      radius: TitansUI.radiusSmall,
       child: Row(
         children: [
-          Icon(
-            selectedMode
-                ? Icons.person_pin_circle_outlined
-                : Icons.badge_outlined,
-            color: selectedMode ? cs.primary : cs.secondary,
+          if (Navigator.of(context).canPop()) ...[
+            IconButton(
+              tooltip: 'Voltar',
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const Icon(Icons.arrow_back),
+            ),
+            const SizedBox(width: TitansUI.spaceXs),
+          ],
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: accent.withValues(alpha: 0.14),
+              border: Border.all(color: accent.withValues(alpha: 0.36)),
+            ),
+            child: Icon(
+              isSelectedStudent
+                  ? Icons.person_pin_circle_outlined
+                  : Icons.badge_outlined,
+              color: accent,
+            ),
           ),
           const SizedBox(width: TitansUI.spaceSm),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                 ),
+                const SizedBox(height: 2),
                 Text(
                   subtitle,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.70),
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ],
             ),
@@ -524,5 +602,41 @@ class _ConsoleContextBanner extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  String _displayName(AppUser? user, String? fallback) {
+    final userName = user?.name.trim() ?? '';
+    if (userName.isNotEmpty) return userName;
+    final fallbackName = fallback?.trim() ?? '';
+    if (fallbackName.isNotEmpty) return fallbackName;
+    final email = user?.email.trim() ?? '';
+    if (email.isNotEmpty) return email;
+    return 'Atleta';
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Admin';
+      case UserRole.professor:
+        return 'Professor';
+      case UserRole.athlete:
+        return 'Atleta';
+    }
+  }
+
+  String _beltName(BeltColor belt) {
+    switch (belt) {
+      case BeltColor.white:
+        return 'branca';
+      case BeltColor.blue:
+        return 'azul';
+      case BeltColor.purple:
+        return 'roxa';
+      case BeltColor.brown:
+        return 'marrom';
+      case BeltColor.black:
+        return 'preta';
+    }
   }
 }

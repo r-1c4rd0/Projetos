@@ -27,6 +27,7 @@ class AthleteDashboardScreen extends StatefulWidget {
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
   final AppUser? loggedUser;
+  final bool embedded;
 
   const AthleteDashboardScreen({
     super.key,
@@ -36,6 +37,7 @@ class AthleteDashboardScreen extends StatefulWidget {
     this.targetMode = TargetMode.self,
     this.explicitTarget,
     this.loggedUser,
+    this.embedded = false,
   });
 
   @override
@@ -61,6 +63,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     return widget.explicitTarget ??
         TargetResolver.maybeOf(context, mode: widget.targetMode);
   }
+
   void _syncStreams({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -77,12 +80,14 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final resolverTarget =
-        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final resolverTarget = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+    );
     final target = widget.explicitTarget ?? resolverTarget;
     final actor = widget.loggedUser ?? UserScope.maybeOf(context);
-    final canEditTarget = target != null &&
-        _canEditTarget(loggedUser: actor, target: target);
+    final canEditTarget =
+        target != null && _canEditTarget(loggedUser: actor, target: target);
     debugPrint(
       '[DASHBOARD_TARGET] screen=AthleteDashboardScreen '
       'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
@@ -104,18 +109,19 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         'resolver.academyId=${resolverTarget?.academyId} '
         'final.uid=${target?.uid} final.academyId=${target?.academyId}',
       );
-      return TitansScaffold(
+      return _wrapModule(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
-        body: widget.targetMode == TargetMode.selectedStudent
-            ? const TitansStateView.noStudent(
-                message:
-                    'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
-              )
-            : const TitansStateView.error(
-                title: 'Perfil nao carregado',
-                message:
-                    'Nao foi possivel identificar seu usuario para carregar o dashboard.',
-              ),
+        body:
+            widget.targetMode == TargetMode.selectedStudent
+                ? const TitansStateView.noStudent(
+                  message:
+                      'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
+                )
+                : const TitansStateView.error(
+                  title: 'Perfil nao carregado',
+                  message:
+                      'Nao foi possivel identificar seu usuario para carregar o dashboard.',
+                ),
       );
     }
 
@@ -126,7 +132,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     final academyId = target.academyId;
     final uid = target.uid;
 
-    return TitansScaffold(
+    return _wrapModule(
       appBar: AppBar(
         title: Text(widget.titleOverride ?? 'Inicio'),
         actions: [
@@ -243,11 +249,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         degree: athlete.degree,
                         sessions: filtered,
                       );
-                      final recentSessions = filtered.reversed.take(10).toList();
+                      final recentSessions =
+                          filtered.reversed.take(10).toList();
                       final lastSessions = recentSessions.take(5).toList();
                       final metrics = TrainingAggregator.metrics(filtered);
-                      final debriefInsights =
-                          _buildDebriefInsights(recentSessions);
+                      final debriefInsights = _buildDebriefInsights(
+                        recentSessions,
+                      );
                       final gameMapLite = TrainingAggregator.buildGameMap(
                         recentSessions,
                         limit: 10,
@@ -259,172 +267,183 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
-                          return SafeArea(
-                            bottom: false,
-                            child: SingleChildScrollView(
-                              padding: TitansUI.listPadding(context),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    LayoutBuilder(
-                                      builder: (context, c) {
-                                        final isWide = c.maxWidth >= 980;
-                                        debugPrint(
-                                          '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
-                                          'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
-                                          'actor.role=${actor?.role} target.uid=$uid '
-                                          'target.academyId=$academyId',
-                                        );
-                                        final athleteCard = _AthleteCard(
-                                          name: headerName,
-                                          email: headerEmail,
-                                          uid: uid,
-                                          belt: beltProgress.belt,
-                                          degree: beltProgress.degree,
-                                          percentToNext:
-                                              beltProgress.percentToNextBelt,
-                                          onEditProfile: canEditTarget
-                                              ? () {
+                          final content = SingleChildScrollView(
+                            padding:
+                                widget.embedded
+                                    ? TitansUI.listPadding(
+                                      context,
+                                      extra: TitansUI.spaceMd,
+                                    )
+                                    : TitansUI.listPadding(context),
+                            child: ConstrainedBox(
+                              constraints: BoxConstraints(
+                                minHeight: constraints.maxHeight,
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  LayoutBuilder(
+                                    builder: (context, c) {
+                                      final isWide = c.maxWidth >= 980;
+                                      debugPrint(
+                                        '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
+                                        'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
+                                        'actor.role=${actor?.role} target.uid=$uid '
+                                        'target.academyId=$academyId',
+                                      );
+                                      final athleteCard = _AthleteCard(
+                                        name: headerName,
+                                        email: headerEmail,
+                                        uid: uid,
+                                        belt: beltProgress.belt,
+                                        degree: beltProgress.degree,
+                                        percentToNext:
+                                            beltProgress.percentToNextBelt,
+                                        onEditProfile:
+                                            canEditTarget
+                                                ? () {
                                                   debugPrint(
                                                     '[DASHBOARD_EDIT_CLICK] clicked=true '
                                                     'athleteUid=$uid academyId=$academyId',
                                                   );
                                                   Navigator.of(context).push(
                                                     MaterialPageRoute(
-                                                      builder: (_) =>
-                                                          AthleteRegistrationScreen(
-                                                        academyId: academyId,
-                                                        athleteUid: uid,
-                                                      ),
+                                                      builder:
+                                                          (_) =>
+                                                              AthleteRegistrationScreen(
+                                                                academyId:
+                                                                    academyId,
+                                                                athleteUid: uid,
+                                                              ),
                                                     ),
                                                   );
                                                 }
-                                              : null,
-                                          onEditGraduation:
-                                              canEditTarget
-                                                  ? () => _showGraduationDialog(
-                                                    academyId: academyId,
-                                                    uid: uid,
-                                                    athlete: athlete,
-                                                    rules: rules,
-                                                  )
-                                                  : null,
-                                        );
+                                                : null,
+                                        onEditGraduation:
+                                            canEditTarget
+                                                ? () => _showGraduationDialog(
+                                                  academyId: academyId,
+                                                  uid: uid,
+                                                  athlete: athlete,
+                                                  rules: rules,
+                                                )
+                                                : null,
+                                      );
 
-                                        if (isWide) {
-                                          return Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(
-                                                flex: 4,
-                                                child: athleteCard,
-                                              ),
-                                              const SizedBox(width: 12),
-                                              Expanded(
-                                                flex: 6,
-                                                child: _GraduationProgressCard(
-                                                  cs: cs,
-                                                  progress: beltProgress,
-                                                ),
-                                              ),
-                                            ],
-                                          );
-                                        }
-
-                                        return Column(
+                                      if (isWide) {
+                                        return Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            athleteCard,
-                                            const SizedBox(height: 12),
-                                            _GraduationProgressCard(
-                                              cs: cs,
-                                              progress: beltProgress,
+                                            Expanded(
+                                              flex: 4,
+                                              child: athleteCard,
+                                            ),
+                                            const SizedBox(width: 12),
+                                            Expanded(
+                                              flex: 6,
+                                              child: _GraduationProgressCard(
+                                                cs: cs,
+                                                progress: beltProgress,
+                                              ),
                                             ),
                                           ],
                                         );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    LayoutBuilder(
-                                      builder: (context, c) {
-                                        final isWide = c.maxWidth >= 980;
-                                        final left = _StatsCard(
-                                          cs: cs,
-                                          frequency: _calcFrequency(filtered),
-                                          metrics: metrics,
-                                        );
-                                        final right = _DebriefInsightsCard(
-                                          cs: cs,
-                                          insights: debriefInsights,
-                                        );
+                                      }
 
-                                        if (isWide) {
-                                          return Row(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Expanded(flex: 4, child: left),
-                                              const SizedBox(width: 12),
-                                              Expanded(flex: 6, child: right),
-                                            ],
-                                          );
-                                        }
+                                      return Column(
+                                        children: [
+                                          athleteCard,
+                                          const SizedBox(height: 12),
+                                          _GraduationProgressCard(
+                                            cs: cs,
+                                            progress: beltProgress,
+                                          ),
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  LayoutBuilder(
+                                    builder: (context, c) {
+                                      final isWide = c.maxWidth >= 980;
+                                      final left = _StatsCard(
+                                        cs: cs,
+                                        frequency: _calcFrequency(filtered),
+                                        metrics: metrics,
+                                      );
+                                      final right = _DebriefInsightsCard(
+                                        cs: cs,
+                                        insights: debriefInsights,
+                                      );
 
-                                        return Column(
+                                      if (isWide) {
+                                        return Row(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
                                           children: [
-                                            left,
-                                            const SizedBox(height: 12),
-                                            right,
+                                            Expanded(flex: 4, child: left),
+                                            const SizedBox(width: 12),
+                                            Expanded(flex: 6, child: right),
                                           ],
                                         );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _SkillMatrixSummaryCard(
-                                      cs: cs,
-                                      entries: skillMatrix,
-                                      onOpenSkillMatrix: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => GameMapScreen(
-                                              academyId: academyId,
-                                              uid: uid,
-                                              targetName: headerName,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _GameMapLiteCard(
-                                      cs: cs,
-                                      entries: gameMapLite,
-                                      onOpenFullMap: () {
-                                        Navigator.of(context).push(
-                                          MaterialPageRoute(
-                                            builder: (_) => GameMapScreen(
-                                              academyId: academyId,
-                                              uid: uid,
-                                              targetName: headerName,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _RecentActivityCard(
-                                      cs: cs,
-                                      items: lastSessions,
-                                    ),
-                                  ],
-                                ),
+                                      }
+
+                                      return Column(
+                                        children: [
+                                          left,
+                                          const SizedBox(height: 12),
+                                          right,
+                                        ],
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _SkillMatrixSummaryCard(
+                                    cs: cs,
+                                    entries: skillMatrix,
+                                    onOpenSkillMatrix: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder:
+                                              (_) => GameMapScreen(
+                                                academyId: academyId,
+                                                uid: uid,
+                                                targetName: headerName,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _GameMapLiteCard(
+                                    cs: cs,
+                                    entries: gameMapLite,
+                                    onOpenFullMap: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder:
+                                              (_) => GameMapScreen(
+                                                academyId: academyId,
+                                                uid: uid,
+                                                targetName: headerName,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _RecentActivityCard(
+                                    cs: cs,
+                                    items: lastSessions,
+                                  ),
+                                ],
                               ),
                             ),
                           );
+                          return widget.embedded
+                              ? content
+                              : SafeArea(bottom: false, child: content);
                         },
                       );
                     },
@@ -438,16 +457,31 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     );
   }
 
+  Widget _wrapModule({
+    PreferredSizeWidget? appBar,
+    Widget? floatingActionButton,
+    required Widget body,
+  }) {
+    if (widget.embedded) return body;
+    return TitansScaffold(
+      appBar: appBar,
+      floatingActionButton: floatingActionButton,
+      body: body,
+    );
+  }
+
   bool _canEditTarget({
     required AppUser? loggedUser,
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage = loggedUser.role == UserRole.admin ||
+    final canManage =
+        loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
         (loggedUser.uid == target.uid || canManage);
   }
+
   Future<void> _showGraduationDialog({
     required String academyId,
     required String uid,
@@ -680,10 +714,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       }
     }
 
-    final intensityAverage = intensities.isEmpty
-        ? null
-        : intensities.fold<int>(0, (sum, value) => sum + value) /
-            intensities.length;
+    final intensityAverage =
+        intensities.isEmpty
+            ? null
+            : intensities.fold<int>(0, (sum, value) => sum + value) /
+                intensities.length;
 
     return _DebriefInsights(
       technicalFocus: _mostRecurringRecent(focus),
@@ -932,7 +967,6 @@ class _AthleteCard extends StatelessWidget {
       ),
     );
   }
-
 }
 
 class _BeltPill extends StatelessWidget {
@@ -974,18 +1008,16 @@ class _GraduationProgressCard extends StatelessWidget {
   final ColorScheme cs;
   final _BeltProgress progress;
 
-  const _GraduationProgressCard({
-    required this.cs,
-    required this.progress,
-  });
+  const _GraduationProgressCard({required this.cs, required this.progress});
 
   @override
   Widget build(BuildContext context) {
     final percent = (progress.percentToNextBelt * 100).round();
     final beltColor = TitansUI.beltColor(progress.belt.name);
-    final remaining = (progress.sessionsRequired - progress.sessionsInBelt)
-        .clamp(0, 1 << 30)
-        .toInt();
+    final remaining =
+        (progress.sessionsRequired - progress.sessionsInBelt)
+            .clamp(0, 1 << 30)
+            .toInt();
 
     return _GlassCard(
       accent: beltColor.withValues(alpha: 0.45),
@@ -1189,10 +1221,7 @@ class _DebriefInsightsCard extends StatelessWidget {
   final ColorScheme cs;
   final _DebriefInsights insights;
 
-  const _DebriefInsightsCard({
-    required this.cs,
-    required this.insights,
-  });
+  const _DebriefInsightsCard({required this.cs, required this.insights});
 
   @override
   Widget build(BuildContext context) {
@@ -1229,9 +1258,10 @@ class _DebriefInsightsCard extends StatelessWidget {
           const SizedBox(height: 12),
           _InsightBlock(
             title: 'INTENSIDADE RECENTE',
-            value: insights.averageIntensity == null
-                ? null
-                : 'Media recente: ${insights.averageIntensity!.toStringAsFixed(1)}/5',
+            value:
+                insights.averageIntensity == null
+                    ? null
+                    : 'Media recente: ${insights.averageIntensity!.toStringAsFixed(1)}/5',
             empty: 'Sem intensidade registrada nos debriefs recentes.',
           ),
         ],
@@ -1293,15 +1323,15 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeCategories = List<SkillMatrixCategoryEntry>.from(entries)
-      ..sort((a, b) {
-        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
-        if (sessionsCompare != 0) return sessionsCompare;
-        final techniquesCompare =
-            b.techniquesCount.compareTo(a.techniquesCount);
-        if (techniquesCompare != 0) return techniquesCompare;
-        return a.category.label.compareTo(b.category.label);
-      });
+    final activeCategories = List<SkillMatrixCategoryEntry>.from(
+      entries,
+    )..sort((a, b) {
+      final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
+      if (sessionsCompare != 0) return sessionsCompare;
+      final techniquesCompare = b.techniquesCount.compareTo(a.techniquesCount);
+      if (techniquesCompare != 0) return techniquesCompare;
+      return a.category.label.compareTo(b.category.label);
+    });
     final totalTechniques = entries.fold<int>(
       0,
       (sum, entry) => sum + entry.techniquesCount,
@@ -1315,29 +1345,30 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
       (sum, entry) => sum + entry.consistencyCount,
     );
     final intensityAverage = _weightedSkillIntensity(entries);
-    final highlightedTechniques = entries
-        .expand((entry) => entry.techniques)
-        .take(6)
-        .toList();
-    final strengths = entries
-        .expand((entry) => entry.strengths)
-        .map(_shortDebriefText)
-        .whereType<String>()
-        .take(3)
-        .toList();
-    final attentionPoints = entries
-        .expand((entry) => entry.attentionPoints)
-        .map(_shortDebriefText)
-        .whereType<String>()
-        .take(3)
-        .toList();
-    final maxCategorySessions = activeCategories.isEmpty
-        ? 1
-        : activeCategories
-            .map((entry) => entry.sessionsCount)
-            .reduce((a, b) => a > b ? a : b)
-            .clamp(1, 1 << 30)
-            .toInt();
+    final highlightedTechniques =
+        entries.expand((entry) => entry.techniques).take(6).toList();
+    final strengths =
+        entries
+            .expand((entry) => entry.strengths)
+            .map(_shortDebriefText)
+            .whereType<String>()
+            .take(3)
+            .toList();
+    final attentionPoints =
+        entries
+            .expand((entry) => entry.attentionPoints)
+            .map(_shortDebriefText)
+            .whereType<String>()
+            .take(3)
+            .toList();
+    final maxCategorySessions =
+        activeCategories.isEmpty
+            ? 1
+            : activeCategories
+                .map((entry) => entry.sessionsCount)
+                .reduce((a, b) => a > b ? a : b)
+                .clamp(1, 1 << 30)
+                .toInt();
 
     return _GlassCard(
       accent: cs.primary.withValues(alpha: 0.35),
@@ -1380,9 +1411,10 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
                 ),
                 _MetricPill(
                   label: 'INTENSIDADE',
-                  value: intensityAverage == null
-                      ? '--'
-                      : '${intensityAverage.toStringAsFixed(1)}/5',
+                  value:
+                      intensityAverage == null
+                          ? '--'
+                          : '${intensityAverage.toStringAsFixed(1)}/5',
                   color: Colors.amber,
                 ),
               ],
@@ -1467,19 +1499,12 @@ class _SectionHeaderCompact extends StatelessWidget {
         if (action != null && constraints.maxWidth < 360) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              titleWidget,
-              const SizedBox(height: 6),
-              action!,
-            ],
+            children: [titleWidget, const SizedBox(height: 6), action!],
           );
         }
 
         return Row(
-          children: [
-            Expanded(child: titleWidget),
-            if (action != null) action!,
-          ],
+          children: [Expanded(child: titleWidget), if (action != null) action!],
         );
       },
     );
@@ -1625,7 +1650,8 @@ class _TechniqueChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final color = active ? Colors.lightGreenAccent : cs.secondary;
-    final maxLabelWidth = MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
+    final maxLabelWidth =
+        MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
@@ -1689,22 +1715,23 @@ class _BadgeRow extends StatelessWidget {
         const SizedBox(height: 8),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
-          child: visible.isEmpty
-              ? _InsightBadge(
-                  key: const ValueKey('empty'),
-                  label: empty,
-                  color: color,
-                  muted: true,
-                )
-              : Wrap(
-                  key: ValueKey(visible.join('|')),
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final badge in visible)
-                      _InsightBadge(label: badge, color: color),
-                  ],
-                ),
+          child:
+              visible.isEmpty
+                  ? _InsightBadge(
+                    key: const ValueKey('empty'),
+                    label: empty,
+                    color: color,
+                    muted: true,
+                  )
+                  : Wrap(
+                    key: ValueKey(visible.join('|')),
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final badge in visible)
+                        _InsightBadge(label: badge, color: color),
+                    ],
+                  ),
         ),
       ],
     );
@@ -1729,7 +1756,8 @@ class _InsightBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final resolvedColor = muted ? cs.onSurface.withValues(alpha: 0.42) : color;
-    final maxBadgeWidth = MediaQuery.sizeOf(context).width < 420 ? 220.0 : 280.0;
+    final maxBadgeWidth =
+        MediaQuery.sizeOf(context).width < 420 ? 220.0 : 280.0;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
@@ -1762,6 +1790,7 @@ class _InsightBadge extends StatelessWidget {
     );
   }
 }
+
 double? _weightedSkillIntensity(List<SkillMatrixCategoryEntry> entries) {
   var weighted = 0.0;
   var sessions = 0;
@@ -1835,6 +1864,7 @@ class _GameMapLiteCard extends StatelessWidget {
     );
   }
 }
+
 class _GameMapPositionBlock extends StatelessWidget {
   final GameMapEntry entry;
 
@@ -1921,6 +1951,7 @@ class _GameMapTechniqueBlock extends StatelessWidget {
     );
   }
 }
+
 class _RecentActivityCard extends StatelessWidget {
   final ColorScheme cs;
   final List<TrainingSession> items;
@@ -2086,6 +2117,7 @@ class _GlassCard extends StatelessWidget {
     );
   }
 }
+
 class _EmptyState extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -2107,6 +2139,7 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
 class _ErrorState extends StatelessWidget {
   final String title;
   final String message;

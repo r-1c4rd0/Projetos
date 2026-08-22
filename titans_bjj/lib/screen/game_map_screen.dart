@@ -15,6 +15,7 @@ class GameMapScreen extends StatefulWidget {
   final String uid;
   final String? title;
   final String? targetName;
+  final bool embedded;
 
   const GameMapScreen({
     super.key,
@@ -22,6 +23,7 @@ class GameMapScreen extends StatefulWidget {
     required this.uid,
     this.title,
     this.targetName,
+    this.embedded = false,
   });
 
   @override
@@ -45,7 +47,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return TitansScaffold(
+    return _wrapModule(
       appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
@@ -65,26 +67,22 @@ class _GameMapScreenState extends State<GameMapScreen> {
             sessions,
             limit: 50,
           );
-          final entries = TrainingAggregator.buildGameMap(
-            sessions,
-            limit: 20,
-          );
+          final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
 
           return ListView(
-            padding: TitansUI.listPadding(context),
+            padding:
+                widget.embedded
+                    ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
+                    : TitansUI.listPadding(context),
             children: [
-              _HeaderCard(
-                colorScheme: cs,
-                targetName: widget.targetName,
-              ),
-              const SizedBox(height: 12),
+              if (!widget.embedded) ...[
+                _HeaderCard(colorScheme: cs, targetName: widget.targetName),
+                const SizedBox(height: 12),
+              ],
               _GameMapSummaryCard(stats: stats),
               const SizedBox(height: 12),
-              _SkillMatrixCard(
-                colorScheme: cs,
-                entries: skillMatrix,
-              ),
+              _SkillMatrixCard(colorScheme: cs, entries: skillMatrix),
               const SizedBox(height: 12),
               if (entries.isEmpty)
                 _EmptyGameMapCard(colorScheme: cs)
@@ -99,16 +97,26 @@ class _GameMapScreenState extends State<GameMapScreen> {
       ),
     );
   }
+
+  Widget _wrapModule({
+    PreferredSizeWidget? appBar,
+    Widget? floatingActionButton,
+    required Widget body,
+  }) {
+    if (widget.embedded) return body;
+    return TitansScaffold(
+      appBar: appBar,
+      floatingActionButton: floatingActionButton,
+      body: body,
+    );
+  }
 }
 
 class _HeaderCard extends StatelessWidget {
   final ColorScheme colorScheme;
   final String? targetName;
 
-  const _HeaderCard({
-    required this.colorScheme,
-    required this.targetName,
-  });
+  const _HeaderCard({required this.colorScheme, required this.targetName});
 
   @override
   Widget build(BuildContext context) {
@@ -128,7 +136,10 @@ class _HeaderCard extends StatelessWidget {
                 color: colorScheme.primary.withValues(alpha: 0.35),
               ),
             ),
-            child: Icon(Icons.account_tree_outlined, color: colorScheme.primary),
+            child: Icon(
+              Icons.account_tree_outlined,
+              color: colorScheme.primary,
+            ),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -138,8 +149,8 @@ class _HeaderCard extends StatelessWidget {
                 Text(
                   'Game Map',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 if (name != null && name.isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -199,9 +210,10 @@ class _GameMapSummaryCard extends StatelessWidget {
               ),
               _MetricPill(
                 label: 'INTENSIDADE',
-                value: stats.averageIntensity == null
-                    ? '--'
-                    : '${stats.averageIntensity!.toStringAsFixed(1)}/5',
+                value:
+                    stats.averageIntensity == null
+                        ? '--'
+                        : '${stats.averageIntensity!.toStringAsFixed(1)}/5',
                 color: Colors.amber,
               ),
             ],
@@ -216,10 +228,7 @@ class _SkillMatrixCard extends StatelessWidget {
   final ColorScheme colorScheme;
   final List<SkillMatrixCategoryEntry> entries;
 
-  const _SkillMatrixCard({
-    required this.colorScheme,
-    required this.entries,
-  });
+  const _SkillMatrixCard({required this.colorScheme, required this.entries});
 
   @override
   Widget build(BuildContext context) {
@@ -269,17 +278,17 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
             entry.category.label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w900,
-            ),
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
             runSpacing: 6,
             children: [
-              _MiniBadge(label: '${entry.techniquesCount} tech', color: cs.primary),
+              _MiniBadge(
+                label: '${entry.techniquesCount} tech',
+                color: cs.primary,
+              ),
               _MiniBadge(
                 label: '${entry.consistencyCount} rec',
                 color: Colors.lightGreenAccent,
@@ -374,11 +383,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
           if (constraints.maxWidth < 360) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                details,
-                const SizedBox(height: 10),
-                levels,
-              ],
+              children: [details, const SizedBox(height: 10), levels],
             );
           }
 
@@ -388,10 +393,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
               Expanded(child: details),
               const SizedBox(width: 10),
               Flexible(
-                child: Align(
-                  alignment: Alignment.topRight,
-                  child: levels,
-                ),
+                child: Align(alignment: Alignment.topRight, child: levels),
               ),
             ],
           );
@@ -400,6 +402,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
     );
   }
 }
+
 class _EmptyGameMapCard extends StatelessWidget {
   final ColorScheme colorScheme;
 
@@ -415,6 +418,7 @@ class _EmptyGameMapCard extends StatelessWidget {
     );
   }
 }
+
 class _GameMapPositionCard extends StatelessWidget {
   final GameMapEntry entry;
 
@@ -446,9 +450,9 @@ class _GameMapPositionCard extends StatelessWidget {
                   entry.position,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
               const SizedBox(width: 10),
@@ -520,13 +524,11 @@ class _VisualCard extends StatelessWidget {
     final glow = accent ?? cs.primary;
 
     return TitansAnimatedSection(
-      child: TitansPressableCard(
-        accent: glow,
-        child: child,
-      ),
+      child: TitansPressableCard(accent: glow, child: child),
     );
   }
 }
+
 class _CompactHeader extends StatelessWidget {
   final String title;
 
@@ -612,7 +614,8 @@ class _TechniqueChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final maxLabelWidth = MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
+    final maxLabelWidth =
+        MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
@@ -682,6 +685,7 @@ class _MiniBadge extends StatelessWidget {
     );
   }
 }
+
 class SkillLevelDots extends StatelessWidget {
   final bool registered;
   final bool trained;
@@ -799,7 +803,9 @@ class _GameMapStats {
         (sum, entry) => sum + entry.techniques.length,
       ),
       dominantCategory:
-          activeCategories.isEmpty ? null : activeCategories.first.category.label,
+          activeCategories.isEmpty
+              ? null
+              : activeCategories.first.category.label,
       averageIntensity: _weightedGameMapIntensity(entries),
     );
   }

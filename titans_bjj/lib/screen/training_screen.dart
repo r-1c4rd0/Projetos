@@ -20,6 +20,7 @@ class TrainingScreen extends StatefulWidget {
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
   final AppUser? loggedUser;
+  final bool embedded;
 
   const TrainingScreen({
     super.key,
@@ -27,6 +28,7 @@ class TrainingScreen extends StatefulWidget {
     this.targetMode = TargetMode.self,
     this.explicitTarget,
     this.loggedUser,
+    this.embedded = false,
   });
 
   @override
@@ -46,6 +48,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     return widget.explicitTarget ??
         TargetResolver.maybeOf(context, mode: widget.targetMode);
   }
+
   void _syncStream({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -57,11 +60,13 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   Widget build(BuildContext context) {
     final actor = widget.loggedUser ?? UserScope.maybeOf(context);
-    final resolverTarget =
-        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final resolverTarget = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+    );
     final target = widget.explicitTarget ?? resolverTarget;
-    final canEditTarget = target != null &&
-        _canEditTarget(loggedUser: actor, target: target);
+    final canEditTarget =
+        target != null && _canEditTarget(loggedUser: actor, target: target);
     debugPrint(
       '[TRAINING_TARGET] screen=TrainingScreen '
       'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
@@ -83,18 +88,19 @@ class _TrainingScreenState extends State<TrainingScreen> {
         'actor.role=${actor?.role} target.uid=${target?.uid} '
         'target.academyId=${target?.academyId}',
       );
-      return TitansScaffold(
+      return _wrapModule(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
-        body: widget.targetMode == TargetMode.selectedStudent
-            ? const TitansStateView.noStudent(
-                message:
-                    'Selecione um aluno no Painel do Mestre para acessar Treinos.',
-              )
-            : const TitansStateView.error(
-                title: 'Perfil nao carregado',
-                message:
-                    'Nao foi possivel identificar seu usuario para carregar Treinos.',
-              ),
+        body:
+            widget.targetMode == TargetMode.selectedStudent
+                ? const TitansStateView.noStudent(
+                  message:
+                      'Selecione um aluno no Painel do Mestre para acessar Treinos.',
+                )
+                : const TitansStateView.error(
+                  title: 'Perfil nao carregado',
+                  message:
+                      'Nao foi possivel identificar seu usuario para carregar Treinos.',
+                ),
       );
     }
 
@@ -109,39 +115,45 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     final cs = Theme.of(context).colorScheme;
 
-    return TitansScaffold(
+    return _wrapModule(
       appBar: AppBar(
         title: Text(widget.titleOverride ?? 'Treinos'),
         actions: [
           PopupMenuButton<ProgressPeriod>(
             initialValue: _period,
             onSelected: (p) => setState(() => _period = p),
-            itemBuilder: (_) => const [
-              PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
-              PopupMenuItem(value: ProgressPeriod.month, child: Text('Mês')),
-              PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
-            ],
+            itemBuilder:
+                (_) => const [
+                  PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
+                  PopupMenuItem(
+                    value: ProgressPeriod.month,
+                    child: Text('M\u00eas'),
+                  ),
+                  PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
+                ],
             icon: const Icon(Icons.filter_alt_outlined),
           ),
         ],
       ),
-      floatingActionButton: canEditTarget
-          ? FloatingActionButton.extended(
-              heroTag: 'training_fab',
-              onPressed: () async {
-                await Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => AddTrainingSessionScreen(
-                      academyId: academyId,
-                      uid: uid,
+      floatingActionButton:
+          !widget.embedded && canEditTarget
+              ? FloatingActionButton.extended(
+                heroTag: 'training_fab',
+                onPressed: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => AddTrainingSessionScreen(
+                            academyId: academyId,
+                            uid: uid,
+                          ),
                     ),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Treino'),
-            )
-          : null,
+                  );
+                },
+                icon: const Icon(Icons.add),
+                label: const Text('Treino'),
+              )
+              : null,
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
         builder: (context, snap) {
@@ -150,7 +162,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           }
 
           if (snap.hasError) {
-            return TitansStateView.error(title: 'Erro ao carregar treinos', message: snap.error.toString());
+            return TitansStateView.error(
+              title: 'Erro ao carregar treinos',
+              message: snap.error.toString(),
+            );
           }
 
           final sessions = List<TrainingSession>.from(
@@ -160,11 +175,60 @@ class _TrainingScreenState extends State<TrainingScreen> {
           final series = _buildSeries(sessions, _period);
           final totalInWindow = series.values.fold<int>(0, (a, b) => a + b);
 
-          final listPadding = TitansUI.listPadding(context, extra: 80);
+          final listPadding =
+              widget.embedded
+                  ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
+                  : TitansUI.listPadding(context, extra: 80);
 
           return ListView(
             padding: listPadding,
             children: [
+              if (widget.embedded)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: PopupMenuButton<ProgressPeriod>(
+                    tooltip: 'Filtrar periodo',
+                    initialValue: _period,
+                    onSelected: (p) => setState(() => _period = p),
+                    itemBuilder:
+                        (_) => const [
+                          PopupMenuItem(
+                            value: ProgressPeriod.day,
+                            child: Text('Dia'),
+                          ),
+                          PopupMenuItem(
+                            value: ProgressPeriod.month,
+                            child: Text('M\u00eas'),
+                          ),
+                          PopupMenuItem(
+                            value: ProgressPeriod.year,
+                            child: Text('Ano'),
+                          ),
+                        ],
+                    icon: const Icon(Icons.filter_alt_outlined),
+                  ),
+                ),
+              if (widget.embedded && canEditTarget) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: () async {
+                      await Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder:
+                              (_) => AddTrainingSessionScreen(
+                                academyId: academyId,
+                                uid: uid,
+                              ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar treino'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               glassCard(
                 context,
                 Column(
@@ -207,22 +271,24 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   title: 'Sem treinos registrados',
                   message: 'Adicione uma sessao para iniciar o historico.',
                   compact: true,
-                  action: canEditTarget
-                      ? FilledButton.icon(
-                          onPressed: () async {
-                            await Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => AddTrainingSessionScreen(
-                                  academyId: academyId,
-                                  uid: uid,
+                  action:
+                      canEditTarget
+                          ? FilledButton.icon(
+                            onPressed: () async {
+                              await Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder:
+                                      (_) => AddTrainingSessionScreen(
+                                        academyId: academyId,
+                                        uid: uid,
+                                      ),
                                 ),
-                              ),
-                            );
-                          },
-                          icon: const Icon(Icons.add),
-                          label: const Text('Adicionar treino'),
-                        )
-                      : null,
+                              );
+                            },
+                            icon: const Icon(Icons.add),
+                            label: const Text('Adicionar treino'),
+                          )
+                          : null,
                 )
               else
                 ...sessions.reversed.map((s) {
@@ -240,10 +306,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   }
                   return Card(
                     child: ListTile(
-                      leading: Icon(
-                        _iconForPlace(s.place),
-                        color: cs.primary,
-                      ),
+                      leading: Icon(_iconForPlace(s.place), color: cs.primary),
                       title: Text(
                         _fmtDateTime(s.date),
                         maxLines: 1,
@@ -286,15 +349,19 @@ class _TrainingScreenState extends State<TrainingScreen> {
                                       );
                                       await Navigator.of(context).push(
                                         MaterialPageRoute(
-                                          builder: (_) => AddTrainingSessionScreen(
-                                            academyId: academyId,
-                                            uid: uid,
-                                            session: s,
-                                          ),
+                                          builder:
+                                              (_) => AddTrainingSessionScreen(
+                                                academyId: academyId,
+                                                uid: uid,
+                                                session: s,
+                                              ),
                                         ),
                                       );
                                     },
-                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 18,
+                                    ),
                                     label: const Text('Editar'),
                                   ),
                               ],
@@ -312,16 +379,31 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
   }
 
+  Widget _wrapModule({
+    PreferredSizeWidget? appBar,
+    Widget? floatingActionButton,
+    required Widget body,
+  }) {
+    if (widget.embedded) return body;
+    return TitansScaffold(
+      appBar: appBar,
+      floatingActionButton: floatingActionButton,
+      body: body,
+    );
+  }
+
   bool _canEditTarget({
     required AppUser? loggedUser,
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage = loggedUser.role == UserRole.admin ||
+    final canManage =
+        loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
         (loggedUser.uid == target.uid || canManage);
   }
+
   IconData _iconForPlace(TrainingPlace p) {
     switch (p) {
       case TrainingPlace.academy:
@@ -336,11 +418,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Treinos por dia (últimos 14 dias)';
+        return 'Treinos por dia (\u00faltimos 14 dias)';
       case ProgressPeriod.month:
-        return 'Treinos por mês (últimos 12 meses)';
+        return 'Treinos por m\u00eas (\u00faltimos 12 meses)';
       case ProgressPeriod.year:
-        return 'Treinos por ano (últimos 5 anos)';
+        return 'Treinos por ano (\u00faltimos 5 anos)';
     }
   }
 
@@ -373,11 +455,12 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     for (final s in sessions) {
       final d = s.date;
-      final key = (period == ProgressPeriod.day)
-          ? '${_fmt2(d.day)}/${_fmt2(d.month)}'
-          : (period == ProgressPeriod.month)
-          ? '${_fmt2(d.month)}/${d.year}'
-          : '${d.year}';
+      final key =
+          (period == ProgressPeriod.day)
+              ? '${_fmt2(d.day)}/${_fmt2(d.month)}'
+              : (period == ProgressPeriod.month)
+              ? '${_fmt2(d.month)}/${d.year}'
+              : '${d.year}';
 
       if (map.containsKey(key)) {
         map[key] = (map[key] ?? 0) + 1;
@@ -395,6 +478,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String _fmtDateTime(DateTime d) {
     return '${_fmt2(d.day)}/${_fmt2(d.month)}/${d.year} ${_fmt2(d.hour)}:${_fmt2(d.minute)}';
   }
+
   bool _hasDebrief(TrainingSession session) {
     return (session.position?.trim().isNotEmpty ?? false) ||
         (session.technique?.trim().isNotEmpty ?? false) ||
@@ -455,6 +539,7 @@ class _TrainingActionChip extends StatelessWidget {
     );
   }
 }
+
 class _Series {
   final List<String> labels;
   final List<int> values;
@@ -465,10 +550,7 @@ class _LineChart extends StatelessWidget {
   final List<String> labels;
   final List<int> values;
 
-  const _LineChart({
-    required this.labels,
-    required this.values,
-  });
+  const _LineChart({required this.labels, required this.values});
 
   @override
   Widget build(BuildContext context) {
@@ -484,21 +566,25 @@ class _LineChart extends StatelessWidget {
         gridData: FlGridData(show: true),
         borderData: FlBorderData(show: false),
         titlesData: FlTitlesData(
-          topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles:
-          const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+          topTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
+          rightTitles: const AxisTitles(
+            sideTitles: SideTitles(showTitles: false),
+          ),
           leftTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 36,
               interval: 1,
-              getTitlesWidget: (v, _) => Text(
-                v.toInt().toString(),
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.7),
-                  fontSize: 11,
-                ),
-              ),
+              getTitlesWidget:
+                  (v, _) => Text(
+                    v.toInt().toString(),
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
             ),
           ),
           bottomTitles: AxisTitles(
@@ -526,7 +612,7 @@ class _LineChart extends StatelessWidget {
           LineChartBarData(
             spots: List.generate(
               values.length,
-                  (i) => FlSpot(i.toDouble(), values[i].toDouble()),
+              (i) => FlSpot(i.toDouble(), values[i].toDouble()),
             ),
             isCurved: true,
             barWidth: 3,

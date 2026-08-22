@@ -71,9 +71,10 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
               }
               if (snap.hasError) {
                 final error = snap.error;
-                final message = error is StudentPermissionDeniedException
-                    ? StudentPermissionDeniedException.message
-                    : error.toString();
+                final message =
+                    error is StudentPermissionDeniedException
+                        ? StudentPermissionDeniedException.message
+                        : error.toString();
 
                 return Center(
                   child: Padding(
@@ -101,26 +102,20 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
               }
 
               return _StudentsGrid(
+                actor: loggedUser,
                 students: students,
                 rules: rules,
                 onCreate: () => _openRegistration(loggedUser),
                 onOpen: (student) => _openStudent(student, loggedUser),
-                onEdit: (student) => _openRegistration(
-                  loggedUser,
-                  athleteUid: student.uid,
-                ),
-                onMinusDegree: (student, degree) => _updateStudentDegree(
-                  academyId: loggedUser.academyId,
-                  uid: student.uid,
-                  belt: student.belt,
-                  degree: degree - 1,
-                ),
-                onPlusDegree: (student, degree) => _updateStudentDegree(
-                  academyId: loggedUser.academyId,
-                  uid: student.uid,
-                  belt: student.belt,
-                  degree: degree + 1,
-                ),
+                onEdit:
+                    (student) =>
+                        _openRegistration(loggedUser, athleteUid: student.uid),
+                onEditGraduation:
+                    (student) => _openGraduationSheet(
+                      actor: loggedUser,
+                      student: student,
+                      rules: rules,
+                    ),
               );
             },
           );
@@ -132,12 +127,13 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
   void _openOwnProfile(AppUser loggedUser) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AthleteConsoleScreen(
-          masterView: false,
-          titleOverride: 'Meu perfil',
-          targetMode: TargetMode.self,
-          loggedUser: loggedUser,
-        ),
+        builder:
+            (_) => AthleteConsoleScreen(
+              masterView: false,
+              titleOverride: 'Meu perfil',
+              targetMode: TargetMode.self,
+              loggedUser: loggedUser,
+            ),
       ),
     );
   }
@@ -145,10 +141,11 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
   void _openRegistration(AppUser loggedUser, {String? athleteUid}) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AthleteRegistrationScreen(
-          academyId: loggedUser.academyId,
-          athleteUid: athleteUid,
-        ),
+        builder:
+            (_) => AthleteRegistrationScreen(
+              academyId: loggedUser.academyId,
+              athleteUid: athleteUid,
+            ),
       ),
     );
   }
@@ -163,14 +160,72 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => AthleteConsoleScreen(
-          masterView: true,
-          titleOverride: 'Aluno: ${student.name}',
-          targetMode: TargetMode.selectedStudent,
-          selectedStudent: selectedStudent,
-          loggedUser: loggedUser,
-        ),
+        builder:
+            (_) => AthleteConsoleScreen(
+              masterView: true,
+              titleOverride: 'Aluno: ${student.name}',
+              targetMode: TargetMode.selectedStudent,
+              selectedStudent: selectedStudent,
+              loggedUser: loggedUser,
+            ),
       ),
+    );
+  }
+
+  Future<void> _openGraduationSheet({
+    required AppUser actor,
+    required StudentVm student,
+    required GradingRules rules,
+  }) async {
+    final capabilities = _TargetCapabilities.resolve(
+      actor: actor,
+      targetUid: student.uid,
+      targetAcademyId: actor.academyId,
+      targetMode: TargetMode.selectedStudent,
+    );
+
+    debugPrint(
+      '[TARGET_CAPABILITIES] screen=MasterPanelScreen actor.uid=${actor.uid} '
+      'actor.role=${actor.role} target.uid=${student.uid} '
+      'canEditGraduation=${capabilities.canEditGraduation}',
+    );
+
+    if (!capabilities.canEditGraduation) return;
+
+    final targetUser = await _userRepo.getUser(
+      academyId: actor.academyId,
+      uid: student.uid,
+    );
+    if (!mounted) return;
+
+    final currentBelt = targetUser?.belt ?? student.belt;
+    final oldDegree =
+        (targetUser?.degree ?? student.degree)
+            .clamp(0, rules.maxDegrees(currentBelt))
+            .toInt();
+    final draft = await TitansBottomSheet.show<_GraduationDraft>(
+      context: context,
+      builder:
+          (context) => _GraduationBottomSheet(
+            currentBelt: currentBelt,
+            currentDegree: oldDegree,
+            rules: rules,
+          ),
+    );
+
+    if (draft == null) return;
+
+    debugPrint(
+      '[GRADUATION_SHEET] save actor.uid=${actor.uid} actor.role=${actor.role} '
+      'target.uid=${student.uid} old=${currentBelt.name}/$oldDegree '
+      'new=${draft.belt.name}/${draft.degree}',
+    );
+
+    await _updateStudentDegree(
+      academyId: actor.academyId,
+      uid: student.uid,
+      belt: draft.belt,
+      degree: draft.degree,
     );
   }
 
@@ -197,22 +252,22 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
 }
 
 class _StudentsGrid extends StatelessWidget {
+  final AppUser actor;
   final List<StudentVm> students;
   final GradingRules rules;
   final VoidCallback onCreate;
   final ValueChanged<StudentVm> onOpen;
   final ValueChanged<StudentVm> onEdit;
-  final void Function(StudentVm student, int degree) onMinusDegree;
-  final void Function(StudentVm student, int degree) onPlusDegree;
+  final ValueChanged<StudentVm> onEditGraduation;
 
   const _StudentsGrid({
+    required this.actor,
     required this.students,
     required this.rules,
     required this.onCreate,
     required this.onOpen,
     required this.onEdit,
-    required this.onMinusDegree,
-    required this.onPlusDegree,
+    required this.onEditGraduation,
   });
 
   @override
@@ -223,9 +278,10 @@ class _StudentsGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        final ratio = width < 390
-            ? 1.30
-            : width < 600
+        final ratio =
+            width < 390
+                ? 1.30
+                : width < 600
                 ? 1.45
                 : 2.25;
 
@@ -259,28 +315,28 @@ class _StudentsGrid extends StatelessWidget {
                   crossAxisSpacing: TitansUI.spaceSm,
                   childAspectRatio: ratio,
                 ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final student = students[index];
-                    final maxDegree = rules.maxDegrees(student.belt);
-                    final degree = student.degree.clamp(0, maxDegree).toInt();
+                delegate: SliverChildBuilderDelegate((context, index) {
+                  final student = students[index];
+                  final maxDegree = rules.maxDegrees(student.belt);
+                  final degree = student.degree.clamp(0, maxDegree).toInt();
 
-                    return _StudentCard(
-                      student: student,
-                      degree: degree,
-                      maxDegree: maxDegree,
-                      onOpen: () => onOpen(student),
-                      onEdit: () => onEdit(student),
-                      onMinusDegree: degree == 0
-                          ? null
-                          : () => onMinusDegree(student, degree),
-                      onPlusDegree: degree == maxDegree
-                          ? null
-                          : () => onPlusDegree(student, degree),
-                    );
-                  },
-                  childCount: students.length,
-                ),
+                  final capabilities = _TargetCapabilities.resolve(
+                    actor: actor,
+                    targetUid: student.uid,
+                    targetAcademyId: actor.academyId,
+                    targetMode: TargetMode.selectedStudent,
+                  );
+
+                  return _StudentCard(
+                    student: student,
+                    degree: degree,
+                    maxDegree: maxDegree,
+                    capabilities: capabilities,
+                    onOpen: () => onOpen(student),
+                    onEdit: () => onEdit(student),
+                    onEditGraduation: () => onEditGraduation(student),
+                  );
+                }, childCount: students.length),
               ),
             ),
           ],
@@ -294,10 +350,7 @@ class _MasterListHeader extends StatelessWidget {
   final int total;
   final VoidCallback onCreate;
 
-  const _MasterListHeader({
-    required this.total,
-    required this.onCreate,
-  });
+  const _MasterListHeader({required this.total, required this.onCreate});
 
   @override
   Widget build(BuildContext context) {
@@ -313,9 +366,9 @@ class _MasterListHeader extends StatelessWidget {
             children: [
               Text(
                 'Atletas',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
@@ -361,26 +414,26 @@ class _StudentCard extends StatelessWidget {
   final StudentVm student;
   final int degree;
   final int maxDegree;
-  final VoidCallback? onPlusDegree;
-  final VoidCallback? onMinusDegree;
+  final _TargetCapabilities capabilities;
   final VoidCallback onEdit;
+  final VoidCallback onEditGraduation;
   final VoidCallback onOpen;
 
   const _StudentCard({
     required this.student,
     required this.degree,
     required this.maxDegree,
-    required this.onPlusDegree,
-    required this.onMinusDegree,
+    required this.capabilities,
     required this.onEdit,
+    required this.onEditGraduation,
     required this.onOpen,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final beltColor = _beltUiColor(student.belt);
-    final beltLabel = '${_beltName(student.belt)} - Grau $degree/$maxDegree';
+    final beltColor = beltUiColor(student.belt);
+    final beltLabel = '${beltName(student.belt)} - Grau $degree/$maxDegree';
 
     return TitansCard(
       accent: beltColor,
@@ -431,11 +484,13 @@ class _StudentCard extends StatelessWidget {
                         ],
                       ),
                     ),
-                    _StudentActionsMenu(
-                      onEdit: onEdit,
-                      onMinusDegree: onMinusDegree,
-                      onPlusDegree: onPlusDegree,
-                    ),
+                    if (capabilities.canViewAdminActions)
+                      _StudentActionsMenu(
+                        canEditProfile: capabilities.canEditProfile,
+                        canEditGraduation: capabilities.canEditGraduation,
+                        onEdit: onEdit,
+                        onEditGraduation: onEditGraduation,
+                      ),
                   ],
                 ),
                 const SizedBox(height: TitansUI.spaceSm),
@@ -492,12 +547,7 @@ class _StudentCard extends StatelessWidget {
                       );
                     }
 
-                    return Row(
-                      children: [
-                        Expanded(child: lastTraining),
-                        open,
-                      ],
-                    );
+                    return Row(children: [Expanded(child: lastTraining), open]);
                   },
                 ),
               ],
@@ -508,7 +558,7 @@ class _StudentCard extends StatelessWidget {
     );
   }
 
-  Color _beltUiColor(BeltColor belt) {
+  static Color beltUiColor(BeltColor belt) {
     switch (belt) {
       case BeltColor.white:
         return Colors.white.withValues(alpha: 0.95);
@@ -523,7 +573,7 @@ class _StudentCard extends StatelessWidget {
     }
   }
 
-  String _beltName(BeltColor belt) {
+  static String beltName(BeltColor belt) {
     switch (belt) {
       case BeltColor.white:
         return 'Branca';
@@ -539,17 +589,19 @@ class _StudentCard extends StatelessWidget {
   }
 }
 
-enum _StudentAction { edit, decrementDegree, incrementDegree }
+enum _StudentAction { edit, editGraduation }
 
 class _StudentActionsMenu extends StatelessWidget {
+  final bool canEditProfile;
+  final bool canEditGraduation;
   final VoidCallback onEdit;
-  final VoidCallback? onMinusDegree;
-  final VoidCallback? onPlusDegree;
+  final VoidCallback onEditGraduation;
 
   const _StudentActionsMenu({
+    required this.canEditProfile,
+    required this.canEditGraduation,
     required this.onEdit,
-    required this.onMinusDegree,
-    required this.onPlusDegree,
+    required this.onEditGraduation,
   });
 
   @override
@@ -562,39 +614,30 @@ class _StudentActionsMenu extends StatelessWidget {
           case _StudentAction.edit:
             onEdit();
             break;
-          case _StudentAction.decrementDegree:
-            onMinusDegree?.call();
-            break;
-          case _StudentAction.incrementDegree:
-            onPlusDegree?.call();
+          case _StudentAction.editGraduation:
+            onEditGraduation();
             break;
         }
       },
-      itemBuilder: (context) => [
-        const PopupMenuItem(
-          value: _StudentAction.edit,
-          child: _MenuItem(
-            icon: Icons.edit_outlined,
-            label: 'Editar atleta',
-          ),
-        ),
-        PopupMenuItem(
-          value: _StudentAction.decrementDegree,
-          enabled: onMinusDegree != null,
-          child: const _MenuItem(
-            icon: Icons.remove_circle_outline,
-            label: 'Diminuir grau',
-          ),
-        ),
-        PopupMenuItem(
-          value: _StudentAction.incrementDegree,
-          enabled: onPlusDegree != null,
-          child: const _MenuItem(
-            icon: Icons.add_circle_outline,
-            label: 'Aumentar grau',
-          ),
-        ),
-      ],
+      itemBuilder:
+          (context) => [
+            PopupMenuItem(
+              value: _StudentAction.edit,
+              enabled: canEditProfile,
+              child: const _MenuItem(
+                icon: Icons.edit_outlined,
+                label: 'Editar atleta',
+              ),
+            ),
+            PopupMenuItem(
+              value: _StudentAction.editGraduation,
+              enabled: canEditGraduation,
+              child: const _MenuItem(
+                icon: Icons.workspace_premium_outlined,
+                label: 'Editar graduacao',
+              ),
+            ),
+          ],
     );
   }
 }
@@ -603,10 +646,7 @@ class _MenuItem extends StatelessWidget {
   final IconData icon;
   final String label;
 
-  const _MenuItem({
-    required this.icon,
-    required this.label,
-  });
+  const _MenuItem({required this.icon, required this.label});
 
   @override
   Widget build(BuildContext context) {
@@ -689,5 +729,194 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TitansStateView.error(title: title, message: message);
+  }
+}
+
+class _TargetCapabilities {
+  final bool canEditProfile;
+  final bool canEditGraduation;
+  final bool canViewAdminActions;
+
+  const _TargetCapabilities({
+    required this.canEditProfile,
+    required this.canEditGraduation,
+    required this.canViewAdminActions,
+  });
+
+  factory _TargetCapabilities.resolve({
+    required AppUser actor,
+    required String targetUid,
+    required String targetAcademyId,
+    required TargetMode targetMode,
+  }) {
+    final isStaff =
+        actor.role == UserRole.admin || actor.role == UserRole.professor;
+    final sameAcademy = actor.academyId == targetAcademyId;
+    final actingAsMaster = targetMode == TargetMode.selectedStudent;
+    final isDifferentTarget = actor.uid != targetUid;
+    final canManageTarget =
+        isStaff && sameAcademy && actingAsMaster && isDifferentTarget;
+
+    return _TargetCapabilities(
+      canEditProfile: canManageTarget,
+      canEditGraduation: canManageTarget,
+      canViewAdminActions: canManageTarget,
+    );
+  }
+}
+
+class _GraduationDraft {
+  final BeltColor belt;
+  final int degree;
+
+  const _GraduationDraft({required this.belt, required this.degree});
+}
+
+class _GraduationBottomSheet extends StatefulWidget {
+  final BeltColor currentBelt;
+  final int currentDegree;
+  final GradingRules rules;
+
+  const _GraduationBottomSheet({
+    required this.currentBelt,
+    required this.currentDegree,
+    required this.rules,
+  });
+
+  @override
+  State<_GraduationBottomSheet> createState() => _GraduationBottomSheetState();
+}
+
+class _GraduationBottomSheetState extends State<_GraduationBottomSheet> {
+  late BeltColor _selectedBelt = widget.currentBelt;
+  late int _selectedDegree = widget.currentDegree;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final beltOptions =
+        widget.rules.beltOrder.isEmpty
+            ? BeltColor.values
+            : widget.rules.beltOrder;
+    final maxDegree = widget.rules.maxDegrees(_selectedBelt);
+    final degreeOptions = List<int>.generate(maxDegree + 1, (index) => index);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Editar graduacao',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Fechar',
+                onPressed: () => Navigator.of(context).pop(),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: TitansUI.spaceSm),
+          TitansCard(
+            accent: _StudentCard.beltUiColor(widget.currentBelt),
+            padding: const EdgeInsets.all(TitansUI.spaceMd),
+            radius: TitansUI.radiusSmall,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Graduacao atual',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.66),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '${_StudentCard.beltName(widget.currentBelt)} - Grau ${widget.currentDegree}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: TitansUI.spaceMd),
+          DropdownButtonFormField<BeltColor>(
+            initialValue: _selectedBelt,
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Nova faixa'),
+            items: [
+              for (final belt in beltOptions)
+                DropdownMenuItem(
+                  value: belt,
+                  child: Text(_StudentCard.beltName(belt)),
+                ),
+            ],
+            onChanged: (belt) {
+              if (belt == null) return;
+              setState(() {
+                _selectedBelt = belt;
+                _selectedDegree =
+                    _selectedDegree
+                        .clamp(0, widget.rules.maxDegrees(belt))
+                        .toInt();
+              });
+            },
+          ),
+          const SizedBox(height: TitansUI.spaceMd),
+          DropdownButtonFormField<int>(
+            key: ValueKey('${_selectedBelt.name}-$_selectedDegree'),
+            initialValue: _selectedDegree.clamp(0, maxDegree).toInt(),
+            isExpanded: true,
+            decoration: const InputDecoration(labelText: 'Novo grau'),
+            items: [
+              for (final degree in degreeOptions)
+                DropdownMenuItem(value: degree, child: Text('$degree')),
+            ],
+            onChanged: (degree) {
+              if (degree == null) return;
+              setState(() => _selectedDegree = degree);
+            },
+          ),
+          const SizedBox(height: TitansUI.spaceMd),
+          Divider(color: cs.onSurface.withValues(alpha: 0.12)),
+          OverflowBar(
+            alignment: MainAxisAlignment.end,
+            spacing: TitansUI.spaceSm,
+            overflowSpacing: TitansUI.spaceSm,
+            children: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () {
+                  Navigator.of(context).pop(
+                    _GraduationDraft(
+                      belt: _selectedBelt,
+                      degree: _selectedDegree.clamp(0, maxDegree).toInt(),
+                    ),
+                  );
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }

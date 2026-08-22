@@ -24,6 +24,7 @@ class ProgressScreen extends StatefulWidget {
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
   final AppUser? loggedUser;
+  final bool embedded;
 
   const ProgressScreen({
     super.key,
@@ -31,6 +32,7 @@ class ProgressScreen extends StatefulWidget {
     this.targetMode = TargetMode.self,
     this.explicitTarget,
     this.loggedUser,
+    this.embedded = false,
   });
 
   @override
@@ -64,6 +66,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
     return widget.explicitTarget ??
         TargetResolver.maybeOf(context, mode: widget.targetMode);
   }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -105,11 +108,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
   @override
   Widget build(BuildContext context) {
     final actor = widget.loggedUser ?? UserScope.maybeOf(context);
-    final resolverTarget =
-        TargetResolver.maybeOf(context, mode: widget.targetMode);
+    final resolverTarget = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+    );
     final target = widget.explicitTarget ?? resolverTarget;
-    final canEditTarget = target != null &&
-        _canEditTarget(loggedUser: actor, target: target);
+    final canEditTarget =
+        target != null && _canEditTarget(loggedUser: actor, target: target);
     debugPrint(
       '[PROGRESS_TARGET] screen=ProgressScreen '
       'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
@@ -132,17 +137,19 @@ class _ProgressScreenState extends State<ProgressScreen> {
         'target.academyId=${target?.academyId}',
       );
 
-      return TitansScaffold(
+      return _wrapModule(
         appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
-        body: widget.targetMode == TargetMode.selectedStudent
-            ? const TitansStateView.noStudent(
-                message: 'Selecione um aluno no Painel do Mestre para acessar Progresso.',
-              )
-            : const TitansStateView.error(
-                title: 'Perfil nao carregado',
-                message:
-                    'Nao foi possivel identificar seu usuario para carregar Progresso.',
-              ),
+        body:
+            widget.targetMode == TargetMode.selectedStudent
+                ? const TitansStateView.noStudent(
+                  message:
+                      'Selecione um aluno no Painel do Mestre para acessar Progresso.',
+                )
+                : const TitansStateView.error(
+                  title: 'Perfil nao carregado',
+                  message:
+                      'Nao foi possivel identificar seu usuario para carregar Progresso.',
+                ),
       );
     }
 
@@ -155,7 +162,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       'target.uid=$uid target.academyId=$academyId',
     );
 
-    return TitansScaffold(
+    return _wrapModule(
       appBar: AppBar(
         title: Text(widget.titleOverride ?? 'Progresso'),
         actions: [
@@ -234,7 +241,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           if (profileSnap.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
-                              child: TitansSkeletonCard(lines: 3, showHeader: false),
+                              child: TitansSkeletonCard(
+                                lines: 3,
+                                showHeader: false,
+                              ),
                             );
                           }
 
@@ -260,7 +270,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               if (trainSnap.connectionState ==
                                   ConnectionState.waiting) {
                                 return const Center(
-                                  child: TitansSkeletonCard(lines: 3, showHeader: false),
+                                  child: TitansSkeletonCard(
+                                    lines: 3,
+                                    showHeader: false,
+                                  ),
                                 );
                               }
 
@@ -271,11 +284,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 );
                               }
 
-                              final sessions = TrainingAggregator.uniqueSessions(
-                                List<TrainingSession>.from(
-                                  trainSnap.data ?? const <TrainingSession>[],
-                                ),
-                              );
+                              final sessions =
+                                  TrainingAggregator.uniqueSessions(
+                                    List<TrainingSession>.from(
+                                      trainSnap.data ??
+                                          const <TrainingSession>[],
+                                    ),
+                                  );
 
                               final filtered =
                                   rules.onlyAcademyPlace
@@ -288,11 +303,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                           .toList()
                                       : List<TrainingSession>.from(sessions);
 
-                              filtered.sort(
-                                (a, b) => a.date.compareTo(b.date),
-                              );
+                              filtered.sort((a, b) => a.date.compareTo(b.date));
 
-                              final metrics = TrainingAggregator.metrics(filtered);
+                              final metrics = TrainingAggregator.metrics(
+                                filtered,
+                              );
 
                               final beltProgress = _calcBeltProgress(
                                 rules: rules,
@@ -307,21 +322,56 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 (a, b) => a + b,
                               );
 
-                              final listPadding = TitansUI.listPadding(context);
+                              final listPadding =
+                                  widget.embedded
+                                      ? TitansUI.listPadding(
+                                        context,
+                                        extra: TitansUI.spaceMd,
+                                      )
+                                      : TitansUI.listPadding(context);
 
                               return ListView(
                                 padding: listPadding,
                                 children: [
+                                  if (widget.embedded)
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: PopupMenuButton<ProgressPeriod>(
+                                        tooltip: 'Filtrar periodo',
+                                        initialValue: _period,
+                                        onSelected:
+                                            (p) => setState(() => _period = p),
+                                        itemBuilder:
+                                            (_) => const [
+                                              PopupMenuItem(
+                                                value: ProgressPeriod.day,
+                                                child: Text('Dia'),
+                                              ),
+                                              PopupMenuItem(
+                                                value: ProgressPeriod.month,
+                                                child: Text('Mes'),
+                                              ),
+                                              PopupMenuItem(
+                                                value: ProgressPeriod.year,
+                                                child: Text('Ano'),
+                                              ),
+                                            ],
+                                        icon: const Icon(
+                                          Icons.filter_alt_outlined,
+                                        ),
+                                      ),
+                                    ),
                                   _BeltProgressCard(
                                     progress: beltProgress,
-                                    onEditGraduation: canEditTarget
-                                        ? () => _showGraduationDialog(
+                                    onEditGraduation:
+                                        canEditTarget
+                                            ? () => _showGraduationDialog(
                                               academyId: academyId,
                                               uid: uid,
                                               athlete: athlete,
                                               rules: rules,
                                             )
-                                        : null,
+                                            : null,
                                   ),
                                   const SizedBox(height: 12),
                                   _TrainingMetricsCard(metrics: metrics),
@@ -345,12 +395,26 @@ class _ProgressScreenState extends State<ProgressScreen> {
     );
   }
 
+  Widget _wrapModule({
+    PreferredSizeWidget? appBar,
+    Widget? floatingActionButton,
+    required Widget body,
+  }) {
+    if (widget.embedded) return body;
+    return TitansScaffold(
+      appBar: appBar,
+      floatingActionButton: floatingActionButton,
+      body: body,
+    );
+  }
+
   bool _canEditTarget({
     required AppUser? loggedUser,
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage = loggedUser.role == UserRole.admin ||
+    final canManage =
+        loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
         (loggedUser.uid == target.uid || canManage);
@@ -391,25 +455,28 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       labelText: 'Faixa',
                       prefixIcon: Icon(Icons.horizontal_rule),
                     ),
-                    items: BeltColor.values
-                        .map(
-                          (belt) => DropdownMenuItem(
-                            value: belt,
-                            child: Text(_BeltProgressCard.beltName(belt)),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: saving
-                        ? null
-                        : (belt) {
-                            if (belt == null) return;
-                            setDialogState(() {
-                              selectedBelt = belt;
-                              selectedDegree = selectedDegree
-                                  .clamp(0, rules.maxDegrees(belt))
-                                  .toInt();
-                            });
-                          },
+                    items:
+                        BeltColor.values
+                            .map(
+                              (belt) => DropdownMenuItem(
+                                value: belt,
+                                child: Text(_BeltProgressCard.beltName(belt)),
+                              ),
+                            )
+                            .toList(),
+                    onChanged:
+                        saving
+                            ? null
+                            : (belt) {
+                              if (belt == null) return;
+                              setDialogState(() {
+                                selectedBelt = belt;
+                                selectedDegree =
+                                    selectedDegree
+                                        .clamp(0, rules.maxDegrees(belt))
+                                        .toInt();
+                              });
+                            },
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<int>(
@@ -420,12 +487,13 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       prefixIcon: Icon(Icons.star_outline),
                     ),
                     items: degreeItems,
-                    onChanged: saving
-                        ? null
-                        : (degree) {
-                            if (degree == null) return;
-                            setDialogState(() => selectedDegree = degree);
-                          },
+                    onChanged:
+                        saving
+                            ? null
+                            : (degree) {
+                              if (degree == null) return;
+                              setDialogState(() => selectedDegree = degree);
+                            },
                   ),
                   if (errorMessage != null) ...[
                     const SizedBox(height: 12),
@@ -446,47 +514,52 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   child: const Text('Cancelar'),
                 ),
                 FilledButton.icon(
-                  onPressed: saving
-                      ? null
-                      : () async {
-                          final navigator = Navigator.of(dialogContext);
-                          final messenger = ScaffoldMessenger.of(this.context);
-                          setDialogState(() {
-                            saving = true;
-                            errorMessage = null;
-                          });
-                          try {
-                            final clampedDegree = selectedDegree
-                                .clamp(0, rules.maxDegrees(selectedBelt))
-                                .toInt();
-                            await _userRepo.updateBeltDegree(
-                              academyId: academyId,
-                              uid: uid,
-                              belt: selectedBelt,
-                              degree: clampedDegree,
+                  onPressed:
+                      saving
+                          ? null
+                          : () async {
+                            final navigator = Navigator.of(dialogContext);
+                            final messenger = ScaffoldMessenger.of(
+                              this.context,
                             );
-                            if (!mounted) return;
-                            navigator.pop();
-                            messenger.showSnackBar(
-                              const SnackBar(
-                                content: Text('Graduacao atualizada.'),
-                              ),
-                            );
-                          } catch (error) {
                             setDialogState(() {
-                              saving = false;
-                              errorMessage =
-                                  'Nao foi possivel salvar. $error';
+                              saving = true;
+                              errorMessage = null;
                             });
-                          }
-                        },
-                  icon: saving
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.save_outlined),
+                            try {
+                              final clampedDegree =
+                                  selectedDegree
+                                      .clamp(0, rules.maxDegrees(selectedBelt))
+                                      .toInt();
+                              await _userRepo.updateBeltDegree(
+                                academyId: academyId,
+                                uid: uid,
+                                belt: selectedBelt,
+                                degree: clampedDegree,
+                              );
+                              if (!mounted) return;
+                              navigator.pop();
+                              messenger.showSnackBar(
+                                const SnackBar(
+                                  content: Text('Graduacao atualizada.'),
+                                ),
+                              );
+                            } catch (error) {
+                              setDialogState(() {
+                                saving = false;
+                                errorMessage =
+                                    'Nao foi possivel salvar. $error';
+                              });
+                            }
+                          },
+                  icon:
+                      saving
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : const Icon(Icons.save_outlined),
                   label: Text(saving ? 'Salvando...' : 'Salvar'),
                 ),
               ],
@@ -496,6 +569,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
       },
     );
   }
+
   _BeltProgress _calcBeltProgress({
     required GradingRules rules,
     required AppUser athlete,
@@ -523,7 +597,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 .clamp(1, 1 << 30)
                 .toInt();
 
-    final percent = (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
+    final percent =
+        (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
 
     return _BeltProgress(
       belt: belt,
@@ -601,11 +676,7 @@ class _BeltProgressCard extends StatelessWidget {
   final _BeltProgress progress;
   final VoidCallback? onEditGraduation;
 
-  const _BeltProgressCard({
-    required this.progress,
-    this.onEditGraduation,
-  });
-
+  const _BeltProgressCard({required this.progress, this.onEditGraduation});
 
   @override
   Widget build(BuildContext context) {
@@ -691,6 +762,7 @@ class _BeltProgressCard extends StatelessWidget {
   static Color _beltUiColor(BeltColor belt, BuildContext context) {
     return TitansUI.beltColor(belt.name);
   }
+
   static String beltName(BeltColor belt) => _beltName(belt);
 
   static String _beltName(BeltColor belt) {
@@ -724,9 +796,9 @@ class _TrainingMetricsCard extends StatelessWidget {
           children: [
             Text(
               'Treinos realizados',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w800,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 12),
             TitansResponsiveGrid(
@@ -734,12 +806,16 @@ class _TrainingMetricsCard extends StatelessWidget {
               spacing: 8,
               runSpacing: 8,
               children: [
-                TitansMetricCard(label: 'Total', value: metrics.total.toString()),
+                TitansMetricCard(
+                  label: 'Total',
+                  value: metrics.total.toString(),
+                ),
                 TitansMetricCard(label: 'Mes', value: metrics.month.toString()),
                 TitansMetricCard(label: 'Ano', value: metrics.year.toString()),
                 TitansMetricCard(
                   label: '30 dias',
-                  value: '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
+                  value:
+                      '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
                 ),
               ],
             ),
@@ -762,7 +838,6 @@ class _ConsistencyChartCard extends StatelessWidget {
     required this.labels,
     required this.values,
   });
-
 
   @override
   Widget build(BuildContext context) {
@@ -913,12 +988,12 @@ class _EmptyState extends StatelessWidget {
     );
   }
 }
+
 class _ErrorState extends StatelessWidget {
   final String title;
   final String message;
 
   const _ErrorState({required this.title, required this.message});
-
 
   @override
   Widget build(BuildContext context) {

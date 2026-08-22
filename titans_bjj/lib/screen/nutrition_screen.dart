@@ -16,6 +16,7 @@ class NutritionScreen extends StatefulWidget {
   final TargetMode targetMode;
   final TargetProfile? explicitTarget;
   final AppUser? loggedUser;
+  final bool embedded;
 
   /// Mock condicional para teste/local.
   final bool useMock;
@@ -29,6 +30,7 @@ class NutritionScreen extends StatefulWidget {
     this.targetMode = TargetMode.self,
     this.explicitTarget,
     this.loggedUser,
+    this.embedded = false,
     this.useMock = false,
     this.showLeading = true,
   });
@@ -52,6 +54,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
     return widget.explicitTarget ??
         TargetResolver.maybeOf(context, mode: widget.targetMode);
   }
+
   void _syncRepository(TargetProfile target) {
     if (_repoReady &&
         _targetAcademyId == target.academyId &&
@@ -130,11 +133,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
     final actor = widget.loggedUser ?? UserScope.maybeOf(context);
 
     if (!_repoReady) {
-      final resolverTarget =
-          TargetResolver.maybeOf(context, mode: widget.targetMode);
+      final resolverTarget = TargetResolver.maybeOf(
+        context,
+        mode: widget.targetMode,
+      );
       final target = widget.explicitTarget ?? resolverTarget;
-      final canEditTarget = target != null &&
-          _canEditTarget(loggedUser: actor, target: target);
+      final canEditTarget =
+          target != null && _canEditTarget(loggedUser: actor, target: target);
       debugPrint(
         '[NUTRITION_TARGET] screen=NutritionScreen '
         'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
@@ -151,17 +156,19 @@ class _NutritionScreenState extends State<NutritionScreen> {
           'canEditTarget=$canEditTarget hiddenBy=missing-target '
           'actor.uid=${actor?.uid} actor.role=${actor?.role}',
         );
-        return TitansScaffold(
+        return _wrapModule(
           appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
-          body: widget.targetMode == TargetMode.selectedStudent
-            ? const TitansStateView.noStudent(
-                message: 'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
-              )
-            : const TitansStateView.error(
-                title: 'Perfil nao carregado',
-                message:
-                    'Nao foi possivel identificar seu usuario para carregar Nutricao.',
-              ),
+          body:
+              widget.targetMode == TargetMode.selectedStudent
+                  ? const TitansStateView.noStudent(
+                    message:
+                        'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
+                  )
+                  : const TitansStateView.error(
+                    title: 'Perfil nao carregado',
+                    message:
+                        'Nao foi possivel identificar seu usuario para carregar Nutricao.',
+                  ),
         );
       }
 
@@ -169,8 +176,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
     }
 
     final target = _resolveTarget(context);
-    final canEditTarget = target != null &&
-        _canEditTarget(loggedUser: actor, target: target);
+    final canEditTarget =
+        target != null && _canEditTarget(loggedUser: actor, target: target);
     debugPrint(
       '[NUTRITION_ACTIONS] showAddMeal=$canEditTarget '
       'showEditNutritionProfile=$canEditTarget canEditTarget=$canEditTarget '
@@ -187,18 +194,19 @@ class _NutritionScreenState extends State<NutritionScreen> {
       'canEditTarget=$canEditTarget',
     );
 
-    return TitansScaffold(
+    return _wrapModule(
       appBar: AppBar(
         leading: widget.showLeading ? const AppLogoLeading() : null,
         title: Text(widget.titleOverride ?? 'Nutricao'),
       ),
-      floatingActionButton: canEditTarget
-          ? FloatingActionButton(
-              heroTag: 'nutrition_fab',
-              onPressed: _addMeal,
-              child: const Icon(Icons.add),
-            )
-          : null,
+      floatingActionButton:
+          !widget.embedded && canEditTarget
+              ? FloatingActionButton(
+                heroTag: 'nutrition_fab',
+                onPressed: _addMeal,
+                child: const Icon(Icons.add),
+              )
+              : null,
       body: FutureBuilder<List<MealEntry>>(
         future: _mealsFuture,
         builder: (context, snap) {
@@ -207,17 +215,31 @@ class _NutritionScreenState extends State<NutritionScreen> {
           }
 
           final meals = snap.data!;
-          final listPadding = TitansUI.listPadding(context, extra: 80);
+          final listPadding =
+              widget.embedded
+                  ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
+                  : TitansUI.listPadding(context, extra: 80);
 
           return ListView(
             padding: listPadding,
             children: [
+              if (widget.embedded && canEditTarget) ...[
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: _addMeal,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar refeicao'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+              ],
               if (_fallbackToMock)
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      'Firestore sem permissão para Nutrição. Rodando em modo teste (mock).',
+                      'Firestore sem permiss\u00e3o para Nutri\u00e7\u00e3o. Rodando em modo teste (mock).',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -229,7 +251,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      'Erro no repositório: $_repoError',
+                      'Erro no reposit\u00f3rio: $_repoError',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -251,7 +273,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Seu gasto calórico estimado (TDEE)',
+                            'Seu gasto cal\u00f3rico estimado (TDEE)',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 6),
@@ -269,13 +291,14 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
-                            child: canEditTarget
-                                ? OutlinedButton.icon(
-                                    icon: const Icon(Icons.edit),
-                                    label: const Text('Editar perfil'),
-                                    onPressed: _editProfile,
-                                  )
-                                : const SizedBox.shrink(),
+                            child:
+                                canEditTarget
+                                    ? OutlinedButton.icon(
+                                      icon: const Icon(Icons.edit),
+                                      label: const Text('Editar perfil'),
+                                      onPressed: _editProfile,
+                                    )
+                                    : const SizedBox.shrink(),
                           ),
                         ],
                       ),
@@ -289,7 +312,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
               ...meals.reversed.map(
                 (meal) => Card(
                   child: ListTile(
-                    title: Text('${_fmt(meal.date)} • ${meal.mealType}'),
+                    title: Text('${_fmt(meal.date)} - ${meal.mealType}'),
                     subtitle: Text(
                       meal.items.map((item) => item.name).join(', '),
                     ),
@@ -301,7 +324,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 const TitansEmptyState(
                   icon: Icons.restaurant_outlined,
                   title: 'Sem refeicoes registradas',
-                  message: 'Use o botao adicionar para registrar a primeira refeicao.',
+                  message:
+                      'Use o botao adicionar para registrar a primeira refeicao.',
                   compact: true,
                 ),
             ],
@@ -311,16 +335,31 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
+  Widget _wrapModule({
+    PreferredSizeWidget? appBar,
+    Widget? floatingActionButton,
+    required Widget body,
+  }) {
+    if (widget.embedded) return body;
+    return TitansScaffold(
+      appBar: appBar,
+      floatingActionButton: floatingActionButton,
+      body: body,
+    );
+  }
+
   bool _canEditTarget({
     required AppUser? loggedUser,
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage = loggedUser.role == UserRole.admin ||
+    final canManage =
+        loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
         (loggedUser.uid == target.uid || canManage);
   }
+
   Future<void> _editProfile() async {
     final profile = await _repo.getProfileCached();
     if (!mounted) return;
@@ -396,10 +435,7 @@ class _DailyCaloriesChart extends StatelessWidget {
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(
-              toY: (map[keys[i]] ?? 0).toDouble(),
-              width: 12,
-            ),
+            BarChartRodData(toY: (map[keys[i]] ?? 0).toDouble(), width: 12),
           ],
           showingTooltipIndicators: const [0],
         ),
@@ -413,7 +449,7 @@ class _DailyCaloriesChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Calorias (últimos 7 dias)',
+              'Calorias (\u00faltimos 7 dias)',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
@@ -478,7 +514,7 @@ class _MealSheet extends StatefulWidget {
 
 class _MealSheetState extends State<_MealSheet> {
   DateTime _date = DateTime.now();
-  String _mealType = 'Almoço';
+  String _mealType = 'Almo\u00e7o';
   String _query = '';
   final List<FoodItem> _selected = [];
 
@@ -495,7 +531,7 @@ class _MealSheetState extends State<_MealSheet> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              'Nova refeição',
+              'Nova refei\u00e7\u00e3o',
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
@@ -510,9 +546,7 @@ class _MealSheetState extends State<_MealSheet> {
                         firstDate: DateTime.now().subtract(
                           const Duration(days: 365),
                         ),
-                        lastDate: DateTime.now().add(
-                          const Duration(days: 365),
-                        ),
+                        lastDate: DateTime.now().add(const Duration(days: 365)),
                       );
                       if (date == null) return;
                       if (!context.mounted) return;
@@ -543,15 +577,23 @@ class _MealSheetState extends State<_MealSheet> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _mealType,
                     items: const [
-                      DropdownMenuItem(value: 'Café', child: Text('Café')),
-                      DropdownMenuItem(value: 'Almoço', child: Text('Almoço')),
+                      DropdownMenuItem(
+                        value: 'Caf\u00e9',
+                        child: Text('Caf\u00e9'),
+                      ),
+                      DropdownMenuItem(
+                        value: 'Almo\u00e7o',
+                        child: Text('Almo\u00e7o'),
+                      ),
                       DropdownMenuItem(value: 'Jantar', child: Text('Jantar')),
                       DropdownMenuItem(value: 'Lanche', child: Text('Lanche')),
                     ],
                     onChanged: (value) {
-                      setState(() => _mealType = value ?? 'Almoço');
+                      setState(() => _mealType = value ?? 'Almo\u00e7o');
                     },
-                    decoration: const InputDecoration(labelText: 'Refeição'),
+                    decoration: const InputDecoration(
+                      labelText: 'Refei\u00e7\u00e3o',
+                    ),
                   ),
                 ),
               ],
@@ -583,20 +625,21 @@ class _MealSheetState extends State<_MealSheet> {
             const SizedBox(height: 8),
             Wrap(
               spacing: 6,
-              children: _selected
-                  .asMap()
-                  .entries
-                  .map(
-                    (entry) => Chip(
-                      label: Text(
-                        '${entry.value.name} • ${entry.value.kcal}',
-                      ),
-                      onDeleted: () {
-                        setState(() => _selected.removeAt(entry.key));
-                      },
-                    ),
-                  )
-                  .toList(),
+              children:
+                  _selected
+                      .asMap()
+                      .entries
+                      .map(
+                        (entry) => Chip(
+                          label: Text(
+                            '${entry.value.name} - ${entry.value.kcal}',
+                          ),
+                          onDeleted: () {
+                            setState(() => _selected.removeAt(entry.key));
+                          },
+                        ),
+                      )
+                      .toList(),
             ),
             const SizedBox(height: 12),
             Align(
@@ -604,16 +647,17 @@ class _MealSheetState extends State<_MealSheet> {
               child: FilledButton.icon(
                 icon: const Icon(Icons.save),
                 label: const Text('Adicionar'),
-                onPressed: _selected.isEmpty
-                    ? null
-                    : () {
-                        final entry = MealEntry(
-                          date: _date,
-                          mealType: _mealType,
-                          items: List.of(_selected),
-                        );
-                        Navigator.pop(context, entry);
-                      },
+                onPressed:
+                    _selected.isEmpty
+                        ? null
+                        : () {
+                          final entry = MealEntry(
+                            date: _date,
+                            mealType: _mealType,
+                            items: List.of(_selected),
+                          );
+                          Navigator.pop(context, entry);
+                        },
               ),
             ),
           ],
@@ -700,7 +744,10 @@ class _ProfileDialogState extends State<_ProfileDialog> {
             DropdownButtonFormField<double>(
               initialValue: _act,
               items: const [
-                DropdownMenuItem(value: 1.2, child: Text('Sedentário (1.20)')),
+                DropdownMenuItem(
+                  value: 1.2,
+                  child: Text('Sedent\u00e1rio (1.20)'),
+                ),
                 DropdownMenuItem(value: 1.375, child: Text('Leve (1.375)')),
                 DropdownMenuItem(value: 1.55, child: Text('Moderado (1.55)')),
                 DropdownMenuItem(value: 1.725, child: Text('Intenso (1.725)')),
