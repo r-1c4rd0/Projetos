@@ -7,6 +7,7 @@ import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
 class GameMapScreen extends StatefulWidget {
@@ -50,7 +51,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
         stream: _sessionsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const TitansStateView.loading();
+            return const TitansSkeletonCard(lines: 5);
           }
           if (snapshot.hasError) {
             return TitansStateView.error(
@@ -230,11 +231,11 @@ class _SkillMatrixCard extends StatelessWidget {
           const _CompactHeader(title: 'SKILL MATRIX'),
           const SizedBox(height: 12),
           if (entries.isEmpty)
-            Text(
-              'Registre tecnicas nos debriefs para montar a Skill Matrix.',
-              style: TextStyle(
-                color: colorScheme.onSurface.withValues(alpha: 0.68),
-              ),
+            const TitansEmptyState(
+              icon: Icons.grid_view_outlined,
+              title: 'Skill Matrix vazia',
+              message: 'Registre tecnicas nos debriefs para ativar a matriz.',
+              compact: true,
             )
           else
             for (var i = 0; i < entries.length; i++) ...[
@@ -406,16 +407,14 @@ class _EmptyGameMapCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _VisualCard(
-      accent: colorScheme.secondary,
-      child: Text(
-        'Registre posicao e tecnica nos debriefs dos treinos para montar o Game Map.',
-        style: TextStyle(color: colorScheme.onSurface.withValues(alpha: 0.68)),
-      ),
+    return const TitansEmptyState(
+      icon: Icons.account_tree_outlined,
+      title: 'Game Map vazio',
+      message: 'Registre posicao e tecnica nos debriefs para montar o mapa.',
+      compact: true,
     );
   }
 }
-
 class _GameMapPositionCard extends StatelessWidget {
   final GameMapEntry entry;
 
@@ -520,14 +519,14 @@ class _VisualCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final glow = accent ?? cs.primary;
 
-    return Container(
-      padding: TitansUI.cardPadding,
-      decoration: TitansUI.cardDecoration(context, accent: glow),
-      child: child,
+    return TitansAnimatedSection(
+      child: TitansPressableCard(
+        accent: glow,
+        child: child,
+      ),
     );
   }
 }
-
 class _CompactHeader extends StatelessWidget {
   final String title;
 

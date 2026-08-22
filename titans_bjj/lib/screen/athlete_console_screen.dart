@@ -9,6 +9,7 @@ import '../widgets/require_selected_student_gate.dart';
 import '../widgets/titans_scaffold.dart';
 
 import 'athlete_dashboard_screen.dart';
+import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
 import 'progress_screen.dart';
 import 'training_screen.dart';
@@ -101,7 +102,7 @@ class AthleteConsoleScreen extends StatelessWidget {
   }
 }
 
-class _ConsoleBody extends StatelessWidget {
+class _ConsoleBody extends StatefulWidget {
   final String title;
   final String? athleteNameOverride;
   final TargetMode targetMode;
@@ -119,81 +120,338 @@ class _ConsoleBody extends StatelessWidget {
   });
 
   @override
+  State<_ConsoleBody> createState() => _ConsoleBodyState();
+}
+
+class _ConsoleBodyState extends State<_ConsoleBody> {
+  int _selectedModuleIndex = 0;
+
+  @override
   Widget build(BuildContext context) {
-    final selectedMode = targetMode == TargetMode.selectedStudent;
-    final canEditTarget = _canEditTarget(loggedUser, target);
+    final modules = _buildModules();
+    final selectedMode = widget.targetMode == TargetMode.selectedStudent;
+    final selectedModule = modules[_selectedModuleIndex];
+    final canEditTarget = _canEditTarget(widget.loggedUser, widget.target);
     debugPrint(
-      '[ATHLETE_CONSOLE] tabs targetMode=$targetMode title=$title '
-      'masterView=$masterView actor.uid=${loggedUser.uid} '
-      'actor.role=${loggedUser.role} target.uid=${target.uid} '
-      'target.academyId=${target.academyId} canEditTarget=$canEditTarget',
+      '[ATHLETE_CONSOLE] moduleHub targetMode=${widget.targetMode} '
+      'title=${widget.title} selectedModule=${selectedModule.id} '
+      'masterView=${widget.masterView} actor.uid=${widget.loggedUser.uid} '
+      'actor.role=${widget.loggedUser.role} target.uid=${widget.target.uid} '
+      'target.academyId=${widget.target.academyId} canEditTarget=$canEditTarget',
     );
 
-    return DefaultTabController(
-      length: 4,
-      child: TitansScaffold(
-        scroll: false,
-        appBar: AppBar(
-          title: Text(title),
-          bottom: const TabBar(
-            tabs: [
-              Tab(icon: Icon(Icons.home_outlined), text: 'Inicio'),
-              Tab(icon: Icon(Icons.sports_mma_outlined), text: 'Treinos'),
-              Tab(icon: Icon(Icons.insights_outlined), text: 'Progresso'),
-              Tab(icon: Icon(Icons.restaurant_outlined), text: 'Nutricao'),
-            ],
+    return TitansScaffold(
+      scroll: false,
+      appBar: AppBar(title: Text(widget.title)),
+      body: Column(
+        children: [
+          _ConsoleContextBanner(
+            selectedMode: selectedMode,
+            athleteName: widget.athleteNameOverride,
+            masterView: widget.masterView,
           ),
-        ),
-        body: Column(
-          children: [
-            _ConsoleContextBanner(
-              selectedMode: selectedMode,
-              athleteName: athleteNameOverride,
-              masterView: masterView,
-            ),
-            const SizedBox(height: TitansUI.spaceSm),
-            Expanded(
-              child: TabBarView(
-                children: [
-                  AthleteDashboardScreen(
-                    athleteNameOverride: athleteNameOverride,
-                    titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
-                    targetMode: targetMode,
-                    explicitTarget: target,
-                    loggedUser: loggedUser,
+          const SizedBox(height: TitansUI.spaceSm),
+          _ModuleHub(
+            modules: modules,
+            selectedIndex: _selectedModuleIndex,
+            onSelected: (index) {
+              if (index == _selectedModuleIndex || !modules[index].enabled) {
+                return;
+              }
+              setState(() => _selectedModuleIndex = index);
+            },
+          ),
+          const SizedBox(height: TitansUI.spaceSm),
+          Expanded(
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeInCubic,
+              transitionBuilder: (child, animation) {
+                final offsetAnimation = Tween<Offset>(
+                  begin: const Offset(0.02, 0),
+                  end: Offset.zero,
+                ).animate(animation);
+                return FadeTransition(
+                  opacity: animation,
+                  child: SlideTransition(
+                    position: offsetAnimation,
+                    child: child,
                   ),
-                  TrainingScreen(
-                    titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
-                    targetMode: targetMode,
-                    explicitTarget: target,
-                    loggedUser: loggedUser,
-                  ),
-                  ProgressScreen(
-                    titleOverride:
-                        selectedMode ? 'Progresso do aluno' : 'Progresso',
-                    targetMode: targetMode,
-                    explicitTarget: target,
-                    loggedUser: loggedUser,
-                  ),
-                  NutritionScreen(
-                    titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
-                    targetMode: targetMode,
-                    explicitTarget: target,
-                    loggedUser: loggedUser,
-                  ),
-                ],
+                );
+              },
+              child: KeyedSubtree(
+                key: ValueKey(selectedModule.id),
+                child: selectedModule.builder(context),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
+
+  List<_ConsoleModule> _buildModules() {
+    final selectedMode = widget.targetMode == TargetMode.selectedStudent;
+    final target = widget.target;
+    final loggedUser = widget.loggedUser;
+
+    return [
+      _ConsoleModule(
+        id: 'overview',
+        label: 'Overview',
+        shortLabel: 'Overview',
+        icon: Icons.home_outlined,
+        description: 'Resumo do perfil',
+        builder: (context) => AthleteDashboardScreen(
+          athleteNameOverride: widget.athleteNameOverride,
+          titleOverride: selectedMode ? 'Resumo do aluno' : 'Inicio',
+          targetMode: widget.targetMode,
+          explicitTarget: target,
+          loggedUser: loggedUser,
+        ),
+      ),
+      _ConsoleModule(
+        id: 'training',
+        label: 'Treinos',
+        shortLabel: 'Treinos',
+        icon: Icons.sports_mma_outlined,
+        description: 'Historico e sessoes',
+        builder: (context) => TrainingScreen(
+          titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
+          targetMode: widget.targetMode,
+          explicitTarget: target,
+          loggedUser: loggedUser,
+        ),
+      ),
+      _ConsoleModule(
+        id: 'progress',
+        label: 'Progresso',
+        shortLabel: 'Progresso',
+        icon: Icons.insights_outlined,
+        description: 'Evolucao e metas',
+        builder: (context) => ProgressScreen(
+          titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
+          targetMode: widget.targetMode,
+          explicitTarget: target,
+          loggedUser: loggedUser,
+        ),
+      ),
+      _ConsoleModule(
+        id: 'gameMap',
+        label: 'Game Map',
+        shortLabel: 'Game Map',
+        icon: Icons.map_outlined,
+        description: 'Mapa tecnico',
+        builder: (context) => GameMapScreen(
+          academyId: target.academyId,
+          uid: target.uid,
+          title: selectedMode ? 'Game Map do aluno' : 'Game Map',
+          targetName: widget.athleteNameOverride,
+        ),
+      ),
+      _ConsoleModule(
+        id: 'nutrition',
+        label: 'Nutricao',
+        shortLabel: 'Nutricao',
+        icon: Icons.restaurant_outlined,
+        description: 'Plano alimentar',
+        builder: (context) => NutritionScreen(
+          titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
+          targetMode: widget.targetMode,
+          explicitTarget: target,
+          loggedUser: loggedUser,
+          showLeading: false,
+        ),
+      ),
+    ];
+  }
+
   bool _canEditTarget(AppUser actor, TargetProfile target) {
     final canManage = actor.role == UserRole.admin ||
         actor.role == UserRole.professor;
     return actor.academyId == target.academyId &&
         (actor.uid == target.uid || canManage);
+  }
+}
+
+class _ConsoleModule {
+  final String id;
+  final String label;
+  final String shortLabel;
+  final IconData icon;
+  final String description;
+  final WidgetBuilder builder;
+  final bool enabled;
+
+  const _ConsoleModule({
+    required this.id,
+    required this.label,
+    required this.shortLabel,
+    required this.icon,
+    required this.description,
+    required this.builder,
+    this.enabled = true,
+  });
+}
+
+class _ModuleHub extends StatelessWidget {
+  final List<_ConsoleModule> modules;
+  final int selectedIndex;
+  final ValueChanged<int> onSelected;
+
+  const _ModuleHub({
+    required this.modules,
+    required this.selectedIndex,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isWide = width >= 900;
+        final columns = isWide
+            ? 5
+            : width >= 620
+                ? 3
+                : 2;
+        final gap = isWide ? TitansUI.spaceMd : TitansUI.spaceSm;
+        final cardWidth = (width - (gap * (columns - 1))) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (var index = 0; index < modules.length; index++)
+              SizedBox(
+                width: cardWidth.clamp(148.0, 220.0).toDouble(),
+                child: Tooltip(
+                  message: modules[index].label,
+                  child: _ModuleCard(
+                    module: modules[index],
+                    selected: index == selectedIndex,
+                    onTap: () => onSelected(index),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ModuleCard extends StatefulWidget {
+  final _ConsoleModule module;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ModuleCard({
+    required this.module,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  State<_ModuleCard> createState() => _ModuleCardState();
+}
+
+class _ModuleCardState extends State<_ModuleCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = widget.selected ? cs.primary : cs.secondary;
+    final enabled = widget.module.enabled;
+
+    return AnimatedScale(
+      duration: const Duration(milliseconds: 120),
+      scale: _pressed && enabled ? 0.98 : 1,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: enabled ? 1 : 0.48,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+            onTap: enabled ? widget.onTap : null,
+            onHighlightChanged: (value) => setState(() => _pressed = value),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              constraints: const BoxConstraints(minHeight: 88),
+              padding: const EdgeInsets.all(TitansUI.spaceSm),
+              decoration: TitansUI.cardDecoration(
+                context,
+                accent: accent,
+                radius: TitansUI.radiusSmall,
+              ).copyWith(
+                color: widget.selected
+                    ? Color.lerp(TitansUI.card, accent, 0.12)
+                    : TitansUI.card,
+                border: Border.all(
+                  color: widget.selected
+                      ? accent.withValues(alpha: 0.72)
+                      : cs.onSurface.withValues(alpha: 0.09),
+                ),
+              ),
+              child: Row(
+                children: [
+                  AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.withValues(
+                        alpha: widget.selected ? 0.20 : 0.10,
+                      ),
+                      border: Border.all(
+                        color: accent.withValues(
+                          alpha: widget.selected ? 0.55 : 0.24,
+                        ),
+                      ),
+                    ),
+                    child: Icon(widget.module.icon, color: accent, size: 20),
+                  ),
+                  const SizedBox(width: TitansUI.spaceSm),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.module.shortLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style:
+                              Theme.of(context).textTheme.labelLarge?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          widget.module.description,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.64),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

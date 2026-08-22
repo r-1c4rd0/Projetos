@@ -16,6 +16,7 @@ import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../service/training_aggregator.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
 class ProgressScreen extends StatefulWidget {
@@ -166,7 +167,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
                   PopupMenuItem(
                     value: ProgressPeriod.month,
-                    child: Text('Mês'),
+                    child: Text('Mes'),
                   ),
                   PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
                 ],
@@ -185,7 +186,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 builder: (context, rulesSnap) {
                   if (_ensuringRules &&
                       rulesSnap.connectionState == ConnectionState.waiting) {
-                    return const TitansStateView.loading();
+                    return const TitansSkeletonCard(lines: 4);
                   }
 
                   if (rulesSnap.hasError) {
@@ -198,9 +199,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   final rules = rulesSnap.data;
                   if (rules == null) {
                     return const _EmptyState(
-                      title: 'Regras da academia não configuradas.',
+                      title: 'Regras da academia nao configuradas.',
                       subtitle:
-                          'Não foi possível ler academies/{academyId}/grading_rules/default.',
+                          'Nao foi possivel ler academies/{academyId}/grading_rules/default.',
                     );
                   }
 
@@ -208,7 +209,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                     stream: _athleteStream,
                     builder: (context, userSnap) {
                       if (userSnap.connectionState == ConnectionState.waiting) {
-                        return const TitansStateView.loading();
+                        return const TitansSkeletonCard(lines: 4);
                       }
 
                       if (userSnap.hasError) {
@@ -221,7 +222,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       final athlete = userSnap.data;
                       if (athlete == null) {
                         return const _EmptyState(
-                          title: 'Atleta não encontrado.',
+                          title: 'Atleta nao encontrado.',
                           subtitle:
                               'Crie academies/{academyId}/users/{uid} com belt e degree.',
                         );
@@ -233,7 +234,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           if (profileSnap.connectionState ==
                               ConnectionState.waiting) {
                             return const Center(
-                              child: CircularProgressIndicator(),
+                              child: TitansSkeletonCard(lines: 3, showHeader: false),
                             );
                           }
 
@@ -247,7 +248,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           final profile = profileSnap.data;
                           if (profile == null) {
                             return const _EmptyState(
-                              title: 'Perfil de progresso não encontrado.',
+                              title: 'Perfil de progresso nao encontrado.',
                               subtitle:
                                   'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
                             );
@@ -259,7 +260,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               if (trainSnap.connectionState ==
                                   ConnectionState.waiting) {
                                 return const Center(
-                                  child: CircularProgressIndicator(),
+                                  child: TitansSkeletonCard(lines: 3, showHeader: false),
                                 );
                               }
 
@@ -587,11 +588,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Consistência (14 dias)';
+        return 'Consistencia (14 dias)';
       case ProgressPeriod.month:
-        return 'Consistência (12 meses)';
+        return 'Consistencia (12 meses)';
       case ProgressPeriod.year:
-        return 'Consistência (5 anos)';
+        return 'Consistencia (5 anos)';
     }
   }
 }
@@ -642,16 +643,10 @@ class _BeltProgressCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(14),
-              child: LinearProgressIndicator(
-                minHeight: 16,
-                value: progress.percentToNextBelt,
-                backgroundColor: cs.surfaceContainerHighest.withValues(
-                  alpha: 0.6,
-                ),
-                valueColor: AlwaysStoppedAnimation<Color>(beltColor),
-              ),
+            TitansProgressIndicator(
+              value: progress.percentToNextBelt,
+              color: beltColor,
+              height: 16,
             ),
             const SizedBox(height: 10),
             Row(
@@ -734,27 +729,19 @@ class _TrainingMetricsCard extends StatelessWidget {
                   ),
             ),
             const SizedBox(height: 12),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final columns = constraints.maxWidth >= 520 ? 4 : 2;
-                return GridView.count(
-                  crossAxisCount: columns,
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  mainAxisSpacing: 8,
-                  crossAxisSpacing: 8,
-                  childAspectRatio: columns == 4 ? 1.9 : 2.2,
-                  children: [
-                    _MetricTile(label: 'Total', value: metrics.total.toString()),
-                    _MetricTile(label: 'Mes', value: metrics.month.toString()),
-                    _MetricTile(label: 'Ano', value: metrics.year.toString()),
-                    _MetricTile(
-                      label: '30 dias',
-                      value: '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
-                    ),
-                  ],
-                );
-              },
+            TitansResponsiveGrid(
+              minItemWidth: 132,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TitansMetricCard(label: 'Total', value: metrics.total.toString()),
+                TitansMetricCard(label: 'Mes', value: metrics.month.toString()),
+                TitansMetricCard(label: 'Ano', value: metrics.year.toString()),
+                TitansMetricCard(
+                  label: '30 dias',
+                  value: '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
+                ),
+              ],
             ),
           ],
         ),
@@ -763,53 +750,6 @@ class _TrainingMetricsCard extends StatelessWidget {
   }
 }
 
-class _MetricTile extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _MetricTile({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.7),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 6),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              style: TextStyle(
-                color: cs.primary,
-                fontSize: 24,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 class _ConsistencyChartCard extends StatelessWidget {
   final String title;
   final int totalInWindow;
@@ -958,38 +898,21 @@ class _EmptyState extends StatelessWidget {
 
   const _EmptyState({required this.title, required this.subtitle});
 
-
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
-                ),
-              ],
-            ),
-          ),
+        child: TitansEmptyState(
+          icon: Icons.insights_outlined,
+          title: title,
+          message: subtitle,
+          compact: true,
         ),
       ),
     );
   }
 }
-
 class _ErrorState extends StatelessWidget {
   final String title;
   final String message;

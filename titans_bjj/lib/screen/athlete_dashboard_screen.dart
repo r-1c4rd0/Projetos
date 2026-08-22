@@ -15,6 +15,7 @@ import '../service/target_resolver.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
@@ -140,7 +141,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         stream: _athleteStream,
         builder: (context, userSnap) {
           if (userSnap.connectionState == ConnectionState.waiting) {
-            return const TitansStateView.loading();
+            return const TitansSkeletonCard(lines: 5);
           }
           if (userSnap.hasError) {
             return _ErrorState(
@@ -173,7 +174,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             stream: _profileStream,
             builder: (context, profileSnap) {
               if (profileSnap.connectionState == ConnectionState.waiting) {
-                return const TitansStateView.loading();
+                return const TitansSkeletonCard(lines: 5);
               }
               if (profileSnap.hasError) {
                 return _ErrorState(
@@ -196,7 +197,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 builder: (context, rulesSnap) {
                   if (rulesSnap.connectionState == ConnectionState.waiting &&
                       !rulesSnap.hasData) {
-                    return const TitansStateView.loading();
+                    return const TitansSkeletonCard(lines: 5);
                   }
                   if (rulesSnap.hasError) {
                     return _ErrorState(
@@ -212,7 +213,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                     builder: (context, trainSnap) {
                       if (trainSnap.connectionState ==
                           ConnectionState.waiting) {
-                        return const TitansStateView.loading();
+                        return const TitansSkeletonCard(lines: 5);
                       }
                       if (trainSnap.hasError) {
                         return _ErrorState(
@@ -728,6 +729,50 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 }
 
 // ---------------- UI ----------------
+
+class _DebriefInsights {
+  final String? technicalFocus;
+  final String? attentionPoint;
+  final String? strengthPoint;
+  final double? averageIntensity;
+
+  const _DebriefInsights({
+    required this.technicalFocus,
+    required this.attentionPoint,
+    required this.strengthPoint,
+    required this.averageIntensity,
+  });
+}
+
+class _InsightScore {
+  final String value;
+  final int firstIndex;
+  int count;
+
+  _InsightScore({
+    required this.value,
+    required this.firstIndex,
+    required this.count,
+  });
+}
+
+class _BeltProgress {
+  final BeltColor belt;
+  final int degree;
+  final int maxDegree;
+  final int sessionsInBelt;
+  final int sessionsRequired;
+  final double percentToNextBelt;
+
+  const _BeltProgress({
+    required this.belt,
+    required this.degree,
+    required this.maxDegree,
+    required this.sessionsInBelt,
+    required this.sessionsRequired,
+    required this.percentToNextBelt,
+  });
+}
 
 String? _cleanDebriefText(String? value) {
   final text = value?.trim();
@@ -2009,34 +2054,23 @@ class _GlassCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final glow = accent ?? cs.primary;
 
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color: Colors.black.withValues(alpha: 0.22),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.35),
-            blurRadius: 18,
-            offset: const Offset(0, 10),
-          ),
-        ],
-      ),
-      child: Stack(
-        children: [
-          if (accent != null)
+    return TitansAnimatedSection(
+      child: TitansPressableCard(
+        accent: glow,
+        child: Stack(
+          children: [
             Positioned.fill(
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(18),
+                    borderRadius: BorderRadius.circular(TitansUI.radius),
                     gradient: LinearGradient(
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                       colors: [
-                        accent!.withValues(alpha: 0.18),
+                        glow.withValues(alpha: 0.12),
                         Colors.transparent,
                         Colors.transparent,
                       ],
@@ -2045,57 +2079,13 @@ class _GlassCard extends StatelessWidget {
                 ),
               ),
             ),
-          child,
-        ],
+            child,
+          ],
+        ),
       ),
     );
   }
 }
-
-class _DebriefInsights {
-  final String? technicalFocus;
-  final String? attentionPoint;
-  final String? strengthPoint;
-  final double? averageIntensity;
-
-  const _DebriefInsights({
-    required this.technicalFocus,
-    required this.attentionPoint,
-    required this.strengthPoint,
-    required this.averageIntensity,
-  });
-}
-
-class _InsightScore {
-  final String value;
-  final int firstIndex;
-  int count;
-
-  _InsightScore({
-    required this.value,
-    required this.firstIndex,
-    required this.count,
-  });
-}
-
-class _BeltProgress {
-  final BeltColor belt;
-  final int degree;
-  final int maxDegree;
-  final int sessionsInBelt;
-  final int sessionsRequired;
-  final double percentToNextBelt;
-
-  const _BeltProgress({
-    required this.belt,
-    required this.degree,
-    required this.maxDegree,
-    required this.sessionsInBelt,
-    required this.sessionsRequired,
-    required this.percentToNextBelt,
-  });
-}
-
 class _EmptyState extends StatelessWidget {
   final String title;
   final String subtitle;
@@ -2104,35 +2094,19 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  subtitle,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.7)),
-                ),
-              ],
-            ),
-          ),
+        child: TitansEmptyState(
+          icon: Icons.person_search_outlined,
+          title: title,
+          message: subtitle,
+          compact: true,
         ),
       ),
     );
   }
 }
-
 class _ErrorState extends StatelessWidget {
   final String title;
   final String message;

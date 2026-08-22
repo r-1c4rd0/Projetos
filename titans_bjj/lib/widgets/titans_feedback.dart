@@ -1,0 +1,255 @@
+import 'package:flutter/material.dart';
+
+import '../core/titans_ui.dart';
+
+class TitansPressableCard extends StatefulWidget {
+  final Widget child;
+  final Color? accent;
+  final VoidCallback? onTap;
+  final EdgeInsetsGeometry padding;
+
+  const TitansPressableCard({
+    super.key,
+    required this.child,
+    this.accent,
+    this.onTap,
+    this.padding = TitansUI.cardPadding,
+  });
+
+  @override
+  State<TitansPressableCard> createState() => _TitansPressableCardState();
+}
+
+class _TitansPressableCardState extends State<TitansPressableCard> {
+  bool _pressed = false;
+  bool _hovered = false;
+
+  void _setPressed(bool value) {
+    if (_pressed == value) return;
+    setState(() => _pressed = value);
+  }
+
+  void _setHovered(bool value) {
+    if (_hovered == value) return;
+    setState(() => _hovered = value);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = widget.accent ?? cs.primary;
+    final scale = _pressed ? 0.985 : (_hovered ? 1.006 : 1.0);
+    return MouseRegion(
+      onEnter: (_) => _setHovered(true),
+      onExit: (_) => _setHovered(false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
+        onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
+        onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
+        onTap: widget.onTap,
+        child: AnimatedScale(
+          scale: scale,
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOutCubic,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            padding: widget.padding,
+            decoration: TitansUI.cardDecoration(context, accent: accent),
+            child: AnimatedOpacity(
+              duration: const Duration(milliseconds: 120),
+              opacity: _pressed ? 0.92 : 1,
+              child: widget.child,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class TitansSkeletonCard extends StatelessWidget {
+  final int lines;
+  final bool showHeader;
+
+  const TitansSkeletonCard({
+    super.key,
+    this.lines = 4,
+    this.showHeader = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Center(
+      child: Padding(
+        padding: TitansUI.pagePadding,
+        child: Container(
+          constraints: const BoxConstraints(maxWidth: 560),
+          padding: TitansUI.cardPadding,
+          decoration: TitansUI.cardDecoration(context, accent: cs.primary),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showHeader) ...[
+                Row(
+                  children: [
+                    _SkeletonBlock(width: 46, height: 46, radius: 999),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SkeletonBlock(width: double.infinity, height: 14),
+                          SizedBox(height: 8),
+                          _SkeletonBlock(width: 160, height: 10),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+              ],
+              for (var i = 0; i < lines; i++) ...[
+                _SkeletonBlock(
+                  width: i.isEven ? double.infinity : 220,
+                  height: 12,
+                ),
+                if (i != lines - 1) const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkeletonBlock extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+
+  const _SkeletonBlock({
+    required this.width,
+    required this.height,
+    this.radius = 999,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.35, end: 0.85),
+      duration: const Duration(milliseconds: 900),
+      curve: Curves.easeInOut,
+      builder: (context, value, child) {
+        return Opacity(opacity: value, child: child);
+      },
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          color: cs.onSurface.withValues(alpha: 0.08),
+        ),
+      ),
+    );
+  }
+}
+
+class TitansEmptyState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final Widget? action;
+  final bool compact;
+
+  const TitansEmptyState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.action,
+    this.compact = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansPressableCard(
+      accent: cs.secondary,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: compact ? 42 : 52,
+            height: compact ? 42 : 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: cs.secondary.withValues(alpha: 0.12),
+              border: Border.all(color: cs.secondary.withValues(alpha: 0.35)),
+            ),
+            child: Icon(icon, color: cs.secondary),
+          ),
+          SizedBox(height: compact ? 10 : 14),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            message,
+            maxLines: compact ? 2 : 3,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+          ),
+          if (action != null) ...[
+            SizedBox(height: compact ? 10 : 14),
+            action!,
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class TitansAnimatedSection extends StatelessWidget {
+  final Widget child;
+  final Duration delay;
+
+  const TitansAnimatedSection({
+    super.key,
+    required this.child,
+    this.delay = Duration.zero,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: 280 + delay.inMilliseconds),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        final visible = value.clamp(0.0, 1.0).toDouble();
+        return Opacity(
+          opacity: visible,
+          child: Transform.translate(
+            offset: Offset(0, 10 * (1 - visible)),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}

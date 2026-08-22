@@ -8,6 +8,7 @@ import '../model/nutrition_models.dart';
 import '../repository/nutrition_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
 class NutritionScreen extends StatefulWidget {
@@ -164,7 +165,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         );
       }
 
-      return const TitansStateView.loading();
+      return const TitansSkeletonCard(lines: 4);
     }
 
     final target = _resolveTarget(context);
@@ -202,7 +203,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         future: _mealsFuture,
         builder: (context, snap) {
           if (!snap.hasData) {
-            return const TitansStateView.loading();
+            return const TitansSkeletonCard(lines: 4);
           }
 
           final meals = snap.data!;
@@ -297,7 +298,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
               ),
               if (meals.isEmpty)
-                const TitansStateView.empty(
+                const TitansEmptyState(
+                  icon: Icons.restaurant_outlined,
                   title: 'Sem refeicoes registradas',
                   message: 'Use o botao adicionar para registrar a primeira refeicao.',
                   compact: true,

@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../model/app_user.dart';
@@ -550,19 +550,28 @@ class _DebriefSelectCard extends StatelessWidget {
         decoration: InputDecoration(
           labelText: label,
           prefixIcon: Icon(icon),
-          suffixIcon: loading
-              ? const Padding(
-                  padding: EdgeInsets.all(14),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
+          suffixIcon: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: loading
+                ? const Padding(
+                    key: ValueKey('loading'),
+                    padding: EdgeInsets.all(14),
+                    child: SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  )
+                : const Icon(
+                    Icons.keyboard_arrow_down,
+                    key: ValueKey('arrow'),
                   ),
-                )
-              : const Icon(Icons.keyboard_arrow_down),
+          ),
         ),
         child: Text(
           hasValue ? value!.trim() : placeholder,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: hasValue ? cs.onSurface : cs.onSurface.withValues(alpha: 0.55),
             fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
@@ -767,6 +776,8 @@ class _DebriefOptionTile extends StatelessWidget {
         onTap: onTap,
         title: Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
           ),

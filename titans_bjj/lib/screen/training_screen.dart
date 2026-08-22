@@ -11,6 +11,7 @@ import '../repository/training_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'add_training_session_screen.dart';
 
@@ -117,7 +118,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
             onSelected: (p) => setState(() => _period = p),
             itemBuilder: (_) => const [
               PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
-              PopupMenuItem(value: ProgressPeriod.month, child: Text('MÃƒÂªs')),
+              PopupMenuItem(value: ProgressPeriod.month, child: Text('Mês')),
               PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
             ],
             icon: const Icon(Icons.filter_alt_outlined),
@@ -145,7 +146,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         stream: _sessionsStream,
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
-            return const TitansStateView.loading();
+            return const TitansSkeletonCard(lines: 4);
           }
 
           if (snap.hasError) {
@@ -201,10 +202,27 @@ class _TrainingScreenState extends State<TrainingScreen> {
               ),
               const SizedBox(height: 12),
               if (sessions.isEmpty)
-                const TitansStateView.empty(
+                TitansEmptyState(
+                  icon: Icons.fitness_center_outlined,
                   title: 'Sem treinos registrados',
-                  message: 'Use o botao Treino para adicionar a primeira sessao.',
+                  message: 'Adicione uma sessao para iniciar o historico.',
                   compact: true,
+                  action: canEditTarget
+                      ? FilledButton.icon(
+                          onPressed: () async {
+                            await Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => AddTrainingSessionScreen(
+                                  academyId: academyId,
+                                  uid: uid,
+                                ),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.add),
+                          label: const Text('Adicionar treino'),
+                        )
+                      : null,
                 )
               else
                 ...sessions.reversed.map((s) {
@@ -318,11 +336,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Treinos por dia (ÃƒÂºltimos 14 dias)';
+        return 'Treinos por dia (últimos 14 dias)';
       case ProgressPeriod.month:
-        return 'Treinos por mÃƒÂªs (ÃƒÂºltimos 12 meses)';
+        return 'Treinos por mês (últimos 12 meses)';
       case ProgressPeriod.year:
-        return 'Treinos por ano (ÃƒÂºltimos 5 anos)';
+        return 'Treinos por ano (últimos 5 anos)';
     }
   }
 
