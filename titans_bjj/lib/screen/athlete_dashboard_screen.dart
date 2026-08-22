@@ -12,6 +12,7 @@ import '../repository/training_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
@@ -247,13 +248,16 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       final debriefInsights =
                           _buildDebriefInsights(recentSessions);
                       final gameMapLite = TrainingAggregator.buildGameMap(
-                          recentSessions,
-                          limit: 10,
-                        );
+                        recentSessions,
+                        limit: 10,
+                      );
+                      final skillMatrix = TrainingAggregator.buildSkillMatrix(
+                        filtered,
+                        limit: 50,
+                      );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
-
                           return SafeArea(
                             bottom: false,
                             child: SingleChildScrollView(
@@ -375,6 +379,22 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                             const SizedBox(height: 12),
                                             right,
                                           ],
+                                        );
+                                      },
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _SkillMatrixSummaryCard(
+                                      cs: cs,
+                                      entries: skillMatrix,
+                                      onOpenSkillMatrix: () {
+                                        Navigator.of(context).push(
+                                          MaterialPageRoute(
+                                            builder: (_) => GameMapScreen(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              targetName: headerName,
+                                            ),
+                                          ),
                                         );
                                       },
                                     ),
@@ -1213,6 +1233,505 @@ class _InsightBlock extends StatelessWidget {
       ],
     );
   }
+}
+
+class _SkillMatrixSummaryCard extends StatelessWidget {
+  final ColorScheme cs;
+  final List<SkillMatrixCategoryEntry> entries;
+  final VoidCallback onOpenSkillMatrix;
+
+  const _SkillMatrixSummaryCard({
+    required this.cs,
+    required this.entries,
+    required this.onOpenSkillMatrix,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final activeCategories = List<SkillMatrixCategoryEntry>.from(entries)
+      ..sort((a, b) {
+        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
+        if (sessionsCompare != 0) return sessionsCompare;
+        final techniquesCompare =
+            b.techniquesCount.compareTo(a.techniquesCount);
+        if (techniquesCompare != 0) return techniquesCompare;
+        return a.category.label.compareTo(b.category.label);
+      });
+    final totalTechniques = entries.fold<int>(
+      0,
+      (sum, entry) => sum + entry.techniquesCount,
+    );
+    final totalSessions = entries.fold<int>(
+      0,
+      (sum, entry) => sum + entry.sessionsCount,
+    );
+    final recurringTechniques = entries.fold<int>(
+      0,
+      (sum, entry) => sum + entry.consistencyCount,
+    );
+    final intensityAverage = _weightedSkillIntensity(entries);
+    final highlightedTechniques = entries
+        .expand((entry) => entry.techniques)
+        .take(6)
+        .toList();
+    final strengths = entries
+        .expand((entry) => entry.strengths)
+        .map(_shortDebriefText)
+        .whereType<String>()
+        .take(3)
+        .toList();
+    final attentionPoints = entries
+        .expand((entry) => entry.attentionPoints)
+        .map(_shortDebriefText)
+        .whereType<String>()
+        .take(3)
+        .toList();
+    final maxCategorySessions = activeCategories.isEmpty
+        ? 1
+        : activeCategories
+            .map((entry) => entry.sessionsCount)
+            .reduce((a, b) => a > b ? a : b)
+            .clamp(1, 1 << 30)
+            .toInt();
+
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(
+            title: 'SKILL MATRIX',
+            action: TextButton.icon(
+              onPressed: onOpenSkillMatrix,
+              icon: const Icon(Icons.grid_view_outlined, size: 18),
+              label: const Text('Ver Skill Matrix'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (entries.isEmpty)
+            Text(
+              'Registre posicao e tecnica nos debriefs para montar sua Skill Matrix.',
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
+            )
+          else ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                _MetricPill(
+                  label: 'TECNICAS',
+                  value: totalTechniques.toString(),
+                  color: cs.primary,
+                ),
+                _MetricPill(
+                  label: 'CATEGORIAS',
+                  value: entries.length.toString(),
+                  color: cs.secondary,
+                ),
+                _MetricPill(
+                  label: 'SESSOES',
+                  value: totalSessions.toString(),
+                  color: Colors.lightGreenAccent,
+                ),
+                _MetricPill(
+                  label: 'INTENSIDADE',
+                  value: intensityAverage == null
+                      ? '--'
+                      : '${intensityAverage.toStringAsFixed(1)}/5',
+                  color: Colors.amber,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _SectionHeaderCompact(title: 'TOP CATEGORIAS'),
+            const SizedBox(height: 8),
+            for (final entry in activeCategories.take(3)) ...[
+              _CategoryProgressBar(
+                label: entry.category.label,
+                value: entry.sessionsCount / maxCategorySessions,
+                trailing: '${entry.sessionsCount} sessoes',
+                color: cs.primary,
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 6),
+            _SectionHeaderCompact(title: 'TECNICAS EM DESTAQUE'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final technique in highlightedTechniques)
+                  _TechniqueChip(
+                    label: technique.technique,
+                    count: technique.sessionsCount,
+                    active: technique.consistent,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _BadgeRow(
+              title: 'PONTOS FORTES',
+              empty: 'Sem sucessos recentes.',
+              badges: strengths,
+              color: Colors.lightGreenAccent,
+            ),
+            const SizedBox(height: 12),
+            _BadgeRow(
+              title: 'PONTOS DE ATENCAO',
+              empty: 'Sem dificuldades recentes.',
+              badges: attentionPoints,
+              color: cs.error,
+            ),
+            const SizedBox(height: 12),
+            _InsightBadge(
+              label: 'Aplicacao em rola/competicao ainda sem dados.',
+              color: cs.onSurface.withValues(alpha: 0.42),
+              icon: Icons.radio_button_unchecked,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SectionHeaderCompact extends StatelessWidget {
+  final String title;
+  final Widget? action;
+
+  const _SectionHeaderCompact({required this.title, this.action});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleWidget = Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.75),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        );
+
+        if (action != null && constraints.maxWidth < 360) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleWidget,
+              const SizedBox(height: 6),
+              action!,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: titleWidget),
+            if (action != null) action!,
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MetricPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      constraints: const BoxConstraints(minWidth: 118, maxWidth: 156),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 19,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CategoryProgressBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final String trailing;
+  final Color color;
+
+  const _CategoryProgressBar({
+    required this.label,
+    required this.value,
+    required this.trailing,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                trailing,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.right,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.6),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
+            duration: const Duration(milliseconds: 420),
+            curve: Curves.easeOutCubic,
+            builder: (context, animatedValue, _) {
+              return LinearProgressIndicator(
+                minHeight: 7,
+                value: animatedValue,
+                backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TechniqueChip extends StatelessWidget {
+  final String label;
+  final int count;
+  final bool active;
+
+  const _TechniqueChip({
+    required this.label,
+    required this.count,
+    this.active = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = active ? Colors.lightGreenAccent : cs.secondary;
+    final maxLabelWidth = MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            active ? Icons.repeat_on_outlined : Icons.sports_mma_outlined,
+            size: 15,
+            color: color,
+          ),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxLabelWidth),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.86)),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            '$count',
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BadgeRow extends StatelessWidget {
+  final String title;
+  final String empty;
+  final List<String> badges;
+  final Color color;
+
+  const _BadgeRow({
+    required this.title,
+    required this.empty,
+    required this.badges,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = badges.take(3).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeaderCompact(title: title),
+        const SizedBox(height: 8),
+        AnimatedSwitcher(
+          duration: const Duration(milliseconds: 180),
+          child: visible.isEmpty
+              ? _InsightBadge(
+                  key: const ValueKey('empty'),
+                  label: empty,
+                  color: color,
+                  muted: true,
+                )
+              : Wrap(
+                  key: ValueKey(visible.join('|')),
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final badge in visible)
+                      _InsightBadge(label: badge, color: color),
+                  ],
+                ),
+        ),
+      ],
+    );
+  }
+}
+
+class _InsightBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  final IconData icon;
+  final bool muted;
+
+  const _InsightBadge({
+    super.key,
+    required this.label,
+    required this.color,
+    this.icon = Icons.circle,
+    this.muted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final resolvedColor = muted ? cs.onSurface.withValues(alpha: 0.42) : color;
+    final maxBadgeWidth = MediaQuery.sizeOf(context).width < 420 ? 220.0 : 280.0;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: resolvedColor.withValues(alpha: 0.26)),
+        color: resolvedColor.withValues(alpha: 0.08),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: resolvedColor),
+          const SizedBox(width: 7),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: maxBadgeWidth),
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: muted ? 0.62 : 0.86),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+double? _weightedSkillIntensity(List<SkillMatrixCategoryEntry> entries) {
+  var weighted = 0.0;
+  var sessions = 0;
+
+  for (final category in entries) {
+    for (final technique in category.techniques) {
+      final intensity = technique.averageIntensity;
+      if (intensity == null) continue;
+      weighted += intensity * technique.sessionsCount;
+      sessions += technique.sessionsCount;
+    }
+  }
+
+  if (sessions == 0) return null;
+  return weighted / sessions;
 }
 
 class _GameMapLiteCard extends StatelessWidget {

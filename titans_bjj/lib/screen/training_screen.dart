@@ -117,7 +117,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
             onSelected: (p) => setState(() => _period = p),
             itemBuilder: (_) => const [
               PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
-              PopupMenuItem(value: ProgressPeriod.month, child: Text('Mês')),
+              PopupMenuItem(value: ProgressPeriod.month, child: Text('MÃƒÂªs')),
               PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
             ],
             icon: const Icon(Icons.filter_alt_outlined),
@@ -226,46 +226,64 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         _iconForPlace(s.place),
                         color: cs.primary,
                       ),
-                      title: Text(_fmtDateTime(s.date)),
-                      subtitle: Text(_sessionSummary(s)),
-                      trailing: canEditTarget
-                          ? Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Notas: ${s.scores.length}',
-                                  style: TextStyle(
-                                    color: cs.onSurface.withValues(alpha: 0.7),
-                                  ),
-                                ),
-                                IconButton(
-                                  tooltip: 'Editar treino',
-                                  onPressed: () async {
-                                    debugPrint(
-                                      '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                                      'target.uid=$uid canEditTarget=$canEditTarget '
-                                      'academyId=$academyId session.id=${s.id}',
-                                    );
-                                    await Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                        builder: (_) => AddTrainingSessionScreen(
-                                          academyId: academyId,
-                                          uid: uid,
-                                          session: s,
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                  icon: const Icon(Icons.edit_outlined),
-                                ),
-                              ],
-                            )
-                          : Text(
-                              'Notas: ${s.scores.length}',
-                              style: TextStyle(
-                                color: cs.onSurface.withValues(alpha: 0.7),
-                              ),
+                      title: Text(
+                        _fmtDateTime(s.date),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              _sessionSummary(s),
+                              maxLines: 3,
+                              overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 6,
+                              crossAxisAlignment: WrapCrossAlignment.center,
+                              children: [
+                                _TrainingActionChip(
+                                  label: 'Notas: ${s.scores.length}',
+                                  color: cs.onSurface.withValues(alpha: 0.7),
+                                ),
+                                if (canEditTarget)
+                                  TextButton.icon(
+                                    style: TextButton.styleFrom(
+                                      visualDensity: VisualDensity.compact,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 4,
+                                      ),
+                                    ),
+                                    onPressed: () async {
+                                      debugPrint(
+                                        '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                                        'target.uid=$uid canEditTarget=$canEditTarget '
+                                        'academyId=$academyId session.id=${s.id}',
+                                      );
+                                      await Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder: (_) => AddTrainingSessionScreen(
+                                            academyId: academyId,
+                                            uid: uid,
+                                            session: s,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(Icons.edit_outlined, size: 18),
+                                    label: const Text('Editar'),
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   );
                 }),
@@ -300,11 +318,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Treinos por dia (últimos 14 dias)';
+        return 'Treinos por dia (ÃƒÂºltimos 14 dias)';
       case ProgressPeriod.month:
-        return 'Treinos por mês (últimos 12 meses)';
+        return 'Treinos por mÃƒÂªs (ÃƒÂºltimos 12 meses)';
       case ProgressPeriod.year:
-        return 'Treinos por ano (últimos 5 anos)';
+        return 'Treinos por ano (ÃƒÂºltimos 5 anos)';
     }
   }
 
@@ -393,6 +411,32 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 }
 
+class _TrainingActionChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _TrainingActionChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 160),
+      curve: Curves.easeOutCubic,
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      ),
+    );
+  }
+}
 class _Series {
   final List<String> labels;
   final List<int> values;
