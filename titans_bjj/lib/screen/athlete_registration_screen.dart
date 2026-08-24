@@ -7,41 +7,55 @@ import '../repository/athlete_registration_repository.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
+enum AthleteRegistrationMode { createAthlete, editStudent, editSelf }
+
 class AthleteRegistrationScreen extends StatelessWidget {
   final String academyId;
   final String? athleteUid;
+  final AthleteRegistrationMode? mode;
 
   const AthleteRegistrationScreen({
     super.key,
     required this.academyId,
     this.athleteUid,
+    this.mode,
   });
 
   @override
   Widget build(BuildContext context) {
     final actor = UserScope.maybeOf(context);
+    final effectiveMode =
+        mode ??
+        (athleteUid == null
+            ? AthleteRegistrationMode.createAthlete
+            : AthleteRegistrationMode.editStudent);
     debugPrint(
       '[ATHLETE_FORM] screenBuild editMode=${athleteUid != null} '
       'athleteUid=$athleteUid academyId=$academyId '
       'actor.uid=${actor?.uid} actor.role=${actor?.role}',
     );
     return ChangeNotifierProvider(
-      create: (_) => AthleteRegistrationViewModel(
-        repository: AthleteRegistrationRepository.instance,
-      ),
+      create:
+          (_) => AthleteRegistrationViewModel(
+            repository: AthleteRegistrationRepository.instance,
+          ),
       child: _AthleteRegistrationForm(
         academyId: academyId,
         athleteUid: athleteUid,
+        mode: effectiveMode,
       ),
     );
   }
 }
+
 class _AthleteRegistrationForm extends StatefulWidget {
   final String academyId;
   final String? athleteUid;
+  final AthleteRegistrationMode mode;
 
   const _AthleteRegistrationForm({
     required this.academyId,
+    required this.mode,
     this.athleteUid,
   });
 
@@ -53,7 +67,9 @@ class _AthleteRegistrationForm extends StatefulWidget {
 class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
   final _formKey = GlobalKey<FormState>();
 
-  bool get _editing => widget.athleteUid != null;
+  bool get _editing => widget.mode != AthleteRegistrationMode.createAthlete;
+  bool get _editSelf => widget.mode == AthleteRegistrationMode.editSelf;
+  String? get _targetUid => widget.athleteUid;
 
   @override
   void initState() {
@@ -62,7 +78,7 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
       '[ATHLETE_FORM] initState editMode=$_editing '
       'athleteUid=${widget.athleteUid} academyId=${widget.academyId}',
     );
-    final athleteUid = widget.athleteUid;
+    final athleteUid = _targetUid;
     if (athleteUid != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
@@ -71,9 +87,9 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
           'academyId=${widget.academyId}',
         );
         context.read<AthleteRegistrationViewModel>().loadAthlete(
-              academyId: widget.academyId,
-              uid: athleteUid,
-            );
+          academyId: widget.academyId,
+          uid: athleteUid,
+        );
       });
     }
   }
@@ -103,12 +119,22 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
       'actor.uid=${actor?.uid} actor.role=${actor?.role} '
       'belt=${vm.belt.name} degree=${vm.degree}',
     );
-    final success = _editing
-        ? await vm.update(
-            academyId: widget.academyId,
-            uid: widget.athleteUid!,
-          )
-        : await vm.register(academyId: widget.academyId);
+    final targetUid = _targetUid;
+    if (_editing && (targetUid == null || targetUid.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aluno alvo nao informado para edicao.')),
+      );
+      return;
+    }
+
+    final success =
+        _editing
+            ? await vm.update(
+              academyId: widget.academyId,
+              uid: targetUid!,
+              mode: widget.mode,
+            )
+            : await vm.register(academyId: widget.academyId);
     if (!success || !mounted) return;
     if (!_editing) {
       _formKey.currentState?.reset();
@@ -139,7 +165,11 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
     return TitansScaffold(
       scroll: true,
       appBar: AppBar(
-        title: Text(_editing ? 'Editar atleta' : 'Cadastro de atleta'),
+        title: Text(
+          _editing
+              ? (_editSelf ? 'Editar perfil' : 'Editar atleta')
+              : 'Cadastro de atleta',
+        ),
       ),
       body: Center(
         child: ConstrainedBox(
@@ -376,7 +406,11 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                       label: Text(
                         vm.isLoading
                             ? (_editing ? 'Salvando...' : 'Cadastrando...')
-                            : (_editing ? 'Salvar atleta' : 'Cadastrar atleta'),
+                            : (_editing
+                                ? (_editSelf
+                                    ? 'Salvar perfil'
+                                    : 'Salvar atleta')
+                                : 'Cadastrar atleta'),
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -503,6 +537,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
   Future<bool> update({
     required String academyId,
     required String uid,
+    required AthleteRegistrationMode mode,
   }) async {
     final athleteName = nameController.text.trim();
     if (athleteName.length < 3) {
@@ -518,7 +553,10 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final existing = await repository.getAthlete(academyId: academyId, uid: uid);
+      final existing = await repository.getAthlete(
+        academyId: academyId,
+        uid: uid,
+      );
       debugPrint(
         '[ATHLETE_SAVE] before updateAthlete uid=$uid academyId=$academyId '
         'roleBefore=${existing?['role']} roleAfterExpected=${existing?['role']} '
@@ -548,6 +586,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
   Future<bool> register({required String academyId}) async {
     final athleteName = nameController.text.trim();
     if (athleteName.length < 3) {
@@ -640,6 +679,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
     if (value is num) return value.toInt();
     return int.tryParse(value?.toString() ?? '') ?? 0;
   }
+
   @override
   void dispose() {
     nameController.dispose();

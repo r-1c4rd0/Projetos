@@ -108,8 +108,10 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                 onCreate: () => _openRegistration(loggedUser),
                 onOpen: (student) => _openStudent(student, loggedUser),
                 onEdit:
-                    (student) =>
-                        _openRegistration(loggedUser, athleteUid: student.uid),
+                    (student) => _openStudentRegistration(
+                      actor: loggedUser,
+                      student: student,
+                    ),
                 onEditGraduation:
                     (student) => _openGraduationSheet(
                       actor: loggedUser,
@@ -138,13 +140,42 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
     );
   }
 
-  void _openRegistration(AppUser loggedUser, {String? athleteUid}) {
+  void _openRegistration(AppUser loggedUser) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
             (_) => AthleteRegistrationScreen(
               academyId: loggedUser.academyId,
-              athleteUid: athleteUid,
+              mode: AthleteRegistrationMode.createAthlete,
+            ),
+      ),
+    );
+  }
+
+  void _openStudentRegistration({
+    required AppUser actor,
+    required StudentVm student,
+  }) {
+    if (student.uid.trim().isEmpty || student.academyId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aluno alvo nao informado para edicao.')),
+      );
+      return;
+    }
+
+    debugPrint(
+      '[ATHLETE_EDIT_OPEN] source=MasterPanel actor.uid=${actor.uid} '
+      'actor.role=${actor.role} target.uid=${student.uid} '
+      'target.academyId=${student.academyId}',
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => AthleteRegistrationScreen(
+              academyId: student.academyId,
+              athleteUid: student.uid,
+              mode: AthleteRegistrationMode.editStudent,
             ),
       ),
     );
@@ -180,7 +211,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
     final capabilities = _TargetCapabilities.resolve(
       actor: actor,
       targetUid: student.uid,
-      targetAcademyId: actor.academyId,
+      targetAcademyId: student.academyId,
       targetMode: TargetMode.selectedStudent,
     );
 
@@ -193,7 +224,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
     if (!capabilities.canEditGraduation) return;
 
     final targetUser = await _userRepo.getUser(
-      academyId: actor.academyId,
+      academyId: student.academyId,
       uid: student.uid,
     );
     if (!mounted) return;
@@ -222,7 +253,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
     );
 
     await _updateStudentDegree(
-      academyId: actor.academyId,
+      academyId: student.academyId,
       uid: student.uid,
       belt: draft.belt,
       degree: draft.degree,
@@ -323,7 +354,7 @@ class _StudentsGrid extends StatelessWidget {
                   final capabilities = _TargetCapabilities.resolve(
                     actor: actor,
                     targetUid: student.uid,
-                    targetAcademyId: actor.academyId,
+                    targetAcademyId: student.academyId,
                     targetMode: TargetMode.selectedStudent,
                   );
 

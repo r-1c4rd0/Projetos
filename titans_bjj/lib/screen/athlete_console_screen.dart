@@ -11,6 +11,7 @@ import '../widgets/require_selected_student_gate.dart';
 import '../widgets/titans_scaffold.dart';
 
 import 'athlete_dashboard_screen.dart';
+import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
 import 'progress_screen.dart';
@@ -166,9 +167,11 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
       'target.academyId=${widget.target.academyId} canEditTarget=$canEditTarget',
     );
 
-    final isStaffProfile = widget.loggedUser.role == UserRole.admin ||
+    final isStaffProfile =
+        widget.loggedUser.role == UserRole.admin ||
         widget.loggedUser.role == UserRole.professor;
-    final isSelfProfile = widget.targetMode == TargetMode.self &&
+    final isSelfProfile =
+        widget.targetMode == TargetMode.self &&
         widget.loggedUser.uid == widget.target.uid &&
         isStaffProfile;
     debugPrint(
@@ -182,15 +185,17 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
       body: Column(
         children: [
           StreamBuilder<AppUser?>(
-            initialData: widget.target.uid == widget.loggedUser.uid
-                ? widget.loggedUser
-                : null,
+            initialData:
+                widget.target.uid == widget.loggedUser.uid
+                    ? widget.loggedUser
+                    : null,
             stream: _targetUserStream,
             builder: (context, targetSnap) {
               final targetUser = targetSnap.data;
-              final fallbackName = selectedMode
-                  ? widget.athleteNameOverride
-                  : widget.loggedUser.name;
+              final fallbackName =
+                  selectedMode
+                      ? widget.athleteNameOverride
+                      : widget.loggedUser.name;
 
               return _ConsoleContextHeader(
                 targetMode: widget.targetMode,
@@ -199,6 +204,8 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
                 targetUser: targetUser,
                 fallbackName: fallbackName,
                 isSelfProfile: isSelfProfile,
+                canEditProfile: canEditTarget,
+                onEditProfile: () => _openTargetRegistration(),
               );
             },
           ),
@@ -255,14 +262,15 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         shortLabel: 'Overview',
         icon: Icons.home_outlined,
         description: 'Resumo do perfil',
-        builder: (context) => AthleteDashboardScreen(
-          athleteNameOverride: widget.athleteNameOverride,
-          titleOverride: 'Inicio',
-          targetMode: widget.targetMode,
-          explicitTarget: target,
-          loggedUser: loggedUser,
-          embedded: true,
-        ),
+        builder:
+            (context) => AthleteDashboardScreen(
+              athleteNameOverride: widget.athleteNameOverride,
+              titleOverride: 'Inicio',
+              targetMode: widget.targetMode,
+              explicitTarget: target,
+              loggedUser: loggedUser,
+              embedded: true,
+            ),
       ),
       _ConsoleModule(
         id: 'training',
@@ -270,13 +278,14 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         shortLabel: 'Treinos',
         icon: Icons.sports_mma_outlined,
         description: 'Historico e sessoes',
-        builder: (context) => TrainingScreen(
-          titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
-          targetMode: widget.targetMode,
-          explicitTarget: target,
-          loggedUser: loggedUser,
-          embedded: true,
-        ),
+        builder:
+            (context) => TrainingScreen(
+              titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
+              targetMode: widget.targetMode,
+              explicitTarget: target,
+              loggedUser: loggedUser,
+              embedded: true,
+            ),
       ),
       _ConsoleModule(
         id: 'progress',
@@ -284,13 +293,14 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         shortLabel: 'Progresso',
         icon: Icons.insights_outlined,
         description: 'Evolucao e metas',
-        builder: (context) => ProgressScreen(
-          titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
-          targetMode: widget.targetMode,
-          explicitTarget: target,
-          loggedUser: loggedUser,
-          embedded: true,
-        ),
+        builder:
+            (context) => ProgressScreen(
+              titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
+              targetMode: widget.targetMode,
+              explicitTarget: target,
+              loggedUser: loggedUser,
+              embedded: true,
+            ),
       ),
       _ConsoleModule(
         id: 'gameMap',
@@ -298,13 +308,14 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         shortLabel: 'Game Map',
         icon: Icons.map_outlined,
         description: 'Mapa tecnico',
-        builder: (context) => GameMapScreen(
-          academyId: target.academyId,
-          uid: target.uid,
-          title: selectedMode ? 'Game Map do aluno' : 'Game Map',
-          targetName: null,
-          embedded: true,
-        ),
+        builder:
+            (context) => GameMapScreen(
+              academyId: target.academyId,
+              uid: target.uid,
+              title: selectedMode ? 'Game Map do aluno' : 'Game Map',
+              targetName: null,
+              embedded: true,
+            ),
       ),
       _ConsoleModule(
         id: 'nutrition',
@@ -312,21 +323,54 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         shortLabel: 'Nutricao',
         icon: Icons.restaurant_outlined,
         description: 'Plano alimentar',
-        builder: (context) => NutritionScreen(
-          titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
-          targetMode: widget.targetMode,
-          explicitTarget: target,
-          loggedUser: loggedUser,
-          showLeading: false,
-          embedded: true,
-        ),
+        builder:
+            (context) => NutritionScreen(
+              titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
+              targetMode: widget.targetMode,
+              explicitTarget: target,
+              loggedUser: loggedUser,
+              showLeading: false,
+              embedded: true,
+            ),
       ),
     ];
   }
 
+  void _openTargetRegistration() {
+    if (widget.target.uid.trim().isEmpty ||
+        widget.target.academyId.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Perfil alvo nao informado para edicao.')),
+      );
+      return;
+    }
+
+    final mode =
+        widget.targetMode == TargetMode.selectedStudent
+            ? AthleteRegistrationMode.editStudent
+            : AthleteRegistrationMode.editSelf;
+
+    debugPrint(
+      '[ATHLETE_EDIT_OPEN] source=AthleteConsole actor.uid=${widget.loggedUser.uid} '
+      'actor.role=${widget.loggedUser.role} target.uid=${widget.target.uid} '
+      'target.academyId=${widget.target.academyId} mode=$mode',
+    );
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => AthleteRegistrationScreen(
+              academyId: widget.target.academyId,
+              athleteUid: widget.target.uid,
+              mode: mode,
+            ),
+      ),
+    );
+  }
+
   bool _canEditTarget(AppUser actor, TargetProfile target) {
-    final canManage = actor.role == UserRole.admin ||
-        actor.role == UserRole.professor;
+    final canManage =
+        actor.role == UserRole.admin || actor.role == UserRole.professor;
     return actor.academyId == target.academyId &&
         (actor.uid == target.uid || canManage);
   }
@@ -369,9 +413,10 @@ class _ModuleHub extends StatelessWidget {
       builder: (context, constraints) {
         final width = constraints.maxWidth;
         final isWide = width >= 900;
-        final columns = isWide
-            ? 5
-            : width >= 620
+        final columns =
+            isWide
+                ? 5
+                : width >= 620
                 ? 3
                 : 2;
         final gap = isWide ? TitansUI.spaceMd : TitansUI.spaceSm;
@@ -446,13 +491,15 @@ class _ModuleCardState extends State<_ModuleCard> {
                 accent: accent,
                 radius: TitansUI.radiusSmall,
               ).copyWith(
-                color: widget.selected
-                    ? Color.lerp(TitansUI.card, accent, 0.12)
-                    : TitansUI.card,
+                color:
+                    widget.selected
+                        ? Color.lerp(TitansUI.card, accent, 0.12)
+                        : TitansUI.card,
                 border: Border.all(
-                  color: widget.selected
-                      ? accent.withValues(alpha: 0.72)
-                      : cs.onSurface.withValues(alpha: 0.09),
+                  color:
+                      widget.selected
+                          ? accent.withValues(alpha: 0.72)
+                          : cs.onSurface.withValues(alpha: 0.09),
                 ),
               ),
               child: Row(
@@ -484,10 +531,8 @@ class _ModuleCardState extends State<_ModuleCard> {
                           widget.module.shortLabel,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.labelLarge?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
+                          style: Theme.of(context).textTheme.labelLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                         const SizedBox(height: 3),
                         Text(
@@ -512,6 +557,8 @@ class _ModuleCardState extends State<_ModuleCard> {
   }
 }
 
+enum _ConsoleHeaderAction { editProfile }
+
 class _ConsoleContextHeader extends StatelessWidget {
   final TargetMode targetMode;
   final AppUser actor;
@@ -519,6 +566,8 @@ class _ConsoleContextHeader extends StatelessWidget {
   final AppUser? targetUser;
   final String? fallbackName;
   final bool isSelfProfile;
+  final bool canEditProfile;
+  final VoidCallback? onEditProfile;
 
   const _ConsoleContextHeader({
     required this.targetMode,
@@ -527,6 +576,8 @@ class _ConsoleContextHeader extends StatelessWidget {
     required this.targetUser,
     required this.fallbackName,
     required this.isSelfProfile,
+    required this.canEditProfile,
+    required this.onEditProfile,
   });
 
   @override
@@ -536,9 +587,10 @@ class _ConsoleContextHeader extends StatelessWidget {
     final user = targetUser ?? (target.uid == actor.uid ? actor : null);
     final displayName = _displayName(user, fallbackName);
     final title = isSelfProfile ? 'MEU PERFIL' : displayName;
-    final subtitle = isSelfProfile
-        ? '$displayName - ${_roleLabel(actor.role)}'
-        : user == null
+    final subtitle =
+        isSelfProfile
+            ? '$displayName - ${_roleLabel(actor.role)}'
+            : user == null
             ? 'Faixa carregando - Grau --'
             : 'Faixa ${_beltName(user.belt)} - Grau ${user.degree}';
     final accent = isSelectedStudent ? cs.primary : cs.secondary;
@@ -583,8 +635,8 @@ class _ConsoleContextHeader extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -599,6 +651,30 @@ class _ConsoleContextHeader extends StatelessWidget {
               ],
             ),
           ),
+          if (canEditProfile) ...[
+            const SizedBox(width: TitansUI.spaceXs),
+            PopupMenuButton<_ConsoleHeaderAction>(
+              tooltip: 'Acoes do perfil',
+              icon: const Icon(Icons.more_vert),
+              onSelected: (action) {
+                switch (action) {
+                  case _ConsoleHeaderAction.editProfile:
+                    onEditProfile?.call();
+                    break;
+                }
+              },
+              itemBuilder:
+                  (context) => const [
+                    PopupMenuItem(
+                      value: _ConsoleHeaderAction.editProfile,
+                      child: _HeaderMenuItem(
+                        icon: Icons.edit_outlined,
+                        label: 'Editar cadastro',
+                      ),
+                    ),
+                  ],
+            ),
+          ],
         ],
       ),
     );
@@ -638,5 +714,23 @@ class _ConsoleContextHeader extends StatelessWidget {
       case BeltColor.black:
         return 'preta';
     }
+  }
+}
+
+class _HeaderMenuItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _HeaderMenuItem({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(width: TitansUI.spaceSm),
+        Flexible(child: Text(label)),
+      ],
+    );
   }
 }

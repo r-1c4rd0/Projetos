@@ -59,14 +59,11 @@ class AthleteRegistrationRepository {
     required String uid,
     required Map<String, dynamic> payload,
   }) async {
-    await _userRef(academyId: academyId, uid: uid).set(
-      {
-        ...payload,
-        'academyId': academyId,
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _userRef(academyId: academyId, uid: uid).set({
+      ...payload,
+      'academyId': academyId,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   Future<void> deleteAthlete({
@@ -91,10 +88,17 @@ class AthleteRegistrationRepository {
     String? notes,
   }) async {
     final existing = await getAthlete(academyId: academyId, uid: uid);
-    final existingRole = existing?['role']?.toString();
-    final role = existingRole == 'admin' || existingRole == 'professor'
-        ? existingRole
-        : 'athlete';
+    if (existing == null) {
+      throw StateError(
+        'Atleta alvo nao encontrado em academies/$academyId/users/$uid.',
+      );
+    }
+
+    final existingRole = existing['role']?.toString();
+    final role =
+        existingRole == 'admin' || existingRole == 'professor'
+            ? existingRole
+            : 'athlete';
 
     final payload = <String, dynamic>{
       'name': name,
