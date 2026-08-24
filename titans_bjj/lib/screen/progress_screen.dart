@@ -16,6 +16,7 @@ import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../service/training_aggregator.dart';
+import '../widgets/titans_belt_status_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -684,137 +685,23 @@ class _BeltProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final beltColor = _beltUiColor(progress.belt, context);
-
     final pctText = '${(progress.percentToNextBelt * 100).toStringAsFixed(0)}%';
-    final beltLabel = 'Faixa ${_beltName(progress.belt)}';
-    final gradeLabel = 'Grau ${progress.degree} de ${progress.maxDegree}';
     final sessionLabel =
         '${progress.sessionsInCurrentBelt}/${progress.sessionsRequiredCurrentBelt} sess\u00f5es na faixa atual';
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Gradua\u00e7\u00e3o atual',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.75),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: [
-                _BeltChip(label: beltLabel, color: beltColor),
-                _BeltChip(label: gradeLabel, color: cs.primary),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Progresso da faixa',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.75),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  pctText,
-                  style: TextStyle(
-                    color: beltColor,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TitansProgressIndicator(
-              value: progress.percentToNextBelt,
-              color: beltColor,
-              height: 14,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              sessionLabel,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Baseado em sess\u00f5es registradas nesta faixa.',
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.58),
-                fontSize: 12,
-              ),
-            ),
-            if (onEditGraduation != null) ...[
-              const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: onEditGraduation,
-                icon: const Icon(Icons.military_tech_outlined),
-                label: const Text('Editar gradua\u00e7\u00e3o'),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return TitansBeltStatusCard(
+      belt: progress.belt,
+      degree: progress.degree,
+      maxDegree: progress.maxDegree,
+      progressPercent: progress.percentToNextBelt,
+      progressValueLabel: pctText,
+      subtitle:
+          '$sessionLabel\nBaseado em sess\u00f5es registradas nesta faixa.',
+      onEdit: onEditGraduation,
     );
   }
 
-  static Color _beltUiColor(BeltColor belt, BuildContext context) {
-    return TitansUI.beltColor(belt.name);
-  }
-
-  static String beltName(BeltColor belt) => _beltName(belt);
-
-  static String _beltName(BeltColor belt) => TitansUI.beltLabel(belt.name);
-}
-
-class _BeltChip extends StatelessWidget {
-  final String label;
-  final Color color;
-
-  const _BeltChip({required this.label, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.85), width: 1),
-        color: color.withValues(alpha: 0.10),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: color.computeLuminance() > 0.8 ? cs.onSurface : color,
-          fontSize: 12,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-    );
-  }
+  static String beltName(BeltColor belt) => TitansBeltStatusCard.beltName(belt);
 }
 
 class _TrainingMetricsCard extends StatelessWidget {

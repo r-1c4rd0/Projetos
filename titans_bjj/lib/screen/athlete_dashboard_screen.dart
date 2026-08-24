@@ -15,6 +15,7 @@ import '../service/target_resolver.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
+import '../widgets/titans_belt_status_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_registration_screen.dart';
@@ -307,6 +308,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         uid: uid,
                                         belt: beltProgress.belt,
                                         degree: beltProgress.degree,
+                                        maxDegree: beltProgress.maxDegree,
                                         percentToNext:
                                             beltProgress.percentToNextBelt,
                                         onEditProfile:
@@ -864,6 +866,7 @@ class _AthleteCard extends StatelessWidget {
   final String uid;
   final BeltColor belt;
   final int degree;
+  final int maxDegree;
   final double percentToNext;
   final VoidCallback? onEditProfile;
   final VoidCallback? onEditGraduation;
@@ -874,6 +877,7 @@ class _AthleteCard extends StatelessWidget {
     required this.uid,
     required this.belt,
     required this.degree,
+    required this.maxDegree,
     required this.percentToNext,
     this.onEditProfile,
     this.onEditGraduation,
@@ -882,7 +886,6 @@ class _AthleteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final beltColor = TitansUI.beltColor(belt.name);
 
     return _GlassCard(
       child: Column(
@@ -907,6 +910,8 @@ class _AthleteCard extends StatelessWidget {
                       email.isEmpty
                           ? 'ID: ${uid.substring(0, 6).toUpperCase()}'
                           : '$email - ID: ${uid.substring(0, 6).toUpperCase()}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: cs.onSurface.withValues(alpha: 0.65),
                         fontSize: 12,
@@ -915,105 +920,35 @@ class _AthleteCard extends StatelessWidget {
                   ],
                 ),
               ),
-              _BeltPill(belt: belt, color: beltColor),
             ],
           ),
           const SizedBox(height: 12),
-          Text(
-            'Progresso para o pr\u00f3ximo grau',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.65),
-              fontSize: 12,
-            ),
+          TitansBeltStatusCard(
+            belt: belt,
+            degree: degree,
+            maxDegree: maxDegree,
+            title: 'Gradua\u00e7\u00e3o atual',
+            progressPercent: percentToNext,
+            progressLabel: 'Progresso para o pr\u00f3ximo grau',
+            compact: true,
+            framed: false,
+            onEdit: onEditGraduation,
           ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 10,
-              value: percentToNext.clamp(0.0, 1.0),
-              backgroundColor: cs.surfaceContainerHighest.withValues(
-                alpha: 0.35,
-              ),
-              valueColor: AlwaysStoppedAnimation<Color>(beltColor),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: Text(
-              '${(percentToNext * 100).round()}%',
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.75),
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Grau atual: $degree',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          if (onEditProfile != null || onEditGraduation != null) ...[
+          if (onEditProfile != null) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                if (onEditProfile != null)
-                  OutlinedButton.icon(
-                    onPressed: onEditProfile,
-                    icon: const Icon(Icons.edit_outlined),
-                    label: const Text('Editar perfil'),
-                  ),
-                if (onEditGraduation != null)
-                  OutlinedButton.icon(
-                    onPressed: onEditGraduation,
-                    icon: const Icon(Icons.military_tech_outlined),
-                    label: const Text('Editar gradua\u00e7\u00e3o'),
-                  ),
+                OutlinedButton.icon(
+                  onPressed: onEditProfile,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Editar perfil'),
+                ),
               ],
             ),
           ],
         ],
-      ),
-    );
-  }
-}
-
-class _BeltPill extends StatelessWidget {
-  final BeltColor belt;
-  final Color color;
-  const _BeltPill({required this.belt, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final label = switch (belt) {
-      BeltColor.white => 'Faixa branca',
-      BeltColor.blue => 'Faixa azul',
-      BeltColor.purple => 'Faixa roxa',
-      BeltColor.brown => 'Faixa marrom',
-      BeltColor.black => 'Faixa preta',
-    };
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.85), width: 1),
-        color: Colors.black.withValues(alpha: 0.18),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w900,
-          letterSpacing: 0.3,
-        ),
       ),
     );
   }
@@ -1048,7 +983,7 @@ class _GraduationProgressCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '${_beltLabel(progress.belt)} - grau ${progress.degree}/${progress.maxDegree}',
+            '${TitansBeltStatusCard.beltName(progress.belt)} - Grau ${progress.degree} de ${progress.maxDegree}',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 10),
