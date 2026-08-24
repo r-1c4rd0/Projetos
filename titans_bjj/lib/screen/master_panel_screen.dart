@@ -183,7 +183,7 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
 
   void _openStudent(StudentVm student, AppUser loggedUser) {
     final selectedStudent = SelectedStudent(
-      academyId: loggedUser.academyId,
+      academyId: student.academyId,
       uid: student.uid,
       name: student.name,
     );
