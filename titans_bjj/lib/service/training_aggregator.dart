@@ -217,6 +217,57 @@ class RecommendedTrainingFocus {
       technique != null && technique!.trim().isNotEmpty;
 }
 
+class NextTrainingRecommendation {
+  final String title;
+  final String subtitle;
+  final String? focusPosition;
+  final String? focusTechnique;
+  final String objective;
+  final String warmupSuggestion;
+  final String technicalDrill;
+  final String applicationSuggestion;
+  final String reflectionQuestion;
+  final String intensityGuidance;
+  final List<String> tags;
+  final RecommendedTrainingFocusPriority priority;
+  final String? emptyMessage;
+
+  const NextTrainingRecommendation({
+    required this.title,
+    required this.subtitle,
+    required this.focusPosition,
+    required this.focusTechnique,
+    required this.objective,
+    required this.warmupSuggestion,
+    required this.technicalDrill,
+    required this.applicationSuggestion,
+    required this.reflectionQuestion,
+    required this.intensityGuidance,
+    required this.tags,
+    required this.priority,
+    this.emptyMessage,
+  });
+
+  const NextTrainingRecommendation.empty()
+      : title = 'Pr\u00f3ximo treino',
+        subtitle = 'Aguardando debrief t\u00e9cnico',
+        focusPosition = null,
+        focusTechnique = null,
+        objective = '',
+        warmupSuggestion = '',
+        technicalDrill = '',
+        applicationSuggestion = '',
+        reflectionQuestion = '',
+        intensityGuidance = '',
+        tags = const [],
+        priority = RecommendedTrainingFocusPriority.none,
+        emptyMessage =
+            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar uma sugest\u00e3o de pr\u00f3ximo treino.';
+
+  bool get hasRecommendation =>
+      focusTechnique != null && focusTechnique!.trim().isNotEmpty;
+}
+
 class TrainingAggregator {
   static const int recentWindowDays = 30;
   static const String undefinedPositionLabel = 'Sem posi\u00e7\u00e3o definida';
@@ -651,6 +702,229 @@ class TrainingAggregator {
     );
   }
 
+  static NextTrainingRecommendation buildNextTrainingRecommendation(
+    List<TrainingSession> sessions, {
+    int recentLimit = 20,
+  }) {
+    final focus = buildRecommendedFocus(sessions, recentLimit: recentLimit);
+    if (!focus.hasRecommendation) {
+      return const NextTrainingRecommendation.empty();
+    }
+
+    final target = _focusTarget(focus);
+    final position = focus.position ?? undefinedPositionLabel;
+    final baseTags = _nextTrainingTags(focus);
+
+    switch (focus.recommendationType) {
+      case RecommendedTrainingFocusType.applicationAdjustment:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: revisar $target',
+          subtitle: 'Ajuste para aplica\u00e7\u00e3o controlada',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective:
+              'Corrigir entrada, base e controle antes de buscar a finaliza\u00e7\u00e3o.',
+          warmupSuggestion:
+              'Entradas leves para chegar em $position com postura est\u00e1vel.',
+          technicalDrill:
+              'Repetir ${focus.technique} pausando no ponto em que a defesa apareceu.',
+          applicationSuggestion:
+              'Testar em treino posicional antes de levar para a rola livre.',
+          reflectionQuestion:
+              'O ajuste impediu a falha ou a defesa do parceiro?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Comece leve e aumente a resist\u00eancia apenas quando houver controle.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.nearSuccess:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: consolidar $target',
+          subtitle: 'Detalhe final da aplica\u00e7\u00e3o',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Consolidar o detalhe que faltou para a t\u00e9cnica funcionar.',
+          warmupSuggestion:
+              'Repeti\u00e7\u00f5es leves de ${focus.technique} sem acelerar o movimento.',
+          technicalDrill:
+              'Fazer poucas repeti\u00e7\u00f5es com qualidade e pausa para ajuste.',
+          applicationSuggestion:
+              'Aplicar em situa\u00e7\u00e3o controlada e repetir o detalhe principal.',
+          reflectionQuestion: 'Qual detalhe faltou quando quase funcionou?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Priorize precis\u00e3o antes de intensidade.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.recentSuccess:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: repetir $target',
+          subtitle: 'Consolida\u00e7\u00e3o com resist\u00eancia progressiva',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Transformar uma aplica\u00e7\u00e3o que funcionou em recurso recorrente.',
+          warmupSuggestion:
+              'Revisar a entrada de ${focus.technique} em ritmo controlado.',
+          technicalDrill:
+              'Repetir o movimento com parceiro oferecendo rea\u00e7\u00e3o gradual.',
+          applicationSuggestion:
+              'Testar com resist\u00eancia progressiva e registrar se funcionou de novo.',
+          reflectionQuestion: 'A t\u00e9cnica seguiu funcionando com mais resist\u00eancia?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Suba a intensidade aos poucos, mantendo qualidade nas repeti\u00e7\u00f5es.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.drillToApplication:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: testar $target',
+          subtitle: 'Do drill para o treino posicional',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Levar o drill para uma situa\u00e7\u00e3o controlada.',
+          warmupSuggestion:
+              'Manter o drill de ${focus.technique} com repeti\u00e7\u00f5es limpas.',
+          technicalDrill:
+              'Repetir entrada, controle e sa\u00edda antes de adicionar resist\u00eancia.',
+          applicationSuggestion:
+              'Testar em treino posicional e registrar o resultado no debrief.',
+          reflectionQuestion: 'Funcionou, quase funcionou ou foi defendida?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Use resist\u00eancia leve primeiro para medir o ajuste.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.difficulty:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: revisar $target',
+          subtitle: 'Ajuste do ponto de dificuldade',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Melhorar o ponto de dificuldade registrado.',
+          warmupSuggestion:
+              'Chegar em $position e estabilizar antes de iniciar a t\u00e9cnica.',
+          technicalDrill:
+              'Separar rounds curtos para repetir entrada, controle e finaliza\u00e7\u00e3o.',
+          applicationSuggestion:
+              'Checar em situa\u00e7\u00e3o controlada se o ajuste melhorou.',
+          reflectionQuestion: 'A dificuldade diminuiu depois do ajuste?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Mantenha intensidade moderada para perceber o erro com clareza.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.consistency:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: consolidar $target',
+          subtitle: 'Mais repeti\u00e7\u00f5es com qualidade',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Aumentar a consist\u00eancia sem mudar o foco t\u00e9cnico.',
+          warmupSuggestion:
+              'Usar ${focus.technique} como aquecimento t\u00e9cnico principal.',
+          technicalDrill:
+              'Fazer blocos curtos de repeti\u00e7\u00e3o e registrar o que melhorou.',
+          applicationSuggestion:
+              'Aplicar em situa\u00e7\u00e3o controlada se houver seguran\u00e7a no detalhe.',
+          reflectionQuestion: 'A repeti\u00e7\u00e3o deixou a t\u00e9cnica mais est\u00e1vel?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Use intensidade baixa a moderada para preservar qualidade.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.maintenance:
+        return NextTrainingRecommendation(
+          title: 'Pr\u00f3ximo treino: manter $target',
+          subtitle: 'Refino de ponto recorrente',
+          focusPosition: focus.position,
+          focusTechnique: focus.technique,
+          objective: 'Refinar um ponto que j\u00e1 aparece com recorr\u00eancia.',
+          warmupSuggestion:
+              'Entrar em $position e variar pegadas antes do movimento principal.',
+          technicalDrill:
+              'Repetir ${focus.technique} alternando ritmo, entrada e ajuste fino.',
+          applicationSuggestion:
+              'Checar em treino posicional se as varia\u00e7\u00f5es seguem est\u00e1veis.',
+          reflectionQuestion: 'Qual varia\u00e7\u00e3o deixou a t\u00e9cnica mais forte?',
+          intensityGuidance: _nextTrainingIntensityGuidance(
+            focus,
+            'Trabalhe com intensidade moderada e foco em refino.',
+          ),
+          tags: baseTags,
+          priority: focus.priority,
+        );
+      case RecommendedTrainingFocusType.none:
+        return const NextTrainingRecommendation.empty();
+    }
+  }
+
+  static String _focusTarget(RecommendedTrainingFocus focus) {
+    final technique = focus.technique ?? 't\u00e9cnica';
+    final position = focus.position;
+    if (position == null || position.trim().isEmpty) return technique;
+    return '$technique em $position';
+  }
+
+  static List<String> _nextTrainingTags(RecommendedTrainingFocus focus) {
+    return _dedupeStrings([
+      _priorityTag(focus.priority),
+      focus.nextStepLabel,
+      focus.applicationLabel,
+      focus.outcomeLabel,
+      ...focus.tags,
+    ]).take(5).toList();
+  }
+
+  static String _priorityTag(RecommendedTrainingFocusPriority priority) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return 'Prioridade alta';
+      case RecommendedTrainingFocusPriority.medium:
+        return 'Prioridade m\u00e9dia';
+      case RecommendedTrainingFocusPriority.low:
+        return 'Prioridade baixa';
+      case RecommendedTrainingFocusPriority.none:
+        return 'Aguardando debrief';
+    }
+  }
+
+  static String _nextTrainingIntensityGuidance(
+    RecommendedTrainingFocus focus,
+    String fallback,
+  ) {
+    final avgIntensity = focus.avgIntensity;
+    if (avgIntensity == null) return fallback;
+    if (avgIntensity >= 4) {
+      return 'O hist\u00f3rico veio intenso; reduza um pouco para ajustar com qualidade.';
+    }
+    if (avgIntensity <= 2) {
+      return 'O hist\u00f3rico veio leve; aumente resist\u00eancia de forma progressiva.';
+    }
+    return fallback;
+  }
+
+  static List<String> _dedupeStrings(Iterable<String?> values) {
+    final seen = <String>{};
+    final output = <String>[];
+    for (final value in values) {
+      final clean = _cleanText(value);
+      if (clean == null) continue;
+      if (seen.add(clean.toLowerCase())) output.add(clean);
+    }
+    return output;
+  }
   /// Retorna uma lista de pontos ja agregados.
   static List<int> aggregate({
     required List<TrainingSession> sessions,

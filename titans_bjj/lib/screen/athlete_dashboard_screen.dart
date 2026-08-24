@@ -269,6 +269,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         filtered,
                         recentLimit: 20,
                       );
+                      final nextTraining =
+                          TrainingAggregator.buildNextTrainingRecommendation(
+                        filtered,
+                        recentLimit: 20,
+                      );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -407,6 +412,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   _RecommendedFocusCard(
                                     cs: cs,
                                     focus: recommendedFocus,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _NextTrainingCard(
+                                    cs: cs,
+                                    recommendation: nextTraining,
                                   ),
                                   const SizedBox(height: 12),
                                   _SkillMatrixSummaryCard(
@@ -1461,6 +1471,178 @@ class _RecommendedFocusCard extends StatelessWidget {
   }
 }
 
+class _NextTrainingCard extends StatelessWidget {
+  final ColorScheme cs;
+  final NextTrainingRecommendation recommendation;
+
+  const _NextTrainingCard({
+    required this.cs,
+    required this.recommendation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final priorityColor = _priorityColor(cs, recommendation.priority);
+
+    return _GlassCard(
+      accent: priorityColor.withValues(alpha: 0.28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'PR\u00d3XIMO TREINO'),
+          const SizedBox(height: 12),
+          Text(
+            recommendation.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            recommendation.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.70),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          if (!recommendation.hasRecommendation) ...[
+            Text(
+              recommendation.emptyMessage ?? '',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
+            ),
+          ] else ...[
+            Text(
+              recommendation.objective,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.78)),
+            ),
+            const SizedBox(height: 12),
+            _NextTrainingBlock(
+              cs: cs,
+              icon: Icons.self_improvement_outlined,
+              label: 'Aquecimento t\u00e9cnico',
+              text: recommendation.warmupSuggestion,
+              color: priorityColor,
+            ),
+            const SizedBox(height: 10),
+            _NextTrainingBlock(
+              cs: cs,
+              icon: Icons.repeat_outlined,
+              label: 'Drill principal',
+              text: recommendation.technicalDrill,
+              color: priorityColor,
+            ),
+            const SizedBox(height: 10),
+            _NextTrainingBlock(
+              cs: cs,
+              icon: Icons.fact_check_outlined,
+              label: 'Aplica\u00e7\u00e3o/checagem',
+              text: recommendation.applicationSuggestion,
+              color: priorityColor,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              recommendation.intensityGuidance,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.70),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+          if (recommendation.tags.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in recommendation.tags.take(4))
+                  _InsightBadge(label: tag, color: priorityColor),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _priorityColor(
+    ColorScheme cs,
+    RecommendedTrainingFocusPriority priority,
+  ) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return cs.error;
+      case RecommendedTrainingFocusPriority.medium:
+        return Colors.amber;
+      case RecommendedTrainingFocusPriority.low:
+        return Colors.lightGreenAccent;
+      case RecommendedTrainingFocusPriority.none:
+        return cs.onSurface.withValues(alpha: 0.48);
+    }
+  }
+}
+
+class _NextTrainingBlock extends StatelessWidget {
+  final ColorScheme cs;
+  final IconData icon;
+  final String label;
+  final String text;
+  final Color color;
+
+  const _NextTrainingBlock({
+    required this.cs,
+    required this.icon,
+    required this.label,
+    required this.text,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: color),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.82),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
 class _SkillMatrixSummaryCard extends StatelessWidget {
   final ColorScheme cs;
   final List<SkillMatrixCategoryEntry> entries;
