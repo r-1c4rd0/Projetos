@@ -65,12 +65,19 @@ class TitansBeltStatusCard extends StatelessWidget {
               ),
               if (onEdit != null) ...[
                 const SizedBox(width: 8),
-                IconButton(
-                  tooltip: 'Editar gradua\u00e7\u00e3o',
-                  onPressed: onEdit,
-                  icon: const Icon(Icons.military_tech_outlined),
-                  visualDensity: VisualDensity.compact,
-                ),
+                if (compact)
+                  IconButton(
+                    tooltip: 'Editar gradua\u00e7\u00e3o',
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.military_tech_outlined),
+                    visualDensity: VisualDensity.compact,
+                  )
+                else
+                  OutlinedButton.icon(
+                    onPressed: onEdit,
+                    icon: const Icon(Icons.military_tech_outlined),
+                    label: const Text('Editar gradua\u00e7\u00e3o'),
+                  ),
               ],
             ],
           ),

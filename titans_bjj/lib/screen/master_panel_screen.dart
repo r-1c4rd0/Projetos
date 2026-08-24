@@ -276,7 +276,9 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nao foi possivel atualizar grau: $error')),
+        SnackBar(
+          content: Text('N\u00e3o foi poss\u00edvel atualizar grau: $error'),
+        ),
       );
     }
   }
@@ -665,7 +667,7 @@ class _StudentActionsMenu extends StatelessWidget {
               enabled: canEditGraduation,
               child: const _MenuItem(
                 icon: Icons.workspace_premium_outlined,
-                label: 'Editar graduacao',
+                label: 'Editar gradua\u00e7\u00e3o',
               ),
             ),
           ],
@@ -842,7 +844,7 @@ class _GraduationBottomSheetState extends State<_GraduationBottomSheet> {
             children: [
               Expanded(
                 child: Text(
-                  'Editar graduacao',
+                  'Editar gradua\u00e7\u00e3o',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(
@@ -866,7 +868,7 @@ class _GraduationBottomSheetState extends State<_GraduationBottomSheet> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Graduacao atual',
+                  'Gradua\u00e7\u00e3o atual',
                   style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.66),
                     fontWeight: FontWeight.w700,

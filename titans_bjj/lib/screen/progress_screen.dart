@@ -419,11 +419,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage =
+    final isStaff =
         loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
-    return loggedUser.academyId == target.academyId &&
-        (loggedUser.uid == target.uid || canManage);
+    return isStaff && loggedUser.academyId == target.academyId;
   }
 
   Future<void> _showGraduationDialog({
