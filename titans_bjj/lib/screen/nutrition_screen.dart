@@ -138,8 +138,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
         mode: widget.targetMode,
       );
       final target = widget.explicitTarget ?? resolverTarget;
-      final canEditTarget =
-          target != null && _canEditTarget(loggedUser: actor, target: target);
+      final canEditNutrition =
+          target != null &&
+          _canEditNutrition(loggedUser: actor, target: target);
       debugPrint(
         '[NUTRITION_TARGET] screen=NutritionScreen '
         'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
@@ -148,26 +149,28 @@ class _NutritionScreenState extends State<NutritionScreen> {
         'resolver.uid=${resolverTarget?.uid} '
         'resolver.academyId=${resolverTarget?.academyId} '
         'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-        'canEditTarget=$canEditTarget',
+        'canEditNutrition=$canEditNutrition',
       );
       if (target == null) {
         debugPrint(
           '[NUTRITION_ACTIONS] showAddMeal=false showEditNutritionProfile=false '
-          'canEditTarget=$canEditTarget hiddenBy=missing-target '
+          'canEditNutrition=$canEditNutrition hiddenBy=missing-target '
           'actor.uid=${actor?.uid} actor.role=${actor?.role}',
         );
         return _wrapModule(
-          appBar: AppBar(title: Text(widget.titleOverride ?? 'Nutricao')),
+          appBar: AppBar(
+            title: Text(widget.titleOverride ?? 'Nutri\u00e7\u00e3o'),
+          ),
           body:
               widget.targetMode == TargetMode.selectedStudent
                   ? const TitansStateView.noStudent(
                     message:
-                        'Selecione um aluno no Painel do Mestre para acessar Nutricao.',
+                        'Selecione um aluno no Painel do Mestre para acessar Nutri\u00e7\u00e3o.',
                   )
                   : const TitansStateView.error(
-                    title: 'Perfil nao carregado',
+                    title: 'Perfil n\u00e3o carregado',
                     message:
-                        'Nao foi possivel identificar seu usuario para carregar Nutricao.',
+                        'N\u00e3o foi poss\u00edvel identificar seu usu\u00e1rio para carregar Nutri\u00e7\u00e3o.',
                   ),
         );
       }
@@ -176,12 +179,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
     }
 
     final target = _resolveTarget(context);
-    final canEditTarget =
-        target != null && _canEditTarget(loggedUser: actor, target: target);
+    final canEditNutrition =
+        target != null && _canEditNutrition(loggedUser: actor, target: target);
+    final isReadOnlyStudentView =
+        target != null &&
+        _isStaff(actor) &&
+        !_isSelfTarget(loggedUser: actor, target: target);
     debugPrint(
-      '[NUTRITION_ACTIONS] showAddMeal=$canEditTarget '
-      'showEditNutritionProfile=$canEditTarget canEditTarget=$canEditTarget '
-      "hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
+      '[NUTRITION_ACTIONS] showAddMeal=$canEditNutrition '
+      'showEditNutritionProfile=$canEditNutrition canEditNutrition=$canEditNutrition '
+      "hiddenBy=${canEditNutrition ? 'none' : 'canEditNutrition=false'} "
       'actor.uid=${actor?.uid} actor.role=${actor?.role} '
       'target.uid=${target?.uid} target.academyId=${target?.academyId}',
     );
@@ -191,16 +198,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
       'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
       'explicit.academyId=${widget.explicitTarget?.academyId} '
       'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-      'canEditTarget=$canEditTarget',
+      'canEditNutrition=$canEditNutrition',
     );
 
     return _wrapModule(
       appBar: AppBar(
         leading: widget.showLeading ? const AppLogoLeading() : null,
-        title: Text(widget.titleOverride ?? 'Nutricao'),
+        title: Text(widget.titleOverride ?? 'Nutri\u00e7\u00e3o'),
       ),
       floatingActionButton:
-          !widget.embedded && canEditTarget
+          !widget.embedded && canEditNutrition
               ? FloatingActionButton(
                 heroTag: 'nutrition_fab',
                 onPressed: _addMeal,
@@ -223,13 +230,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
           return ListView(
             padding: listPadding,
             children: [
-              if (widget.embedded && canEditTarget) ...[
+              if (widget.embedded && canEditNutrition) ...[
                 Align(
                   alignment: Alignment.centerRight,
                   child: FilledButton.icon(
                     onPressed: _addMeal,
                     icon: const Icon(Icons.add),
-                    label: const Text('Adicionar refeicao'),
+                    label: const Text('Adicionar refei\u00e7\u00e3o'),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -239,7 +246,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Text(
-                      'Firestore sem permiss\u00e3o para Nutri\u00e7\u00e3o. Rodando em modo teste (mock).',
+                      'N\u00e3o foi poss\u00edvel carregar os dados reais. Exibindo dados de exemplo.',
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.error,
                       ),
@@ -258,6 +265,17 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     ),
                   ),
                 ),
+              if (isReadOnlyStudentView)
+                const _NutritionInfoCard(
+                  icon: Icons.visibility_outlined,
+                  message:
+                      'Visualiza\u00e7\u00e3o do aluno. Edi\u00e7\u00e3o nutricional dispon\u00edvel apenas para o pr\u00f3prio usu\u00e1rio.',
+                ),
+              const _NutritionInfoCard(
+                icon: Icons.info_outline,
+                message:
+                    'Estas informa\u00e7\u00f5es s\u00e3o educativas e ajudam no registro da rotina. Para um plano alimentar individual, consulte um profissional de sa\u00fade ou nutri\u00e7\u00e3o.',
+              ),
               FutureBuilder<UserProfile>(
                 future: _profileFuture,
                 builder: (context, profSnap) {
@@ -273,11 +291,20 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
-                            'Seu gasto cal\u00f3rico estimado (TDEE)',
+                            'Energia estimada',
                             style: TextStyle(fontWeight: FontWeight.bold),
                           ),
                           const SizedBox(height: 6),
                           Text('${tdee.toStringAsFixed(0)} kcal/dia'),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Energia estimada para refer\u00eancia de rotina. N\u00e3o \u00e9 uma prescri\u00e7\u00e3o alimentar.',
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.68),
+                            ),
+                          ),
                           const SizedBox(height: 10),
                           Text(
                             'Perfil: ${profile.sex == Sex.male ? 'Masculino' : 'Feminino'}, '
@@ -286,16 +313,18 @@ class _NutritionScreenState extends State<NutritionScreen> {
                           ),
                           const SizedBox(height: 6),
                           Text(
-                            'Fator atividade: ${profile.activityFactor.toStringAsFixed(2)}',
+                            'Fator de atividade: ${profile.activityFactor.toStringAsFixed(2)} - usado apenas para estimar energia.',
                           ),
                           const SizedBox(height: 8),
                           Align(
                             alignment: Alignment.centerRight,
                             child:
-                                canEditTarget
+                                canEditNutrition
                                     ? OutlinedButton.icon(
                                       icon: const Icon(Icons.edit),
-                                      label: const Text('Editar perfil'),
+                                      label: const Text(
+                                        'Editar perfil nutricional',
+                                      ),
                                       onPressed: _editProfile,
                                     )
                                     : const SizedBox.shrink(),
@@ -323,9 +352,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
               if (meals.isEmpty)
                 const TitansEmptyState(
                   icon: Icons.restaurant_outlined,
-                  title: 'Sem refeicoes registradas',
+                  title: 'Sem refei\u00e7\u00f5es registradas',
                   message:
-                      'Use o botao adicionar para registrar a primeira refeicao.',
+                      'Use o bot\u00e3o adicionar para registrar a primeira refei\u00e7\u00e3o.',
                   compact: true,
                 ),
             ],
@@ -348,16 +377,25 @@ class _NutritionScreenState extends State<NutritionScreen> {
     );
   }
 
-  bool _canEditTarget({
+  bool _canEditNutrition({
+    required AppUser? loggedUser,
+    required TargetProfile target,
+  }) {
+    return _isSelfTarget(loggedUser: loggedUser, target: target);
+  }
+
+  bool _isSelfTarget({
     required AppUser? loggedUser,
     required TargetProfile target,
   }) {
     if (loggedUser == null) return false;
-    final canManage =
-        loggedUser.role == UserRole.admin ||
-        loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
-        (loggedUser.uid == target.uid || canManage);
+        loggedUser.uid == target.uid;
+  }
+
+  bool _isStaff(AppUser? loggedUser) {
+    return loggedUser?.role == UserRole.admin ||
+        loggedUser?.role == UserRole.professor;
   }
 
   Future<void> _editProfile() async {
@@ -391,6 +429,40 @@ class _NutritionScreenState extends State<NutritionScreen> {
   static String _fmt(DateTime date) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:${two(date.minute)}';
+  }
+}
+
+class _NutritionInfoCard extends StatelessWidget {
+  final IconData icon;
+  final String message;
+
+  const _NutritionInfoCard({required this.icon, required this.message});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: cs.primary, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                message,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.72),
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -449,7 +521,7 @@ class _DailyCaloriesChart extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Calorias (\u00faltimos 7 dias)',
+              'Calorias registradas (\u00faltimos 7 dias)',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
@@ -523,6 +595,52 @@ class _MealSheetState extends State<_MealSheet> {
     final results = widget.repo.foodDb(_query);
     final bottom = MediaQuery.of(context).viewInsets.bottom;
 
+    final dateField = InkWell(
+      onTap: () async {
+        final date = await showDatePicker(
+          context: context,
+          initialDate: _date,
+          firstDate: DateTime.now().subtract(const Duration(days: 365)),
+          lastDate: DateTime.now().add(const Duration(days: 365)),
+        );
+        if (date == null) return;
+        if (!context.mounted) return;
+
+        final time = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.fromDateTime(_date),
+        );
+
+        setState(() {
+          _date = DateTime(
+            date.year,
+            date.month,
+            date.day,
+            time?.hour ?? 0,
+            time?.minute ?? 0,
+          );
+        });
+      },
+      child: InputDecorator(
+        decoration: const InputDecoration(labelText: 'Data/Hora'),
+        child: Text(_NutritionScreenState._fmt(_date)),
+      ),
+    );
+
+    final mealTypeField = DropdownButtonFormField<String>(
+      initialValue: _mealType,
+      items: const [
+        DropdownMenuItem(value: 'Caf\u00e9', child: Text('Caf\u00e9')),
+        DropdownMenuItem(value: 'Almo\u00e7o', child: Text('Almo\u00e7o')),
+        DropdownMenuItem(value: 'Jantar', child: Text('Jantar')),
+        DropdownMenuItem(value: 'Lanche', child: Text('Lanche')),
+      ],
+      onChanged: (value) {
+        setState(() => _mealType = value ?? 'Almo\u00e7o');
+      },
+      decoration: const InputDecoration(labelText: 'Refei\u00e7\u00e3o'),
+    );
+
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: SingleChildScrollView(
@@ -535,68 +653,26 @@ class _MealSheetState extends State<_MealSheet> {
               style: Theme.of(context).textTheme.titleLarge,
             ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: InkWell(
-                    onTap: () async {
-                      final date = await showDatePicker(
-                        context: context,
-                        initialDate: _date,
-                        firstDate: DateTime.now().subtract(
-                          const Duration(days: 365),
-                        ),
-                        lastDate: DateTime.now().add(const Duration(days: 365)),
-                      );
-                      if (date == null) return;
-                      if (!context.mounted) return;
-
-                      final time = await showTimePicker(
-                        context: context,
-                        initialTime: TimeOfDay.fromDateTime(_date),
-                      );
-
-                      setState(() {
-                        _date = DateTime(
-                          date.year,
-                          date.month,
-                          date.day,
-                          time?.hour ?? 0,
-                          time?.minute ?? 0,
-                        );
-                      });
-                    },
-                    child: InputDecorator(
-                      decoration: const InputDecoration(labelText: 'Data/Hora'),
-                      child: Text(_NutritionScreenState._fmt(_date)),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _mealType,
-                    items: const [
-                      DropdownMenuItem(
-                        value: 'Caf\u00e9',
-                        child: Text('Caf\u00e9'),
-                      ),
-                      DropdownMenuItem(
-                        value: 'Almo\u00e7o',
-                        child: Text('Almo\u00e7o'),
-                      ),
-                      DropdownMenuItem(value: 'Jantar', child: Text('Jantar')),
-                      DropdownMenuItem(value: 'Lanche', child: Text('Lanche')),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (constraints.maxWidth < 360) {
+                  return Column(
+                    children: [
+                      dateField,
+                      const SizedBox(height: 8),
+                      mealTypeField,
                     ],
-                    onChanged: (value) {
-                      setState(() => _mealType = value ?? 'Almo\u00e7o');
-                    },
-                    decoration: const InputDecoration(
-                      labelText: 'Refei\u00e7\u00e3o',
-                    ),
-                  ),
-                ),
-              ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(child: dateField),
+                    const SizedBox(width: 8),
+                    Expanded(child: mealTypeField),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 8),
             TextField(
@@ -708,7 +784,7 @@ class _ProfileDialogState extends State<_ProfileDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: const Text('Perfil'),
+      title: const Text('Perfil nutricional'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -757,7 +833,9 @@ class _ProfileDialogState extends State<_ProfileDialog> {
                 ),
               ],
               onChanged: (value) => setState(() => _act = value ?? 1.375),
-              decoration: const InputDecoration(labelText: 'Atividade'),
+              decoration: const InputDecoration(
+                labelText: 'Fator de atividade',
+              ),
             ),
           ],
         ),

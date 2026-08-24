@@ -49,9 +49,9 @@ class AthleteConsoleScreen extends StatelessWidget {
         scroll: false,
         appBar: AppBar(title: Text(titleOverride ?? 'Inicio')),
         body: const TitansStateView.error(
-          title: 'Usuario logado nao encontrado',
+          title: 'Usu\u00e1rio logado n\u00e3o encontrado',
           message:
-              'Nao foi possivel identificar o usuario logado para carregar o console.',
+              'N\u00e3o foi poss\u00edvel identificar o usu\u00e1rio logado para carregar o console.',
         ),
       );
     }
@@ -319,13 +319,16 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
       ),
       _ConsoleModule(
         id: 'nutrition',
-        label: 'Nutricao',
-        shortLabel: 'Nutricao',
+        label: 'Nutri\u00e7\u00e3o',
+        shortLabel: 'Nutri\u00e7\u00e3o',
         icon: Icons.restaurant_outlined,
-        description: 'Plano alimentar',
+        description: 'Registro alimentar',
         builder:
             (context) => NutritionScreen(
-              titleOverride: selectedMode ? 'Nutricao do aluno' : 'Nutricao',
+              titleOverride:
+                  selectedMode
+                      ? 'Nutri\u00e7\u00e3o do aluno'
+                      : 'Nutri\u00e7\u00e3o',
               targetMode: widget.targetMode,
               explicitTarget: target,
               loggedUser: loggedUser,
@@ -340,7 +343,11 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
     if (widget.target.uid.trim().isEmpty ||
         widget.target.academyId.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Perfil alvo nao informado para edicao.')),
+        const SnackBar(
+          content: Text(
+            'Perfil alvo n\u00e3o informado para edi\u00e7\u00e3o.',
+          ),
+        ),
       );
       return;
     }

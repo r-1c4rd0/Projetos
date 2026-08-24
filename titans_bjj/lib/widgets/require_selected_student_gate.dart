@@ -6,10 +6,7 @@ import '../service/selected_student_scope.dart';
 class RequireSelectedStudentGate extends StatelessWidget {
   final Widget Function(BuildContext context, SelectedStudent selected) builder;
 
-  const RequireSelectedStudentGate({
-    super.key,
-    required this.builder,
-  });
+  const RequireSelectedStudentGate({super.key, required this.builder});
 
   @override
   Widget build(BuildContext context) {
@@ -35,13 +32,12 @@ class RequireSelectedStudentGate extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Para acessar Treinos, Progresso ou Nutricao, professor/admin precisa abrir o console a partir do card de um aluno.',
+                    'Para acessar Treinos, Progresso ou Nutri\u00e7\u00e3o, professor/admin precisa abrir o console a partir do card de um aluno.',
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurface
-                          .withValues(alpha: 0.7),
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.7),
                     ),
                   ),
                 ],
