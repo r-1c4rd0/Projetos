@@ -528,67 +528,69 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             );
 
             return AlertDialog(
-              title: const Text('Solicitar/Editar gradua\u00e7\u00e3o'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<BeltColor>(
-                    initialValue: selectedBelt,
-                    decoration: const InputDecoration(
-                      labelText: 'Faixa',
-                      prefixIcon: Icon(Icons.horizontal_rule),
-                    ),
-                    items:
-                        BeltColor.values
-                            .map(
-                              (belt) => DropdownMenuItem(
-                                value: belt,
-                                child: Text(_beltLabel(belt)),
-                              ),
-                            )
-                            .toList(),
-                    onChanged:
-                        saving
-                            ? null
-                            : (belt) {
-                              if (belt == null) return;
-                              setDialogState(() {
-                                selectedBelt = belt;
-                                selectedDegree =
-                                    selectedDegree
-                                        .clamp(0, rules.maxDegrees(belt))
-                                        .toInt();
-                              });
-                            },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    key: ValueKey('${selectedBelt.name}-$selectedDegree'),
-                    initialValue: selectedDegree,
-                    decoration: const InputDecoration(
-                      labelText: 'Grau',
-                      prefixIcon: Icon(Icons.star_outline),
-                    ),
-                    items: degreeItems,
-                    onChanged:
-                        saving
-                            ? null
-                            : (degree) {
-                              if (degree == null) return;
-                              setDialogState(() => selectedDegree = degree);
-                            },
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      errorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontWeight: FontWeight.w600,
+              title: const Text('Editar gradua\u00e7\u00e3o'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<BeltColor>(
+                      initialValue: selectedBelt,
+                      decoration: const InputDecoration(
+                        labelText: 'Faixa',
+                        prefixIcon: Icon(Icons.horizontal_rule),
                       ),
+                      items:
+                          BeltColor.values
+                              .map(
+                                (belt) => DropdownMenuItem(
+                                  value: belt,
+                                  child: Text(_beltLabel(belt)),
+                                ),
+                              )
+                              .toList(),
+                      onChanged:
+                          saving
+                              ? null
+                              : (belt) {
+                                if (belt == null) return;
+                                setDialogState(() {
+                                  selectedBelt = belt;
+                                  selectedDegree =
+                                      selectedDegree
+                                          .clamp(0, rules.maxDegrees(belt))
+                                          .toInt();
+                                });
+                              },
                     ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      key: ValueKey('${selectedBelt.name}-$selectedDegree'),
+                      initialValue: selectedDegree,
+                      decoration: const InputDecoration(
+                        labelText: 'Grau',
+                        prefixIcon: Icon(Icons.star_outline),
+                      ),
+                      items: degreeItems,
+                      onChanged:
+                          saving
+                              ? null
+                              : (degree) {
+                                if (degree == null) return;
+                                setDialogState(() => selectedDegree = degree);
+                              },
+                    ),
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               actions: [
                 TextButton(

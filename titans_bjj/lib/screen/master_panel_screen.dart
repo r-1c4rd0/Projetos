@@ -531,7 +531,7 @@ class _StudentCard extends StatelessWidget {
                   children: [
                     Expanded(
                       child: _CompactMetric(
-                        label: 'Frequencia',
+                        label: 'Frequ\u00eancia',
                         value: '0%',
                         color: cs.primary,
                       ),
@@ -539,7 +539,7 @@ class _StudentCard extends StatelessWidget {
                     const SizedBox(width: TitansUI.spaceXs),
                     Expanded(
                       child: _CompactMetric(
-                        label: 'Prontidao',
+                        label: 'Prontid\u00e3o',
                         value: '0%',
                         color: TitansUI.neonGold,
                       ),
@@ -550,7 +550,7 @@ class _StudentCard extends StatelessWidget {
                 LayoutBuilder(
                   builder: (context, constraints) {
                     final lastTraining = Text(
-                      'Ultimo treino: sem registro',
+                      '\u00daltimo treino: sem registro',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
