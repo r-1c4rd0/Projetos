@@ -148,7 +148,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 : const TitansStateView.error(
                   title: 'Perfil n\u00e3o carregado',
                   message:
-                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar Progresso.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usu\u00e1rio para carregar Progresso.',
                 ),
       );
     }
@@ -174,7 +174,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
                   PopupMenuItem(
                     value: ProgressPeriod.month,
-                    child: Text('Mes'),
+                    child: Text('M\u00eas'),
                   ),
                   PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
                 ],
@@ -231,7 +231,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         return const _EmptyState(
                           title: 'Atleta n\u00e3o encontrado.',
                           subtitle:
-                              'Crie academies/{academyId}/users/{uid} com belt e degree.',
+                              'Crie academies/{academyId}/users/{uid} com faixa e grau.',
                         );
                       }
 
@@ -260,7 +260,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                             return const _EmptyState(
                               title: 'Perfil de progresso n\u00e3o encontrado.',
                               subtitle:
-                                  'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
+                                  'Crie o perfil de progresso com data de in\u00edcio da faixa e estimativa de sess\u00f5es.',
                             );
                           }
 
@@ -349,7 +349,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                               ),
                                               PopupMenuItem(
                                                 value: ProgressPeriod.month,
-                                                child: Text('Mes'),
+                                                child: Text('M\u00eas'),
                                               ),
                                               PopupMenuItem(
                                                 value: ProgressPeriod.year,
@@ -445,67 +445,69 @@ class _ProgressScreenState extends State<ProgressScreen> {
             );
 
             return AlertDialog(
-              title: const Text('Editar graduacao'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  DropdownButtonFormField<BeltColor>(
-                    initialValue: selectedBelt,
-                    decoration: const InputDecoration(
-                      labelText: 'Faixa',
-                      prefixIcon: Icon(Icons.horizontal_rule),
-                    ),
-                    items:
-                        BeltColor.values
-                            .map(
-                              (belt) => DropdownMenuItem(
-                                value: belt,
-                                child: Text(_BeltProgressCard.beltName(belt)),
-                              ),
-                            )
-                            .toList(),
-                    onChanged:
-                        saving
-                            ? null
-                            : (belt) {
-                              if (belt == null) return;
-                              setDialogState(() {
-                                selectedBelt = belt;
-                                selectedDegree =
-                                    selectedDegree
-                                        .clamp(0, rules.maxDegrees(belt))
-                                        .toInt();
-                              });
-                            },
-                  ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    key: ValueKey('${selectedBelt.name}-$selectedDegree'),
-                    initialValue: selectedDegree,
-                    decoration: const InputDecoration(
-                      labelText: 'Grau',
-                      prefixIcon: Icon(Icons.star_outline),
-                    ),
-                    items: degreeItems,
-                    onChanged:
-                        saving
-                            ? null
-                            : (degree) {
-                              if (degree == null) return;
-                              setDialogState(() => selectedDegree = degree);
-                            },
-                  ),
-                  if (errorMessage != null) ...[
-                    const SizedBox(height: 12),
-                    Text(
-                      errorMessage!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontWeight: FontWeight.w600,
+              title: const Text('Editar gradua\u00e7\u00e3o'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    DropdownButtonFormField<BeltColor>(
+                      initialValue: selectedBelt,
+                      decoration: const InputDecoration(
+                        labelText: 'Faixa',
+                        prefixIcon: Icon(Icons.horizontal_rule),
                       ),
+                      items:
+                          BeltColor.values
+                              .map(
+                                (belt) => DropdownMenuItem(
+                                  value: belt,
+                                  child: Text(_BeltProgressCard.beltName(belt)),
+                                ),
+                              )
+                              .toList(),
+                      onChanged:
+                          saving
+                              ? null
+                              : (belt) {
+                                if (belt == null) return;
+                                setDialogState(() {
+                                  selectedBelt = belt;
+                                  selectedDegree =
+                                      selectedDegree
+                                          .clamp(0, rules.maxDegrees(belt))
+                                          .toInt();
+                                });
+                              },
                     ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<int>(
+                      key: ValueKey('${selectedBelt.name}-$selectedDegree'),
+                      initialValue: selectedDegree,
+                      decoration: const InputDecoration(
+                        labelText: 'Grau',
+                        prefixIcon: Icon(Icons.star_outline),
+                      ),
+                      items: degreeItems,
+                      onChanged:
+                          saving
+                              ? null
+                              : (degree) {
+                                if (degree == null) return;
+                                setDialogState(() => selectedDegree = degree);
+                              },
+                    ),
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        errorMessage!,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
               actions: [
                 TextButton(
@@ -541,7 +543,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               navigator.pop();
                               messenger.showSnackBar(
                                 const SnackBar(
-                                  content: Text('Graduacao atualizada.'),
+                                  content: Text(
+                                    'Gradua\u00e7\u00e3o atualizada.',
+                                  ),
                                 ),
                               );
                             } catch (error) {
@@ -663,11 +667,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Consistencia (14 dias)';
+        return 'Consist\u00eancia (14 dias)';
       case ProgressPeriod.month:
-        return 'Consistencia (12 meses)';
+        return 'Consist\u00eancia (12 meses)';
       case ProgressPeriod.year:
-        return 'Consistencia (5 anos)';
+        return 'Consist\u00eancia (5 anos)';
     }
   }
 }
@@ -684,8 +688,10 @@ class _BeltProgressCard extends StatelessWidget {
     final beltColor = _beltUiColor(progress.belt, context);
 
     final pctText = '${(progress.percentToNextBelt * 100).toStringAsFixed(0)}%';
-    final subtitle =
-        '${progress.sessionsInCurrentBelt}/${progress.sessionsRequiredCurrentBelt} treinos (estimativa)';
+    final beltLabel = 'Faixa ${_beltName(progress.belt)}';
+    final gradeLabel = 'Grau ${progress.degree} de ${progress.maxDegree}';
+    final sessionLabel =
+        '${progress.sessionsInCurrentBelt}/${progress.sessionsRequiredCurrentBelt} sess\u00f5es na faixa atual';
 
     return Card(
       child: Padding(
@@ -693,44 +699,40 @@ class _BeltProgressCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
+            Text(
+              'Gradua\u00e7\u00e3o atual',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.75),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    'Faixa atual',
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.75),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                Text(
-                  _beltName(progress.belt),
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    color: beltColor,
-                  ),
-                ),
+                _BeltChip(label: beltLabel, color: beltColor),
+                _BeltChip(label: gradeLabel, color: cs.primary),
               ],
             ),
-            const SizedBox(height: 10),
-            TitansProgressIndicator(
-              value: progress.percentToNextBelt,
-              color: beltColor,
-              height: 16,
-            ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 16),
             Row(
               children: [
                 Expanded(
                   child: Text(
-                    'Graus: ${progress.degree}/${progress.maxDegree}',
+                    'Progresso da faixa',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.75),
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
+                const SizedBox(width: 12),
                 Text(
                   pctText,
                   style: TextStyle(
@@ -740,17 +742,33 @@ class _BeltProgressCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 6),
+            const SizedBox(height: 8),
+            TitansProgressIndicator(
+              value: progress.percentToNextBelt,
+              color: beltColor,
+              height: 14,
+            ),
+            const SizedBox(height: 8),
             Text(
-              subtitle,
+              sessionLabel,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Baseado em sess\u00f5es registradas nesta faixa.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.58),
+                fontSize: 12,
+              ),
             ),
             if (onEditGraduation != null) ...[
               const SizedBox(height: 12),
               OutlinedButton.icon(
                 onPressed: onEditGraduation,
                 icon: const Icon(Icons.military_tech_outlined),
-                label: const Text('Editar graduacao'),
+                label: const Text('Editar gradua\u00e7\u00e3o'),
               ),
             ],
           ],
@@ -766,6 +784,37 @@ class _BeltProgressCard extends StatelessWidget {
   static String beltName(BeltColor belt) => _beltName(belt);
 
   static String _beltName(BeltColor belt) => TitansUI.beltLabel(belt.name);
+}
+
+class _BeltChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _BeltChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.85), width: 1),
+        color: color.withValues(alpha: 0.10),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color.computeLuminance() > 0.8 ? cs.onSurface : color,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
 }
 
 class _TrainingMetricsCard extends StatelessWidget {
@@ -797,14 +846,27 @@ class _TrainingMetricsCard extends StatelessWidget {
                   label: 'Total',
                   value: metrics.total.toString(),
                 ),
-                TitansMetricCard(label: 'Mes', value: metrics.month.toString()),
+                TitansMetricCard(
+                  label: 'M\u00eas',
+                  value: metrics.month.toString(),
+                ),
                 TitansMetricCard(label: 'Ano', value: metrics.year.toString()),
                 TitansMetricCard(
-                  label: '30 dias',
+                  label: 'Frequ\u00eancia recente',
                   value:
                       '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
                 ),
               ],
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Frequ\u00eancia recente: percentual de sess\u00f5es nos \u00faltimos 30 dias, n\u00e3o progresso de gradua\u00e7\u00e3o.',
+              style: TextStyle(
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
             ),
           ],
         ),
@@ -866,7 +928,7 @@ class _ConsistencyChartCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             SizedBox(
-              height: 220,
+              height: MediaQuery.sizeOf(context).width < 390 ? 190 : 220,
               child: LineChart(
                 LineChartData(
                   minY: 0,

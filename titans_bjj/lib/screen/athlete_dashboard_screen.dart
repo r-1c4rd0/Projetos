@@ -120,7 +120,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 : const TitansStateView.error(
                   title: 'Perfil n\u00e3o carregado',
                   message:
-                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar o dashboard.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usu\u00e1rio para carregar o dashboard.',
                 ),
       );
     }
@@ -151,7 +151,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
           }
           if (userSnap.hasError) {
             return _ErrorState(
-              title: 'Erro ao carregar usuario',
+              title: 'Erro ao carregar usu\u00e1rio',
               message: userSnap.error.toString(),
             );
           }
@@ -161,7 +161,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             return const _EmptyState(
               title: 'Usu\u00e1rio n\u00e3o encontrado.',
               subtitle:
-                  'Crie academies/{academyId}/users/{uid} com role, belt e degree.',
+                  'Crie academies/{academyId}/users/{uid} com perfil, faixa e grau.',
             );
           }
 
@@ -194,7 +194,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 return const _EmptyState(
                   title: 'Perfil de progresso n\u00e3o encontrado.',
                   subtitle:
-                      'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
+                      'Crie o perfil de progresso com data de in\u00edcio da faixa e estimativa de sess\u00f5es.',
                 );
               }
 
@@ -266,14 +266,14 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       );
                       final recommendedFocus =
                           TrainingAggregator.buildRecommendedFocus(
-                        filtered,
-                        recentLimit: 20,
-                      );
+                            filtered,
+                            recentLimit: 20,
+                          );
                       final nextTraining =
                           TrainingAggregator.buildNextTrainingRecommendation(
-                        filtered,
-                        recentLimit: 20,
-                      );
+                            filtered,
+                            recentLimit: 20,
+                          );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -623,7 +623,9 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                               navigator.pop();
                               messenger.showSnackBar(
                                 const SnackBar(
-                                  content: Text('Graduacao atualizada'),
+                                  content: Text(
+                                    'Gradua\u00e7\u00e3o atualizada',
+                                  ),
                                 ),
                               );
                             } catch (error) {
@@ -1080,7 +1082,7 @@ class _GraduationProgressCard extends StatelessWidget {
               const SizedBox(width: 10),
               Expanded(
                 child: _StatMini(
-                  title: 'PROX. GRAU',
+                  title: 'PR\u00d3X. GRAU',
                   value: '$percent%',
                   highlight: cs.error,
                 ),
@@ -1118,7 +1120,7 @@ class _StatsCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'FREQUENCIA RECENTE',
+            'FREQU\u00caNCIA RECENTE',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
@@ -1254,7 +1256,8 @@ class _DebriefInsightsCard extends StatelessWidget {
           _InsightBlock(
             title: 'FOCO T\u00c9CNICO',
             value: insights.technicalFocus,
-            empty: 'Registre debriefs nos treinos para gerar foco t\u00e9cnico.',
+            empty:
+                'Registre debriefs nos treinos para gerar foco t\u00e9cnico.',
           ),
           const SizedBox(height: 12),
           _InsightBlock(
@@ -1475,10 +1478,7 @@ class _NextTrainingCard extends StatelessWidget {
   final ColorScheme cs;
   final NextTrainingRecommendation recommendation;
 
-  const _NextTrainingCard({
-    required this.cs,
-    required this.recommendation,
-  });
+  const _NextTrainingCard({required this.cs, required this.recommendation});
 
   @override
   Widget build(BuildContext context) {
@@ -1643,6 +1643,7 @@ class _NextTrainingBlock extends StatelessWidget {
     );
   }
 }
+
 class _SkillMatrixSummaryCard extends StatelessWidget {
   final ColorScheme cs;
   final List<SkillMatrixCategoryEntry> entries;
@@ -1656,14 +1657,15 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeCategories = List<SkillMatrixCategoryEntry>.from(entries)
-      ..sort((a, b) {
-        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
-        if (sessionsCompare != 0) return sessionsCompare;
-        final techniquesCompare = b.techniquesCount.compareTo(a.techniquesCount);
-        if (techniquesCompare != 0) return techniquesCompare;
-        return a.category.displayLabel.compareTo(b.category.displayLabel);
-      });
+    final activeCategories = List<SkillMatrixCategoryEntry>.from(
+      entries,
+    )..sort((a, b) {
+      final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
+      if (sessionsCompare != 0) return sessionsCompare;
+      final techniquesCompare = b.techniquesCount.compareTo(a.techniquesCount);
+      if (techniquesCompare != 0) return techniquesCompare;
+      return a.category.displayLabel.compareTo(b.category.displayLabel);
+    });
     final totalTechniques = entries.fold<int>(
       0,
       (sum, entry) => sum + entry.techniquesCount,
@@ -1735,9 +1737,10 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             _InsightBadge(
-              label: measuredApplicationTechniques > 0
-                  ? '${TrainingAggregator.techniqueCountLabel(measuredApplicationTechniques)} com aplica\u00e7\u00e3o medida no mapa completo.'
-                  : 'Aplica\u00e7\u00e3o ainda n\u00e3o medida.',
+              label:
+                  measuredApplicationTechniques > 0
+                      ? '${TrainingAggregator.techniqueCountLabel(measuredApplicationTechniques)} com aplica\u00e7\u00e3o medida no mapa completo.'
+                      : 'Aplica\u00e7\u00e3o ainda n\u00e3o medida.',
               color: cs.onSurface.withValues(alpha: 0.42),
               icon: Icons.radio_button_unchecked,
               muted: true,
