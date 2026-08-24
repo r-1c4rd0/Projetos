@@ -377,6 +377,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                   const SizedBox(height: 12),
                                   _TrainingMetricsCard(metrics: metrics),
                                   const SizedBox(height: 12),
+                                  _ConsistencySummaryCard(
+                                    title: _titleForPeriod(_period),
+                                    totalInWindow: totalInWindow,
+                                  ),
+                                  const SizedBox(height: 12),
                                   _ConsistencyChartCard(
                                     title: _titleForPeriod(_period),
                                     totalInWindow: totalInWindow,
@@ -711,6 +716,10 @@ class _TrainingMetricsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final recentPercent =
+        '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%';
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -718,42 +727,153 @@ class _TrainingMetricsCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Treinos realizados',
+              'Volume de treino',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
             ),
+            const SizedBox(height: 6),
+            Text(
+              'Volume mostra quantidade de treinos registrados.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
+            ),
             const SizedBox(height: 12),
             TitansResponsiveGrid(
-              minItemWidth: 132,
+              minItemWidth: 128,
               spacing: 8,
               runSpacing: 8,
               children: [
                 TitansMetricCard(
                   label: 'Total',
                   value: metrics.total.toString(),
+                  icon: Icons.fitness_center_outlined,
                 ),
                 TitansMetricCard(
                   label: 'M\u00eas',
                   value: metrics.month.toString(),
+                  icon: Icons.calendar_month_outlined,
                 ),
-                TitansMetricCard(label: 'Ano', value: metrics.year.toString()),
                 TitansMetricCard(
-                  label: 'Frequ\u00eancia recente',
-                  value:
-                      '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%',
+                  label: 'Ano',
+                  value: metrics.year.toString(),
+                  icon: Icons.event_available_outlined,
+                ),
+                TitansMetricCard(
+                  label: '\u00daltimos 30 dias',
+                  value: metrics.recent.toString(),
+                  icon: Icons.history_outlined,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Frequ\u00eancia recente',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            TitansResponsiveGrid(
+              minItemWidth: 180,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TitansMetricCard(
+                  label: 'Regularidade',
+                  value: recentPercent,
+                  icon: Icons.timeline_outlined,
+                  color: cs.secondary,
+                ),
+                TitansMetricCard(
+                  label: 'Sess\u00f5es',
+                  value: metrics.recent.toString(),
+                  icon: Icons.check_circle_outline,
+                  color: cs.secondary,
                 ),
               ],
             ),
             const SizedBox(height: 10),
             Text(
-              'Frequ\u00eancia recente: percentual de sess\u00f5es nos \u00faltimos 30 dias, n\u00e3o progresso de gradua\u00e7\u00e3o.',
+              'Frequ\u00eancia recente considera os \u00faltimos 30 dias.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.62),
+                color: cs.onSurface.withValues(alpha: 0.62),
                 fontSize: 12,
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ConsistencySummaryCard extends StatelessWidget {
+  final String title;
+  final int totalInWindow;
+
+  const _ConsistencySummaryCard({
+    required this.title,
+    required this.totalInWindow,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Consist\u00eancia',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Consist\u00eancia mede regularidade, n\u00e3o gradua\u00e7\u00e3o.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
+              ),
+            ),
+            const SizedBox(height: 12),
+            TitansResponsiveGrid(
+              minItemWidth: 160,
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                TitansMetricCard(
+                  label: 'Treinos',
+                  value: totalInWindow.toString(),
+                  icon: Icons.insights_outlined,
+                  color: cs.primary,
+                ),
+                TitansMetricCard(
+                  label: 'Recorte',
+                  value: title,
+                  icon: Icons.stacked_line_chart_outlined,
+                  color: cs.primary,
+                ),
+              ],
             ),
           ],
         ),
