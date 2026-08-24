@@ -371,9 +371,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
     }
   }
 
-  static String _fmt(DateTime date) {
+  static String _fmtDate(DateTime date) {
     String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:${two(date.minute)}';
+    return '${two(date.day)}/${two(date.month)}/${date.year}';
   }
 }
 
@@ -651,7 +651,7 @@ class _NutritionMealsSection extends StatelessWidget {
                   subtitle:
                       'Registros alimentares informados pelo usu\u00e1rio.',
                 ),
-                if (canEditNutrition)
+                if (canEditNutrition && meals.isNotEmpty)
                   FilledButton.icon(
                     onPressed: onAddMeal,
                     icon: const Icon(Icons.add),
@@ -666,29 +666,113 @@ class _NutritionMealsSection extends StatelessWidget {
                 title: 'Sem refei\u00e7\u00f5es registradas',
                 message:
                     canEditNutrition
-                        ? 'Use o bot\u00e3o adicionar para registrar a primeira refei\u00e7\u00e3o.'
+                        ? 'Adicione registros alimentares para acompanhar sua rotina.'
                         : 'Nenhuma refei\u00e7\u00e3o foi registrada para este usu\u00e1rio.',
+                action:
+                    canEditNutrition
+                        ? FilledButton.icon(
+                          onPressed: onAddMeal,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Adicionar refei\u00e7\u00e3o'),
+                        )
+                        : null,
                 compact: true,
               )
             else
-              ...meals.reversed.map(
-                (meal) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    '${_NutritionScreenState._fmt(meal.date)} - ${meal.mealType}',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    meal.items.map((item) => item.name).join(', '),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  trailing: Text('${meal.totalKcal()} kcal'),
-                ),
-              ),
+              ..._mealTiles(context),
           ],
         ),
+      ),
+    );
+  }
+
+  List<Widget> _mealTiles(BuildContext context) {
+    final orderedMeals = meals.reversed.toList();
+    final tiles = <Widget>[];
+
+    for (var i = 0; i < orderedMeals.length; i++) {
+      tiles.add(_MealLogTile(meal: orderedMeals[i]));
+      if (i != orderedMeals.length - 1) {
+        tiles.add(const Divider(height: 20));
+      }
+    }
+
+    return tiles;
+  }
+}
+
+class _MealLogTile extends StatelessWidget {
+  final MealEntry meal;
+
+  const _MealLogTile({required this.meal});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final items = meal.items.map((item) => item.name).join(', ');
+    final time = TimeOfDay.fromDateTime(meal.date).format(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  meal.mealType,
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Data: ${_NutritionScreenState._fmtDate(meal.date)} - Hora: $time',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.68),
+                    fontSize: 12,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  items.isEmpty ? 'Registro alimentar sem itens.' : items,
+                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.78)),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Registro alimentar',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              const Text(
+                'Energia registrada',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${meal.totalKcal()} kcal',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -913,41 +997,24 @@ class _MealSheetState extends State<_MealSheet> {
   String _query = '';
   final List<FoodItem> _selected = [];
 
+  int get _selectedKcal =>
+      _selected.fold<int>(0, (sum, food) => sum + food.kcal);
+
   @override
   Widget build(BuildContext context) {
     final results = widget.repo.foodDb(_query);
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-
-    final dateField = InkWell(
-      onTap: () async {
-        final date = await showDatePicker(
-          context: context,
-          initialDate: _date,
-          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-        );
-        if (date == null) return;
-        if (!context.mounted) return;
-
-        final time = await showTimePicker(
-          context: context,
-          initialTime: TimeOfDay.fromDateTime(_date),
-        );
-
-        setState(() {
-          _date = DateTime(
-            date.year,
-            date.month,
-            date.day,
-            time?.hour ?? 0,
-            time?.minute ?? 0,
-          );
-        });
-      },
-      child: InputDecorator(
-        decoration: const InputDecoration(labelText: 'Data/Hora'),
-        child: Text(_NutritionScreenState._fmt(_date)),
-      ),
+    final dateField = _MealDateField(
+      label: 'Data',
+      value: _NutritionScreenState._fmtDate(_date),
+      icon: Icons.calendar_today_outlined,
+      onTap: _pickDate,
+    );
+    final timeField = _MealDateField(
+      label: 'Hora',
+      value: TimeOfDay.fromDateTime(_date).format(context),
+      icon: Icons.schedule_outlined,
+      onTap: _pickTime,
     );
 
     final mealTypeField = DropdownButtonFormField<String>(
@@ -966,101 +1033,240 @@ class _MealSheetState extends State<_MealSheet> {
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              'Nova refei\u00e7\u00e3o',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 8),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                if (constraints.maxWidth < 360) {
-                  return Column(
-                    children: [
-                      dateField,
-                      const SizedBox(height: 8),
-                      mealTypeField,
-                    ],
-                  );
-                }
-
-                return Row(
-                  children: [
-                    Expanded(child: dateField),
-                    const SizedBox(width: 8),
-                    Expanded(child: mealTypeField),
-                  ],
-                );
-              },
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              decoration: const InputDecoration(
-                labelText: 'Buscar alimento (ex: arroz, frango...)',
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Nova refei\u00e7\u00e3o',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              onChanged: (value) => setState(() => _query = value),
-            ),
-            const SizedBox(height: 8),
-            for (final food in results.take(8))
-              ListTile(
-                title: Text(food.name),
-                subtitle: Text('${food.kcal} kcal'),
-                trailing: IconButton(
-                  icon: const Icon(Icons.add),
-                  onPressed: () => setState(() => _selected.add(food)),
+              const SizedBox(height: 4),
+              Text(
+                'Registro alimentar informado pelo usu\u00e1rio.',
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.68),
                 ),
               ),
-            const Divider(),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Selecionados: ${_selected.fold<int>(0, (sum, food) => sum + food.kcal)} kcal',
+              const SizedBox(height: 16),
+              const _SectionTitle(
+                title: 'Dados da refei\u00e7\u00e3o',
+                subtitle: 'Escolha o tipo, a data e a hora do registro.',
               ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              children:
-                  _selected
-                      .asMap()
-                      .entries
-                      .map(
-                        (entry) => Chip(
-                          label: Text(
-                            '${entry.value.name} - ${entry.value.kcal}',
-                          ),
-                          onDeleted: () {
-                            setState(() => _selected.removeAt(entry.key));
-                          },
-                        ),
-                      )
-                      .toList(),
-            ),
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton.icon(
-                icon: const Icon(Icons.save),
-                label: const Text('Adicionar'),
-                onPressed:
-                    _selected.isEmpty
-                        ? null
-                        : () {
-                          final entry = MealEntry(
-                            date: _date,
-                            mealType: _mealType,
-                            items: List.of(_selected),
-                          );
-                          Navigator.pop(context, entry);
-                        },
+              const SizedBox(height: 12),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  if (constraints.maxWidth < 390) {
+                    return Column(
+                      children: [
+                        mealTypeField,
+                        const SizedBox(height: 8),
+                        dateField,
+                        const SizedBox(height: 8),
+                        timeField,
+                      ],
+                    );
+                  }
+
+                  return Column(
+                    children: [
+                      mealTypeField,
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(child: dateField),
+                          const SizedBox(width: 8),
+                          Expanded(child: timeField),
+                        ],
+                      ),
+                    ],
+                  );
+                },
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              const _SectionTitle(
+                title: 'Energia registrada',
+                subtitle:
+                    'Registro informado pelo usu\u00e1rio, n\u00e3o prescri\u00e7\u00e3o.',
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                decoration: const InputDecoration(
+                  labelText: 'Buscar alimento (ex: arroz, frango...)',
+                ),
+                onChanged: (value) => setState(() => _query = value),
+              ),
+              const SizedBox(height: 8),
+              for (final food in results.take(8))
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    food.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text('Calorias: ${food.kcal} kcal'),
+                  trailing: IconButton(
+                    tooltip: 'Adicionar alimento',
+                    icon: const Icon(Icons.add),
+                    onPressed: () => setState(() => _selected.add(food)),
+                  ),
+                ),
+              const Divider(),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Energia registrada: $_selectedKcal kcal',
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ),
+                  Text(
+                    '${_selected.length} item(ns)',
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.62),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (_selected.isEmpty)
+                Text(
+                  'Adicione ao menos um alimento para salvar o registro.',
+                  style: TextStyle(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.68),
+                    fontSize: 12,
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children:
+                      _selected
+                          .asMap()
+                          .entries
+                          .map(
+                            (entry) => Chip(
+                              label: Text(
+                                '${entry.value.name} - ${entry.value.kcal} kcal',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onDeleted: () {
+                                setState(() => _selected.removeAt(entry.key));
+                              },
+                            ),
+                          )
+                          .toList(),
+                ),
+              const SizedBox(height: 16),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.save),
+                    label: const Text('Salvar'),
+                    onPressed:
+                        _selected.isEmpty
+                            ? null
+                            : () {
+                              final entry = MealEntry(
+                                date: _date,
+                                mealType: _mealType,
+                                items: List.of(_selected),
+                              );
+                              Navigator.pop(context, entry);
+                            },
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _pickDate() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: _date,
+      firstDate: DateTime.now().subtract(const Duration(days: 365)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null) return;
+
+    setState(() {
+      _date = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        _date.hour,
+        _date.minute,
+      );
+    });
+  }
+
+  Future<void> _pickTime() async {
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(_date),
+    );
+    if (time == null) return;
+
+    setState(() {
+      _date = DateTime(
+        _date.year,
+        _date.month,
+        _date.day,
+        time.hour,
+        time.minute,
+      );
+    });
+  }
+}
+
+class _MealDateField extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _MealDateField({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: InputDecorator(
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Icon(icon, size: 18),
+        ),
+        child: Text(value, maxLines: 1, overflow: TextOverflow.ellipsis),
       ),
     );
   }
