@@ -891,17 +891,8 @@ class _ConsistencyChartCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final maxY =
-        values.isEmpty
-            ? 4.0
-            : (values.reduce((a, b) => a > b ? a : b)).toDouble() + 1;
-
-    final spots =
-        values
-            .asMap()
-            .entries
-            .map((e) => FlSpot(e.key.toDouble(), e.value.toDouble()))
-            .toList();
+    final hasData = values.any((value) => value > 0);
+    final trendLabel = _trendLabel(values);
 
     return Card(
       child: Padding(
@@ -913,10 +904,13 @@ class _ConsistencyChartCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    title,
+                    'Consist\u00eancia de treinos',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
+                const SizedBox(width: 12),
                 Text(
                   'Total: $totalInWindow',
                   style: TextStyle(
@@ -926,93 +920,275 @@ class _ConsistencyChartCard extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            SizedBox(
-              height: MediaQuery.sizeOf(context).width < 390 ? 190 : 220,
-              child: LineChart(
-                LineChartData(
-                  minY: 0,
-                  maxY: maxY < 4 ? 4 : maxY,
-                  gridData: FlGridData(show: true, drawVerticalLine: false),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 28,
-                        interval: 1,
-                        getTitlesWidget:
-                            (v, _) => Text(
-                              v.toInt().toString(),
-                              style: TextStyle(
-                                color: cs.onSurface.withValues(alpha: 0.65),
-                                fontSize: 11,
-                              ),
-                            ),
-                      ),
-                    ),
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 34,
-                        interval: _bottomInterval(labels.length),
-                        getTitlesWidget: (v, _) {
-                          final idx = v.toInt();
-                          if (idx < 0 || idx >= labels.length) {
-                            return const SizedBox.shrink();
-                          }
-                          final text = labels[idx];
-                          final rotate = text.length >= 6; // ex 02/2026
-
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 6),
-                            child: Transform.rotate(
-                              angle: rotate ? -0.6 : 0,
-                              child: Text(
-                                text,
-                                style: TextStyle(
-                                  color: cs.onSurface.withValues(alpha: 0.65),
-                                  fontSize: 10,
-                                ),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
-                  lineBarsData: [
-                    LineChartBarData(
-                      spots: spots,
-                      isCurved: true,
-                      barWidth: 3.5,
-                      color: cs.primary,
-                      dotData: const FlDotData(show: false),
-                      belowBarData: BarAreaData(
-                        show: true,
-                        color: cs.primary.withValues(alpha: 0.12),
-                      ),
-                    ),
-                  ],
-                ),
+            const SizedBox(height: 6),
+            Text(
+              'Sess\u00f5es registradas por per\u00edodo. Use este gr\u00e1fico para acompanhar regularidade, n\u00e3o gradua\u00e7\u00e3o.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 12,
               ),
             ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ChartChip(label: title, color: cs.primary),
+                _ChartChip(label: trendLabel, color: cs.secondary),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (!hasData)
+              _ChartEmptyState(colorScheme: cs)
+            else
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final chartWidth = constraints.maxWidth;
+                  final compact = chartWidth < 390;
+                  final chartHeight = compact ? 190.0 : 220.0;
+                  final maxY = _maxY(values);
+                  final leftInterval = _leftInterval(maxY);
+                  final bottomInterval = _bottomInterval(
+                    labels.length,
+                    chartWidth,
+                  );
+                  final spots = _spots(values);
+
+                  return SizedBox(
+                    height: chartHeight,
+                    width: double.infinity,
+                    child: LineChart(
+                      LineChartData(
+                        minX: 0,
+                        maxX: (spots.length - 1).toDouble(),
+                        minY: 0,
+                        maxY: maxY,
+                        gridData: FlGridData(
+                          show: true,
+                          drawVerticalLine: false,
+                          horizontalInterval: leftInterval,
+                        ),
+                        borderData: FlBorderData(show: false),
+                        titlesData: FlTitlesData(
+                          topTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          rightTitles: const AxisTitles(
+                            sideTitles: SideTitles(showTitles: false),
+                          ),
+                          leftTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: compact ? 24 : 30,
+                              interval: leftInterval,
+                              getTitlesWidget: (v, _) {
+                                if (v < 0 || v > maxY) {
+                                  return const SizedBox.shrink();
+                                }
+                                if (v != v.roundToDouble()) {
+                                  return const SizedBox.shrink();
+                                }
+                                return Text(
+                                  v.toInt().toString(),
+                                  style: TextStyle(
+                                    color: cs.onSurface.withValues(alpha: 0.62),
+                                    fontSize: compact ? 10 : 11,
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                          bottomTitles: AxisTitles(
+                            sideTitles: SideTitles(
+                              showTitles: true,
+                              reservedSize: compact ? 42 : 38,
+                              interval: bottomInterval,
+                              getTitlesWidget: (v, _) {
+                                final idx = v.round();
+                                if (v != idx.toDouble() ||
+                                    idx < 0 ||
+                                    idx >= labels.length ||
+                                    !_showBottomLabel(
+                                      idx,
+                                      labels.length,
+                                      bottomInterval,
+                                    )) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                final text = labels[idx];
+                                final rotate = compact || text.length >= 6;
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Transform.rotate(
+                                    angle: rotate ? -0.68 : 0,
+                                    child: Text(
+                                      text,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: cs.onSurface.withValues(
+                                          alpha: 0.62,
+                                        ),
+                                        fontSize: compact ? 9 : 10,
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ),
+                        ),
+                        lineBarsData: [
+                          LineChartBarData(
+                            spots: spots,
+                            isCurved: true,
+                            barWidth: compact ? 2.8 : 3.5,
+                            color: cs.primary,
+                            dotData: FlDotData(show: values.length <= 7),
+                            belowBarData: BarAreaData(
+                              show: true,
+                              color: cs.primary.withValues(alpha: 0.12),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
+              ),
           ],
         ),
       ),
     );
   }
 
-  static double _bottomInterval(int len) {
-    if (len <= 7) return 1;
+  static List<FlSpot> _spots(List<int> values) {
+    return values
+        .asMap()
+        .entries
+        .map((entry) => FlSpot(entry.key.toDouble(), entry.value.toDouble()))
+        .toList();
+  }
+
+  static double _maxY(List<int> values) {
+    if (values.isEmpty) return 4;
+    final maxValue = values.reduce((a, b) => a > b ? a : b).toDouble();
+    final padded = maxValue + 1;
+    return padded < 4 ? 4 : padded;
+  }
+
+  static double _leftInterval(double maxY) {
+    if (maxY <= 5) return 1;
+    if (maxY <= 10) return 2;
+    if (maxY <= 20) return 5;
+    return 10;
+  }
+
+  static double _bottomInterval(int len, double width) {
+    if (len <= 6) return 1;
+    if (width < 390) return len > 10 ? 4 : 2;
+    if (width < 430) return len > 10 ? 3 : 2;
     if (len <= 14) return 2;
     return 3;
+  }
+
+  static bool _showBottomLabel(int index, int len, double interval) {
+    if (index == 0 || index == len - 1) return true;
+    return index % interval.toInt() == 0;
+  }
+
+  static String _trendLabel(List<int> values) {
+    final nonEmpty = values.where((value) => value > 0).toList();
+    if (nonEmpty.isEmpty) return 'Sem registros no per\u00edodo';
+    if (values.length < 2) return 'Tend\u00eancia inicial';
+
+    final midpoint = values.length ~/ 2;
+    final firstHalf = values
+        .take(midpoint)
+        .fold<int>(0, (sum, value) => sum + value);
+    final secondHalf = values
+        .skip(midpoint)
+        .fold<int>(0, (sum, value) => sum + value);
+
+    if (secondHalf > firstHalf) return 'Tend\u00eancia em alta';
+    if (secondHalf < firstHalf) return 'Tend\u00eancia em queda';
+    return 'Tend\u00eancia est\u00e1vel';
+  }
+}
+
+class _ChartChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ChartChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.32)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.82),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _ChartEmptyState extends StatelessWidget {
+  final ColorScheme colorScheme;
+
+  const _ChartEmptyState({required this.colorScheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+        border: Border.all(
+          color: colorScheme.onSurface.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.insights_outlined, color: colorScheme.primary),
+          const SizedBox(height: 8),
+          Text(
+            'Registre treinos para visualizar sua consist\u00eancia.',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.82),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'O gr\u00e1fico aparece quando houver sess\u00f5es no per\u00edodo selecionado.',
+            style: TextStyle(
+              color: colorScheme.onSurface.withValues(alpha: 0.62),
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
