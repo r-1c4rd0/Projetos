@@ -264,6 +264,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         filtered,
                         limit: 50,
                       );
+                      final recommendedFocus =
+                          TrainingAggregator.buildRecommendedFocus(
+                        filtered,
+                        recentLimit: 20,
+                      );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -397,6 +402,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         ],
                                       );
                                     },
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _RecommendedFocusCard(
+                                    cs: cs,
+                                    focus: recommendedFocus,
                                   ),
                                   const SizedBox(height: 12),
                                   _SkillMatrixSummaryCard(
@@ -1307,6 +1317,136 @@ class _InsightBlock extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _RecommendedFocusCard extends StatelessWidget {
+  final ColorScheme cs;
+  final RecommendedTrainingFocus focus;
+
+  const _RecommendedFocusCard({required this.cs, required this.focus});
+
+  @override
+  Widget build(BuildContext context) {
+    final priorityColor = _priorityColor(cs, focus.priority);
+    final evidence = <String>[
+      focus.evidenceLabel,
+      if (focus.avgIntensity != null)
+        'Intensidade media ${focus.avgIntensity!.toStringAsFixed(1)}/5',
+      if (focus.lastTrainedAt != null)
+        'Ultimo treino: ${_formatShortDate(focus.lastTrainedAt!)}',
+    ];
+
+    return _GlassCard(
+      accent: priorityColor.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'FOCO RECOMENDADO'),
+          const SizedBox(height: 12),
+          Text(
+            focus.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            focus.summary,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            focus.reason,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.flag_outlined, size: 18, color: priorityColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  focus.suggestedAction,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.82),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _InsightBadge(
+                label: _priorityLabel(focus.priority),
+                color: priorityColor,
+                icon: Icons.bolt_outlined,
+                muted: focus.priority == RecommendedTrainingFocusPriority.none,
+              ),
+              for (final tag in focus.tags)
+                _InsightBadge(label: tag, color: priorityColor),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final label in evidence.take(3))
+                _InsightBadge(
+                  label: label,
+                  color: cs.onSurface.withValues(alpha: 0.46),
+                  icon: Icons.analytics_outlined,
+                  muted: true,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _priorityColor(
+    ColorScheme cs,
+    RecommendedTrainingFocusPriority priority,
+  ) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return cs.error;
+      case RecommendedTrainingFocusPriority.medium:
+        return Colors.amber;
+      case RecommendedTrainingFocusPriority.low:
+        return Colors.lightGreenAccent;
+      case RecommendedTrainingFocusPriority.none:
+        return cs.onSurface.withValues(alpha: 0.48);
+    }
+  }
+
+  String _priorityLabel(RecommendedTrainingFocusPriority priority) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return 'Prioridade alta';
+      case RecommendedTrainingFocusPriority.medium:
+        return 'Prioridade media';
+      case RecommendedTrainingFocusPriority.low:
+        return 'Prioridade baixa';
+      case RecommendedTrainingFocusPriority.none:
+        return 'Aguardando debrief';
+    }
   }
 }
 
