@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
+import '../model/nutrition_models.dart';
 import '../model/training_session.dart';
 import '../model/user_progress_profile.dart';
 import '../repository/grading_rules_repository.dart';
+import '../repository/nutrition_repository.dart';
 import '../repository/training_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../repository/user_repository.dart';
@@ -20,6 +22,7 @@ import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
+import 'nutrition_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteNameOverride;
@@ -59,6 +62,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<UserProgressProfile?>? _profileStream;
   Stream<GradingRules?>? _rulesStream;
   Stream<List<TrainingSession>>? _sessionsStream;
+  Stream<UserProfile>? _nutritionProfileStream;
+  Stream<List<MealEntry>>? _nutritionMealsStream;
+  bool _nutritionFallbackToMock = false;
+  Object? _nutritionLoadError;
 
   TargetProfile? _resolveTarget(BuildContext context) {
     return widget.explicitTarget ??
@@ -77,6 +84,20 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       academyId: academyId,
       uid: uid,
     );
+    _nutritionFallbackToMock = false;
+    _nutritionLoadError = null;
+    final nutritionRepo = NutritionRepositoryFactory.create(
+      academyId: academyId,
+      uid: uid,
+      onPermissionDeniedFallback: () {
+        if (mounted) setState(() => _nutritionFallbackToMock = true);
+      },
+      onError: (error) {
+        if (mounted) setState(() => _nutritionLoadError = error);
+      },
+    );
+    _nutritionProfileStream = nutritionRepo.watchProfile();
+    _nutritionMealsStream = nutritionRepo.watchMeals();
   }
 
   @override
@@ -275,6 +296,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                             filtered,
                             recentLimit: 20,
                           );
+                      final isNutritionStudentView = _isStaffViewingStudent(
+                        actor: actor,
+                        target: target,
+                      );
 
                       return LayoutBuilder(
                         builder: (context, constraints) {
@@ -411,6 +436,31 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     },
                                   ),
                                   const SizedBox(height: 12),
+                                  _NutritionDashboardLiteCard(
+                                    cs: cs,
+                                    profileStream: _nutritionProfileStream,
+                                    mealsStream: _nutritionMealsStream,
+                                    isStudentView: isNutritionStudentView,
+                                    isFallback: _nutritionFallbackToMock,
+                                    hasLoadError: _nutritionLoadError != null,
+                                    onOpenNutrition: () {
+                                      Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder:
+                                              (_) => NutritionScreen(
+                                                titleOverride:
+                                                    isNutritionStudentView
+                                                        ? 'Nutri\u00e7\u00e3o do aluno'
+                                                        : 'Nutri\u00e7\u00e3o',
+                                                targetMode: widget.targetMode,
+                                                explicitTarget: target,
+                                                loggedUser: actor,
+                                              ),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  const SizedBox(height: 12),
                                   _RecommendedFocusCard(
                                     cs: cs,
                                     focus: recommendedFocus,
@@ -501,6 +551,18 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         loggedUser.role == UserRole.admin ||
         loggedUser.role == UserRole.professor;
     return isStaff && loggedUser.academyId == target.academyId;
+  }
+
+  bool _isStaffViewingStudent({
+    required AppUser? actor,
+    required TargetProfile target,
+  }) {
+    if (actor == null) return false;
+    final isStaff =
+        actor.role == UserRole.admin || actor.role == UserRole.professor;
+    return isStaff &&
+        actor.academyId == target.academyId &&
+        actor.uid != target.uid;
   }
 
   Future<void> _showGraduationDialog({
@@ -1258,6 +1320,214 @@ class _InsightBlock extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _NutritionDashboardLiteCard extends StatelessWidget {
+  final ColorScheme cs;
+  final Stream<UserProfile>? profileStream;
+  final Stream<List<MealEntry>>? mealsStream;
+  final bool isStudentView;
+  final bool isFallback;
+  final bool hasLoadError;
+  final VoidCallback onOpenNutrition;
+
+  const _NutritionDashboardLiteCard({
+    required this.cs,
+    required this.profileStream,
+    required this.mealsStream,
+    required this.isStudentView,
+    required this.isFallback,
+    required this.hasLoadError,
+    required this.onOpenNutrition,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.secondary.withValues(alpha: 0.26),
+      child: StreamBuilder<UserProfile>(
+        stream: profileStream,
+        builder: (context, profileSnap) {
+          return StreamBuilder<List<MealEntry>>(
+            stream: mealsStream,
+            builder: (context, mealsSnap) {
+              final isLoading =
+                  profileSnap.connectionState == ConnectionState.waiting ||
+                  mealsSnap.connectionState == ConnectionState.waiting;
+              final profile = profileSnap.data;
+              final meals = mealsSnap.data ?? const <MealEntry>[];
+              final recentMeals = _recentMeals(meals);
+              final registeredMeals = recentMeals.length;
+              final recentKcal = recentMeals.fold<int>(
+                0,
+                (sum, meal) => sum + meal.totalKcal(),
+              );
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.restaurant_outlined, color: cs.primary),
+                      const SizedBox(width: 8),
+                      const Expanded(
+                        child: Text(
+                          'Nutri\u00e7\u00e3o',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: onOpenNutrition,
+                        child: const Text('Abrir nutri\u00e7\u00e3o'),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  if (isLoading)
+                    const TitansSkeletonCard(lines: 2)
+                  else ...[
+                    if (isStudentView) ...[
+                      Text(
+                        'Visualiza\u00e7\u00e3o do aluno.',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.70),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (hasLoadError) ...[
+                      Text(
+                        'Resumo indispon\u00edvel agora.',
+                        style: TextStyle(
+                          color: cs.error,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    if (isFallback) ...[
+                      Text(
+                        'Dados de exemplo',
+                        style: TextStyle(
+                          color: cs.error,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                    ],
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        _NutritionLiteMetric(
+                          label: 'Perfil nutricional',
+                          value: profile == null ? 'Pendente' : 'Ativo',
+                        ),
+                        _NutritionLiteMetric(
+                          label: 'Energia estimada',
+                          value:
+                              profile == null
+                                  ? 'Completar perfil'
+                                  : '${profile.tdee().toStringAsFixed(0)} kcal/dia',
+                        ),
+                        _NutritionLiteMetric(
+                          label: 'Refei\u00e7\u00f5es',
+                          value:
+                              registeredMeals == 0
+                                  ? 'Sem refei\u00e7\u00f5es registradas'
+                                  : '$registeredMeals recentes',
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      profile == null
+                          ? 'Complete seu perfil para estimar energia de rotina.'
+                          : 'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o.',
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.68),
+                        fontSize: 12,
+                      ),
+                    ),
+                    if (registeredMeals > 0) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        'Energia registrada recentemente: $recentKcal kcal.',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.68),
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
+                  ],
+                ],
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  List<MealEntry> _recentMeals(List<MealEntry> meals) {
+    final since = DateTime.now().subtract(const Duration(days: 7));
+    return meals.where((meal) => !meal.date.isBefore(since)).toList();
+  }
+}
+
+class _NutritionLiteMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _NutritionLiteMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 120, maxWidth: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        color: Colors.black.withValues(alpha: 0.16),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+        ],
+      ),
     );
   }
 }
