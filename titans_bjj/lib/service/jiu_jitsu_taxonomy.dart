@@ -1,4 +1,4 @@
-﻿enum JiuJitsuSkillCategory {
+enum JiuJitsuSkillCategory {
   guard,
   passing,
   takedowns,
@@ -11,28 +11,30 @@
 }
 
 extension JiuJitsuSkillCategoryLabel on JiuJitsuSkillCategory {
-  String get label {
+  String get displayLabel {
     switch (this) {
       case JiuJitsuSkillCategory.guard:
-        return 'Guard';
+        return 'Guarda';
       case JiuJitsuSkillCategory.passing:
-        return 'Passing';
+        return 'Passagens';
       case JiuJitsuSkillCategory.takedowns:
-        return 'Takedowns';
+        return 'Quedas';
       case JiuJitsuSkillCategory.mount:
-        return 'Mount';
+        return 'Montada';
       case JiuJitsuSkillCategory.back:
-        return 'Back';
+        return 'Costas';
       case JiuJitsuSkillCategory.escapes:
-        return 'Escapes';
+        return 'Sa\u00eddas';
       case JiuJitsuSkillCategory.submissions:
-        return 'Submissions';
+        return 'Finaliza\u00e7\u00f5es';
       case JiuJitsuSkillCategory.defense:
-        return 'Defense';
+        return 'Defesa';
       case JiuJitsuSkillCategory.other:
-        return 'Other';
+        return 'N\u00e3o classificado';
     }
   }
+
+  String get label => displayLabel;
 }
 
 class JiuJitsuTaxonomy {
@@ -61,16 +63,16 @@ class JiuJitsuTaxonomy {
     'Omoplata',
     'Kimura',
     'Americana',
-    'Mata-Leão',
-    'Triângulo',
+    'Mata-Le�o',
+    'Tri�ngulo',
     'Guilhotina',
     'Ezequiel',
-    'Relógio',
+    'Rel�gio',
     'Anaconda',
     "D'Arce",
     'Peruvian',
-    'Viúva Negra',
-    'Chave de Pé Aberta',
+    'Vi�va Negra',
+    'Chave de P� Aberta',
     'Botinha',
     'Heel Hook',
     'Kneebar',
@@ -186,68 +188,103 @@ class JiuJitsuTaxonomy {
     return terms.any((term) => key == term || key.contains(term));
   }
 
-  static String _removeAccents(String value) {
-    const accents = {
-      'á': 'a',
-      'à': 'a',
-      'â': 'a',
-      'ã': 'a',
-      'ä': 'a',
-      'Á': 'A',
-      'À': 'A',
-      'Â': 'A',
-      'Ã': 'A',
-      'Ä': 'A',
-      'é': 'e',
-      'è': 'e',
-      'ê': 'e',
-      'ë': 'e',
-      'É': 'E',
-      'È': 'E',
-      'Ê': 'E',
-      'Ë': 'E',
-      'í': 'i',
-      'ì': 'i',
-      'î': 'i',
-      'ï': 'i',
-      'Í': 'I',
-      'Ì': 'I',
-      'Î': 'I',
-      'Ï': 'I',
-      'ó': 'o',
-      'ò': 'o',
-      'ô': 'o',
-      'õ': 'o',
-      'ö': 'o',
-      'Ó': 'O',
-      'Ò': 'O',
-      'Ô': 'O',
-      'Õ': 'O',
-      'Ö': 'O',
-      'ú': 'u',
-      'ù': 'u',
-      'û': 'u',
-      'ü': 'u',
-      'Ú': 'U',
-      'Ù': 'U',
-      'Û': 'U',
-      'Ü': 'U',
-      'ç': 'c',
-      'Ç': 'C',
-    };
+  static String _removeAccents(String value) => _stripDiacritics(value);
 
+  static String _stripDiacritics(String input) {
     final buffer = StringBuffer();
-    for (final codeUnit in value.codeUnits) {
-      final char = String.fromCharCode(codeUnit);
-      buffer.write(accents[char] ?? char);
+
+    for (final rune in input.runes) {
+      switch (rune) {
+        case 0x00C0:
+        case 0x00C1:
+        case 0x00C2:
+        case 0x00C3:
+        case 0x00C4:
+        case 0x00C5:
+          buffer.write('A');
+          break;
+        case 0x00E0:
+        case 0x00E1:
+        case 0x00E2:
+        case 0x00E3:
+        case 0x00E4:
+        case 0x00E5:
+          buffer.write('a');
+          break;
+        case 0x00C8:
+        case 0x00C9:
+        case 0x00CA:
+        case 0x00CB:
+          buffer.write('E');
+          break;
+        case 0x00E8:
+        case 0x00E9:
+        case 0x00EA:
+        case 0x00EB:
+          buffer.write('e');
+          break;
+        case 0x00CC:
+        case 0x00CD:
+        case 0x00CE:
+        case 0x00CF:
+          buffer.write('I');
+          break;
+        case 0x00EC:
+        case 0x00ED:
+        case 0x00EE:
+        case 0x00EF:
+          buffer.write('i');
+          break;
+        case 0x00D2:
+        case 0x00D3:
+        case 0x00D4:
+        case 0x00D5:
+        case 0x00D6:
+          buffer.write('O');
+          break;
+        case 0x00F2:
+        case 0x00F3:
+        case 0x00F4:
+        case 0x00F5:
+        case 0x00F6:
+          buffer.write('o');
+          break;
+        case 0x00D9:
+        case 0x00DA:
+        case 0x00DB:
+        case 0x00DC:
+          buffer.write('U');
+          break;
+        case 0x00F9:
+        case 0x00FA:
+        case 0x00FB:
+        case 0x00FC:
+          buffer.write('u');
+          break;
+        case 0x00C7:
+          buffer.write('C');
+          break;
+        case 0x00E7:
+          buffer.write('c');
+          break;
+        case 0x00D1:
+          buffer.write('N');
+          break;
+        case 0x00F1:
+          buffer.write('n');
+          break;
+        default:
+          buffer.writeCharCode(rune);
+      }
     }
+
     return buffer.toString();
   }
 
   static const Map<String, String> _aliases = {
     'arm bar': 'armbar',
     'chave de braco': 'armbar',
-    'chave de braço': 'armbar',
+    'chave de bra�o': 'armbar',
     'guarda fechada': 'closed guard',
     'closed guard': 'closed guard',
     'meia guarda': 'half guard',

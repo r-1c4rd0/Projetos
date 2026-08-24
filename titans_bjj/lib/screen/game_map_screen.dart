@@ -187,19 +187,19 @@ class _GameMapSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CompactHeader(title: 'RESUMO TECNICO'),
+          const _CompactHeader(title: 'RESUMO T\u00c9CNICO'),
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
               _MetricPill(
-                label: 'POSICOES',
+                label: 'POSI\u00c7\u00d5ES',
                 value: stats.positions.toString(),
                 color: cs.secondary,
               ),
               _MetricPill(
-                label: 'TECNICAS',
+                label: 'T\u00c9CNICAS',
                 value: stats.techniques.toString(),
                 color: cs.primary,
               ),
@@ -243,7 +243,7 @@ class _SkillMatrixCard extends StatelessWidget {
             const TitansEmptyState(
               icon: Icons.grid_view_outlined,
               title: 'Skill Matrix vazia',
-              message: 'Registre posicao e tecnica nos debriefs para montar sua Skill Matrix.',
+              message: 'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar sua Skill Matrix.',
               compact: true,
             )
           else
@@ -275,7 +275,7 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            entry.category.label,
+            entry.category.displayLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
@@ -286,7 +286,7 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
             runSpacing: 6,
             children: [
               _MiniBadge(
-                label: '${entry.techniquesCount} tecnicas registradas',
+                label: _plural(entry.techniquesCount, 't\u00e9cnica registrada', 't\u00e9cnicas registradas'),
                 color: cs.primary,
               ),
               _MiniBadge(
@@ -346,7 +346,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   _MiniBadge(
-                    label: entry.category.label,
+                    label: entry.category.displayLabel,
                     color: cs.primary,
                   ),
                   if ((entry.position ?? '').trim().isNotEmpty)
@@ -355,11 +355,11 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                       color: cs.secondary,
                     ),
                   _MiniBadge(
-                    label: '${entry.sessionsCount} sessoes',
+                    label: _plural(entry.sessionsCount, 'sess\u00e3o', 'sess\u00f5es'),
                     color: cs.secondary,
                   ),
                   _MiniBadge(
-                    label: 'ultima ${_formatShortDate(entry.lastTrainedAt)}',
+                    label: '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
                     color: cs.onSurface.withValues(alpha: 0.5),
                   ),
                   if (entry.averageIntensity != null)
@@ -414,7 +414,7 @@ class _EmptyGameMapCard extends StatelessWidget {
     return const TitansEmptyState(
       icon: Icons.account_tree_outlined,
       title: 'Game Map vazio',
-      message: 'Registre posicao e tecnica nos debriefs para montar o mapa.',
+      message: 'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o mapa.',
       compact: true,
     );
   }
@@ -458,7 +458,7 @@ class _GameMapPositionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _MiniBadge(
-                label: '${entry.sessionsCount} sessoes',
+                label: _plural(entry.sessionsCount, 'sess\u00e3o', 'sess\u00f5es'),
                 color: cs.primary,
               ),
             ],
@@ -469,7 +469,7 @@ class _GameMapPositionCard extends StatelessWidget {
             runSpacing: 8,
             children: [
               _MiniBadge(
-                label: 'ultima ${_formatShortDate(entry.lastTrainedAt)}',
+                label: '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
                 color: cs.onSurface.withValues(alpha: 0.5),
               ),
               if (intensity != null)
@@ -503,7 +503,7 @@ class _GameMapPositionCard extends StatelessWidget {
                     color: Colors.lightGreenAccent,
                   ),
                 if (difficulty != null)
-                  _MiniBadge(label: 'atencao: $difficulty', color: cs.error),
+                  _MiniBadge(label: 'aten\u00e7\u00e3o: $difficulty', color: cs.error),
               ],
             ),
           ],
@@ -716,28 +716,28 @@ class SkillLevelDots extends StatelessWidget {
       children: [
         _SkillStagePill(
           label: 'Registrada',
-          description: 'Tecnica registrada em pelo menos um debrief.',
+          description: 'T\u00e9cnica registrada em pelo menos um debrief.',
           active: registered,
           color: cs.primary,
         ),
         _SkillStagePill(
           label: 'Treinada',
           description:
-              'Tecnica apareceu em sessao registrada; no MVP acompanha o registro.',
+              'T\u00e9cnica apareceu em sess\u00e3o registrada; no MVP acompanha o registro.',
           active: trained,
           color: cs.secondary,
         ),
         _SkillStagePill(
           label: 'Recorrente',
-          description: 'Aparece em 3 ou mais sessoes registradas.',
+          description: 'Aparece em 3 ou mais sess\u00f5es registradas.',
           active: consistent,
           color: Colors.lightGreenAccent,
         ),
         _SkillStagePill(
           label: _applicationStageLabel(),
           description: applicationMeasured
-              ? 'Aplicacao registrada como evidencia auxiliar.'
-              : 'Sem dados de rola/competicao nesta versao.',
+              ? 'Aplica\u00e7\u00e3o registrada como evid\u00eancia auxiliar.'
+              : 'Sem dados de rola/competi\u00e7\u00e3o nesta vers\u00e3o.',
           active: applicationMeasured,
           color: applicationMeasured ? Colors.lightGreenAccent : cs.onSurface,
           neutral: !applicationMeasured,
@@ -747,10 +747,10 @@ class SkillLevelDots extends StatelessWidget {
   }
 
   String _applicationStageLabel() {
-    if (!applicationMeasured) return 'Aplicacao ainda nao medida';
-    final outcome = TrainingSession.techniqueOutcomeLabel(techniqueOutcome);
-    final context = TrainingSession.applicationContextLabel(applicationContext);
-    if (outcome == null) return 'Aplicacao medida';
+    if (!applicationMeasured) return 'Aplica\u00e7\u00e3o ainda n\u00e3o medida';
+    final outcome = _techniqueOutcomeDisplayLabel(techniqueOutcome) ??
+        'Aplica\u00e7\u00e3o medida';
+    final context = _applicationContextDisplayLabel(applicationContext);
     if (context == null) return outcome;
     return '$outcome em $context';
   }
@@ -904,4 +904,44 @@ String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
+}
+
+String _plural(int count, String singular, String plural) {
+  return '$count ${count == 1 ? singular : plural}';
+}
+
+String? _applicationContextDisplayLabel(String? value) {
+  switch (value) {
+    case TrainingSession.applicationContextDrill:
+      return 'Drill';
+    case TrainingSession.applicationContextPositionalSparring:
+      return 'Treino posicional';
+    case TrainingSession.applicationContextSparring:
+      return 'Rola';
+    case TrainingSession.applicationContextCompetition:
+      return 'Competi\u00e7\u00e3o';
+    case TrainingSession.applicationContextNotApplied:
+      return 'N\u00e3o aplicada';
+    default:
+      final clean = value?.trim();
+      return clean == null || clean.isEmpty ? null : clean;
+  }
+}
+
+String? _techniqueOutcomeDisplayLabel(String? value) {
+  switch (value) {
+    case TrainingSession.techniqueOutcomeWorked:
+      return 'Funcionou';
+    case TrainingSession.techniqueOutcomeAlmost:
+      return 'Quase funcionou';
+    case TrainingSession.techniqueOutcomeFailed:
+      return 'Falhou';
+    case TrainingSession.techniqueOutcomeDefended:
+      return 'Parceiro defendeu';
+    case TrainingSession.techniqueOutcomeNotTested:
+      return 'N\u00e3o testada';
+    default:
+      final clean = value?.trim();
+      return clean == null || clean.isEmpty ? null : clean;
+  }
 }

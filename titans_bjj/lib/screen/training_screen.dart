@@ -97,9 +97,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
                       'Selecione um aluno no Painel do Mestre para acessar Treinos.',
                 )
                 : const TitansStateView.error(
-                  title: 'Perfil nao carregado',
+                  title: 'Perfil n\u00e3o carregado',
                   message:
-                      'Nao foi possivel identificar seu usuario para carregar Treinos.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar Treinos.',
                 ),
       );
     }
@@ -269,7 +269,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 TitansEmptyState(
                   icon: Icons.fitness_center_outlined,
                   title: 'Sem treinos registrados',
-                  message: 'Adicione uma sessao para iniciar o historico.',
+                  message: 'Adicione uma sess\u00e3o para iniciar o hist\u00f3rico.',
                   compact: true,
                   action:
                       canEditTarget
@@ -498,10 +498,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final technique = session.technique?.trim();
     final position = session.position?.trim();
     if (technique != null && technique.isNotEmpty) {
-      debrief.add('Tecnica: $technique');
+      debrief.add('T\u00e9cnica: $technique');
     }
     if (position != null && position.isNotEmpty) {
-      debrief.add('Posicao: $position');
+      debrief.add('Posi\u00e7\u00e3o: $position');
     }
     if (session.intensity != null) {
       debrief.add('Intensidade: ${session.intensity}/5');

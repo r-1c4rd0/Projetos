@@ -209,21 +209,21 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                       ),
                       const SizedBox(height: 20),
                       Text(
-                        'Debrief pos-treino',
+                        'Debrief p\u00f3s-treino',
                         style: Theme.of(context).textTheme.titleMedium,
                       ),
                       const SizedBox(height: 12),
                       _DebriefSelectCard(
-                        label: 'Posicao trabalhada',
-                        placeholder: 'Selecionar posicao',
+                        label: 'Posi\u00e7\u00e3o trabalhada',
+                        placeholder: 'Selecionar posi\u00e7\u00e3o',
                         value: _optionalText(_position),
                         icon: Icons.sports_mma_outlined,
                         loading: positionSnap.connectionState ==
                                 ConnectionState.waiting &&
                             !positionSnap.hasData,
                         onTap: () => _selectDebriefValue(
-                          title: 'Posicao trabalhada',
-                          placeholder: 'Buscar posicao',
+                          title: 'Posi\u00e7\u00e3o trabalhada',
+                          placeholder: 'Buscar posi\u00e7\u00e3o',
                           type: JiuJitsuTaxonomyType.position,
                           options: positionOptions,
                           controller: _position,
@@ -233,16 +233,16 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                       ),
                       const SizedBox(height: 12),
                       _DebriefSelectCard(
-                        label: 'Tecnica trabalhada',
-                        placeholder: 'Selecionar tecnica',
+                        label: 'T\u00e9cnica trabalhada',
+                        placeholder: 'Selecionar t\u00e9cnica',
                         value: _optionalText(_technique),
                         icon: Icons.psychology_alt_outlined,
                         loading: techniqueSnap.connectionState ==
                                 ConnectionState.waiting &&
                             !techniqueSnap.hasData,
                         onTap: () => _selectDebriefValue(
-                          title: 'Tecnica trabalhada',
-                          placeholder: 'Buscar tecnica',
+                          title: 'T\u00e9cnica trabalhada',
+                          placeholder: 'Buscar t\u00e9cnica',
                           type: JiuJitsuTaxonomyType.technique,
                           options: techniqueOptions,
                           controller: _technique,
@@ -278,7 +278,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                         items: const [
                           DropdownMenuItem<int?>(
                             value: null,
-                            child: Text('Nao informado'),
+                            child: Text('N\u00e3o informado'),
                           ),
                           DropdownMenuItem<int?>(
                             value: 1,
@@ -299,8 +299,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                       ),
                       const SizedBox(height: 12),
                       _DebriefChoiceSection(
-                        title: 'Aplicacao tecnica',
-                        subtitle: 'Onde voce tentou usar?',
+                        title: 'Aplica\u00e7\u00e3o t\u00e9cnica',
+                        subtitle: 'Onde voc\u00ea tentou usar?',
                         options: _applicationContextOptions,
                         selectedValue: _applicationContext,
                         onSelected: (value) => setState(
@@ -570,11 +570,11 @@ const _applicationContextOptions = <_DebriefChoiceOption>[
   ),
   _DebriefChoiceOption(
     value: TrainingSession.applicationContextCompetition,
-    label: 'Competicao',
+    label: 'Competi\u00e7\u00e3o',
   ),
   _DebriefChoiceOption(
     value: TrainingSession.applicationContextNotApplied,
-    label: 'Nao aplicada',
+    label: 'N\u00e3o aplicada',
   ),
 ];
 
@@ -585,7 +585,7 @@ const _techniqueOutcomeOptions = <_DebriefChoiceOption>[
   ),
   _DebriefChoiceOption(
     value: TrainingSession.techniqueOutcomeAlmost,
-    label: 'Quase',
+    label: 'Quase funcionou',
   ),
   _DebriefChoiceOption(
     value: TrainingSession.techniqueOutcomeFailed,
@@ -593,11 +593,11 @@ const _techniqueOutcomeOptions = <_DebriefChoiceOption>[
   ),
   _DebriefChoiceOption(
     value: TrainingSession.techniqueOutcomeDefended,
-    label: 'Defendido',
+    label: 'Parceiro defendeu',
   ),
   _DebriefChoiceOption(
     value: TrainingSession.techniqueOutcomeNotTested,
-    label: 'Nao testada',
+    label: 'N\u00e3o testada',
   ),
 ];
 

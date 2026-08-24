@@ -171,12 +171,12 @@ class RecommendedTrainingFocus {
       : position = null,
         technique = null,
         title = 'Foco recomendado',
-        summary = 'Sem tecnica registrada',
+        summary = 'Sem t\u00e9cnica registrada',
         reason =
-            'Registre posicao e tecnica nos debriefs para gerar um foco recomendado.',
+            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um foco recomendado.',
         suggestedAction =
-            'No proximo treino, preencha pelo menos a tecnica trabalhada.',
-        evidenceLabel = 'Sem dados tecnicos',
+            'No pr\u00f3ximo treino, preencha pelo menos a t\u00e9cnica trabalhada.',
+        evidenceLabel = 'Sem dados t\u00e9cnicos',
         priority = RecommendedTrainingFocusPriority.none,
         tags = const [],
         sessionsCount = 0,
@@ -190,7 +190,7 @@ class RecommendedTrainingFocus {
 
 class TrainingAggregator {
   static const int recentWindowDays = 30;
-  static const String undefinedPositionLabel = 'Sem posicao definida';
+  static const String undefinedPositionLabel = 'Sem posi\u00e7\u00e3o definida';
 
   static List<TrainingSession> uniqueSessions(List<TrainingSession> sessions) {
     final byKey = <String, TrainingSession>{};
@@ -394,7 +394,7 @@ class TrainingAggregator {
       return selected.toFocus(
         titlePrefix: 'Revisar',
         reason:
-            'Voce registrou dificuldade recente nessa tecnica. Vale repetir com foco em controle e finalizacao do movimento.',
+            'Voc\u00ea registrou dificuldade recente nessa t\u00e9cnica. Vale repetir com foco em controle e finaliza\u00e7\u00e3o do movimento.',
         suggestedAction:
             'Separe rounds curtos para repetir a entrada, estabilizar o controle e fechar o movimento.',
         priority: selected.difficultyCount >= 2
@@ -415,23 +415,23 @@ class TrainingAggregator {
       return lowConsistency.first.toFocus(
         titlePrefix: 'Consolidar',
         reason:
-            'Essa tecnica apareceu recentemente, mas ainda tem pouca repeticao registrada.',
+            'Essa t\u00e9cnica apareceu recentemente, mas ainda tem pouca repeti\u00e7\u00e3o registrada.',
         suggestedAction:
-            'Repita a tecnica no aquecimento tecnico e registre o debrief ao final.',
+            'Repita a t\u00e9cnica no aquecimento t\u00e9cnico e registre o debrief ao final.',
         priority: RecommendedTrainingFocusPriority.medium,
-        baseTags: const ['Pouca repeticao'],
+        baseTags: const ['Pouca repeti\u00e7\u00e3o'],
       );
     }
 
     drafts.sort(_compareMaintenanceFocusDraft);
     return drafts.first.toFocus(
-      titlePrefix: 'Manter evolucao em',
+      titlePrefix: 'Manter evolu\u00e7\u00e3o em',
       reason:
-          'Seu historico recente mostra boa recorrencia nesse ponto. Continue refinando.',
+          'Seu hist\u00f3rico recente mostra boa recorr\u00eancia nesse ponto. Continue refinando.',
       suggestedAction:
-          'Use o proximo treino para variar entradas, pegadas e ajustes finos.',
+          'Use o pr\u00f3ximo treino para variar entradas, pegadas e ajustes finos.',
       priority: RecommendedTrainingFocusPriority.low,
-      baseTags: const ['Manutencao'],
+      baseTags: const ['Manuten\u00e7\u00e3o'],
     );
   }
 
@@ -496,7 +496,7 @@ class TrainingAggregator {
     if (consistentCompare != 0) return consistentCompare;
     final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
     if (countCompare != 0) return countCompare;
-    return a.category.label.compareTo(b.category.label);
+    return a.category.displayLabel.compareTo(b.category.displayLabel);
   }
 
   static int _compareSkillTechniqueEntry(
@@ -654,8 +654,8 @@ class _RecommendedFocusDraft {
     final avgIntensity = averageIntensity;
     final tags = <String>[...baseTags];
 
-    if (sessionsCount < 3 && !tags.contains('Pouca repeticao')) {
-      tags.add('Pouca repeticao');
+    if (sessionsCount < 3 && !tags.contains('Pouca repeti\u00e7\u00e3o')) {
+      tags.add('Pouca repeti\u00e7\u00e3o');
     }
     if (avgIntensity != null &&
         avgIntensity >= 4 &&

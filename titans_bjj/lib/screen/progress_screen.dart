@@ -146,9 +146,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       'Selecione um aluno no Painel do Mestre para acessar Progresso.',
                 )
                 : const TitansStateView.error(
-                  title: 'Perfil nao carregado',
+                  title: 'Perfil n\u00e3o carregado',
                   message:
-                      'Nao foi possivel identificar seu usuario para carregar Progresso.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar Progresso.',
                 ),
       );
     }
@@ -206,9 +206,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
                   final rules = rulesSnap.data;
                   if (rules == null) {
                     return const _EmptyState(
-                      title: 'Regras da academia nao configuradas.',
+                      title: 'Regras da academia n\u00e3o configuradas.',
                       subtitle:
-                          'Nao foi possivel ler academies/{academyId}/grading_rules/default.',
+                          'N\u00e3o foi poss\u00edvel ler academies/{academyId}/grading_rules/default.',
                     );
                   }
 
@@ -229,7 +229,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                       final athlete = userSnap.data;
                       if (athlete == null) {
                         return const _EmptyState(
-                          title: 'Atleta nao encontrado.',
+                          title: 'Atleta n\u00e3o encontrado.',
                           subtitle:
                               'Crie academies/{academyId}/users/{uid} com belt e degree.',
                         );
@@ -258,7 +258,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                           final profile = profileSnap.data;
                           if (profile == null) {
                             return const _EmptyState(
-                              title: 'Perfil de progresso nao encontrado.',
+                              title: 'Perfil de progresso n\u00e3o encontrado.',
                               subtitle:
                                   'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
                             );
@@ -548,7 +548,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                               setDialogState(() {
                                 saving = false;
                                 errorMessage =
-                                    'Nao foi possivel salvar. $error';
+                                    'N\u00e3o foi poss\u00edvel salvar. $error';
                               });
                             }
                           },
@@ -765,20 +765,7 @@ class _BeltProgressCard extends StatelessWidget {
 
   static String beltName(BeltColor belt) => _beltName(belt);
 
-  static String _beltName(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return 'Branca';
-      case BeltColor.blue:
-        return 'Azul';
-      case BeltColor.purple:
-        return 'Roxa';
-      case BeltColor.brown:
-        return 'Marrom';
-      case BeltColor.black:
-        return 'Preta';
-    }
-  }
+  static String _beltName(BeltColor belt) => TitansUI.beltLabel(belt.name);
 }
 
 class _TrainingMetricsCard extends StatelessWidget {

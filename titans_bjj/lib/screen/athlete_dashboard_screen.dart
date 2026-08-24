@@ -118,9 +118,9 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       'Selecione um aluno no Painel do Mestre para acessar o console do atleta.',
                 )
                 : const TitansStateView.error(
-                  title: 'Perfil nao carregado',
+                  title: 'Perfil n\u00e3o carregado',
                   message:
-                      'Nao foi possivel identificar seu usuario para carregar o dashboard.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar o dashboard.',
                 ),
       );
     }
@@ -159,7 +159,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
           final athlete = userSnap.data;
           if (athlete == null) {
             return const _EmptyState(
-              title: 'Usuario nao encontrado.',
+              title: 'Usu\u00e1rio n\u00e3o encontrado.',
               subtitle:
                   'Crie academies/{academyId}/users/{uid} com role, belt e degree.',
             );
@@ -192,7 +192,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
               final profile = profileSnap.data;
               if (profile == null) {
                 return const _EmptyState(
-                  title: 'Perfil de progresso nao encontrado.',
+                  title: 'Perfil de progresso n\u00e3o encontrado.',
                   subtitle:
                       'Crie academies/{academyId}/users/{uid}/progress/profile (beltStartAt, estimatedSessionsInBelt).',
                 );
@@ -517,7 +517,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             );
 
             return AlertDialog(
-              title: const Text('Solicitar/Editar graduacao'),
+              title: const Text('Solicitar/Editar gradua\u00e7\u00e3o'),
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -620,7 +620,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                               setDialogState(() {
                                 saving = false;
                                 errorMessage =
-                                    'Nao foi possivel salvar. $error';
+                                    'N\u00e3o foi poss\u00edvel salvar. $error';
                               });
                             }
                           },
@@ -708,8 +708,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       final technique = _cleanDebriefText(session.technique);
       final position = _cleanDebriefText(session.position);
       final focusParts = <String>[];
-      if (technique != null) focusParts.add('Tecnica: $technique');
-      if (position != null) focusParts.add('Posicao: $position');
+      if (technique != null) focusParts.add('T\u00e9cnica: $technique');
+      if (position != null) focusParts.add('Posi\u00e7\u00e3o: $position');
       if (focusParts.isNotEmpty) focus.add(focusParts.join(' - '));
 
       final difficulties = _cleanDebriefText(session.difficulties);
@@ -838,19 +838,12 @@ String _formatShortDate(DateTime date) {
   return '$day/$month';
 }
 
+String _plural(int count, String singular, String plural) {
+  return '$count ${count == 1 ? singular : plural}';
+}
+
 String _beltLabel(BeltColor belt) {
-  switch (belt) {
-    case BeltColor.white:
-      return 'Branca';
-    case BeltColor.blue:
-      return 'Azul';
-    case BeltColor.purple:
-      return 'Roxa';
-    case BeltColor.brown:
-      return 'Marrom';
-    case BeltColor.black:
-      return 'Preta';
-  }
+  return TitansUI.beltLabel(belt.name);
 }
 
 class _AthleteCard extends StatelessWidget {
@@ -915,7 +908,7 @@ class _AthleteCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           Text(
-            'Progresso para o proximo grau',
+            'Progresso para o pr\u00f3ximo grau',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.65),
               fontSize: 12,
@@ -968,7 +961,7 @@ class _AthleteCard extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onEditGraduation,
                     icon: const Icon(Icons.military_tech_outlined),
-                    label: const Text('Editar graduacao'),
+                    label: const Text('Editar gradua\u00e7\u00e3o'),
                   ),
               ],
             ),
@@ -987,11 +980,11 @@ class _BeltPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = switch (belt) {
-      BeltColor.white => 'FAIXA WHITE',
-      BeltColor.blue => 'FAIXA BLUE',
-      BeltColor.purple => 'FAIXA PURPLE',
-      BeltColor.brown => 'FAIXA BROWN',
-      BeltColor.black => 'FAIXA BLACK',
+      BeltColor.white => 'Faixa branca',
+      BeltColor.blue => 'Faixa azul',
+      BeltColor.purple => 'Faixa roxa',
+      BeltColor.brown => 'Faixa marrom',
+      BeltColor.black => 'Faixa preta',
     };
 
     return Container(
@@ -1035,7 +1028,7 @@ class _GraduationProgressCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'PROGRESSO DE GRADUACAO',
+            'PROGRESSO DE GRADUA\u00c7\u00c3O',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
@@ -1088,7 +1081,7 @@ class _GraduationProgressCard extends StatelessWidget {
           Text(
             remaining == 0
                 ? 'Meta estimada desta etapa atingida pelos treinos registrados.'
-                : 'Faltam cerca de $remaining sessoes para a referencia estimada da faixa.',
+                : 'Faltam cerca de ${_plural(remaining, 'sess\u00e3o', 'sess\u00f5es')} para a refer\u00eancia estimada da faixa.',
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
           ),
         ],
@@ -1249,9 +1242,9 @@ class _DebriefInsightsCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _InsightBlock(
-            title: 'FOCO TECNICO',
+            title: 'FOCO T\u00c9CNICO',
             value: insights.technicalFocus,
-            empty: 'Registre debriefs nos treinos para gerar foco tecnico.',
+            empty: 'Registre debriefs nos treinos para gerar foco t\u00e9cnico.',
           ),
           const SizedBox(height: 12),
           _InsightBlock(
@@ -1332,9 +1325,9 @@ class _RecommendedFocusCard extends StatelessWidget {
     final evidence = <String>[
       focus.evidenceLabel,
       if (focus.avgIntensity != null)
-        'Intensidade media ${focus.avgIntensity!.toStringAsFixed(1)}/5',
+        'Intensidade m\u00e9dia ${focus.avgIntensity!.toStringAsFixed(1)}/5',
       if (focus.lastTrainedAt != null)
-        'Ultimo treino: ${_formatShortDate(focus.lastTrainedAt!)}',
+        '\u00daltimo treino: ${_formatShortDate(focus.lastTrainedAt!)}',
     ];
 
     return _GlassCard(
@@ -1441,7 +1434,7 @@ class _RecommendedFocusCard extends StatelessWidget {
       case RecommendedTrainingFocusPriority.high:
         return 'Prioridade alta';
       case RecommendedTrainingFocusPriority.medium:
-        return 'Prioridade media';
+        return 'Prioridade m\u00e9dia';
       case RecommendedTrainingFocusPriority.low:
         return 'Prioridade baixa';
       case RecommendedTrainingFocusPriority.none:
@@ -1469,7 +1462,7 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
         if (sessionsCompare != 0) return sessionsCompare;
         final techniquesCompare = b.techniquesCount.compareTo(a.techniquesCount);
         if (techniquesCompare != 0) return techniquesCompare;
-        return a.category.label.compareTo(b.category.label);
+        return a.category.displayLabel.compareTo(b.category.displayLabel);
       });
     final totalTechniques = entries.fold<int>(
       0,
@@ -1488,7 +1481,9 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
               .length,
     );
     final mainCategory =
-        activeCategories.isEmpty ? '--' : activeCategories.first.category.label;
+        activeCategories.isEmpty
+            ? '--'
+            : activeCategories.first.category.displayLabel;
 
     return _GlassCard(
       accent: cs.primary.withValues(alpha: 0.35),
@@ -1506,7 +1501,7 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
           const SizedBox(height: 12),
           if (entries.isEmpty)
             Text(
-              'Registre posicao e tecnica nos debriefs para montar sua Skill Matrix.',
+              'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar sua Skill Matrix.',
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
             )
           else ...[
@@ -1533,7 +1528,7 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(
-              'Resumo dos debriefs: o mapa completo mostra posicao, categoria, recorrencia e intensidade por tecnica.',
+              'Resumo dos debriefs: o mapa completo mostra posi\u00e7\u00e3o, categoria, recorr\u00eancia e intensidade por t\u00e9cnica.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
@@ -1541,8 +1536,8 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
             const SizedBox(height: 12),
             _InsightBadge(
               label: measuredApplicationTechniques > 0
-                  ? '$measuredApplicationTechniques tecnicas com aplicacao medida no mapa completo.'
-                  : 'Aplicacao em rola/competicao ainda nao e medida nesta versao.',
+                  ? '${_plural(measuredApplicationTechniques, 't\u00e9cnica', 't\u00e9cnicas')} com aplicação medida no mapa completo.'
+                  : 'Aplica\u00e7\u00e3o ainda n\u00e3o medida.',
               color: cs.onSurface.withValues(alpha: 0.42),
               icon: Icons.radio_button_unchecked,
               muted: true,
@@ -1729,7 +1724,7 @@ class _GameMapLiteCard extends StatelessWidget {
           const SizedBox(height: 10),
           if (entries.isEmpty)
             Text(
-              'Registre posicao e tecnica nos debriefs para montar o Game Map.',
+              'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o Game Map.',
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
             )
           else
@@ -1806,10 +1801,10 @@ class _GameMapTechniqueBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final intensity = technique.averageIntensity;
     final summary = <String>[
-      '${technique.sessionsCount} ${technique.sessionsCount == 1 ? 'sessao' : 'sessoes'}',
-      'ultima em ${_formatShortDate(technique.lastTrainedAt)}',
+      '${_plural(technique.sessionsCount, 'sess\u00e3o', 'sess\u00f5es')}',
+      '\u00faltima em ${_formatShortDate(technique.lastTrainedAt)}',
       if (intensity != null)
-        'intensidade media ${intensity.toStringAsFixed(1)}/5',
+        'intensidade m\u00e9dia ${intensity.toStringAsFixed(1)}/5',
     ];
     final difficulty = _shortDebriefText(technique.recentDifficulty);
     final success = _shortDebriefText(technique.recentSuccess);
@@ -1903,9 +1898,9 @@ class _TrainingActivityRow extends StatelessWidget {
     ];
     final debrief = <String>[
       if ((session.position ?? '').trim().isNotEmpty)
-        'Posicao: ${session.position!.trim()}',
+        'Posi\u00e7\u00e3o: ${session.position!.trim()}',
       if ((session.technique ?? '').trim().isNotEmpty)
-        'Tecnica: ${session.technique!.trim()}',
+        'T\u00e9cnica: ${session.technique!.trim()}',
       if (session.intensity != null) 'Intensidade: ${session.intensity}/5',
       if (_shortDebriefText(session.difficulties) != null)
         'Dificuldade: ${_shortDebriefText(session.difficulties)}',

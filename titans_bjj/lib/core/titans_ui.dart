@@ -48,6 +48,28 @@ class TitansUI {
     }
   }
 
+  static String beltLabel(String? belt) {
+    switch (belt?.trim().toLowerCase().replaceFirst('beltcolor.', '')) {
+      case 'white':
+      case 'branca':
+        return 'branca';
+      case 'blue':
+      case 'azul':
+        return 'azul';
+      case 'purple':
+      case 'roxa':
+        return 'roxa';
+      case 'brown':
+      case 'marrom':
+        return 'marrom';
+      case 'black':
+      case 'preta':
+        return 'preta';
+      default:
+        return 'n\u00e3o informada';
+    }
+  }
+
   static EdgeInsets listPadding(BuildContext context, {double extra = 32}) {
     final bottom = MediaQuery.of(context).padding.bottom;
     return EdgeInsets.fromLTRB(spaceMd, spaceMd, spaceMd, 80 + bottom + extra);
