@@ -482,7 +482,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
   bool _hasDebrief(TrainingSession session) {
     return (session.position?.trim().isNotEmpty ?? false) ||
         (session.technique?.trim().isNotEmpty ?? false) ||
-        session.intensity != null;
+        session.intensity != null ||
+        (session.applicationContext?.trim().isNotEmpty ?? false) ||
+        (session.techniqueOutcome?.trim().isNotEmpty ?? false);
   }
 
   String _sessionSummary(TrainingSession session) {
@@ -504,12 +506,31 @@ class _TrainingScreenState extends State<TrainingScreen> {
     if (session.intensity != null) {
       debrief.add('Intensidade: ${session.intensity}/5');
     }
+    final application = _applicationSummary(session);
+    if (application != null) {
+      debrief.add(application);
+    }
 
     if (debrief.isNotEmpty) {
       lines.add(debrief.join(' - '));
     }
 
     return lines.isEmpty ? '-' : lines.join('\n');
+  }
+
+  String? _applicationSummary(TrainingSession session) {
+    final context = TrainingSession.applicationContextLabel(
+      session.applicationContext,
+    );
+    final outcome = TrainingSession.techniqueOutcomeLabel(
+      session.techniqueOutcome,
+    );
+    final parts = <String>[
+      if (context != null) context,
+      if (outcome != null) outcome,
+    ];
+    if (parts.isEmpty) return null;
+    return parts.join(' - ');
   }
 }
 

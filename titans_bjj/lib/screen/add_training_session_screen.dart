@@ -46,6 +46,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   final Set<int> _weekdays = {DateTime.monday, DateTime.wednesday};
 
   int? _intensity;
+  String? _applicationContext;
+  String? _techniqueOutcome;
   bool _saving = false;
 
   late final TrainingRepository repo = TrainingRepository.instance;
@@ -86,6 +88,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     _difficulties.text = session.difficulties ?? '';
     _debriefNotes.text = session.debriefNotes ?? '';
     _intensity = session.intensity;
+    _applicationContext = session.applicationContext;
+    _techniqueOutcome = session.techniqueOutcome;
   }
 
   @override
@@ -294,6 +298,28 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                         onChanged: (value) => setState(() => _intensity = value),
                       ),
                       const SizedBox(height: 12),
+                      _DebriefChoiceSection(
+                        title: 'Aplicacao tecnica',
+                        subtitle: 'Onde voce tentou usar?',
+                        options: _applicationContextOptions,
+                        selectedValue: _applicationContext,
+                        onSelected: (value) => setState(
+                          () => _applicationContext =
+                              _applicationContext == value ? null : value,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      _DebriefChoiceSection(
+                        title: 'Resultado',
+                        subtitle: 'Como foi a tentativa?',
+                        options: _techniqueOutcomeOptions,
+                        selectedValue: _techniqueOutcome,
+                        onSelected: (value) => setState(
+                          () => _techniqueOutcome =
+                              _techniqueOutcome == value ? null : value,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
                       TextFormField(
                         controller: _debriefNotes,
                         decoration: const InputDecoration(
@@ -386,6 +412,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
       final successes = _optionalText(_successes);
       final difficulties = _optionalText(_difficulties);
       final debriefNotes = _optionalText(_debriefNotes);
+      final applicationContext = _applicationContext;
+      final techniqueOutcome = _techniqueOutcome;
 
       if (!_recurring) {
         final existing = widget.session;
@@ -409,13 +437,16 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           difficulties: difficulties,
           intensity: _intensity,
           debriefNotes: debriefNotes,
+          applicationContext: applicationContext,
+          techniqueOutcome: techniqueOutcome,
         );
 
         final actor = UserScope.maybeOf(context);
         debugPrint(
           "[TRAINING_DEBRIEF_SAVE] mode=${_editing ? 'edit' : 'create'} "
           'session.id=${s.id} target.uid=${widget.uid} '
-          'position=$position technique=$technique intensity=$_intensity',
+          'position=$position technique=$technique intensity=$_intensity '
+          'applicationContext=$applicationContext techniqueOutcome=$techniqueOutcome',
         );
         debugPrint(
           "[TRAINING_SAVE] mode=${_editing ? 'edit' : 'create'} "
@@ -481,6 +512,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                 difficulties: difficulties,
                 intensity: _intensity,
                 debriefNotes: debriefNotes,
+                applicationContext: applicationContext,
+                techniqueOutcome: techniqueOutcome,
               ),
             )
             .toList();
@@ -489,7 +522,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
         debugPrint(
           '[TRAINING_DEBRIEF_SAVE] mode=create '
           'session.id=multiple(${sessions.length}) target.uid=${widget.uid} '
-          'position=$position technique=$technique intensity=$_intensity',
+          'position=$position technique=$technique intensity=$_intensity '
+          'applicationContext=$applicationContext techniqueOutcome=$techniqueOutcome',
         );
         debugPrint(
           '[TRAINING_SAVE] mode=create actor.uid=${actor?.uid} '
@@ -518,6 +552,110 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   String? _optionalText(TextEditingController controller) {
     final text = controller.text.trim();
     return text.isEmpty ? null : text;
+  }
+}
+
+const _applicationContextOptions = <_DebriefChoiceOption>[
+  _DebriefChoiceOption(
+    value: TrainingSession.applicationContextDrill,
+    label: 'Drill',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.applicationContextPositionalSparring,
+    label: 'Treino posicional',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.applicationContextSparring,
+    label: 'Rola',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.applicationContextCompetition,
+    label: 'Competicao',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.applicationContextNotApplied,
+    label: 'Nao aplicada',
+  ),
+];
+
+const _techniqueOutcomeOptions = <_DebriefChoiceOption>[
+  _DebriefChoiceOption(
+    value: TrainingSession.techniqueOutcomeWorked,
+    label: 'Funcionou',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.techniqueOutcomeAlmost,
+    label: 'Quase',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.techniqueOutcomeFailed,
+    label: 'Falhou',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.techniqueOutcomeDefended,
+    label: 'Defendido',
+  ),
+  _DebriefChoiceOption(
+    value: TrainingSession.techniqueOutcomeNotTested,
+    label: 'Nao testada',
+  ),
+];
+
+class _DebriefChoiceOption {
+  final String value;
+  final String label;
+
+  const _DebriefChoiceOption({required this.value, required this.label});
+}
+
+class _DebriefChoiceSection extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final List<_DebriefChoiceOption> options;
+  final String? selectedValue;
+  final ValueChanged<String> onSelected;
+
+  const _DebriefChoiceSection({
+    required this.title,
+    required this.subtitle,
+    required this.options,
+    required this.selectedValue,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: title,
+        prefixIcon: const Icon(Icons.sports_score_outlined),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            subtitle,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final option in options)
+                FilterChip(
+                  label: Text(option.label),
+                  selected: selectedValue == option.value,
+                  onSelected: (_) => onSelected(option.value),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 }
 

@@ -131,7 +131,10 @@ class TrainingRepository {
       academyId: academyId,
       uid: uid,
       sessionId: session.id,
-    ).set(session.toMap(), SetOptions(merge: true));
+    ).set(
+      session.toMap(includeApplicationDeletes: true),
+      SetOptions(merge: true),
+    );
   }
 
   Future<void> addSession({

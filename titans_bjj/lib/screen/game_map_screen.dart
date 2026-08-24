@@ -243,7 +243,7 @@ class _SkillMatrixCard extends StatelessWidget {
             const TitansEmptyState(
               icon: Icons.grid_view_outlined,
               title: 'Skill Matrix vazia',
-              message: 'Registre tecnicas nos debriefs para ativar a matriz.',
+              message: 'Registre posicao e tecnica nos debriefs para montar sua Skill Matrix.',
               compact: true,
             )
           else
@@ -286,11 +286,11 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
             runSpacing: 6,
             children: [
               _MiniBadge(
-                label: '${entry.techniquesCount} tech',
+                label: '${entry.techniquesCount} tecnicas registradas',
                 color: cs.primary,
               ),
               _MiniBadge(
-                label: '${entry.consistencyCount} rec',
+                label: '${entry.consistencyCount} recorrentes',
                 color: Colors.lightGreenAccent,
               ),
               if (intensity != null)
@@ -346,41 +346,42 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                 runSpacing: 6,
                 children: [
                   _MiniBadge(
+                    label: entry.category.label,
+                    color: cs.primary,
+                  ),
+                  if ((entry.position ?? '').trim().isNotEmpty)
+                    _MiniBadge(
+                      label: entry.position!.trim(),
+                      color: cs.secondary,
+                    ),
+                  _MiniBadge(
                     label: '${entry.sessionsCount} sessoes',
                     color: cs.secondary,
                   ),
                   _MiniBadge(
-                    label: _formatShortDate(entry.lastTrainedAt),
+                    label: 'ultima ${_formatShortDate(entry.lastTrainedAt)}',
                     color: cs.onSurface.withValues(alpha: 0.5),
                   ),
-                  if (entry.consistent)
-                    const _MiniBadge(
-                      label: 'recorrente',
-                      color: Colors.lightGreenAccent,
+                  if (entry.averageIntensity != null)
+                    _MiniBadge(
+                      label:
+                          'intensidade ${entry.averageIntensity!.toStringAsFixed(1)}/5',
+                      color: Colors.amber,
                     ),
                 ],
               ),
             ],
           );
-          final levels = Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              SkillLevelDots(
-                registered: entry.knowledge,
-                trained: entry.drill,
-                consistent: entry.consistent,
-                application: entry.application == true,
-              ),
-              _MiniBadge(
-                label: 'sem dados',
-                color: cs.onSurface.withValues(alpha: 0.42),
-              ),
-            ],
+          final levels = SkillLevelDots(
+            registered: entry.knowledge,
+            trained: entry.drill,
+            consistent: entry.consistent,
+            applicationMeasured: entry.application == true,
+            applicationContext: entry.applicationContext,
+            techniqueOutcome: entry.techniqueOutcome,
           );
 
-          if (constraints.maxWidth < 360) {
+          if (constraints.maxWidth < 520) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [details, const SizedBox(height: 10), levels],
@@ -690,81 +691,116 @@ class SkillLevelDots extends StatelessWidget {
   final bool registered;
   final bool trained;
   final bool consistent;
-  final bool application;
+  final bool applicationMeasured;
+  final String? applicationContext;
+  final String? techniqueOutcome;
 
   const SkillLevelDots({
     super.key,
     required this.registered,
     required this.trained,
     required this.consistent,
-    required this.application,
+    required this.applicationMeasured,
+    required this.applicationContext,
+    required this.techniqueOutcome,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Row(
-      mainAxisSize: MainAxisSize.min,
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        _SkillDot(label: 'R', active: registered, color: cs.primary),
-        const SizedBox(width: 4),
-        _SkillDot(label: 'T', active: trained, color: cs.secondary),
-        const SizedBox(width: 4),
-        _SkillDot(
-          label: 'C',
+        _SkillStagePill(
+          label: 'Registrada',
+          description: 'Tecnica registrada em pelo menos um debrief.',
+          active: registered,
+          color: cs.primary,
+        ),
+        _SkillStagePill(
+          label: 'Treinada',
+          description:
+              'Tecnica apareceu em sessao registrada; no MVP acompanha o registro.',
+          active: trained,
+          color: cs.secondary,
+        ),
+        _SkillStagePill(
+          label: 'Recorrente',
+          description: 'Aparece em 3 ou mais sessoes registradas.',
           active: consistent,
           color: Colors.lightGreenAccent,
         ),
-        const SizedBox(width: 4),
-        _SkillDot(
-          label: 'A',
-          active: application,
-          color: cs.onSurface.withValues(alpha: 0.42),
-          neutralLabel: 'sem dados',
+        _SkillStagePill(
+          label: _applicationStageLabel(),
+          description: applicationMeasured
+              ? 'Aplicacao registrada como evidencia auxiliar.'
+              : 'Sem dados de rola/competicao nesta versao.',
+          active: applicationMeasured,
+          color: applicationMeasured ? Colors.lightGreenAccent : cs.onSurface,
+          neutral: !applicationMeasured,
         ),
       ],
     );
   }
+
+  String _applicationStageLabel() {
+    if (!applicationMeasured) return 'Aplicacao ainda nao medida';
+    final outcome = TrainingSession.techniqueOutcomeLabel(techniqueOutcome);
+    final context = TrainingSession.applicationContextLabel(applicationContext);
+    if (outcome == null) return 'Aplicacao medida';
+    if (context == null) return outcome;
+    return '$outcome em $context';
+  }
 }
 
-class _SkillDot extends StatelessWidget {
+class _SkillStagePill extends StatelessWidget {
   final String label;
+  final String description;
   final bool active;
   final Color color;
-  final String? neutralLabel;
+  final bool neutral;
 
-  const _SkillDot({
+  const _SkillStagePill({
     required this.label,
+    required this.description,
     required this.active,
     required this.color,
-    this.neutralLabel,
+    this.neutral = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final resolved = active ? color : Theme.of(context).colorScheme.onSurface;
-    final tooltip = neutralLabel ?? label;
+    final cs = Theme.of(context).colorScheme;
+    final resolved = active ? color : cs.onSurface;
+    final alpha = neutral ? 0.42 : active ? 0.9 : 0.56;
 
     return Tooltip(
-      message: tooltip,
-      child: Container(
-        width: 24,
-        height: 24,
-        alignment: Alignment.center,
+      message: description,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 160),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: resolved.withValues(alpha: active ? 0.18 : 0.07),
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(
-            color: resolved.withValues(alpha: active ? 0.45 : 0.16),
+            color: resolved.withValues(alpha: active ? 0.35 : 0.16),
           ),
+          color: resolved.withValues(alpha: active ? 0.1 : 0.06),
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: resolved.withValues(alpha: active ? 0.95 : 0.42),
-            fontSize: 10,
-            fontWeight: FontWeight.w900,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 180),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: resolved.withValues(alpha: alpha),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
           ),
         ),
       ),

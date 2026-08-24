@@ -1,4 +1,4 @@
-﻿import '../model/progress_period.dart';
+import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 
@@ -112,6 +112,8 @@ class SkillMatrixTechniqueEntry {
   final bool knowledge;
   final bool drill;
   final bool? application;
+  final String? applicationContext;
+  final String? techniqueOutcome;
   final bool consistent;
 
   const SkillMatrixTechniqueEntry({
@@ -126,6 +128,8 @@ class SkillMatrixTechniqueEntry {
     required this.knowledge,
     required this.drill,
     required this.application,
+    required this.applicationContext,
+    required this.techniqueOutcome,
     required this.consistent,
   });
 }
@@ -757,6 +761,9 @@ class _SkillMatrixTechniqueDraft {
   DateTime? lastTrainedAt;
   String? recentSuccess;
   String? recentDifficulty;
+  String? applicationContext;
+  String? techniqueOutcome;
+  bool applicationMeasured = false;
 
   _SkillMatrixTechniqueDraft({required this.category});
 
@@ -794,6 +801,19 @@ class _SkillMatrixTechniqueDraft {
     if (difficulty != null && recentDifficulty == null) {
       recentDifficulty = difficulty;
     }
+
+    final hasMeasuredApplication =
+        TrainingSession.isApplicationContextMeasured(
+          session.applicationContext,
+        ) &&
+        TrainingSession.isTechniqueOutcomeUseful(session.techniqueOutcome);
+    if (hasMeasuredApplication) {
+      applicationMeasured = true;
+      if (applicationContext == null && techniqueOutcome == null) {
+        applicationContext = session.applicationContext;
+        techniqueOutcome = session.techniqueOutcome;
+      }
+    }
   }
 
   SkillMatrixTechniqueEntry toEntry() {
@@ -813,8 +833,10 @@ class _SkillMatrixTechniqueDraft {
       recentDifficulty: recentDifficulty,
       knowledge: sessionsCount >= 1,
       drill: sessionsCount >= 1,
-      application: null,
+      application: applicationMeasured,
       consistent: sessionsCount >= 3,
+      applicationContext: applicationContext,
+      techniqueOutcome: techniqueOutcome,
     );
   }
 }

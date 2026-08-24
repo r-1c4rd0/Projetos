@@ -3,6 +3,65 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 enum TrainingPlace { academy, home, other }
 
 class TrainingSession {
+  static const applicationContextDrill = 'drill';
+  static const applicationContextPositionalSparring = 'positionalSparring';
+  static const applicationContextSparring = 'sparring';
+  static const applicationContextCompetition = 'competition';
+  static const applicationContextNotApplied = 'notApplied';
+
+  static const techniqueOutcomeWorked = 'worked';
+  static const techniqueOutcomeAlmost = 'almost';
+  static const techniqueOutcomeFailed = 'failed';
+  static const techniqueOutcomeDefended = 'defended';
+  static const techniqueOutcomeNotTested = 'notTested';
+
+  static const applicationContextLabels = <String, String>{
+    applicationContextDrill: 'Drill',
+    applicationContextPositionalSparring: 'Treino posicional',
+    applicationContextSparring: 'Rola',
+    applicationContextCompetition: 'Competicao',
+    applicationContextNotApplied: 'Nao aplicada',
+  };
+
+  static const techniqueOutcomeLabels = <String, String>{
+    techniqueOutcomeWorked: 'Funcionou',
+    techniqueOutcomeAlmost: 'Quase funcionou',
+    techniqueOutcomeFailed: 'Falhou',
+    techniqueOutcomeDefended: 'Parceiro defendeu',
+    techniqueOutcomeNotTested: 'Nao testada',
+  };
+
+  static String? applicationContextLabel(String? value) {
+    final clean = _optionalString(value);
+    if (clean == null) return null;
+    return applicationContextLabels[clean] ?? clean;
+  }
+
+  static String? techniqueOutcomeLabel(String? value) {
+    final clean = _optionalString(value);
+    if (clean == null) return null;
+    return techniqueOutcomeLabels[clean] ?? clean;
+  }
+
+  static bool isApplicationContextMeasured(String? value) {
+    return value == applicationContextPositionalSparring ||
+        value == applicationContextSparring ||
+        value == applicationContextCompetition;
+  }
+
+  static bool isTechniqueOutcomeUseful(String? value) {
+    final clean = _optionalString(value);
+    return clean != null && clean != techniqueOutcomeNotTested;
+  }
+
+  static bool isTechniqueOutcomePositive(String? value) {
+    return value == techniqueOutcomeWorked || value == techniqueOutcomeAlmost;
+  }
+
+  static bool isTechniqueOutcomeNeedsWork(String? value) {
+    return value == techniqueOutcomeFailed || value == techniqueOutcomeDefended;
+  }
+
   final String id;
   final DateTime date;
   final TrainingPlace place;
@@ -26,6 +85,8 @@ class TrainingSession {
   final String? difficulties;
   final int? intensity;
   final String? debriefNotes;
+  final String? applicationContext;
+  final String? techniqueOutcome;
 
   TrainingSession({
     required this.id,
@@ -47,6 +108,8 @@ class TrainingSession {
     this.difficulties,
     this.intensity,
     this.debriefNotes,
+    this.applicationContext,
+    this.techniqueOutcome,
   }) : scores = scores ?? const {};
 
   TrainingSession copyWith({
@@ -68,6 +131,8 @@ class TrainingSession {
     String? difficulties,
     int? intensity,
     String? debriefNotes,
+    String? applicationContext,
+    String? techniqueOutcome,
   }) {
     return TrainingSession(
       id: id,
@@ -89,10 +154,12 @@ class TrainingSession {
       difficulties: difficulties ?? this.difficulties,
       intensity: intensity ?? this.intensity,
       debriefNotes: debriefNotes ?? this.debriefNotes,
+      applicationContext: applicationContext ?? this.applicationContext,
+      techniqueOutcome: techniqueOutcome ?? this.techniqueOutcome,
     );
   }
 
-  Map<String, dynamic> toMap() {
+  Map<String, dynamic> toMap({bool includeApplicationDeletes = false}) {
     return {
       'date': Timestamp.fromDate(date),
       'place': place.name,
@@ -114,6 +181,14 @@ class TrainingSession {
       if (difficulties != null) 'difficulties': difficulties,
       if (intensity != null) 'intensity': intensity,
       if (debriefNotes != null) 'debriefNotes': debriefNotes,
+      if (applicationContext != null)
+        'applicationContext': applicationContext
+      else if (includeApplicationDeletes)
+        'applicationContext': FieldValue.delete(),
+      if (techniqueOutcome != null)
+        'techniqueOutcome': techniqueOutcome
+      else if (includeApplicationDeletes)
+        'techniqueOutcome': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     };
   }
@@ -172,6 +247,8 @@ class TrainingSession {
       difficulties: _optionalString(data['difficulties']),
       intensity: _intensityFromValue(data['intensity']),
       debriefNotes: _optionalString(data['debriefNotes']),
+      applicationContext: _optionalString(data['applicationContext']),
+      techniqueOutcome: _optionalString(data['techniqueOutcome']),
     );
   }
 
