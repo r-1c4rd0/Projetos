@@ -1091,7 +1091,7 @@ class _GraduationProgressCard extends StatelessWidget {
           Text(
             remaining == 0
                 ? 'Meta estimada desta etapa atingida pelos treinos registrados.'
-                : 'Faltam cerca de ${_plural(remaining, 'sess\u00e3o', 'sess\u00f5es')} para a refer\u00eancia estimada da faixa.',
+                : 'Faltam cerca de ${TrainingAggregator.sessionCountLabel(remaining)} para a refer\u00eancia estimada da faixa.',
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
           ),
         ],
@@ -1736,7 +1736,7 @@ class _SkillMatrixSummaryCard extends StatelessWidget {
             const SizedBox(height: 12),
             _InsightBadge(
               label: measuredApplicationTechniques > 0
-                  ? '${_plural(measuredApplicationTechniques, 't\u00e9cnica', 't\u00e9cnicas')} com aplicação medida no mapa completo.'
+                  ? '${TrainingAggregator.techniqueCountLabel(measuredApplicationTechniques)} com aplica\u00e7\u00e3o medida no mapa completo.'
                   : 'Aplica\u00e7\u00e3o ainda n\u00e3o medida.',
               color: cs.onSurface.withValues(alpha: 0.42),
               icon: Icons.radio_button_unchecked,
@@ -2001,7 +2001,7 @@ class _GameMapTechniqueBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final intensity = technique.averageIntensity;
     final summary = <String>[
-      '${_plural(technique.sessionsCount, 'sess\u00e3o', 'sess\u00f5es')}',
+      TrainingAggregator.sessionCountLabel(technique.sessionsCount),
       '\u00faltima em ${_formatShortDate(technique.lastTrainedAt)}',
       if (intensity != null)
         'intensidade m\u00e9dia ${intensity.toStringAsFixed(1)}/5',

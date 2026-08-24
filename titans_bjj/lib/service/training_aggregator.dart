@@ -272,6 +272,18 @@ class TrainingAggregator {
   static const int recentWindowDays = 30;
   static const String undefinedPositionLabel = 'Sem posi\u00e7\u00e3o definida';
 
+  static String sessionCountLabel(int count) {
+    return count == 1 ? '1 sess\u00e3o' : '$count sess\u00f5es';
+  }
+
+  static String techniqueCountLabel(int count) {
+    return count == 1 ? '1 t\u00e9cnica' : '$count t\u00e9cnicas';
+  }
+
+  static String recordCountLabel(int count) {
+    return count == 1 ? '1 registro' : '$count registros';
+  }
+
   static String? applicationContextLabel(String? value) {
     switch (_presentationKey(value)) {
       case TrainingSession.applicationContextDrill:

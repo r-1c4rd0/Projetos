@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -114,8 +112,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
       'target.uid=$uid target.academyId=$academyId',
     );
 
-    final cs = Theme.of(context).colorScheme;
-
     return _wrapModule(
       appBar: AppBar(
         title: Text(widget.titleOverride ?? 'Treinos'),
@@ -140,17 +136,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           !widget.embedded && canEditTarget
               ? FloatingActionButton.extended(
                 heroTag: 'training_fab',
-                onPressed: () async {
-                  await Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder:
-                          (_) => AddTrainingSessionScreen(
-                            academyId: academyId,
-                            uid: uid,
-                          ),
-                    ),
-                  );
-                },
+                onPressed: () => _openTrainingForm(
+                  academyId: academyId,
+                  uid: uid,
+                ),
                 icon: const Icon(Icons.add),
                 label: const Text('Treino'),
               )
@@ -174,7 +163,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           )..sort((a, b) => a.date.compareTo(b.date));
 
           final series = _buildSeries(sessions, _period);
-          final totalInWindow = series.values.fold<int>(0, (a, b) => a + b);
+          final periodSessions = _filterSessionsForPeriod(sessions, _period);
+          final summary = _buildTrainingSummary(periodSessions);
 
           final listPadding =
               widget.embedded
@@ -184,79 +174,37 @@ class _TrainingScreenState extends State<TrainingScreen> {
           return ListView(
             padding: listPadding,
             children: [
-              if (widget.embedded)
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: PopupMenuButton<ProgressPeriod>(
-                    tooltip: 'Filtrar periodo',
-                    initialValue: _period,
-                    onSelected: (p) => setState(() => _period = p),
-                    itemBuilder:
-                        (_) => const [
-                          PopupMenuItem(
-                            value: ProgressPeriod.day,
-                            child: Text('Dia'),
-                          ),
-                          PopupMenuItem(
-                            value: ProgressPeriod.month,
-                            child: Text('M\u00eas'),
-                          ),
-                          PopupMenuItem(
-                            value: ProgressPeriod.year,
-                            child: Text('Ano'),
-                          ),
-                        ],
-                    icon: const Icon(Icons.filter_alt_outlined),
-                  ),
-                ),
-              if (widget.embedded && canEditTarget) ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: () async {
-                      await Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder:
-                              (_) => AddTrainingSessionScreen(
-                                academyId: academyId,
-                                uid: uid,
-                              ),
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.add),
-                    label: const Text('Adicionar treino'),
-                  ),
-                ),
-                const SizedBox(height: 12),
-              ],
+              _TrainingSummaryCard(
+                summary: summary,
+                period: _period,
+                onPeriodChanged: (p) => setState(() => _period = p),
+                canAddTraining: widget.embedded && canEditTarget,
+                onAddTraining:
+                    widget.embedded && canEditTarget
+                        ? () => _openTrainingForm(
+                          academyId: academyId,
+                          uid: uid,
+                        )
+                        : null,
+              ),
+              const SizedBox(height: 12),
               glassCard(
                 context,
                 Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _titleForPeriod(_period),
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        Text(
-                          'Total: $totalInWindow',
-                          style: TextStyle(
-                            color: cs.primary,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        ),
-                      ],
+                    Text(
+                      _titleForPeriod(_period),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     SizedBox(
-                      height: 240,
+                      height: 220,
                       child: _LineChart(
                         labels: series.labels,
                         values: series.values,
@@ -275,17 +223,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   action:
                       canEditTarget
                           ? FilledButton.icon(
-                            onPressed: () async {
-                              await Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder:
-                                      (_) => AddTrainingSessionScreen(
-                                        academyId: academyId,
-                                        uid: uid,
-                                      ),
-                                ),
-                              );
-                            },
+                            onPressed: () => _openTrainingForm(
+                              academyId: academyId,
+                              uid: uid,
+                            ),
                             icon: const Icon(Icons.add),
                             label: const Text('Adicionar treino'),
                           )
@@ -305,71 +246,26 @@ class _TrainingScreenState extends State<TrainingScreen> {
                       'technique=${s.technique} intensity=${s.intensity}',
                     );
                   }
-                  return Card(
-                    child: ListTile(
-                      leading: Icon(_iconForPlace(s.place), color: cs.primary),
-                      title: Text(
-                        _fmtDateTime(s.date),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 4),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _sessionSummary(s),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 8),
-                            Wrap(
-                              spacing: 8,
-                              runSpacing: 6,
-                              crossAxisAlignment: WrapCrossAlignment.center,
-                              children: [
-                                _TrainingActionChip(
-                                  label: 'Notas: ${s.scores.length}',
-                                  color: cs.onSurface.withValues(alpha: 0.7),
-                                ),
-                                if (canEditTarget)
-                                  TextButton.icon(
-                                    style: TextButton.styleFrom(
-                                      visualDensity: VisualDensity.compact,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                        vertical: 4,
-                                      ),
-                                    ),
-                                    onPressed: () async {
-                                      debugPrint(
-                                        '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                                        'target.uid=$uid canEditTarget=$canEditTarget '
-                                        'academyId=$academyId session.id=${s.id}',
-                                      );
-                                      await Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder:
-                                              (_) => AddTrainingSessionScreen(
-                                                academyId: academyId,
-                                                uid: uid,
-                                                session: s,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                    icon: const Icon(
-                                      Icons.edit_outlined,
-                                      size: 18,
-                                    ),
-                                    label: const Text('Editar'),
-                                  ),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ),
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _TrainingSessionCard(
+                      session: s,
+                      canEdit: canEditTarget,
+                      onEdit:
+                          canEditTarget
+                              ? () {
+                                debugPrint(
+                                  '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                                  'target.uid=$uid canEditTarget=$canEditTarget '
+                                  'academyId=$academyId session.id=${s.id}',
+                                );
+                                return _openTrainingForm(
+                                  academyId: academyId,
+                                  uid: uid,
+                                  session: s,
+                                );
+                              }
+                              : null,
                     ),
                   );
                 }),
@@ -403,17 +299,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         loggedUser.role == UserRole.professor;
     return loggedUser.academyId == target.academyId &&
         (loggedUser.uid == target.uid || canManage);
-  }
-
-  IconData _iconForPlace(TrainingPlace p) {
-    switch (p) {
-      case TrainingPlace.academy:
-        return Icons.sports_mma_outlined;
-      case TrainingPlace.home:
-        return Icons.home_outlined;
-      case TrainingPlace.other:
-        return Icons.place_outlined;
-    }
   }
 
   String _titleForPeriod(ProgressPeriod p) {
@@ -476,10 +361,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   static String _fmt2(int n) => n.toString().padLeft(2, '0');
 
-  String _fmtDateTime(DateTime d) {
-    return '${_fmt2(d.day)}/${_fmt2(d.month)}/${d.year} ${_fmt2(d.hour)}:${_fmt2(d.minute)}';
-  }
-
   bool _hasDebrief(TrainingSession session) {
     return (session.position?.trim().isNotEmpty ?? false) ||
         (session.technique?.trim().isNotEmpty ?? false) ||
@@ -488,51 +369,519 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (session.techniqueOutcome?.trim().isNotEmpty ?? false);
   }
 
-  String _sessionSummary(TrainingSession session) {
-    final lines = <String>[];
-    final notes = session.notes?.trim();
-    if (notes != null && notes.isNotEmpty) {
-      lines.add(notes);
-    }
-
-    final debrief = <String>[];
-    final technique = session.technique?.trim();
-    final position = session.position?.trim();
-    if (technique != null && technique.isNotEmpty) {
-      debrief.add('T\u00e9cnica: $technique');
-    }
-    if (position != null && position.isNotEmpty) {
-      debrief.add('Posi\u00e7\u00e3o: $position');
-    }
-    if (session.intensity != null) {
-      debrief.add('Intensidade: ${session.intensity}/5');
-    }
-    final application = _applicationSummary(session);
-    if (application != null) {
-      debrief.add(application);
-    }
-
-    if (debrief.isNotEmpty) {
-      lines.add(debrief.join(' - '));
-    }
-
-    return lines.isEmpty ? '-' : lines.join('\n');
+  Future<void> _openTrainingForm({
+    required String academyId,
+    required String uid,
+    TrainingSession? session,
+  }) {
+    return Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => AddTrainingSessionScreen(
+              academyId: academyId,
+              uid: uid,
+              session: session,
+            ),
+      ),
+    );
   }
 
-  String? _applicationSummary(TrainingSession session) {
-    final context = TrainingAggregator.applicationContextLabel(
+  List<TrainingSession> _filterSessionsForPeriod(
+    List<TrainingSession> sessions,
+    ProgressPeriod period,
+  ) {
+    final now = DateTime.now();
+    final start = switch (period) {
+      ProgressPeriod.day => DateTime(
+        now.year,
+        now.month,
+        now.day,
+      ).subtract(const Duration(days: 13)),
+      ProgressPeriod.month => DateTime(now.year, now.month - 11, 1),
+      ProgressPeriod.year => DateTime(now.year - 4, 1, 1),
+    };
+    return sessions.where((session) => !session.date.isBefore(start)).toList();
+  }
+
+  _TrainingSummary _buildTrainingSummary(List<TrainingSession> sessions) {
+    final techniqueKeys = <String>{};
+    var intensitySum = 0;
+    var intensityCount = 0;
+    var applicationCount = 0;
+
+    for (final session in sessions) {
+      final technique = _cleanDisplayText(session.technique);
+      if (technique != null) techniqueKeys.add(technique.toLowerCase());
+
+      final intensity = session.intensity;
+      if (intensity != null && intensity >= 1 && intensity <= 5) {
+        intensitySum += intensity;
+        intensityCount++;
+      }
+
+      if (TrainingSession.isApplicationContextMeasured(
+            session.applicationContext,
+          ) ||
+          TrainingSession.isTechniqueOutcomeUseful(session.techniqueOutcome)) {
+        applicationCount++;
+      }
+    }
+
+    return _TrainingSummary(
+      total: sessions.length,
+      techniques: techniqueKeys.length,
+      averageIntensity:
+          intensityCount == 0 ? null : intensitySum / intensityCount,
+      applicationCount: applicationCount,
+    );
+  }
+}
+
+class _TrainingSummary {
+  final int total;
+  final int techniques;
+  final double? averageIntensity;
+  final int applicationCount;
+
+  const _TrainingSummary({
+    required this.total,
+    required this.techniques,
+    required this.averageIntensity,
+    required this.applicationCount,
+  });
+}
+
+class _TrainingSummaryCard extends StatelessWidget {
+  final _TrainingSummary summary;
+  final ProgressPeriod period;
+  final ValueChanged<ProgressPeriod> onPeriodChanged;
+  final bool canAddTraining;
+  final VoidCallback? onAddTraining;
+
+  const _TrainingSummaryCard({
+    required this.summary,
+    required this.period,
+    required this.onPeriodChanged,
+    required this.canAddTraining,
+    required this.onAddTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final intensity = summary.averageIntensity;
+
+    return glassCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OverflowBar(
+            spacing: 8,
+            overflowSpacing: 8,
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.start,
+            children: [
+              Text(
+                'Hist\u00f3rico de treinos',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              if (canAddTraining)
+                FilledButton.icon(
+                  onPressed: onAddTraining,
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Adicionar treino'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _SummaryMetric(
+                label: 'Treinos',
+                value: summary.total.toString(),
+                color: cs.primary,
+              ),
+              _SummaryMetric(
+                label: 'T\u00e9cnicas',
+                value: summary.techniques.toString(),
+                color: TitansUI.info,
+              ),
+              _SummaryMetric(
+                label: 'Intensidade',
+                value:
+                    intensity == null ? '--' : '${intensity.toStringAsFixed(1)}/5',
+                color: TitansUI.warning,
+              ),
+              _SummaryMetric(
+                label: 'Aplica\u00e7\u00e3o',
+                value: summary.applicationCount.toString(),
+                color: TitansUI.success,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _PeriodFilter(period: period, onChanged: onPeriodChanged),
+        ],
+      ),
+    );
+  }
+}
+
+class _SummaryMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _SummaryMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 92),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PeriodFilter extends StatelessWidget {
+  final ProgressPeriod period;
+  final ValueChanged<ProgressPeriod> onChanged;
+
+  const _PeriodFilter({required this.period, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _PeriodChip(
+          label: 'Dia',
+          selected: period == ProgressPeriod.day,
+          onSelected: () => onChanged(ProgressPeriod.day),
+        ),
+        _PeriodChip(
+          label: 'M\u00eas',
+          selected: period == ProgressPeriod.month,
+          onSelected: () => onChanged(ProgressPeriod.month),
+        ),
+        _PeriodChip(
+          label: 'Ano',
+          selected: period == ProgressPeriod.year,
+          onSelected: () => onChanged(ProgressPeriod.year),
+        ),
+      ],
+    );
+  }
+}
+
+class _PeriodChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _PeriodChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _TrainingSessionCard extends StatelessWidget {
+  final TrainingSession session;
+  final bool canEdit;
+  final Future<void> Function()? onEdit;
+
+  const _TrainingSessionCard({
+    required this.session,
+    required this.canEdit,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final technique =
+        _cleanDisplayText(session.technique) ?? 'Treino registrado';
+    final position = _cleanDisplayText(session.position);
+    final application = TrainingAggregator.applicationContextLabel(
       session.applicationContext,
     );
     final outcome = TrainingAggregator.techniqueOutcomeLabel(
       session.techniqueOutcome,
     );
-    final parts = <String>[
-      if (context != null) context,
-      if (outcome != null) outcome,
-    ];
-    if (parts.isEmpty) return null;
-    return parts.join(' - ');
+    final primaryNote = _primarySessionNote(session);
+
+    return glassCard(
+      context,
+      InkWell(
+        borderRadius: BorderRadius.circular(TitansUI.radius),
+        onTap: canEdit && onEdit != null ? () => onEdit!.call() : null,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    _smartDateLabel(session.date).toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                if (canEdit)
+                  PopupMenuButton<String>(
+                    tooltip: 'Op\u00e7\u00f5es do treino',
+                    padding: EdgeInsets.zero,
+                    onSelected: (_) => onEdit?.call(),
+                    itemBuilder:
+                        (_) => const [
+                          PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Editar treino'),
+                          ),
+                        ],
+                    icon: const Icon(Icons.more_vert, size: 20),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              technique,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+            ),
+            if (position != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                position,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.72),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _TrainingActionChip(
+                  label: _placeLabel(session.place),
+                  color: cs.primary,
+                ),
+                if (session.intensity != null)
+                  _TrainingActionChip(
+                    label: 'Intensidade ${session.intensity}/5',
+                    color: TitansUI.warning,
+                  ),
+                if (application != null)
+                  _TrainingActionChip(label: application, color: TitansUI.info),
+                if (outcome != null)
+                  _TrainingActionChip(
+                    label: outcome,
+                    color: _outcomeColor(outcome),
+                  ),
+                if (session.scores.isNotEmpty)
+                  _TrainingActionChip(
+                    label: 'Notas: ${session.scores.length}',
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                  ),
+              ],
+            ),
+            if (primaryNote != null) ...[
+              const SizedBox(height: 12),
+              Text(
+                primaryNote.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.58),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                primaryNote.text,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.82)),
+              ),
+            ],
+            if (canEdit) ...[
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onEdit == null ? null : () => onEdit!.call(),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: const Text('Detalhes'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
   }
+}
+
+class _PrimarySessionNote {
+  final String label;
+  final String text;
+
+  const _PrimarySessionNote({required this.label, required this.text});
+}
+
+_PrimarySessionNote? _primarySessionNote(TrainingSession session) {
+  final difficulty = _cleanDisplayText(session.difficulties);
+  if (difficulty != null) {
+    return _PrimarySessionNote(label: 'Dificuldade:', text: difficulty);
+  }
+
+  final success = _cleanDisplayText(session.successes);
+  if (success != null) {
+    return _PrimarySessionNote(label: 'Sucesso:', text: success);
+  }
+
+  final debrief = _cleanDisplayText(session.debriefNotes);
+  if (debrief != null) {
+    return _PrimarySessionNote(label: 'Debrief:', text: debrief);
+  }
+
+  final notes = _cleanDisplayText(session.notes);
+  if (notes != null) {
+    return _PrimarySessionNote(label: 'Nota:', text: notes);
+  }
+
+  return null;
+}
+
+String? _cleanDisplayText(String? value) {
+  final clean = value?.trim().replaceAll(RegExp(r'\s+'), ' ');
+  if (clean == null || clean.isEmpty) return null;
+  final normalized = clean.toLowerCase();
+  if (normalized == 'unknown' ||
+      normalized == 'n/a' ||
+      normalized == 'na' ||
+      normalized == 'null') {
+    return null;
+  }
+  return clean;
+}
+
+String _smartDateLabel(DateTime date) {
+  final base = '${_TrainingScreenState._fmt2(date.day)} ${_monthLabel(date.month)} ${date.year}';
+  if (date.hour == 0 && date.minute == 0) return base;
+  return '$base ${_TrainingScreenState._fmt2(date.hour)}:${_TrainingScreenState._fmt2(date.minute)}';
+}
+
+String _monthLabel(int month) {
+  const labels = [
+    'JAN',
+    'FEV',
+    'MAR',
+    'ABR',
+    'MAI',
+    'JUN',
+    'JUL',
+    'AGO',
+    'SET',
+    'OUT',
+    'NOV',
+    'DEZ',
+  ];
+  final index = (month - 1).clamp(0, labels.length - 1).toInt();
+  return labels[index];
+}
+
+String _placeLabel(TrainingPlace place) {
+  switch (place) {
+    case TrainingPlace.academy:
+      return 'Academia';
+    case TrainingPlace.home:
+      return 'Casa';
+    case TrainingPlace.other:
+      return 'Outro local';
+  }
+}
+
+Color _outcomeColor(String outcome) {
+  if (outcome == 'Funcionou' || outcome == 'Quase funcionou') {
+    return TitansUI.success;
+  }
+  if (outcome == 'Falhou' || outcome == 'Parceiro defendeu') {
+    return TitansUI.danger;
+  }
+  return TitansUI.info;
 }
 
 class _TrainingActionChip extends StatelessWidget {
@@ -612,6 +961,7 @@ class _LineChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              reservedSize: 34,
               interval: _bottomIntervalFor(values.length),
               getTitlesWidget: (v, _) {
                 final i = v.toInt();
@@ -620,9 +970,11 @@ class _LineChart extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text(
                     labels[i],
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.7),
-                      fontSize: 10,
+                      fontSize: 9,
                     ),
                   ),
                 );

@@ -286,7 +286,9 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
             runSpacing: 6,
             children: [
               _MiniBadge(
-                label: _plural(entry.techniquesCount, 't\u00e9cnica registrada', 't\u00e9cnicas registradas'),
+                label: entry.techniquesCount == 1
+                    ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
+                    : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas',
                 color: cs.primary,
               ),
               _MiniBadge(
@@ -355,7 +357,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                       color: cs.secondary,
                     ),
                   _MiniBadge(
-                    label: _plural(entry.sessionsCount, 'sess\u00e3o', 'sess\u00f5es'),
+                    label: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
                     color: cs.secondary,
                   ),
                   _MiniBadge(
@@ -458,7 +460,7 @@ class _GameMapPositionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _MiniBadge(
-                label: _plural(entry.sessionsCount, 'sess\u00e3o', 'sess\u00f5es'),
+                label: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
                 color: cs.primary,
               ),
             ],
@@ -904,8 +906,4 @@ String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
-}
-
-String _plural(int count, String singular, String plural) {
-  return '$count ${count == 1 ? singular : plural}';
 }
