@@ -230,133 +230,78 @@ class _NutritionScreenState extends State<NutritionScreen> {
           return ListView(
             padding: listPadding,
             children: [
-              if (widget.embedded && canEditNutrition) ...[
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: FilledButton.icon(
-                    onPressed: _addMeal,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Adicionar refei\u00e7\u00e3o'),
-                  ),
+              _NutritionHeader(
+                title: widget.titleOverride ?? 'Nutri\u00e7\u00e3o',
+              ),
+              const SizedBox(height: 12),
+              if (_fallbackToMock) ...[
+                const _NutritionStatusCard(
+                  icon: Icons.science_outlined,
+                  title: 'Dados de exemplo',
+                  message:
+                      'N\u00e3o foi poss\u00edvel carregar os dados reais. Exibindo dados de exemplo.',
+                  isWarning: true,
                 ),
                 const SizedBox(height: 12),
               ],
-              if (_fallbackToMock)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      'N\u00e3o foi poss\u00edvel carregar os dados reais. Exibindo dados de exemplo.',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
+              if (_repoError != null && !_fallbackToMock) ...[
+                const _NutritionStatusCard(
+                  icon: Icons.cloud_off_outlined,
+                  title: 'Dados indispon\u00edveis',
+                  message:
+                      'N\u00e3o foi poss\u00edvel carregar os dados reais agora. Tente novamente mais tarde.',
+                  isWarning: true,
                 ),
-              if (_repoError != null && !_fallbackToMock)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(12),
-                    child: Text(
-                      'Erro no reposit\u00f3rio: $_repoError',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                      ),
-                    ),
-                  ),
-                ),
-              if (isReadOnlyStudentView)
+                const SizedBox(height: 12),
+              ],
+              if (isReadOnlyStudentView) ...[
                 const _NutritionInfoCard(
                   icon: Icons.visibility_outlined,
+                  title: 'Visualiza\u00e7\u00e3o do aluno',
                   message:
-                      'Visualiza\u00e7\u00e3o do aluno. Edi\u00e7\u00e3o nutricional dispon\u00edvel apenas para o pr\u00f3prio usu\u00e1rio.',
+                      'Edi\u00e7\u00e3o nutricional dispon\u00edvel apenas para o pr\u00f3prio usu\u00e1rio.',
                 ),
+                const SizedBox(height: 12),
+              ],
               const _NutritionInfoCard(
                 icon: Icons.info_outline,
+                title: 'Informa\u00e7\u00f5es educativas',
                 message:
                     'Estas informa\u00e7\u00f5es s\u00e3o educativas e ajudam no registro da rotina. Para um plano alimentar individual, consulte um profissional de sa\u00fade ou nutri\u00e7\u00e3o.',
               ),
+              const SizedBox(height: 12),
               FutureBuilder<UserProfile>(
                 future: _profileFuture,
                 builder: (context, profSnap) {
-                  if (!profSnap.hasData) return const SizedBox.shrink();
+                  if (!profSnap.hasData) {
+                    return _NutritionProfilePlaceholder(
+                      canEditNutrition: canEditNutrition,
+                    );
+                  }
 
                   final profile = profSnap.data!;
-                  final tdee = profile.tdee();
 
-                  return Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Energia estimada',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
-                          const SizedBox(height: 6),
-                          Text('${tdee.toStringAsFixed(0)} kcal/dia'),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Energia estimada para refer\u00eancia de rotina. N\u00e3o \u00e9 uma prescri\u00e7\u00e3o alimentar.',
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withValues(alpha: 0.68),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Perfil: ${profile.sex == Sex.male ? 'Masculino' : 'Feminino'}, '
-                            '${profile.age} anos, ${profile.weightKg.toStringAsFixed(1)} kg, '
-                            '${profile.heightCm.toStringAsFixed(0)} cm',
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            'Fator de atividade: ${profile.activityFactor.toStringAsFixed(2)} - usado apenas para estimar energia.',
-                          ),
-                          const SizedBox(height: 8),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child:
-                                canEditNutrition
-                                    ? OutlinedButton.icon(
-                                      icon: const Icon(Icons.edit),
-                                      label: const Text(
-                                        'Editar perfil nutricional',
-                                      ),
-                                      onPressed: _editProfile,
-                                    )
-                                    : const SizedBox.shrink(),
-                          ),
-                        ],
+                  return Column(
+                    children: [
+                      _NutritionProfileCard(
+                        profile: profile,
+                        canEditNutrition: canEditNutrition,
+                        onEdit: _editProfile,
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      _NutritionEnergyCard(profile: profile),
+                    ],
                   );
                 },
               ),
               const SizedBox(height: 12),
-              _DailyCaloriesChart(meals: meals),
-              const SizedBox(height: 12),
-              ...meals.reversed.map(
-                (meal) => Card(
-                  child: ListTile(
-                    title: Text('${_fmt(meal.date)} - ${meal.mealType}'),
-                    subtitle: Text(
-                      meal.items.map((item) => item.name).join(', '),
-                    ),
-                    trailing: Text('${meal.totalKcal()} kcal'),
-                  ),
-                ),
+              _NutritionMealsSection(
+                meals: meals,
+                canEditNutrition: canEditNutrition,
+                onAddMeal: _addMeal,
               ),
-              if (meals.isEmpty)
-                const TitansEmptyState(
-                  icon: Icons.restaurant_outlined,
-                  title: 'Sem refei\u00e7\u00f5es registradas',
-                  message:
-                      'Use o bot\u00e3o adicionar para registrar a primeira refei\u00e7\u00e3o.',
-                  compact: true,
-                ),
+              const SizedBox(height: 12),
+              _DailyCaloriesChart(meals: meals, isFallback: _fallbackToMock),
             ],
           );
         },
@@ -432,15 +377,58 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 }
 
-class _NutritionInfoCard extends StatelessWidget {
-  final IconData icon;
-  final String message;
+class _NutritionHeader extends StatelessWidget {
+  final String title;
 
-  const _NutritionInfoCard({required this.icon, required this.message});
+  const _NutritionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.68);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Registro alimentar e energia para apoiar sua rotina de treinos.',
+            style: TextStyle(color: muted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NutritionStatusCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final bool isWarning;
+
+  const _NutritionStatusCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.isWarning = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final color = isWarning ? cs.error : cs.primary;
 
     return Card(
       child: Padding(
@@ -448,15 +436,28 @@ class _NutritionInfoCard extends StatelessWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(icon, color: cs.primary, size: 18),
+            Icon(icon, color: color, size: 18),
             const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                message,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.72),
-                  fontSize: 12,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.72),
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -466,10 +467,311 @@ class _NutritionInfoCard extends StatelessWidget {
   }
 }
 
+class _NutritionInfoCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+
+  const _NutritionInfoCard({
+    required this.icon,
+    required this.title,
+    required this.message,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _NutritionStatusCard(icon: icon, title: title, message: message);
+  }
+}
+
+class _NutritionProfilePlaceholder extends StatelessWidget {
+  final bool canEditNutrition;
+
+  const _NutritionProfilePlaceholder({required this.canEditNutrition});
+
+  @override
+  Widget build(BuildContext context) {
+    return TitansEmptyState(
+      icon: Icons.person_outline,
+      title: 'Perfil nutricional',
+      message:
+          canEditNutrition
+              ? 'Complete seu perfil nutricional para estimar energia de rotina.'
+              : 'Perfil nutricional ainda n\u00e3o preenchido.',
+      compact: true,
+    );
+  }
+}
+
+class _NutritionProfileCard extends StatelessWidget {
+  final UserProfile profile;
+  final bool canEditNutrition;
+  final VoidCallback onEdit;
+
+  const _NutritionProfileCard({
+    required this.profile,
+    required this.canEditNutrition,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.68);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              spacing: 8,
+              overflowSpacing: 8,
+              children: [
+                const _SectionTitle(
+                  title: 'Perfil nutricional',
+                  subtitle: 'Dados usados para estimar energia de rotina.',
+                ),
+                if (canEditNutrition)
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Editar'),
+                    onPressed: onEdit,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _ProfileMetric(
+                  label: 'Sexo',
+                  value: profile.sex == Sex.male ? 'Masculino' : 'Feminino',
+                ),
+                _ProfileMetric(label: 'Idade', value: '${profile.age} anos'),
+                _ProfileMetric(
+                  label: 'Peso',
+                  value: '${profile.weightKg.toStringAsFixed(1)} kg',
+                ),
+                _ProfileMetric(
+                  label: 'Altura',
+                  value: '${profile.heightCm.toStringAsFixed(0)} cm',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Esses dados ajudam a manter o registro consistente.',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NutritionEnergyCard extends StatelessWidget {
+  final UserProfile profile;
+
+  const _NutritionEnergyCard({required this.profile});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.68);
+    final tdee = profile.tdee();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionTitle(
+              title: 'Energia estimada',
+              subtitle:
+                  'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o alimentar.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              '${tdee.toStringAsFixed(0)} kcal/dia',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Fator de atividade: ${profile.activityFactor.toStringAsFixed(2)} - usado apenas para estimar energia.',
+              style: TextStyle(color: muted),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Use como registro e orienta\u00e7\u00e3o geral da rotina de treinos.',
+              style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NutritionMealsSection extends StatelessWidget {
+  final List<MealEntry> meals;
+  final bool canEditNutrition;
+  final VoidCallback onAddMeal;
+
+  const _NutritionMealsSection({
+    required this.meals,
+    required this.canEditNutrition,
+    required this.onAddMeal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            OverflowBar(
+              alignment: MainAxisAlignment.spaceBetween,
+              spacing: 8,
+              overflowSpacing: 8,
+              children: [
+                const _SectionTitle(
+                  title: 'Refei\u00e7\u00f5es',
+                  subtitle:
+                      'Registros alimentares informados pelo usu\u00e1rio.',
+                ),
+                if (canEditNutrition)
+                  FilledButton.icon(
+                    onPressed: onAddMeal,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar refei\u00e7\u00e3o'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (meals.isEmpty)
+              TitansEmptyState(
+                icon: Icons.restaurant_outlined,
+                title: 'Sem refei\u00e7\u00f5es registradas',
+                message:
+                    canEditNutrition
+                        ? 'Use o bot\u00e3o adicionar para registrar a primeira refei\u00e7\u00e3o.'
+                        : 'Nenhuma refei\u00e7\u00e3o foi registrada para este usu\u00e1rio.',
+                compact: true,
+              )
+            else
+              ...meals.reversed.map(
+                (meal) => ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    '${_NutritionScreenState._fmt(meal.date)} - ${meal.mealType}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    meal.items.map((item) => item.name).join(', '),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: Text('${meal.totalKcal()} kcal'),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileMetric extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _ProfileMetric({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.10)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.64),
+                fontSize: 11,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _SectionTitle({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.68);
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 420),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          const SizedBox(height: 3),
+          Text(subtitle, style: TextStyle(color: muted, fontSize: 12)),
+        ],
+      ),
+    );
+  }
+}
+
 class _DailyCaloriesChart extends StatelessWidget {
   final List<MealEntry> meals;
+  final bool isFallback;
 
-  const _DailyCaloriesChart({required this.meals});
+  const _DailyCaloriesChart({required this.meals, required this.isFallback});
 
   @override
   Widget build(BuildContext context) {
@@ -520,52 +822,73 @@ class _DailyCaloriesChart extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
-              'Calorias registradas (\u00faltimos 7 dias)',
-              style: TextStyle(fontWeight: FontWeight.bold),
+            const _SectionTitle(
+              title: 'Gr\u00e1fico semanal',
+              subtitle:
+                  'Calorias registradas nos \u00faltimos 7 dias; n\u00e3o indica meta alimentar.',
             ),
+            if (isFallback) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Dados de exemplo',
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
-            SizedBox(
-              height: 220,
-              child: BarChart(
-                BarChartData(
-                  barGroups: groups,
-                  gridData: FlGridData(show: true),
-                  borderData: FlBorderData(show: false),
-                  titlesData: FlTitlesData(
-                    bottomTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        getTitlesWidget: (value, meta) {
-                          final index = value.toInt();
-                          if (index < 0 || index >= keys.length) {
-                            return const SizedBox.shrink();
-                          }
-                          final date = keys[index];
-                          return Text(
-                            '${date.day}/${date.month}',
-                            style: const TextStyle(fontSize: 10),
-                          );
-                        },
+            if (meals.isEmpty)
+              const TitansEmptyState(
+                icon: Icons.bar_chart_outlined,
+                title: 'Sem refei\u00e7\u00f5es registradas',
+                message:
+                    'O gr\u00e1fico semanal aparece quando houver registros alimentares.',
+                compact: true,
+              )
+            else
+              SizedBox(
+                height: 220,
+                child: BarChart(
+                  BarChartData(
+                    barGroups: groups,
+                    gridData: FlGridData(show: true),
+                    borderData: FlBorderData(show: false),
+                    titlesData: FlTitlesData(
+                      bottomTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          getTitlesWidget: (value, meta) {
+                            final index = value.toInt();
+                            if (index < 0 || index >= keys.length) {
+                              return const SizedBox.shrink();
+                            }
+                            final date = keys[index];
+                            return Text(
+                              '${date.day}/${date.month}',
+                              style: const TextStyle(fontSize: 10),
+                            );
+                          },
+                        ),
                       ),
-                    ),
-                    leftTitles: AxisTitles(
-                      sideTitles: SideTitles(
-                        showTitles: true,
-                        reservedSize: 30,
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 30,
+                        ),
                       ),
-                    ),
-                    topTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
-                    ),
-                    rightTitles: const AxisTitles(
-                      sideTitles: SideTitles(showTitles: false),
+                      topTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
+                      rightTitles: const AxisTitles(
+                        sideTitles: SideTitles(showTitles: false),
+                      ),
                     ),
                   ),
+                  duration: const Duration(milliseconds: 250),
                 ),
-                duration: const Duration(milliseconds: 250),
               ),
-            ),
           ],
         ),
       ),
