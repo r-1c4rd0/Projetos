@@ -937,6 +937,7 @@ class TrainingAggregator {
     }
     return output;
   }
+
   /// Retorna uma lista de pontos ja agregados.
   static List<int> aggregate({
     required List<TrainingSession> sessions,
