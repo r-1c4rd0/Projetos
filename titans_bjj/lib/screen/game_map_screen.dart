@@ -748,9 +748,9 @@ class SkillLevelDots extends StatelessWidget {
 
   String _applicationStageLabel() {
     if (!applicationMeasured) return 'Aplica\u00e7\u00e3o ainda n\u00e3o medida';
-    final outcome = _techniqueOutcomeDisplayLabel(techniqueOutcome) ??
+    final outcome = TrainingAggregator.techniqueOutcomeLabel(techniqueOutcome) ??
         'Aplica\u00e7\u00e3o medida';
-    final context = _applicationContextDisplayLabel(applicationContext);
+    final context = TrainingAggregator.applicationContextLabel(applicationContext);
     if (context == null) return outcome;
     return '$outcome em $context';
   }
@@ -908,40 +908,4 @@ String _formatShortDate(DateTime date) {
 
 String _plural(int count, String singular, String plural) {
   return '$count ${count == 1 ? singular : plural}';
-}
-
-String? _applicationContextDisplayLabel(String? value) {
-  switch (value) {
-    case TrainingSession.applicationContextDrill:
-      return 'Drill';
-    case TrainingSession.applicationContextPositionalSparring:
-      return 'Treino posicional';
-    case TrainingSession.applicationContextSparring:
-      return 'Rola';
-    case TrainingSession.applicationContextCompetition:
-      return 'Competi\u00e7\u00e3o';
-    case TrainingSession.applicationContextNotApplied:
-      return 'N\u00e3o aplicada';
-    default:
-      final clean = value?.trim();
-      return clean == null || clean.isEmpty ? null : clean;
-  }
-}
-
-String? _techniqueOutcomeDisplayLabel(String? value) {
-  switch (value) {
-    case TrainingSession.techniqueOutcomeWorked:
-      return 'Funcionou';
-    case TrainingSession.techniqueOutcomeAlmost:
-      return 'Quase funcionou';
-    case TrainingSession.techniqueOutcomeFailed:
-      return 'Falhou';
-    case TrainingSession.techniqueOutcomeDefended:
-      return 'Parceiro defendeu';
-    case TrainingSession.techniqueOutcomeNotTested:
-      return 'N\u00e3o testada';
-    default:
-      final clean = value?.trim();
-      return clean == null || clean.isEmpty ? null : clean;
-  }
 }

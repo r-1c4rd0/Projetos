@@ -9,6 +9,7 @@ import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/target_resolver.dart';
+import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/titans_feedback.dart';
@@ -519,10 +520,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   String? _applicationSummary(TrainingSession session) {
-    final context = TrainingSession.applicationContextLabel(
+    final context = TrainingAggregator.applicationContextLabel(
       session.applicationContext,
     );
-    final outcome = TrainingSession.techniqueOutcomeLabel(
+    final outcome = TrainingAggregator.techniqueOutcomeLabel(
       session.techniqueOutcome,
     );
     final parts = <String>[

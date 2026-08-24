@@ -1323,6 +1323,8 @@ class _RecommendedFocusCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final priorityColor = _priorityColor(cs, focus.priority);
     final evidence = <String>[
+      ...focus.evidenceTags,
+      focus.confidenceLabel,
       focus.evidenceLabel,
       if (focus.avgIntensity != null)
         'Intensidade m\u00e9dia ${focus.avgIntensity!.toStringAsFixed(1)}/5',
@@ -1367,14 +1369,30 @@ class _RecommendedFocusCard extends StatelessWidget {
               Icon(Icons.flag_outlined, size: 18, color: priorityColor),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(
-                  focus.suggestedAction,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.82),
-                    fontWeight: FontWeight.w700,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'A\u00e7\u00e3o sugerida:',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.62),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      focus.suggestedAction,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.82),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

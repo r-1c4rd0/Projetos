@@ -136,6 +136,17 @@ class SkillMatrixTechniqueEntry {
 
 enum RecommendedTrainingFocusPriority { none, low, medium, high }
 
+enum RecommendedTrainingFocusType {
+  none,
+  applicationAdjustment,
+  nearSuccess,
+  recentSuccess,
+  drillToApplication,
+  difficulty,
+  consistency,
+  maintenance,
+}
+
 class RecommendedTrainingFocus {
   final String? position;
   final String? technique;
@@ -144,6 +155,12 @@ class RecommendedTrainingFocus {
   final String reason;
   final String suggestedAction;
   final String evidenceLabel;
+  final String? applicationLabel;
+  final String? outcomeLabel;
+  final RecommendedTrainingFocusType recommendationType;
+  final String confidenceLabel;
+  final List<String> evidenceTags;
+  final String nextStepLabel;
   final RecommendedTrainingFocusPriority priority;
   final List<String> tags;
   final int sessionsCount;
@@ -159,6 +176,12 @@ class RecommendedTrainingFocus {
     required this.reason,
     required this.suggestedAction,
     required this.evidenceLabel,
+    required this.applicationLabel,
+    required this.outcomeLabel,
+    required this.recommendationType,
+    required this.confidenceLabel,
+    required this.evidenceTags,
+    required this.nextStepLabel,
     required this.priority,
     required this.tags,
     required this.sessionsCount,
@@ -177,6 +200,12 @@ class RecommendedTrainingFocus {
         suggestedAction =
             'No pr\u00f3ximo treino, preencha pelo menos a t\u00e9cnica trabalhada.',
         evidenceLabel = 'Sem dados t\u00e9cnicos',
+        applicationLabel = null,
+        outcomeLabel = null,
+        recommendationType = RecommendedTrainingFocusType.none,
+        confidenceLabel = 'Sem evid\u00eancia suficiente',
+        evidenceTags = const [],
+        nextStepLabel = 'Registrar debrief completo',
         priority = RecommendedTrainingFocusPriority.none,
         tags = const [],
         sessionsCount = 0,
@@ -191,6 +220,68 @@ class RecommendedTrainingFocus {
 class TrainingAggregator {
   static const int recentWindowDays = 30;
   static const String undefinedPositionLabel = 'Sem posi\u00e7\u00e3o definida';
+
+  static String? applicationContextLabel(String? value) {
+    switch (_presentationKey(value)) {
+      case TrainingSession.applicationContextDrill:
+        return 'Drill';
+      case TrainingSession.applicationContextPositionalSparring:
+        return 'Treino posicional';
+      case TrainingSession.applicationContextSparring:
+        return 'Rola';
+      case TrainingSession.applicationContextCompetition:
+        return 'Competi\u00e7\u00e3o';
+      case TrainingSession.applicationContextNotApplied:
+        return 'N\u00e3o aplicada';
+      default:
+        return null;
+    }
+  }
+
+  static String? techniqueOutcomeLabel(String? value) {
+    switch (_presentationKey(value)) {
+      case TrainingSession.techniqueOutcomeWorked:
+        return 'Funcionou';
+      case TrainingSession.techniqueOutcomeAlmost:
+        return 'Quase funcionou';
+      case TrainingSession.techniqueOutcomeFailed:
+        return 'Falhou';
+      case TrainingSession.techniqueOutcomeDefended:
+        return 'Parceiro defendeu';
+      case TrainingSession.techniqueOutcomeNotTested:
+        return 'N\u00e3o testada';
+      default:
+        return null;
+    }
+  }
+
+  static bool _isRealApplicationContext(String? value) {
+    final clean = _presentationKey(value);
+    return clean == TrainingSession.applicationContextPositionalSparring ||
+        clean == TrainingSession.applicationContextSparring ||
+        clean == TrainingSession.applicationContextCompetition;
+  }
+
+  static bool _isUsefulTechniqueOutcome(String? value) {
+    final clean = _presentationKey(value);
+    return clean == TrainingSession.techniqueOutcomeWorked ||
+        clean == TrainingSession.techniqueOutcomeAlmost ||
+        clean == TrainingSession.techniqueOutcomeFailed ||
+        clean == TrainingSession.techniqueOutcomeDefended;
+  }
+
+  static String? _presentationKey(String? value) {
+    final clean = _cleanText(value);
+    if (clean == null) return null;
+    final normalized = clean.toLowerCase();
+    if (normalized == 'unknown' ||
+        normalized == 'n/a' ||
+        normalized == 'na' ||
+        normalized == 'null') {
+      return null;
+    }
+    return clean;
+  }
 
   static List<TrainingSession> uniqueSessions(List<TrainingSession> sessions) {
     final byKey = <String, TrainingSession>{};
@@ -386,6 +477,119 @@ class TrainingAggregator {
     }
 
     final drafts = byTechnique.values.toList();
+
+    final needsAdjustment = drafts
+        .where((draft) => draft.hasFailedOrDefendedRealApplication)
+        .toList()
+      ..sort(_compareApplicationFocusDraft);
+    if (needsAdjustment.isNotEmpty) {
+      final selected = needsAdjustment.first;
+      return selected.toFocus(
+        titlePrefix: 'Revisar',
+        reason:
+            'Voc\u00ea tentou aplicar em ${selected.applicationContextLabel}, mas registrou ${selected.outcomeLabel}. Vale repetir com foco no ajuste de entrada e controle.',
+        suggestedAction:
+            'Repetir entrada e controle antes de buscar a finaliza\u00e7\u00e3o.',
+        priority: RecommendedTrainingFocusPriority.high,
+        recommendationType: RecommendedTrainingFocusType.applicationAdjustment,
+        baseTags: [
+          'Aplica\u00e7\u00e3o real',
+          'Precisa ajuste',
+          selected.applicationContextLabel,
+        ],
+        evidenceTags: [
+          selected.outcomeLabel,
+          'Prioridade alta',
+        ],
+        confidenceLabel: 'Alta confian\u00e7a',
+        nextStepLabel: 'Ajustar aplica\u00e7\u00e3o real',
+      );
+    }
+
+    final almostWorked = drafts
+        .where((draft) => draft.hasAlmostRealApplication)
+        .toList()
+      ..sort(_compareApplicationFocusDraft);
+    if (almostWorked.isNotEmpty) {
+      final selected = almostWorked.first;
+      return selected.toFocus(
+        titlePrefix: 'Consolidar',
+        reason:
+            'Ela quase funcionou em ${selected.applicationContextLabel}. O pr\u00f3ximo passo \u00e9 repetir com foco no detalhe que faltou.',
+        suggestedAction:
+            'Repetir o detalhe principal em rounds curtos e situa\u00e7\u00e3o controlada.',
+        priority: selected.sessionsCount == 1
+            ? RecommendedTrainingFocusPriority.high
+            : RecommendedTrainingFocusPriority.medium,
+        recommendationType: RecommendedTrainingFocusType.nearSuccess,
+        baseTags: const [
+          'Quase funcionou',
+          'Boa evolu\u00e7\u00e3o',
+          'Repetir detalhe',
+        ],
+        evidenceTags: [
+          'Aplica\u00e7\u00e3o real',
+          selected.applicationContextLabel,
+        ],
+        confidenceLabel: 'Boa evid\u00eancia',
+        nextStepLabel: 'Consolidar detalhe',
+      );
+    }
+
+    final workedLowConsistency = drafts
+        .where((draft) =>
+            draft.hasWorkedOutcome &&
+            !draft.hasDrillOnly &&
+            draft.sessionsCount < 3)
+        .toList()
+      ..sort(_compareApplicationFocusDraft);
+    if (workedLowConsistency.isNotEmpty) {
+      final selected = workedLowConsistency.first;
+      return selected.toFocus(
+        titlePrefix: 'Repetir',
+        reason:
+            'Funcionou recentemente, mas ainda tem pouca repeti\u00e7\u00e3o registrada. Vale repetir para transformar em recurso consistente.',
+        suggestedAction:
+            'Repetir em mais uma sess\u00e3o e registrar se funcionou de novo.',
+        priority: RecommendedTrainingFocusPriority.medium,
+        recommendationType: RecommendedTrainingFocusType.recentSuccess,
+        baseTags: const [
+          'Funcionou',
+          'Pouca repeti\u00e7\u00e3o',
+          'Consolidar',
+        ],
+        evidenceTags: [
+          selected.applicationContextLabel,
+          selected.outcomeLabel,
+        ],
+        confidenceLabel: 'Evid\u00eancia recente',
+        nextStepLabel: 'Repetir para consolidar',
+      );
+    }
+
+    final drillOnly = drafts.where((draft) => draft.hasDrillOnly).toList()
+      ..sort(_compareApplicationFocusDraft);
+    if (drillOnly.isNotEmpty) {
+      final selected = drillOnly.first;
+      return selected.toFocus(
+        titlePrefix: 'Testar',
+        reason:
+            'Essa t\u00e9cnica apareceu em drill, mas ainda n\u00e3o h\u00e1 registro de aplica\u00e7\u00e3o em rola ou treino posicional.',
+        suggestedAction:
+            'Testar em treino posicional antes de levar para a rola livre.',
+        priority: RecommendedTrainingFocusPriority.medium,
+        recommendationType: RecommendedTrainingFocusType.drillToApplication,
+        baseTags: const [
+          'Drill',
+          'Testar aplica\u00e7\u00e3o',
+          'Pr\u00f3ximo passo',
+        ],
+        evidenceTags: const ['Sem aplica\u00e7\u00e3o real'],
+        confidenceLabel: 'Pr\u00f3ximo passo claro',
+        nextStepLabel: 'Testar em situa\u00e7\u00e3o controlada',
+      );
+    }
+
     final withDifficulty =
         drafts.where((draft) => draft.difficultyCount > 0).toList();
     if (withDifficulty.isNotEmpty) {
@@ -400,11 +604,15 @@ class TrainingAggregator {
         priority: selected.difficultyCount >= 2
             ? RecommendedTrainingFocusPriority.high
             : RecommendedTrainingFocusPriority.medium,
+        recommendationType: RecommendedTrainingFocusType.difficulty,
         baseTags: [
           selected.difficultyCount >= 2
               ? 'Dificuldade recorrente'
               : 'Dificuldade recente',
         ],
+        evidenceTags: const [],
+        confidenceLabel: 'Fallback v1',
+        nextStepLabel: 'Revisar dificuldade',
       );
     }
 
@@ -419,7 +627,11 @@ class TrainingAggregator {
         suggestedAction:
             'Repita a t\u00e9cnica no aquecimento t\u00e9cnico e registre o debrief ao final.',
         priority: RecommendedTrainingFocusPriority.medium,
+        recommendationType: RecommendedTrainingFocusType.consistency,
         baseTags: const ['Pouca repeti\u00e7\u00e3o'],
+        evidenceTags: const [],
+        confidenceLabel: 'Fallback v1',
+        nextStepLabel: 'Consolidar repeti\u00e7\u00e3o',
       );
     }
 
@@ -431,7 +643,11 @@ class TrainingAggregator {
       suggestedAction:
           'Use o pr\u00f3ximo treino para variar entradas, pegadas e ajustes finos.',
       priority: RecommendedTrainingFocusPriority.low,
+      recommendationType: RecommendedTrainingFocusType.maintenance,
       baseTags: const ['Manuten\u00e7\u00e3o'],
+      evidenceTags: const [],
+      confidenceLabel: 'Fallback v1',
+      nextStepLabel: 'Manter evolu\u00e7\u00e3o',
     );
   }
 
@@ -517,6 +733,20 @@ class TrainingAggregator {
     return raw.replaceAll(RegExp(r'\s+'), ' ');
   }
 
+  static int _compareApplicationFocusDraft(
+    _RecommendedFocusDraft a,
+    _RecommendedFocusDraft b,
+  ) {
+    final dateCompare =
+        b.applicationEvidenceAt.compareTo(a.applicationEvidenceAt);
+    if (dateCompare != 0) return dateCompare;
+    final sessionsCompare = a.sessionsCount.compareTo(b.sessionsCount);
+    if (sessionsCompare != 0) return sessionsCompare;
+    return a.techniqueLabel.toLowerCase().compareTo(
+          b.techniqueLabel.toLowerCase(),
+        );
+  }
+
   static int _compareDifficultyFocusDraft(
     _RecommendedFocusDraft a,
     _RecommendedFocusDraft b,
@@ -596,7 +826,13 @@ class _RecommendedFocusDraft {
   final intensities = <int>[];
   int sessionsCount = 0;
   int difficultyCount = 0;
+  int drillCount = 0;
+  int realApplicationCount = 0;
   DateTime? _lastTrainedAt;
+  _ApplicationEvidence? failedOrDefendedEvidence;
+  _ApplicationEvidence? almostEvidence;
+  _ApplicationEvidence? workedEvidence;
+  _ApplicationEvidence? drillEvidence;
 
   void addSession({
     required TrainingSession session,
@@ -626,6 +862,64 @@ class _RecommendedFocusDraft {
     if (TrainingAggregator._cleanText(session.difficulties) != null) {
       difficultyCount += 1;
     }
+
+    _addApplicationEvidence(session);
+  }
+
+  void _addApplicationEvidence(TrainingSession session) {
+    final context = TrainingAggregator._presentationKey(
+      session.applicationContext,
+    );
+    final outcome = TrainingAggregator._presentationKey(
+      session.techniqueOutcome,
+    );
+    final isRealApplication =
+        TrainingAggregator._isRealApplicationContext(context);
+    final isUsefulOutcome =
+        TrainingAggregator._isUsefulTechniqueOutcome(outcome);
+
+    if (context == TrainingSession.applicationContextDrill) {
+      drillCount += 1;
+      drillEvidence = _latestEvidence(
+        drillEvidence,
+        _ApplicationEvidence(
+          context: context,
+          outcome: outcome,
+          date: session.date,
+        ),
+      );
+    }
+
+    if (isRealApplication) {
+      realApplicationCount += 1;
+    }
+
+    if (!isUsefulOutcome) return;
+
+    final evidence = _ApplicationEvidence(
+      context: context,
+      outcome: outcome,
+      date: session.date,
+    );
+
+    if (isRealApplication &&
+        (outcome == TrainingSession.techniqueOutcomeFailed ||
+            outcome == TrainingSession.techniqueOutcomeDefended)) {
+      failedOrDefendedEvidence = _latestEvidence(
+        failedOrDefendedEvidence,
+        evidence,
+      );
+      return;
+    }
+
+    if (isRealApplication && outcome == TrainingSession.techniqueOutcomeAlmost) {
+      almostEvidence = _latestEvidence(almostEvidence, evidence);
+      return;
+    }
+
+    if (outcome == TrainingSession.techniqueOutcomeWorked) {
+      workedEvidence = _latestEvidence(workedEvidence, evidence);
+    }
   }
 
   String get techniqueLabel => _bestLabel(techniqueLabels);
@@ -635,6 +929,43 @@ class _RecommendedFocusDraft {
 
   DateTime get lastTrainedAt =>
       _lastTrainedAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+
+  DateTime get applicationEvidenceAt {
+    return failedOrDefendedEvidence?.date ??
+        almostEvidence?.date ??
+        workedEvidence?.date ??
+        drillEvidence?.date ??
+        lastTrainedAt;
+  }
+
+  bool get hasFailedOrDefendedRealApplication =>
+      failedOrDefendedEvidence != null;
+
+  bool get hasAlmostRealApplication => almostEvidence != null;
+
+  bool get hasWorkedOutcome => workedEvidence != null;
+
+  bool get hasDrillOnly => drillCount > 0 && realApplicationCount == 0;
+
+  _ApplicationEvidence? get bestApplicationEvidence =>
+      failedOrDefendedEvidence ??
+      almostEvidence ??
+      workedEvidence ??
+      drillEvidence;
+
+  String get applicationContextLabel {
+    return TrainingAggregator.applicationContextLabel(
+          bestApplicationEvidence?.context,
+        ) ??
+        'Sem aplica\u00e7\u00e3o real';
+  }
+
+  String get outcomeLabel {
+    return TrainingAggregator.techniqueOutcomeLabel(
+          bestApplicationEvidence?.outcome,
+        ) ??
+        'Sem resultado testado';
+  }
 
   double? get averageIntensity {
     if (intensities.isEmpty) return null;
@@ -647,12 +978,23 @@ class _RecommendedFocusDraft {
     required String reason,
     required String suggestedAction,
     required RecommendedTrainingFocusPriority priority,
+    required RecommendedTrainingFocusType recommendationType,
     required List<String> baseTags,
+    required List<String> evidenceTags,
+    required String confidenceLabel,
+    required String nextStepLabel,
   }) {
     final position = positionLabel;
     final technique = techniqueLabel;
     final avgIntensity = averageIntensity;
     final tags = <String>[...baseTags];
+    final evidence = <String>[...evidenceTags];
+    final applicationLabel = TrainingAggregator.applicationContextLabel(
+      bestApplicationEvidence?.context,
+    );
+    final outcomeLabel = TrainingAggregator.techniqueOutcomeLabel(
+      bestApplicationEvidence?.outcome,
+    );
 
     if (sessionsCount < 3 && !tags.contains('Pouca repeti\u00e7\u00e3o')) {
       tags.add('Pouca repeti\u00e7\u00e3o');
@@ -665,16 +1007,28 @@ class _RecommendedFocusDraft {
     if (sessionsCount >= 3 && !tags.contains('Recorrente')) {
       tags.add('Recorrente');
     }
+    if (applicationLabel != null && !evidence.contains(applicationLabel)) {
+      evidence.add(applicationLabel);
+    }
+    if (outcomeLabel != null && !evidence.contains(outcomeLabel)) {
+      evidence.add(outcomeLabel);
+    }
 
     return RecommendedTrainingFocus(
       position: position,
       technique: technique,
-      title: '$titlePrefix $technique',
+      title: _focusTitle(titlePrefix, technique, position),
       summary: position == null ? technique : '$technique em $position',
       reason: reason,
       suggestedAction: suggestedAction,
       evidenceLabel:
           '$sessionsCount ${sessionsCount == 1 ? 'registro recente' : 'registros recentes'}',
+      applicationLabel: applicationLabel,
+      outcomeLabel: outcomeLabel,
+      recommendationType: recommendationType,
+      confidenceLabel: confidenceLabel,
+      evidenceTags: evidence.take(3).toList(),
+      nextStepLabel: nextStepLabel,
       priority: priority,
       tags: tags.take(3).toList(),
       sessionsCount: sessionsCount,
@@ -685,6 +1039,30 @@ class _RecommendedFocusDraft {
   }
 }
 
+class _ApplicationEvidence {
+  final String? context;
+  final String? outcome;
+  final DateTime date;
+
+  const _ApplicationEvidence({
+    required this.context,
+    required this.outcome,
+    required this.date,
+  });
+}
+
+_ApplicationEvidence _latestEvidence(
+  _ApplicationEvidence? current,
+  _ApplicationEvidence next,
+) {
+  if (current == null || next.date.isAfter(current.date)) return next;
+  return current;
+}
+
+String _focusTitle(String prefix, String technique, String? position) {
+  if (position == null || position.trim().isEmpty) return '$prefix $technique';
+  return '$prefix $technique em $position';
+}
 class _GameMapPositionDraft {
   final labels = <String, _GameMapLabelScore>{};
   final techniques = <String, _GameMapTechniqueDraft>{};
