@@ -3,7 +3,6 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
-import '../model/progress_period.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/target_resolver.dart';
@@ -35,7 +34,7 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
-  ProgressPeriod _period = ProgressPeriod.month;
+  _TrainingChartPeriod _period = _TrainingChartPeriod.thirtyDays;
 
   late final TrainingRepository _repo = TrainingRepository.instance;
 
@@ -108,25 +107,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
 
     return _wrapModule(
-      appBar: AppBar(
-        title: Text(widget.titleOverride ?? 'Treinos'),
-        actions: [
-          PopupMenuButton<ProgressPeriod>(
-            initialValue: _period,
-            onSelected: (p) => setState(() => _period = p),
-            itemBuilder:
-                (_) => const [
-                  PopupMenuItem(value: ProgressPeriod.day, child: Text('Dia')),
-                  PopupMenuItem(
-                    value: ProgressPeriod.month,
-                    child: Text('M\u00eas'),
-                  ),
-                  PopupMenuItem(value: ProgressPeriod.year, child: Text('Ano')),
-                ],
-            icon: const Icon(Icons.filter_alt_outlined),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
       floatingActionButton:
           !widget.embedded && canEditTarget
               ? FloatingActionButton.extended(
@@ -155,7 +136,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
             snap.data ?? const <TrainingSession>[],
           )..sort((a, b) => a.date.compareTo(b.date));
 
-          final series = _buildSeries(sessions, _period);
+          final chart = _TrainingChartViewModel.from(
+            sessions: sessions,
+            selectedPeriod: _period,
+          );
           final periodSessions = _filterSessionsForPeriod(sessions, _period);
           final summary = _buildTrainingSummary(periodSessions);
 
@@ -179,30 +163,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         : null,
               ),
               const SizedBox(height: 12),
-              glassCard(
-                context,
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _titleForPeriod(_period),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      height: 220,
-                      child: _LineChart(
-                        labels: series.labels,
-                        values: series.values,
-                      ),
-                    ),
-                  ],
-                ),
+              _TrainingChartCard(
+                viewModel: chart,
+                onPeriodChanged: (p) => setState(() => _period = p),
               ),
               const SizedBox(height: 12),
               if (sessions.isEmpty)
@@ -294,64 +257,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (loggedUser.uid == target.uid || canManage);
   }
 
-  String _titleForPeriod(ProgressPeriod p) {
-    switch (p) {
-      case ProgressPeriod.day:
-        return 'Treinos por dia (\u00faltimos 14 dias)';
-      case ProgressPeriod.month:
-        return 'Treinos por m\u00eas (\u00faltimos 12 meses)';
-      case ProgressPeriod.year:
-        return 'Treinos por ano (\u00faltimos 5 anos)';
-    }
-  }
-
-  _Series _buildSeries(List<TrainingSession> sessions, ProgressPeriod period) {
-    final now = DateTime.now();
-    final labels = <String>[];
-    final map = <String, int>{};
-
-    if (period == ProgressPeriod.day) {
-      for (int i = 13; i >= 0; i--) {
-        final d = now.subtract(Duration(days: i));
-        final key = '${_fmt2(d.day)}/${_fmt2(d.month)}';
-        labels.add(key);
-        map[key] = 0;
-      }
-    } else if (period == ProgressPeriod.month) {
-      for (int i = 11; i >= 0; i--) {
-        final d = DateTime(now.year, now.month - i, 1);
-        final key = '${_fmt2(d.month)}/${d.year}';
-        labels.add(key);
-        map[key] = 0;
-      }
-    } else {
-      for (int i = 4; i >= 0; i--) {
-        final key = (now.year - i).toString();
-        labels.add(key);
-        map[key] = 0;
-      }
-    }
-
-    for (final s in sessions) {
-      final d = s.date;
-      final key =
-          (period == ProgressPeriod.day)
-              ? '${_fmt2(d.day)}/${_fmt2(d.month)}'
-              : (period == ProgressPeriod.month)
-              ? '${_fmt2(d.month)}/${d.year}'
-              : '${d.year}';
-
-      if (map.containsKey(key)) {
-        map[key] = (map[key] ?? 0) + 1;
-      }
-    }
-
-    return _Series(
-      labels: labels,
-      values: labels.map((k) => map[k] ?? 0).toList(),
-    );
-  }
-
   static String _fmt2(int n) => n.toString().padLeft(2, '0');
 
   bool _hasDebrief(TrainingSession session) {
@@ -381,19 +286,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
   List<TrainingSession> _filterSessionsForPeriod(
     List<TrainingSession> sessions,
-    ProgressPeriod period,
+    _TrainingChartPeriod period,
   ) {
     final now = DateTime.now();
-    final start = switch (period) {
-      ProgressPeriod.day => DateTime(
-        now.year,
-        now.month,
-        now.day,
-      ).subtract(const Duration(days: 13)),
-      ProgressPeriod.month => DateTime(now.year, now.month - 11, 1),
-      ProgressPeriod.year => DateTime(now.year - 4, 1, 1),
-    };
-    return sessions.where((session) => !session.date.isBefore(start)).toList();
+    final window = _TrainingChartWindow.forPeriod(period, now);
+    return sessions.where((session) {
+      final date = _dateOnly(session.date);
+      return !date.isBefore(window.start) && !date.isAfter(window.end);
+    }).toList();
   }
 
   _TrainingSummary _buildTrainingSummary(List<TrainingSession> sessions) {
@@ -446,8 +346,8 @@ class _TrainingSummary {
 
 class _TrainingSummaryCard extends StatelessWidget {
   final _TrainingSummary summary;
-  final ProgressPeriod period;
-  final ValueChanged<ProgressPeriod> onPeriodChanged;
+  final _TrainingChartPeriod period;
+  final ValueChanged<_TrainingChartPeriod> onPeriodChanged;
   final bool canAddTraining;
   final VoidCallback? onAddTraining;
 
@@ -523,7 +423,11 @@ class _TrainingSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          _PeriodFilter(period: period, onChanged: onPeriodChanged),
+          _PeriodFilter(
+            period: period,
+            periods: _TrainingChartPeriodOption.defaults,
+            onChanged: onPeriodChanged,
+          ),
         ],
       ),
     );
@@ -584,10 +488,15 @@ class _SummaryMetric extends StatelessWidget {
 }
 
 class _PeriodFilter extends StatelessWidget {
-  final ProgressPeriod period;
-  final ValueChanged<ProgressPeriod> onChanged;
+  final _TrainingChartPeriod period;
+  final List<_TrainingChartPeriodOption> periods;
+  final ValueChanged<_TrainingChartPeriod> onChanged;
 
-  const _PeriodFilter({required this.period, required this.onChanged});
+  const _PeriodFilter({
+    required this.period,
+    required this.periods,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -595,21 +504,12 @@ class _PeriodFilter extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: [
-        _PeriodChip(
-          label: 'Dia',
-          selected: period == ProgressPeriod.day,
-          onSelected: () => onChanged(ProgressPeriod.day),
-        ),
-        _PeriodChip(
-          label: 'M\u00eas',
-          selected: period == ProgressPeriod.month,
-          onSelected: () => onChanged(ProgressPeriod.month),
-        ),
-        _PeriodChip(
-          label: 'Ano',
-          selected: period == ProgressPeriod.year,
-          onSelected: () => onChanged(ProgressPeriod.year),
-        ),
+        for (final option in periods)
+          _PeriodChip(
+            label: option.label,
+            selected: period == option.id,
+            onSelected: () => onChanged(option.id),
+          ),
       ],
     );
   }
@@ -907,101 +807,553 @@ class _TrainingActionChip extends StatelessWidget {
   }
 }
 
-class _Series {
-  final List<String> labels;
-  final List<int> values;
-  _Series({required this.labels, required this.values});
+enum _TrainingChartPeriod { sevenDays, thirtyDays, threeMonths, twelveMonths }
+
+enum _TrainingChartAggregationMode { day, week, month }
+
+class _TrainingChartPeriodOption {
+  final _TrainingChartPeriod id;
+  final String label;
+  final _TrainingChartAggregationMode aggregationMode;
+
+  const _TrainingChartPeriodOption({
+    required this.id,
+    required this.label,
+    required this.aggregationMode,
+  });
+
+  static const defaults = [
+    _TrainingChartPeriodOption(
+      id: _TrainingChartPeriod.sevenDays,
+      label: '7 dias',
+      aggregationMode: _TrainingChartAggregationMode.day,
+    ),
+    _TrainingChartPeriodOption(
+      id: _TrainingChartPeriod.thirtyDays,
+      label: '30 dias',
+      aggregationMode: _TrainingChartAggregationMode.week,
+    ),
+    _TrainingChartPeriodOption(
+      id: _TrainingChartPeriod.threeMonths,
+      label: '3 meses',
+      aggregationMode: _TrainingChartAggregationMode.week,
+    ),
+    _TrainingChartPeriodOption(
+      id: _TrainingChartPeriod.twelveMonths,
+      label: '12 meses',
+      aggregationMode: _TrainingChartAggregationMode.month,
+    ),
+  ];
+
+  static _TrainingChartPeriodOption byId(_TrainingChartPeriod id) {
+    return defaults.firstWhere((option) => option.id == id);
+  }
 }
 
-class _LineChart extends StatelessWidget {
-  final List<String> labels;
-  final List<int> values;
+class _TrainingChartViewModel {
+  final String title;
+  final String subtitle;
+  final _TrainingChartPeriod selectedPeriod;
+  final List<_TrainingChartPeriodOption> periods;
+  final List<_TrainingChartPoint> points;
+  final String totalLabel;
+  final String emptyStateLabel;
 
-  const _LineChart({required this.labels, required this.values});
+  const _TrainingChartViewModel({
+    required this.title,
+    required this.subtitle,
+    required this.selectedPeriod,
+    required this.periods,
+    required this.points,
+    required this.totalLabel,
+    required this.emptyStateLabel,
+  });
+
+  factory _TrainingChartViewModel.from({
+    required List<TrainingSession> sessions,
+    required _TrainingChartPeriod selectedPeriod,
+  }) {
+    final now = DateTime.now();
+    final option = _TrainingChartPeriodOption.byId(selectedPeriod);
+    final window = _TrainingChartWindow.forPeriod(selectedPeriod, now);
+    final buckets = _TrainingChartBucket.build(window, option.aggregationMode);
+    final counts = {for (final bucket in buckets) bucket.key: 0};
+
+    for (final session in sessions) {
+      final date = _dateOnly(session.date);
+      if (date.isBefore(window.start) || date.isAfter(window.end)) continue;
+      final key = _TrainingChartBucket.keyFor(
+        date,
+        window,
+        option.aggregationMode,
+      );
+      if (counts.containsKey(key)) {
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+    }
+
+    final maxValue = counts.values.fold<int>(
+      0,
+      (max, value) => value > max ? value : max,
+    );
+    final points = [
+      for (final bucket in buckets)
+        _TrainingChartPoint(
+          date: bucket.date,
+          label: bucket.label,
+          value: counts[bucket.key] ?? 0,
+          tooltipTitle: bucket.tooltipTitle,
+          tooltipBody: _trainingCountLabel(counts[bucket.key] ?? 0),
+          isHighlighted: maxValue > 0 && counts[bucket.key] == maxValue,
+        ),
+    ];
+    final total = points.fold<int>(0, (sum, point) => sum + point.value);
+
+    return _TrainingChartViewModel(
+      title: 'Treinos registrados',
+      subtitle: _subtitleFor(option),
+      selectedPeriod: selectedPeriod,
+      periods: _TrainingChartPeriodOption.defaults,
+      points: points,
+      totalLabel: 'Total no per\u00edodo: ${_trainingCountLabel(total)}',
+      emptyStateLabel: 'Nenhum treino registrado neste per\u00edodo.',
+    );
+  }
+
+  bool get isEmpty => points.every((point) => point.value == 0);
+
+  static String _subtitleFor(_TrainingChartPeriodOption option) {
+    switch (option.aggregationMode) {
+      case _TrainingChartAggregationMode.day:
+        return 'Contagem por dia, usando apenas datas dos treinos.';
+      case _TrainingChartAggregationMode.week:
+        return 'Contagem por semana, usando apenas datas dos treinos.';
+      case _TrainingChartAggregationMode.month:
+        return 'Contagem por m\u00eas, usando apenas datas dos treinos.';
+    }
+  }
+}
+
+class _TrainingChartPoint {
+  final DateTime date;
+  final String label;
+  final int value;
+  final String tooltipTitle;
+  final String tooltipBody;
+  final bool isHighlighted;
+
+  const _TrainingChartPoint({
+    required this.date,
+    required this.label,
+    required this.value,
+    required this.tooltipTitle,
+    required this.tooltipBody,
+    required this.isHighlighted,
+  });
+}
+
+class _TrainingChartCard extends StatelessWidget {
+  final _TrainingChartViewModel viewModel;
+  final ValueChanged<_TrainingChartPeriod> onPeriodChanged;
+
+  const _TrainingChartCard({
+    required this.viewModel,
+    required this.onPeriodChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final maxVal = values.isEmpty ? 0 : values.reduce((a, b) => a > b ? a : b);
-    final maxY = (maxVal < 3) ? 3.0 : (maxVal + 1).toDouble();
-
-    return LineChart(
-      LineChartData(
-        minY: 0,
-        maxY: maxY,
-        gridData: FlGridData(show: true),
-        borderData: FlBorderData(show: false),
-        titlesData: FlTitlesData(
-          topTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          rightTitles: const AxisTitles(
-            sideTitles: SideTitles(showTitles: false),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 36,
-              interval: 1,
-              getTitlesWidget:
-                  (v, _) => Text(
-                    v.toInt().toString(),
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.7),
-                      fontSize: 11,
+    return glassCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          OverflowBar(
+            spacing: 8,
+            overflowSpacing: 8,
+            alignment: MainAxisAlignment.spaceBetween,
+            overflowAlignment: OverflowBarAlignment.start,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    viewModel.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-            ),
-          ),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 34,
-              interval: _bottomIntervalFor(values.length),
-              getTitlesWidget: (v, _) {
-                final i = v.toInt();
-                if (i < 0 || i >= labels.length) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    labels[i],
+                  const SizedBox(height: 4),
+                  Text(
+                    viewModel.totalLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.7),
-                      fontSize: 9,
+                      color: cs.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
-                );
-              },
+                ],
+              ),
+              _PeriodFilter(
+                period: viewModel.selectedPeriod,
+                periods: viewModel.periods,
+                onChanged: onPeriodChanged,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
           ),
-        ),
-        lineBarsData: [
-          LineChartBarData(
-            spots: List.generate(
-              values.length,
-              (i) => FlSpot(i.toDouble(), values[i].toDouble()),
+          const SizedBox(height: 14),
+          if (viewModel.isEmpty)
+            TitansEmptyState(
+              icon: Icons.bar_chart_outlined,
+              title: 'Sem registros no per\u00edodo',
+              message: viewModel.emptyStateLabel,
+              compact: true,
+            )
+          else
+            SizedBox(
+              height: 224,
+              child: _TrainingBarChart(points: viewModel.points),
             ),
-            isCurved: true,
-            barWidth: 3,
-            color: cs.primary,
-            dotData: FlDotData(show: values.length <= 20),
-            belowBarData: BarAreaData(
-              show: true,
-              color: cs.primary.withValues(alpha: 0.10),
-            ),
-          ),
         ],
       ),
-      duration: const Duration(milliseconds: 250),
+    );
+  }
+}
+
+class _TrainingBarChart extends StatelessWidget {
+  final List<_TrainingChartPoint> points;
+
+  const _TrainingBarChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final maxValue = points.fold<int>(
+      0,
+      (max, point) => point.value > max ? point.value : max,
+    );
+    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1).toDouble();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labelEvery = _labelEvery(points.length, constraints.maxWidth);
+
+        return BarChart(
+          BarChartData(
+            minY: 0,
+            maxY: maxY,
+            alignment: BarChartAlignment.spaceAround,
+            gridData: FlGridData(
+              drawVerticalLine: false,
+              horizontalInterval: 1,
+              getDrawingHorizontalLine:
+                  (_) => FlLine(
+                    color: cs.onSurface.withValues(alpha: 0.08),
+                    strokeWidth: 1,
+                  ),
+            ),
+            borderData: FlBorderData(show: false),
+            barTouchData: BarTouchData(
+              enabled: true,
+              touchTooltipData: BarTouchTooltipData(
+                fitInsideHorizontally: true,
+                fitInsideVertically: true,
+                tooltipRoundedRadius: 10,
+                tooltipPadding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 8,
+                ),
+                getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                  if (groupIndex < 0 || groupIndex >= points.length) {
+                    return null;
+                  }
+                  final point = points[groupIndex];
+                  return BarTooltipItem(
+                    '${point.tooltipTitle}\n',
+                    TextStyle(
+                      color: cs.onInverseSurface,
+                      fontWeight: FontWeight.w900,
+                    ),
+                    children: [
+                      TextSpan(
+                        text: point.tooltipBody,
+                        style: TextStyle(
+                          color: cs.onInverseSurface.withValues(alpha: 0.82),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            titlesData: FlTitlesData(
+              topTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              rightTitles: const AxisTitles(
+                sideTitles: SideTitles(showTitles: false),
+              ),
+              leftTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 30,
+                  interval: 1,
+                  getTitlesWidget: (value, _) {
+                    final intValue = value.toInt();
+                    if (value != intValue || intValue < 0) {
+                      return const SizedBox.shrink();
+                    }
+                    return Text(
+                      intValue.toString(),
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.62),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    );
+                  },
+                ),
+              ),
+              bottomTitles: AxisTitles(
+                sideTitles: SideTitles(
+                  showTitles: true,
+                  reservedSize: 32,
+                  getTitlesWidget: (value, _) {
+                    final index = value.toInt();
+                    if (index < 0 || index >= points.length) {
+                      return const SizedBox.shrink();
+                    }
+                    final shouldShow =
+                        index == points.length - 1 || index % labelEvery == 0;
+                    if (!shouldShow) return const SizedBox.shrink();
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        points[index].label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.66),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+            barGroups: [
+              for (var i = 0; i < points.length; i++)
+                BarChartGroupData(
+                  x: i,
+                  barRods: [
+                    BarChartRodData(
+                      toY: points[i].value.toDouble(),
+                      width: _barWidth(points.length, constraints.maxWidth),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(5),
+                      ),
+                      color:
+                          points[i].isHighlighted
+                              ? cs.secondary
+                              : cs.primary.withValues(alpha: 0.78),
+                      backDrawRodData: BackgroundBarChartRodData(
+                        show: true,
+                        toY: maxY,
+                        color: cs.onSurface.withValues(alpha: 0.05),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+          duration: const Duration(milliseconds: 250),
+        );
+      },
     );
   }
 
-  double _bottomIntervalFor(int len) {
-    if (len <= 5) return 1;
-    if (len <= 12) return 2;
-    return 3;
+  int _labelEvery(int count, double width) {
+    if (count <= 7) return 1;
+    if (width >= 460) return 2;
+    if (width >= 390) return 3;
+    return 4;
   }
+
+  double _barWidth(int count, double width) {
+    if (count <= 7) return 18;
+    if (count <= 10) return 14;
+    if (width >= 420) return 10;
+    return 8;
+  }
+}
+
+class _TrainingChartWindow {
+  final DateTime start;
+  final DateTime end;
+
+  const _TrainingChartWindow({required this.start, required this.end});
+
+  static _TrainingChartWindow forPeriod(
+    _TrainingChartPeriod period,
+    DateTime now,
+  ) {
+    final today = _dateOnly(now);
+    final start = switch (period) {
+      _TrainingChartPeriod.sevenDays => today.subtract(const Duration(days: 6)),
+      _TrainingChartPeriod.thirtyDays => today.subtract(
+        const Duration(days: 29),
+      ),
+      _TrainingChartPeriod.threeMonths => DateTime(
+        today.year,
+        today.month - 2,
+        1,
+      ),
+      _TrainingChartPeriod.twelveMonths => DateTime(
+        today.year,
+        today.month - 11,
+        1,
+      ),
+    };
+    return _TrainingChartWindow(start: start, end: today);
+  }
+}
+
+class _TrainingChartBucket {
+  final DateTime date;
+  final String key;
+  final String label;
+  final String tooltipTitle;
+
+  const _TrainingChartBucket({
+    required this.date,
+    required this.key,
+    required this.label,
+    required this.tooltipTitle,
+  });
+
+  static List<_TrainingChartBucket> build(
+    _TrainingChartWindow window,
+    _TrainingChartAggregationMode mode,
+  ) {
+    switch (mode) {
+      case _TrainingChartAggregationMode.day:
+        return _dayBuckets(window);
+      case _TrainingChartAggregationMode.week:
+        return _weekBuckets(window);
+      case _TrainingChartAggregationMode.month:
+        return _monthBuckets(window);
+    }
+  }
+
+  static String keyFor(
+    DateTime date,
+    _TrainingChartWindow window,
+    _TrainingChartAggregationMode mode,
+  ) {
+    switch (mode) {
+      case _TrainingChartAggregationMode.day:
+        return _dayKey(date);
+      case _TrainingChartAggregationMode.week:
+        final offset = date.difference(window.start).inDays ~/ 7;
+        return _dayKey(window.start.add(Duration(days: offset * 7)));
+      case _TrainingChartAggregationMode.month:
+        return _monthKey(date);
+    }
+  }
+
+  static List<_TrainingChartBucket> _dayBuckets(_TrainingChartWindow window) {
+    final buckets = <_TrainingChartBucket>[];
+    var cursor = window.start;
+    while (!cursor.isAfter(window.end)) {
+      buckets.add(
+        _TrainingChartBucket(
+          date: cursor,
+          key: _dayKey(cursor),
+          label: _shortDayLabel(cursor),
+          tooltipTitle: _shortDayLabel(cursor),
+        ),
+      );
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return buckets;
+  }
+
+  static List<_TrainingChartBucket> _weekBuckets(_TrainingChartWindow window) {
+    final buckets = <_TrainingChartBucket>[];
+    var cursor = window.start;
+    while (!cursor.isAfter(window.end)) {
+      buckets.add(
+        _TrainingChartBucket(
+          date: cursor,
+          key: _dayKey(cursor),
+          label: _shortDayLabel(cursor),
+          tooltipTitle: 'Semana ${_shortDayLabel(cursor)}',
+        ),
+      );
+      cursor = cursor.add(const Duration(days: 7));
+    }
+    return buckets;
+  }
+
+  static List<_TrainingChartBucket> _monthBuckets(_TrainingChartWindow window) {
+    final buckets = <_TrainingChartBucket>[];
+    var cursor = DateTime(window.start.year, window.start.month, 1);
+    while (!cursor.isAfter(window.end)) {
+      buckets.add(
+        _TrainingChartBucket(
+          date: cursor,
+          key: _monthKey(cursor),
+          label: _monthYearLabel(cursor),
+          tooltipTitle: _monthYearLabel(cursor),
+        ),
+      );
+      cursor = DateTime(cursor.year, cursor.month + 1, 1);
+    }
+    return buckets;
+  }
+
+  static String _dayKey(DateTime date) {
+    return '${date.year}-${_TrainingScreenState._fmt2(date.month)}-${_TrainingScreenState._fmt2(date.day)}';
+  }
+
+  static String _monthKey(DateTime date) {
+    return '${date.year}-${_TrainingScreenState._fmt2(date.month)}';
+  }
+}
+
+DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+String _shortDayLabel(DateTime date) {
+  return '${_TrainingScreenState._fmt2(date.day)}/${_TrainingScreenState._fmt2(date.month)}';
+}
+
+String _monthYearLabel(DateTime date) {
+  return '${_monthLabel(date.month)} ${date.year}';
+}
+
+String _trainingCountLabel(int count) {
+  return count == 1 ? '1 treino registrado' : '$count treinos registrados';
 }
