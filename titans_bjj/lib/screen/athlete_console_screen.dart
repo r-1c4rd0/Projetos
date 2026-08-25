@@ -222,7 +222,10 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
                       !modules[index].enabled) {
                     return;
                   }
-                  setState(() => _selectedModuleIndex = index);
+                  setState(() {
+                    _selectedModuleIndex = index;
+                    _headerVisualState = _ConsoleHeaderVisualState.expanded;
+                  });
                 },
               );
             },
