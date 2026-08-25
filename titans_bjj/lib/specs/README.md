@@ -104,3 +104,9 @@ Centralizar as especificacoes de produto, arquitetura, dados, design system e mi
 - Nenhum arquivo funcional foi alterado.
 - Cada spec contem objetivo, responsabilidades, dados, telas, repositories, regras, problemas, arquitetura, plano, riscos e aceite.
 - `refactor_migration_plan.md` descreve as oito fases pedidas.
+
+## Spec de evolucao visual
+
+- `visual_evolution_spec.md` - Governanca para evolucao visual, QA economico, graficos, widgets visuais e actor/target.
+
+Use esta spec em fases VISUAL EVOLUTION e em qualquer mudanca visual que precise preservar metricas reais, evitar dependencia nova, manter actor/target correto e validar em modo economico.

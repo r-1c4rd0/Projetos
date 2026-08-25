@@ -70,6 +70,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
           final skillSummary = _SkillMatrixSummaryViewModel.from(skillMatrix);
+          final visualMap = _GameMapVisualViewModel.from(entries, skillMatrix);
 
           return ListView(
             padding:
@@ -82,6 +83,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 const SizedBox(height: 12),
               ],
               _GameMapSummaryCard(stats: stats),
+              const SizedBox(height: 12),
+              _GameMapVisualClusterCard(viewModel: visualMap),
               const SizedBox(height: 12),
               _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
               const SizedBox(height: 12),
@@ -222,6 +225,245 @@ class _GameMapSummaryCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _GameMapVisualClusterCard extends StatelessWidget {
+  final _GameMapVisualViewModel viewModel;
+
+  const _GameMapVisualClusterCard({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.tertiary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'MAPA T\u00c9CNICO VISUAL'),
+          const SizedBox(height: 8),
+          Text(
+            viewModel.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.nodes.isEmpty)
+            TitansEmptyState(
+              icon: Icons.account_tree_outlined,
+              title: 'Mapa visual vazio',
+              message: viewModel.emptyStateLabel,
+              compact: true,
+            )
+          else ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final highlight in viewModel.highlights)
+                  _GameMapHighlightChip(highlight: highlight),
+              ],
+            ),
+            const SizedBox(height: 14),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth =
+                    constraints.maxWidth >= 760
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final node in viewModel.nodes)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _GameMapPositionCluster(node: node),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _GameMapHighlightChip extends StatelessWidget {
+  final _GameMapHighlight highlight;
+
+  const _GameMapHighlightChip({required this.highlight});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: highlight.helper,
+      child: _MiniBadge(
+        label: '${highlight.label}: ${highlight.value}',
+        color: cs.tertiary,
+      ),
+    );
+  }
+}
+
+class _GameMapPositionCluster extends StatelessWidget {
+  final _GameMapPositionNode node;
+
+  const _GameMapPositionCluster({required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final weight = node.normalizedWeight.clamp(0.0, 1.0);
+
+    return Tooltip(
+      message:
+          '${node.recurrenceCount} registros nesta posi\u00e7\u00e3o; peso visual relativo.',
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.tertiary.withValues(alpha: 0.24)),
+          color: cs.tertiary.withValues(alpha: 0.07 + (weight * 0.05)),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: Text(
+                    node.position,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                _MiniBadge(label: node.countLabel, color: cs.tertiary),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                _MiniBadge(label: node.categoryLabel, color: cs.primary),
+                _MiniBadge(
+                  label: '${(weight * 100).round()}% recorr\u00eancia relativa',
+                  color: cs.secondary,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                height: 7,
+                width: double.infinity,
+                color: cs.onSurface.withValues(alpha: 0.08),
+                alignment: Alignment.centerLeft,
+                child: FractionallySizedBox(
+                  widthFactor: weight,
+                  child: Container(color: cs.tertiary.withValues(alpha: 0.78)),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final technique in node.techniques)
+                  _GameMapTechniqueLinkChip(link: technique),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _GameMapTechniqueLinkChip extends StatelessWidget {
+  final _GameMapTechniqueLink link;
+
+  const _GameMapTechniqueLinkChip({required this.link});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final width = MediaQuery.sizeOf(context).width < 420 ? 168.0 : 220.0;
+    final details = <String>[
+      '${link.recurrenceCount} registros associados',
+      if (link.applicationLabel != null) link.applicationLabel!,
+      if (link.outcomeLabel != null) link.outcomeLabel!,
+    ];
+
+    return Tooltip(
+      message: details.join(' - '),
+      child: Container(
+        constraints: BoxConstraints(maxWidth: width),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+          color: cs.primary.withValues(
+            alpha: 0.06 + (link.normalizedWeight.clamp(0.0, 1.0) * 0.05),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              link.technique,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 3),
+            Text(
+              link.countLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1064,6 +1306,242 @@ class _SkillStagePill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _GameMapVisualViewModel {
+  final String title;
+  final String subtitle;
+  final List<_GameMapPositionNode> nodes;
+  final List<_GameMapHighlight> highlights;
+  final String emptyStateLabel;
+
+  const _GameMapVisualViewModel({
+    required this.title,
+    required this.subtitle,
+    required this.nodes,
+    required this.highlights,
+    required this.emptyStateLabel,
+  });
+
+  factory _GameMapVisualViewModel.from(
+    List<GameMapEntry> entries,
+    List<SkillMatrixCategoryEntry> skillMatrix,
+  ) {
+    if (entries.isEmpty) {
+      return const _GameMapVisualViewModel(
+        title: 'Posi\u00e7\u00f5es e t\u00e9cnicas registradas',
+        subtitle: 'Baseado nos treinos registrados.',
+        nodes: [],
+        highlights: [],
+        emptyStateLabel:
+            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um mapa visual seguro.',
+      );
+    }
+
+    final orderedEntries = List<GameMapEntry>.from(entries)..sort((a, b) {
+      final countCompare = b.sessionsCount.compareTo(a.sessionsCount);
+      if (countCompare != 0) return countCompare;
+      return b.lastTrainedAt.compareTo(a.lastTrainedAt);
+    });
+    final maxPositionCount = orderedEntries.fold<int>(
+      0,
+      (max, entry) => entry.sessionsCount > max ? entry.sessionsCount : max,
+    );
+    final nodes = [
+      for (final entry in orderedEntries.take(4))
+        _GameMapPositionNode.from(
+          entry,
+          skillMatrix,
+          maxPositionCount: maxPositionCount,
+        ),
+    ];
+    final techniquesCount = nodes.fold<int>(
+      0,
+      (sum, node) => sum + node.techniques.length,
+    );
+    final topNode = nodes.isEmpty ? null : nodes.first;
+
+    return _GameMapVisualViewModel(
+      title: 'Posi\u00e7\u00f5es e t\u00e9cnicas registradas',
+      subtitle:
+          'Clusters por recorr\u00eancia nos debriefs; peso visual n\u00e3o indica desempenho.',
+      nodes: nodes,
+      highlights: [
+        _GameMapHighlight(
+          label: 'Posi\u00e7\u00f5es',
+          value: entries.length.toString(),
+          helper: 'Total de posi\u00e7\u00f5es com t\u00e9cnicas registradas.',
+        ),
+        _GameMapHighlight(
+          label: 'T\u00e9cnicas associadas',
+          value: techniquesCount.toString(),
+          helper:
+              'T\u00e9cnicas vis\u00edveis nos clusters desta se\u00e7\u00e3o.',
+        ),
+        if (topNode != null)
+          _GameMapHighlight(
+            label: 'Mais registrada',
+            value: topNode.position,
+            helper: 'Posi\u00e7\u00e3o com mais registros neste mapa visual.',
+          ),
+      ],
+      emptyStateLabel:
+          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um mapa visual seguro.',
+    );
+  }
+}
+
+class _GameMapPositionNode {
+  final String position;
+  final String categoryLabel;
+  final String countLabel;
+  final int recurrenceCount;
+  final double normalizedWeight;
+  final List<_GameMapTechniqueLink> techniques;
+
+  const _GameMapPositionNode({
+    required this.position,
+    required this.categoryLabel,
+    required this.countLabel,
+    required this.recurrenceCount,
+    required this.normalizedWeight,
+    required this.techniques,
+  });
+
+  factory _GameMapPositionNode.from(
+    GameMapEntry entry,
+    List<SkillMatrixCategoryEntry> skillMatrix, {
+    required int maxPositionCount,
+  }) {
+    final category = _categoryLabelForPosition(entry.position, skillMatrix);
+    final maxTechniqueCount = entry.techniques.fold<int>(
+      0,
+      (max, technique) =>
+          technique.sessionsCount > max ? technique.sessionsCount : max,
+    );
+
+    return _GameMapPositionNode(
+      position: entry.position,
+      categoryLabel: category,
+      countLabel: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+      recurrenceCount: entry.sessionsCount,
+      normalizedWeight:
+          maxPositionCount == 0 ? 0 : entry.sessionsCount / maxPositionCount,
+      techniques: [
+        for (final technique in entry.techniques.take(5))
+          _GameMapTechniqueLink.from(
+            technique,
+            entry.position,
+            skillMatrix,
+            maxTechniqueCount: maxTechniqueCount,
+          ),
+      ],
+    );
+  }
+}
+
+class _GameMapTechniqueLink {
+  final String technique;
+  final String countLabel;
+  final int recurrenceCount;
+  final double normalizedWeight;
+  final String? applicationLabel;
+  final String? outcomeLabel;
+
+  const _GameMapTechniqueLink({
+    required this.technique,
+    required this.countLabel,
+    required this.recurrenceCount,
+    required this.normalizedWeight,
+    required this.applicationLabel,
+    required this.outcomeLabel,
+  });
+
+  factory _GameMapTechniqueLink.from(
+    GameMapTechniqueSummary technique,
+    String position,
+    List<SkillMatrixCategoryEntry> skillMatrix, {
+    required int maxTechniqueCount,
+  }) {
+    final skillEntry = _findSkillEntry(
+      skillMatrix,
+      position,
+      technique.technique,
+    );
+
+    return _GameMapTechniqueLink(
+      technique: technique.technique,
+      countLabel: TrainingAggregator.sessionCountLabel(technique.sessionsCount),
+      recurrenceCount: technique.sessionsCount,
+      normalizedWeight:
+          maxTechniqueCount == 0
+              ? 0
+              : technique.sessionsCount / maxTechniqueCount,
+      applicationLabel: TrainingAggregator.applicationContextLabel(
+        skillEntry?.applicationContext,
+      ),
+      outcomeLabel: TrainingAggregator.techniqueOutcomeLabel(
+        skillEntry?.techniqueOutcome,
+      ),
+    );
+  }
+}
+
+class _GameMapHighlight {
+  final String label;
+  final String value;
+  final String helper;
+
+  const _GameMapHighlight({
+    required this.label,
+    required this.value,
+    required this.helper,
+  });
+}
+
+String _categoryLabelForPosition(
+  String position,
+  List<SkillMatrixCategoryEntry> skillMatrix,
+) {
+  final positionKey = JiuJitsuTaxonomy.normalizedKey(position);
+
+  for (final category in skillMatrix) {
+    for (final technique in category.techniques) {
+      final techniquePosition = technique.position;
+      if (techniquePosition == null) continue;
+      if (JiuJitsuTaxonomy.normalizedKey(techniquePosition) == positionKey) {
+        return category.category.displayLabel;
+      }
+    }
+  }
+
+  return JiuJitsuTaxonomy.categoryFor(position: position).displayLabel;
+}
+
+SkillMatrixTechniqueEntry? _findSkillEntry(
+  List<SkillMatrixCategoryEntry> skillMatrix,
+  String position,
+  String technique,
+) {
+  final positionKey = JiuJitsuTaxonomy.normalizedKey(position);
+  final techniqueKey = JiuJitsuTaxonomy.normalizedKey(technique);
+  SkillMatrixTechniqueEntry? techniqueOnlyMatch;
+
+  for (final category in skillMatrix) {
+    for (final entry in category.techniques) {
+      if (JiuJitsuTaxonomy.normalizedKey(entry.technique) != techniqueKey) {
+        continue;
+      }
+      final entryPosition = entry.position;
+      if (entryPosition != null &&
+          JiuJitsuTaxonomy.normalizedKey(entryPosition) == positionKey) {
+        return entry;
+      }
+      techniqueOnlyMatch ??= entry;
+    }
+  }
+
+  return techniqueOnlyMatch;
 }
 
 class _GameMapStats {
