@@ -130,6 +130,8 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
   late final UserRepository _userRepo = UserRepository.instance;
   late Stream<AppUser?> _targetUserStream;
   int _selectedModuleIndex = 0;
+  _ConsoleHeaderVisualState _headerVisualState =
+      _ConsoleHeaderVisualState.expanded;
 
   @override
   void initState() {
@@ -143,6 +145,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
     if (oldWidget.target.academyId != widget.target.academyId ||
         oldWidget.target.uid != widget.target.uid) {
       _targetUserStream = _watchTargetUser();
+      _headerVisualState = _ConsoleHeaderVisualState.expanded;
     }
   }
 
@@ -208,7 +211,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
 
               return _CollapsibleAthleteConsoleHeader(
                 viewModel: headerViewModel,
-                visualState: _ConsoleHeaderVisualState.expanded,
+                visualState: _headerVisualState,
                 onBack:
                     Navigator.of(context).canPop()
                         ? () => Navigator.of(context).maybePop()
@@ -226,32 +229,55 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
           ),
           const SizedBox(height: TitansUI.spaceSm),
           Expanded(
-            child: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 220),
-              switchInCurve: Curves.easeOutCubic,
-              switchOutCurve: Curves.easeInCubic,
-              transitionBuilder: (child, animation) {
-                final offsetAnimation = Tween<Offset>(
-                  begin: const Offset(0.02, 0),
-                  end: Offset.zero,
-                ).animate(animation);
-                return FadeTransition(
-                  opacity: animation,
-                  child: SlideTransition(
-                    position: offsetAnimation,
-                    child: child,
-                  ),
-                );
-              },
-              child: KeyedSubtree(
-                key: ValueKey(selectedModule.id),
-                child: selectedModule.builder(context),
+            child: NotificationListener<ScrollNotification>(
+              onNotification: _handleModuleScroll,
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final offsetAnimation = Tween<Offset>(
+                    begin: const Offset(0.02, 0),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: offsetAnimation,
+                      child: child,
+                    ),
+                  );
+                },
+                child: KeyedSubtree(
+                  key: ValueKey(selectedModule.id),
+                  child: selectedModule.builder(context),
+                ),
               ),
             ),
           ),
         ],
       ),
     );
+  }
+
+  bool _handleModuleScroll(ScrollNotification notification) {
+    if (notification.metrics.axis != Axis.vertical) {
+      return false;
+    }
+
+    final pixels = notification.metrics.pixels;
+    final nextState =
+        pixels <= 24
+            ? _ConsoleHeaderVisualState.expanded
+            : pixels <= 120
+            ? _ConsoleHeaderVisualState.compact
+            : _ConsoleHeaderVisualState.pinned;
+
+    if (nextState != _headerVisualState) {
+      setState(() => _headerVisualState = nextState);
+    }
+
+    return false;
   }
 
   List<_ConsoleModule> _buildModules() {
@@ -556,27 +582,46 @@ class _CollapsibleAthleteConsoleHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final accent = viewModel.isViewingStudent ? cs.primary : cs.secondary;
+    final disableAnimations = MediaQuery.of(context).disableAnimations;
+    final duration =
+        disableAnimations ? Duration.zero : const Duration(milliseconds: 220);
+    final isPinned = visualState == _ConsoleHeaderVisualState.pinned;
+    final headerPadding =
+        isPinned
+            ? const EdgeInsets.all(TitansUI.spaceSm)
+            : const EdgeInsets.all(TitansUI.spaceMd);
 
-    return TitansCard(
-      accent: accent,
-      padding: const EdgeInsets.all(TitansUI.spaceMd),
-      radius: TitansUI.radiusSmall,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _ConsoleHeaderSummary(
-            viewModel: viewModel,
-            accent: accent,
-            onBack: onBack,
-            onEditProfile: viewModel.canEditProfile ? onEditProfile : null,
+    return AnimatedSize(
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      alignment: Alignment.topCenter,
+      child: AnimatedContainer(
+        duration: duration,
+        curve: Curves.easeOutCubic,
+        child: TitansCard(
+          accent: accent,
+          padding: headerPadding,
+          radius: TitansUI.radiusSmall,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _ConsoleHeaderSummary(
+                viewModel: viewModel,
+                accent: accent,
+                visualState: visualState,
+                animationDuration: duration,
+                onBack: onBack,
+                onEditProfile: viewModel.canEditProfile ? onEditProfile : null,
+              ),
+              SizedBox(height: isPinned ? TitansUI.spaceXs : TitansUI.spaceMd),
+              _ConsoleModuleNavigation(
+                modules: viewModel.modules,
+                visualState: visualState,
+                onModuleSelected: onModuleSelected,
+              ),
+            ],
           ),
-          const SizedBox(height: TitansUI.spaceMd),
-          _ConsoleModuleNavigation(
-            modules: viewModel.modules,
-            visualState: visualState,
-            onModuleSelected: onModuleSelected,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -585,19 +630,35 @@ class _CollapsibleAthleteConsoleHeader extends StatelessWidget {
 class _ConsoleHeaderSummary extends StatelessWidget {
   final _ConsoleHeaderViewModel viewModel;
   final Color accent;
+  final _ConsoleHeaderVisualState visualState;
+  final Duration animationDuration;
   final VoidCallback? onBack;
   final VoidCallback? onEditProfile;
 
   const _ConsoleHeaderSummary({
     required this.viewModel,
     required this.accent,
+    required this.visualState,
+    required this.animationDuration,
     required this.onBack,
     required this.onEditProfile,
   });
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    final isExpanded = visualState == _ConsoleHeaderVisualState.expanded;
+    final isPinned = visualState == _ConsoleHeaderVisualState.pinned;
+    final avatarSize =
+        isExpanded
+            ? 42.0
+            : isPinned
+            ? 30.0
+            : 36.0;
+    final name = isExpanded ? viewModel.displayName : viewModel.compactName;
+    final contextLabel =
+        isPinned
+            ? '${viewModel.contextLabel} - ${viewModel.currentModuleLabel}'
+            : viewModel.contextLabel;
 
     return Row(
       children: [
@@ -609,9 +670,11 @@ class _ConsoleHeaderSummary extends StatelessWidget {
           ),
           const SizedBox(width: TitansUI.spaceXs),
         ],
-        Container(
-          width: 42,
-          height: 42,
+        AnimatedContainer(
+          duration: animationDuration,
+          curve: Curves.easeOutCubic,
+          width: avatarSize,
+          height: avatarSize,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: accent.withValues(alpha: 0.14),
@@ -622,6 +685,7 @@ class _ConsoleHeaderSummary extends StatelessWidget {
                 ? Icons.person_pin_circle_outlined
                 : Icons.badge_outlined,
             color: accent,
+            size: isPinned ? 18 : 24,
           ),
         ),
         const SizedBox(width: TitansUI.spaceSm),
@@ -631,38 +695,41 @@ class _ConsoleHeaderSummary extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                viewModel.contextLabel,
+                contextLabel,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: accent,
-                  fontSize: 11,
+                  fontSize: isPinned ? 10 : 11,
                   fontWeight: FontWeight.w900,
                   letterSpacing: 0.8,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
-                viewModel.displayName,
+                name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                  fontSize: isPinned ? 15 : null,
+                ),
               ),
-              const SizedBox(height: 4),
-              Wrap(
-                spacing: TitansUI.spaceXs,
-                runSpacing: 2,
-                children: [
-                  _ConsoleHeaderPill(label: viewModel.beltLabel),
-                  _ConsoleHeaderPill(label: viewModel.degreeLabel),
-                  _ConsoleHeaderPill(
-                    label: viewModel.currentModuleLabel,
-                    icon: Icons.dashboard_customize_outlined,
-                  ),
-                ],
-              ),
+              if (!isPinned) ...[
+                const SizedBox(height: 4),
+                Wrap(
+                  spacing: TitansUI.spaceXs,
+                  runSpacing: 2,
+                  children: [
+                    _ConsoleHeaderPill(label: viewModel.beltLabel),
+                    _ConsoleHeaderPill(label: viewModel.degreeLabel),
+                    _ConsoleHeaderPill(
+                      label: viewModel.currentModuleLabel,
+                      icon: Icons.dashboard_customize_outlined,
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),
@@ -756,7 +823,10 @@ class _ConsoleModuleNavigation extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isCompact = constraints.maxWidth < 390;
+        final isCompact =
+            constraints.maxWidth < 390 ||
+            visualState != _ConsoleHeaderVisualState.expanded;
+        final isPinned = visualState == _ConsoleHeaderVisualState.pinned;
         final visibleModules =
             modules.where((module) => module.isVisible).toList();
 
@@ -772,11 +842,11 @@ class _ConsoleModuleNavigation extends StatelessWidget {
                       isCompact
                           ? visibleModules[index].compactLabel
                           : visibleModules[index].label,
-                  visualState: visualState,
+                  pinned: isPinned,
                   onPressed: () => onModuleSelected(index),
                 ),
                 if (index < visibleModules.length - 1)
-                  const SizedBox(width: TitansUI.spaceXs),
+                  SizedBox(width: isPinned ? 4 : TitansUI.spaceXs),
               ],
             ],
           ),
@@ -789,13 +859,13 @@ class _ConsoleModuleNavigation extends StatelessWidget {
 class _ConsoleModuleNavItem extends StatelessWidget {
   final _ModuleNavigationItem item;
   final String label;
-  final _ConsoleHeaderVisualState visualState;
+  final bool pinned;
   final VoidCallback onPressed;
 
   const _ConsoleModuleNavItem({
     required this.item,
     required this.label,
-    required this.visualState,
+    required this.pinned,
     required this.onPressed,
   });
 
@@ -805,7 +875,6 @@ class _ConsoleModuleNavItem extends StatelessWidget {
     final selected = item.isSelected;
     final accent = selected ? cs.primary : cs.secondary;
     final enabled = item.enabled;
-    final compact = visualState != _ConsoleHeaderVisualState.expanded;
 
     return Tooltip(
       message: item.label,
@@ -815,9 +884,9 @@ class _ConsoleModuleNavItem extends StatelessWidget {
         child: ChoiceChip(
           selected: selected,
           showCheckmark: false,
-          avatar: Icon(item.icon, size: compact ? 16 : 18, color: accent),
+          avatar: Icon(item.icon, size: pinned ? 16 : 18, color: accent),
           label: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: compact ? 96 : 124),
+            constraints: BoxConstraints(maxWidth: pinned ? 96 : 124),
             child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
           ),
           labelStyle: TextStyle(
@@ -836,7 +905,10 @@ class _ConsoleModuleNavItem extends StatelessWidget {
             borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
           ),
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
+          visualDensity: VisualDensity(
+            horizontal: pinned ? -2 : -1,
+            vertical: pinned ? -2 : -1,
+          ),
           onSelected: enabled ? (_) => onPressed() : null,
         ),
       ),
