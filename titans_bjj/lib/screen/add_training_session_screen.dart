@@ -107,14 +107,13 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   @override
   Widget build(BuildContext context) {
     final actor = UserScope.maybeOf(context);
-    final canAddToAcademy = actor != null &&
+    final canAddToAcademy =
+        actor != null &&
         actor.academyId == widget.academyId &&
         (actor.role == UserRole.admin || actor.role == UserRole.professor);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_editing ? 'Editar treino' : 'Novo treino'),
-      ),
+      appBar: AppBar(title: Text(_editing ? 'Editar treino' : 'Novo treino')),
       body: StreamBuilder<List<JiuJitsuTaxonomyItem>>(
         stream: _positionItemsStream,
         builder: (context, positionSnap) {
@@ -123,17 +122,17 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
             builder: (context, techniqueSnap) {
               final positionOptions = JiuJitsuTaxonomy.mergeStaticAndCustom(
                 staticItems: JiuJitsuTaxonomy.positions,
-                customItems:
-                    (positionSnap.data ?? const <JiuJitsuTaxonomyItem>[])
-                        .where((item) => item.isActive)
-                        .map((item) => item.label),
+                customItems: (positionSnap.data ??
+                        const <JiuJitsuTaxonomyItem>[])
+                    .where((item) => item.isActive)
+                    .map((item) => item.label),
               );
               final techniqueOptions = JiuJitsuTaxonomy.mergeStaticAndCustom(
                 staticItems: JiuJitsuTaxonomy.techniques,
-                customItems:
-                    (techniqueSnap.data ?? const <JiuJitsuTaxonomyItem>[])
-                        .where((item) => item.isActive)
-                        .map((item) => item.label),
+                customItems: (techniqueSnap.data ??
+                        const <JiuJitsuTaxonomyItem>[])
+                    .where((item) => item.isActive)
+                    .map((item) => item.label),
               );
 
               return SingleChildScrollView(
@@ -158,7 +157,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                               value: _recurring,
                               onChanged: (v) => setState(() => _recurring = v),
                               title: const Text('Treino recorrente'),
-                              subtitle: const Text('Criar treinos em intervalo'),
+                              subtitle: const Text(
+                                'Criar treinos em intervalo',
+                              ),
                             ),
                             const SizedBox(height: 12),
                           ],
@@ -178,11 +179,12 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             const SizedBox(height: 12),
                             _WeekdayPicker(
                               selected: _weekdays,
-                              onChanged: (s) => setState(() {
-                                _weekdays
-                                  ..clear()
-                                  ..addAll(s);
-                              }),
+                              onChanged:
+                                  (s) => setState(() {
+                                    _weekdays
+                                      ..clear()
+                                      ..addAll(s);
+                                  }),
                             ),
                           ],
                           const SizedBox(height: 12),
@@ -206,18 +208,20 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             placeholder: 'Selecionar posi\u00e7\u00e3o',
                             value: _optionalText(_position),
                             icon: Icons.sports_mma_outlined,
-                            loading: positionSnap.connectionState ==
+                            loading:
+                                positionSnap.connectionState ==
                                     ConnectionState.waiting &&
                                 !positionSnap.hasData,
-                            onTap: () => _selectDebriefValue(
-                              title: 'Posi\u00e7\u00e3o trabalhada',
-                              placeholder: 'Buscar posi\u00e7\u00e3o',
-                              type: JiuJitsuTaxonomyType.position,
-                              options: positionOptions,
-                              controller: _position,
-                              canAddToAcademy: canAddToAcademy,
-                              actorUid: actor?.uid,
-                            ),
+                            onTap:
+                                () => _selectDebriefValue(
+                                  title: 'Posi\u00e7\u00e3o trabalhada',
+                                  placeholder: 'Buscar posi\u00e7\u00e3o',
+                                  type: JiuJitsuTaxonomyType.position,
+                                  options: positionOptions,
+                                  controller: _position,
+                                  canAddToAcademy: canAddToAcademy,
+                                  actorUid: actor?.uid,
+                                ),
                           ),
                           const SizedBox(height: 12),
                           _DebriefSelectCard(
@@ -225,18 +229,20 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             placeholder: 'Selecionar t\u00e9cnica',
                             value: _optionalText(_technique),
                             icon: Icons.psychology_alt_outlined,
-                            loading: techniqueSnap.connectionState ==
+                            loading:
+                                techniqueSnap.connectionState ==
                                     ConnectionState.waiting &&
                                 !techniqueSnap.hasData,
-                            onTap: () => _selectDebriefValue(
-                              title: 'T\u00e9cnica trabalhada',
-                              placeholder: 'Buscar t\u00e9cnica',
-                              type: JiuJitsuTaxonomyType.technique,
-                              options: techniqueOptions,
-                              controller: _technique,
-                              canAddToAcademy: canAddToAcademy,
-                              actorUid: actor?.uid,
-                            ),
+                            onTap:
+                                () => _selectDebriefValue(
+                                  title: 'T\u00e9cnica trabalhada',
+                                  placeholder: 'Buscar t\u00e9cnica',
+                                  type: JiuJitsuTaxonomyType.technique,
+                                  options: techniqueOptions,
+                                  controller: _technique,
+                                  canAddToAcademy: canAddToAcademy,
+                                  actorUid: actor?.uid,
+                                ),
                           ),
                         ],
                       ),
@@ -262,19 +268,25 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                 value: 1,
                                 child: Text('1 - Leve'),
                               ),
-                              DropdownMenuItem<int?>(value: 2, child: Text('2')),
+                              DropdownMenuItem<int?>(
+                                value: 2,
+                                child: Text('2'),
+                              ),
                               DropdownMenuItem<int?>(
                                 value: 3,
                                 child: Text('3 - Moderada'),
                               ),
-                              DropdownMenuItem<int?>(value: 4, child: Text('4')),
+                              DropdownMenuItem<int?>(
+                                value: 4,
+                                child: Text('4'),
+                              ),
                               DropdownMenuItem<int?>(
                                 value: 5,
                                 child: Text('5 - Muito intensa'),
                               ),
                             ],
-                            onChanged: (value) =>
-                                setState(() => _intensity = value),
+                            onChanged:
+                                (value) => setState(() => _intensity = value),
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
@@ -306,10 +318,14 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             subtitle: 'Onde voc\u00ea tentou usar?',
                             options: _applicationContextOptions,
                             selectedValue: _applicationContext,
-                            onSelected: (value) => setState(
-                              () => _applicationContext =
-                                  _applicationContext == value ? null : value,
-                            ),
+                            onSelected:
+                                (value) => setState(
+                                  () =>
+                                      _applicationContext =
+                                          _applicationContext == value
+                                              ? null
+                                              : value,
+                                ),
                           ),
                           const SizedBox(height: 12),
                           _DebriefChoiceSection(
@@ -317,10 +333,14 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             subtitle: 'Como foi a tentativa?',
                             options: _techniqueOutcomeOptions,
                             selectedValue: _techniqueOutcome,
-                            onSelected: (value) => setState(
-                              () => _techniqueOutcome =
-                                  _techniqueOutcome == value ? null : value,
-                            ),
+                            onSelected:
+                                (value) => setState(
+                                  () =>
+                                      _techniqueOutcome =
+                                          _techniqueOutcome == value
+                                              ? null
+                                              : value,
+                                ),
                           ),
                         ],
                       ),
@@ -353,15 +373,16 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                           ),
                           FilledButton.icon(
                             onPressed: _saving ? null : _save,
-                            icon: _saving
-                                ? const SizedBox(
-                                    width: 18,
-                                    height: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Icon(Icons.save),
+                            icon:
+                                _saving
+                                    ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Icon(Icons.save),
                             label: Text(_saving ? 'Salvando...' : 'Salvar'),
                           ),
                         ],
@@ -390,13 +411,14 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => _DebriefSelectSheet(
-        title: title,
-        placeholder: placeholder,
-        options: options,
-        currentValue: controller.text,
-        canAddToAcademy: canAddToAcademy,
-      ),
+      builder:
+          (context) => _DebriefSelectSheet(
+            title: title,
+            placeholder: placeholder,
+            options: options,
+            currentValue: controller.text,
+            canAddToAcademy: canAddToAcademy,
+          ),
     );
 
     if (selected == null) return;
@@ -494,52 +516,58 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
         );
 
         if (dates.isEmpty) {
-          throw Exception('Nenhuma data gerada. Confira o intervalo e os dias.');
+          throw Exception(
+            'Nenhuma data gerada. Confira o intervalo e os dias.',
+          );
         }
 
         final ok = await showDialog<bool>(
           context: context,
-          builder: (_) => AlertDialog(
-            title: const Text('Confirmar cadastro'),
-            content: Text(
-              'Serao criados ${dates.length} treinos. Deseja continuar?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancelar'),
+          builder:
+              (_) => AlertDialog(
+                title: const Text('Confirmar cadastro'),
+                content: Text(
+                  'Ser\u00e3o criados ${dates.length} treinos. Deseja continuar?',
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context, false),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton(
+                    onPressed: () => Navigator.pop(context, true),
+                    child: const Text('Confirmar'),
+                  ),
+                ],
               ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Confirmar'),
-              ),
-            ],
-          ),
         );
+
+        if (!mounted) return;
 
         if (ok != true) {
           setState(() => _saving = false);
           return;
         }
 
-        final sessions = dates
-            .map(
-              (d) => TrainingSession(
-                id: uuid.v4(),
-                date: d,
-                place: TrainingPlace.academy,
-                notes: notesOrNull,
-                position: position,
-                technique: technique,
-                successes: successes,
-                difficulties: difficulties,
-                intensity: _intensity,
-                debriefNotes: debriefNotes,
-                applicationContext: applicationContext,
-                techniqueOutcome: techniqueOutcome,
-              ),
-            )
-            .toList();
+        final sessions =
+            dates
+                .map(
+                  (d) => TrainingSession(
+                    id: uuid.v4(),
+                    date: d,
+                    place: TrainingPlace.academy,
+                    notes: notesOrNull,
+                    position: position,
+                    technique: technique,
+                    successes: successes,
+                    difficulties: difficulties,
+                    intensity: _intensity,
+                    debriefNotes: debriefNotes,
+                    applicationContext: applicationContext,
+                    techniqueOutcome: techniqueOutcome,
+                  ),
+                )
+                .toList();
 
         final actor = UserScope.maybeOf(context);
         debugPrint(
@@ -564,9 +592,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
       Navigator.pop(context);
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erro ao salvar: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Erro ao salvar: $e')));
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -655,11 +683,7 @@ class _ResponsiveDateFields extends StatelessWidget {
 
         if (constraints.maxWidth < 420) {
           return Column(
-            children: [
-              startField,
-              const SizedBox(height: 12),
-              endField,
-            ],
+            children: [startField, const SizedBox(height: 12), endField],
           );
         }
 
@@ -788,20 +812,21 @@ class _DebriefSelectCard extends StatelessWidget {
           prefixIcon: Icon(icon),
           suffixIcon: AnimatedSwitcher(
             duration: const Duration(milliseconds: 160),
-            child: loading
-                ? const Padding(
-                    key: ValueKey('loading'),
-                    padding: EdgeInsets.all(14),
-                    child: SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
+            child:
+                loading
+                    ? const Padding(
+                      key: ValueKey('loading'),
+                      padding: EdgeInsets.all(14),
+                      child: SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                    )
+                    : const Icon(
+                      Icons.keyboard_arrow_down,
+                      key: ValueKey('arrow'),
                     ),
-                  )
-                : const Icon(
-                    Icons.keyboard_arrow_down,
-                    key: ValueKey('arrow'),
-                  ),
           ),
         ),
         child: Text(
@@ -809,7 +834,8 @@ class _DebriefSelectCard extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
-            color: hasValue ? cs.onSurface : cs.onSurface.withValues(alpha: 0.55),
+            color:
+                hasValue ? cs.onSurface : cs.onSurface.withValues(alpha: 0.55),
             fontWeight: hasValue ? FontWeight.w700 : FontWeight.w500,
           ),
         ),
@@ -822,10 +848,7 @@ class _DebriefSelection {
   final String label;
   final bool addToAcademy;
 
-  const _DebriefSelection({
-    required this.label,
-    required this.addToAcademy,
-  });
+  const _DebriefSelection({required this.label, required this.addToAcademy});
 }
 
 class _DebriefSelectSheet extends StatefulWidget {
@@ -870,9 +893,12 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     final cs = Theme.of(context).colorScheme;
     final query = _search.text.trim();
     final queryKey = JiuJitsuTaxonomy.normalizedKey(query);
-    final filtered = widget.options
-        .where((option) => option.toLowerCase().contains(query.toLowerCase()))
-        .toList();
+    final filtered =
+        widget.options
+            .where(
+              (option) => option.toLowerCase().contains(query.toLowerCase()),
+            )
+            .toList();
     final exactMatch = widget.options.any(
       (option) => JiuJitsuTaxonomy.normalizedKey(option) == queryKey,
     );
@@ -893,9 +919,9 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
             children: [
               Text(
                 widget.title,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
               TextField(
@@ -905,9 +931,10 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                   labelText: widget.placeholder,
                   prefixIcon: const Icon(Icons.search),
                 ),
-                onChanged: (_) => setState(() {
-                  _addSelectedToAcademy = false;
-                }),
+                onChanged:
+                    (_) => setState(() {
+                      _addSelectedToAcademy = false;
+                    }),
               ),
               const SizedBox(height: 12),
               Flexible(
@@ -919,32 +946,36 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                         label: 'Usar "$query"',
                         selected: _selected == query && !_addSelectedToAcademy,
                         accent: true,
-                        onTap: () => setState(() {
-                          _selected = query;
-                          _addSelectedToAcademy = false;
-                        }),
+                        onTap:
+                            () => setState(() {
+                              _selected = query;
+                              _addSelectedToAcademy = false;
+                            }),
                       ),
                       if (widget.canAddToAcademy)
                         _DebriefOptionTile(
                           label: 'Adicionar "$query" a lista da academia',
                           selected: _selected == query && _addSelectedToAcademy,
                           accent: true,
-                          onTap: () => setState(() {
-                            _selected = query;
-                            _addSelectedToAcademy = true;
-                          }),
+                          onTap:
+                              () => setState(() {
+                                _selected = query;
+                                _addSelectedToAcademy = true;
+                              }),
                         ),
                     ],
                     for (final option in filtered)
                       _DebriefOptionTile(
                         label: option,
-                        selected: JiuJitsuTaxonomy.normalizedKey(option) ==
+                        selected:
+                            JiuJitsuTaxonomy.normalizedKey(option) ==
                                 JiuJitsuTaxonomy.normalizedKey(_selected) &&
                             !_addSelectedToAcademy,
-                        onTap: () => setState(() {
-                          _selected = option;
-                          _addSelectedToAcademy = false;
-                        }),
+                        onTap:
+                            () => setState(() {
+                              _selected = option;
+                              _addSelectedToAcademy = false;
+                            }),
                       ),
                     if (filtered.isEmpty && !showCustom)
                       Padding(
@@ -963,18 +994,18 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
               SizedBox(
                 width: double.infinity,
                 child: FilledButton.icon(
-                  onPressed: valueToConfirm.trim().isEmpty
-                      ? null
-                      : () => Navigator.pop(
+                  onPressed:
+                      valueToConfirm.trim().isEmpty
+                          ? null
+                          : () => Navigator.pop(
                             context,
                             _DebriefSelection(
                               label: valueToConfirm.trim(),
-                              addToAcademy:
-                                  showCustom && _addSelectedToAcademy,
+                              addToAcademy: showCustom && _addSelectedToAcademy,
                             ),
                           ),
                   icon: const Icon(Icons.check),
-                  label: const Text('Confirmar selecao'),
+                  label: const Text('Confirmar sele\u00e7\u00e3o'),
                 ),
               ),
             ],
@@ -1003,9 +1034,10 @@ class _DebriefOptionTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Card(
-      color: selected
-          ? cs.primaryContainer.withValues(alpha: 0.55)
-          : accent
+      color:
+          selected
+              ? cs.primaryContainer.withValues(alpha: 0.55)
+              : accent
               ? cs.secondaryContainer.withValues(alpha: 0.35)
               : null,
       child: ListTile(
@@ -1062,10 +1094,7 @@ class _WeekdayPicker extends StatelessWidget {
   final Set<int> selected;
   final ValueChanged<Set<int>> onChanged;
 
-  const _WeekdayPicker({
-    required this.selected,
-    required this.onChanged,
-  });
+  const _WeekdayPicker({required this.selected, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {

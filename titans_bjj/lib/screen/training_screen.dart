@@ -43,11 +43,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String? _streamUid;
   Stream<List<TrainingSession>>? _sessionsStream;
 
-  TargetProfile? _resolveTarget(BuildContext context) {
-    return widget.explicitTarget ??
-        TargetResolver.maybeOf(context, mode: widget.targetMode);
-  }
-
   void _syncStream({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -98,7 +93,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 : const TitansStateView.error(
                   title: 'Perfil n\u00e3o carregado',
                   message:
-                      'N\u00e3o foi poss\u00edvel identificar seu usuario para carregar Treinos.',
+                      'N\u00e3o foi poss\u00edvel identificar seu usu\u00e1rio para carregar Treinos.',
                 ),
       );
     }
@@ -136,10 +131,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           !widget.embedded && canEditTarget
               ? FloatingActionButton.extended(
                 heroTag: 'training_fab',
-                onPressed: () => _openTrainingForm(
-                  academyId: academyId,
-                  uid: uid,
-                ),
+                onPressed:
+                    () => _openTrainingForm(academyId: academyId, uid: uid),
                 icon: const Icon(Icons.add),
                 label: const Text('Treino'),
               )
@@ -181,10 +174,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 canAddTraining: widget.embedded && canEditTarget,
                 onAddTraining:
                     widget.embedded && canEditTarget
-                        ? () => _openTrainingForm(
-                          academyId: academyId,
-                          uid: uid,
-                        )
+                        ? () =>
+                            _openTrainingForm(academyId: academyId, uid: uid)
                         : null,
               ),
               const SizedBox(height: 12),
@@ -218,15 +209,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 TitansEmptyState(
                   icon: Icons.fitness_center_outlined,
                   title: 'Sem treinos registrados',
-                  message: 'Adicione uma sess\u00e3o para iniciar o hist\u00f3rico.',
+                  message:
+                      'Adicione uma sess\u00e3o para iniciar o hist\u00f3rico.',
                   compact: true,
                   action:
                       canEditTarget
                           ? FilledButton.icon(
-                            onPressed: () => _openTrainingForm(
-                              academyId: academyId,
-                              uid: uid,
-                            ),
+                            onPressed:
+                                () => _openTrainingForm(
+                                  academyId: academyId,
+                                  uid: uid,
+                                ),
                             icon: const Icon(Icons.add),
                             label: const Text('Adicionar treino'),
                           )
@@ -517,7 +510,9 @@ class _TrainingSummaryCard extends StatelessWidget {
               _SummaryMetric(
                 label: 'Intensidade',
                 value:
-                    intensity == null ? '--' : '${intensity.toStringAsFixed(1)}/5',
+                    intensity == null
+                        ? '--'
+                        : '${intensity.toStringAsFixed(1)}/5',
                 color: TitansUI.warning,
               ),
               _SummaryMetric(
@@ -839,7 +834,8 @@ String? _cleanDisplayText(String? value) {
 }
 
 String _smartDateLabel(DateTime date) {
-  final base = '${_TrainingScreenState._fmt2(date.day)} ${_monthLabel(date.month)} ${date.year}';
+  final base =
+      '${_TrainingScreenState._fmt2(date.day)} ${_monthLabel(date.month)} ${date.year}';
   if (date.hour == 0 && date.minute == 0) return base;
   return '$base ${_TrainingScreenState._fmt2(date.hour)}:${_TrainingScreenState._fmt2(date.minute)}';
 }

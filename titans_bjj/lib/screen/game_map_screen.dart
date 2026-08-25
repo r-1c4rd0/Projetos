@@ -243,7 +243,8 @@ class _SkillMatrixCard extends StatelessWidget {
             const TitansEmptyState(
               icon: Icons.grid_view_outlined,
               title: 'Skill Matrix vazia',
-              message: 'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar sua Skill Matrix.',
+              message:
+                  'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar sua Skill Matrix.',
               compact: true,
             )
           else
@@ -286,9 +287,10 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
             runSpacing: 6,
             children: [
               _MiniBadge(
-                label: entry.techniquesCount == 1
-                    ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
-                    : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas',
+                label:
+                    entry.techniquesCount == 1
+                        ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
+                        : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas',
                 color: cs.primary,
               ),
               _MiniBadge(
@@ -357,11 +359,14 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                       color: cs.secondary,
                     ),
                   _MiniBadge(
-                    label: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+                    label: TrainingAggregator.sessionCountLabel(
+                      entry.sessionsCount,
+                    ),
                     color: cs.secondary,
                   ),
                   _MiniBadge(
-                    label: '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
+                    label:
+                        '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
                     color: cs.onSurface.withValues(alpha: 0.5),
                   ),
                   if (entry.averageIntensity != null)
@@ -416,7 +421,8 @@ class _EmptyGameMapCard extends StatelessWidget {
     return const TitansEmptyState(
       icon: Icons.account_tree_outlined,
       title: 'Game Map vazio',
-      message: 'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o mapa.',
+      message:
+          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o mapa.',
       compact: true,
     );
   }
@@ -460,7 +466,9 @@ class _GameMapPositionCard extends StatelessWidget {
               ),
               const SizedBox(width: 10),
               _MiniBadge(
-                label: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+                label: TrainingAggregator.sessionCountLabel(
+                  entry.sessionsCount,
+                ),
                 color: cs.primary,
               ),
             ],
@@ -505,7 +513,10 @@ class _GameMapPositionCard extends StatelessWidget {
                     color: Colors.lightGreenAccent,
                   ),
                 if (difficulty != null)
-                  _MiniBadge(label: 'aten\u00e7\u00e3o: $difficulty', color: cs.error),
+                  _MiniBadge(
+                    label: 'aten\u00e7\u00e3o: $difficulty',
+                    color: cs.error,
+                  ),
               ],
             ),
           ],
@@ -737,9 +748,10 @@ class SkillLevelDots extends StatelessWidget {
         ),
         _SkillStagePill(
           label: _applicationStageLabel(),
-          description: applicationMeasured
-              ? 'Aplica\u00e7\u00e3o registrada como evid\u00eancia auxiliar.'
-              : 'Sem dados de rola/competi\u00e7\u00e3o nesta vers\u00e3o.',
+          description:
+              applicationMeasured
+                  ? 'Aplica\u00e7\u00e3o registrada como evid\u00eancia auxiliar.'
+                  : 'Sem dados de rola/competi\u00e7\u00e3o nesta vers\u00e3o.',
           active: applicationMeasured,
           color: applicationMeasured ? Colors.lightGreenAccent : cs.onSurface,
           neutral: !applicationMeasured,
@@ -749,10 +761,15 @@ class SkillLevelDots extends StatelessWidget {
   }
 
   String _applicationStageLabel() {
-    if (!applicationMeasured) return 'Aplica\u00e7\u00e3o ainda n\u00e3o medida';
-    final outcome = TrainingAggregator.techniqueOutcomeLabel(techniqueOutcome) ??
+    if (!applicationMeasured) {
+      return 'Aplica\u00e7\u00e3o ainda n\u00e3o medida';
+    }
+    final outcome =
+        TrainingAggregator.techniqueOutcomeLabel(techniqueOutcome) ??
         'Aplica\u00e7\u00e3o medida';
-    final context = TrainingAggregator.applicationContextLabel(applicationContext);
+    final context = TrainingAggregator.applicationContextLabel(
+      applicationContext,
+    );
     if (context == null) return outcome;
     return '$outcome em $context';
   }
@@ -777,7 +794,12 @@ class _SkillStagePill extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final resolved = active ? color : cs.onSurface;
-    final alpha = neutral ? 0.42 : active ? 0.9 : 0.56;
+    final alpha =
+        neutral
+            ? 0.42
+            : active
+            ? 0.9
+            : 0.56;
 
     return Tooltip(
       message: description,

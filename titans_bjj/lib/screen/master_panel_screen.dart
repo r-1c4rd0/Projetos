@@ -158,7 +158,9 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
   }) {
     if (student.uid.trim().isEmpty || student.academyId.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aluno alvo nao informado para edicao.')),
+        const SnackBar(
+          content: Text('Aluno alvo n\u00e3o informado para edi\u00e7\u00e3o.'),
+        ),
       );
       return;
     }
