@@ -69,6 +69,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
           );
           final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
+          final skillSummary = _SkillMatrixSummaryViewModel.from(skillMatrix);
 
           return ListView(
             padding:
@@ -81,6 +82,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 const SizedBox(height: 12),
               ],
               _GameMapSummaryCard(stats: stats),
+              const SizedBox(height: 12),
+              _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
               const SizedBox(height: 12),
               _SkillMatrixCard(colorScheme: cs, entries: skillMatrix),
               const SizedBox(height: 12),
@@ -221,6 +224,237 @@ class _GameMapSummaryCard extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _SkillMatrixVisualSummaryCard extends StatelessWidget {
+  final _SkillMatrixSummaryViewModel viewModel;
+
+  const _SkillMatrixVisualSummaryCard({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'RESUMO DA SKILL MATRIX'),
+          const SizedBox(height: 8),
+          Text(
+            viewModel.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.stats.isEmpty)
+            TitansEmptyState(
+              icon: Icons.grid_view_outlined,
+              title: 'Resumo t\u00e9cnico vazio',
+              message: viewModel.emptyStateLabel,
+              compact: true,
+            )
+          else ...[
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final stat in viewModel.stats)
+                  _SkillMatrixSummaryStatPill(stat: stat),
+              ],
+            ),
+            if (viewModel.highlights.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final highlight in viewModel.highlights)
+                    _SkillMatrixSummaryHighlightChip(highlight: highlight),
+                ],
+              ),
+            ],
+            if (viewModel.bars.isNotEmpty) ...[
+              const SizedBox(height: 14),
+              for (final bar in viewModel.bars) ...[
+                _SkillMatrixSummaryBarRow(bar: bar),
+                if (bar != viewModel.bars.last) const SizedBox(height: 10),
+              ],
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _SkillMatrixSummaryStatPill extends StatelessWidget {
+  final _SkillMatrixSummaryStat stat;
+
+  const _SkillMatrixSummaryStatPill({required this.stat});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _skillSummaryColor(cs, stat.helper);
+
+    return Tooltip(
+      message: stat.helper,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 112, maxWidth: 168),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withValues(alpha: 0.28)),
+          color: color.withValues(alpha: 0.08),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              stat.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              stat.value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SkillMatrixSummaryHighlightChip extends StatelessWidget {
+  final _SkillMatrixSummaryHighlight highlight;
+
+  const _SkillMatrixSummaryHighlightChip({required this.highlight});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: highlight.helper,
+      child: _MiniBadge(
+        label: '${highlight.label}: ${highlight.value}',
+        color: cs.secondary,
+      ),
+    );
+  }
+}
+
+class _SkillMatrixSummaryBarRow extends StatelessWidget {
+  final _SkillMatrixSummaryBar bar;
+
+  const _SkillMatrixSummaryBarRow({required this.bar});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _skillSummaryBarColor(cs, bar.kind);
+
+    return Tooltip(
+      message: bar.helper,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  bar.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.86),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                bar.valueLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              height: 8,
+              width: double.infinity,
+              color: cs.onSurface.withValues(alpha: 0.08),
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: bar.normalizedValue.clamp(0.0, 1.0),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: color.withValues(alpha: 0.74),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+Color _skillSummaryColor(ColorScheme cs, String helper) {
+  if (helper.contains('recorr')) return Colors.lightGreenAccent;
+  if (helper.contains('Aplica')) return cs.secondary;
+  return cs.primary;
+}
+
+Color _skillSummaryBarColor(ColorScheme cs, String kind) {
+  switch (kind) {
+    case 'category':
+      return cs.primary;
+    case 'technique':
+      return cs.secondary;
+    default:
+      return Colors.lightGreenAccent;
   }
 }
 
@@ -928,4 +1162,186 @@ String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
+}
+
+class _SkillMatrixSummaryViewModel {
+  final String title;
+  final String subtitle;
+  final List<_SkillMatrixSummaryStat> stats;
+  final List<_SkillMatrixSummaryHighlight> highlights;
+  final List<_SkillMatrixSummaryBar> bars;
+  final String emptyStateLabel;
+
+  const _SkillMatrixSummaryViewModel({
+    required this.title,
+    required this.subtitle,
+    required this.stats,
+    required this.highlights,
+    required this.bars,
+    required this.emptyStateLabel,
+  });
+
+  factory _SkillMatrixSummaryViewModel.from(
+    List<SkillMatrixCategoryEntry> entries,
+  ) {
+    final techniques = entries.expand((entry) => entry.techniques).toList();
+    if (techniques.isEmpty) {
+      return const _SkillMatrixSummaryViewModel(
+        title: 'Resumo t\u00e9cnico',
+        subtitle: 'Baseado nas t\u00e9cnicas registradas nos debriefs.',
+        stats: [],
+        highlights: [],
+        bars: [],
+        emptyStateLabel:
+            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um resumo seguro.',
+      );
+    }
+
+    final recurringCount = techniques.where((entry) => entry.consistent).length;
+    final measuredApplications =
+        techniques.where((entry) => entry.application == true).length;
+    final topCategories = List<SkillMatrixCategoryEntry>.from(entries)
+      ..sort((a, b) {
+        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
+        if (sessionsCompare != 0) return sessionsCompare;
+        return b.techniquesCount.compareTo(a.techniquesCount);
+      });
+    final topTechniques = List<SkillMatrixTechniqueEntry>.from(techniques)
+      ..sort((a, b) {
+        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
+        if (sessionsCompare != 0) return sessionsCompare;
+        return b.lastTrainedAt.compareTo(a.lastTrainedAt);
+      });
+
+    final bars = <_SkillMatrixSummaryBar>[
+      ..._categoryBars(topCategories.take(3).toList()),
+      ..._techniqueBars(topTechniques.take(3).toList()),
+    ];
+    final highlights = <_SkillMatrixSummaryHighlight>[
+      if (topCategories.isNotEmpty)
+        _SkillMatrixSummaryHighlight(
+          label: 'Categoria mais recorrente',
+          value: topCategories.first.category.displayLabel,
+          helper: 'Categoria com mais sess\u00f5es registradas na matriz.',
+        ),
+      if (topTechniques.isNotEmpty)
+        _SkillMatrixSummaryHighlight(
+          label: 'T\u00e9cnica mais recorrente',
+          value: topTechniques.first.technique,
+          helper: 'T\u00e9cnica com mais registros na Skill Matrix.',
+        ),
+    ];
+
+    return _SkillMatrixSummaryViewModel(
+      title: 'Resumo t\u00e9cnico',
+      subtitle:
+          'Baseado nas t\u00e9cnicas registradas e na recorr\u00eancia dos debriefs.',
+      stats: [
+        _SkillMatrixSummaryStat(
+          label: 'T\u00c9CNICAS',
+          value: techniques.length.toString(),
+          helper: 'T\u00e9cnicas registradas na Skill Matrix.',
+        ),
+        _SkillMatrixSummaryStat(
+          label: 'RECORRENTES',
+          value: recurringCount.toString(),
+          helper: 'T\u00e9cnicas com 3 ou mais sess\u00f5es registradas.',
+        ),
+        _SkillMatrixSummaryStat(
+          label: 'APLICA\u00c7\u00c3O',
+          value: measuredApplications.toString(),
+          helper:
+              'T\u00e9cnicas com aplica\u00e7\u00e3o medida em treino posicional, rola ou competi\u00e7\u00e3o.',
+        ),
+      ],
+      highlights: highlights,
+      bars: bars,
+      emptyStateLabel:
+          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um resumo seguro.',
+    );
+  }
+
+  static List<_SkillMatrixSummaryBar> _categoryBars(
+    List<SkillMatrixCategoryEntry> entries,
+  ) {
+    final maxSessions = entries.fold<int>(
+      0,
+      (max, entry) => entry.sessionsCount > max ? entry.sessionsCount : max,
+    );
+    if (maxSessions == 0) return const [];
+
+    return [
+      for (final entry in entries)
+        _SkillMatrixSummaryBar(
+          label: entry.category.displayLabel,
+          valueLabel: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+          normalizedValue: entry.sessionsCount / maxSessions,
+          helper:
+              'Barra relativa \u00e0 categoria mais recorrente neste conjunto.',
+          kind: 'category',
+        ),
+    ];
+  }
+
+  static List<_SkillMatrixSummaryBar> _techniqueBars(
+    List<SkillMatrixTechniqueEntry> entries,
+  ) {
+    final maxSessions = entries.fold<int>(
+      0,
+      (max, entry) => entry.sessionsCount > max ? entry.sessionsCount : max,
+    );
+    if (maxSessions == 0) return const [];
+
+    return [
+      for (final entry in entries)
+        _SkillMatrixSummaryBar(
+          label: entry.technique,
+          valueLabel: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+          normalizedValue: entry.sessionsCount / maxSessions,
+          helper:
+              'Barra relativa \u00e0 t\u00e9cnica mais recorrente neste conjunto.',
+          kind: 'technique',
+        ),
+    ];
+  }
+}
+
+class _SkillMatrixSummaryStat {
+  final String label;
+  final String value;
+  final String helper;
+
+  const _SkillMatrixSummaryStat({
+    required this.label,
+    required this.value,
+    required this.helper,
+  });
+}
+
+class _SkillMatrixSummaryBar {
+  final String label;
+  final String valueLabel;
+  final double normalizedValue;
+  final String helper;
+  final String kind;
+
+  const _SkillMatrixSummaryBar({
+    required this.label,
+    required this.valueLabel,
+    required this.normalizedValue,
+    required this.helper,
+    required this.kind,
+  });
+}
+
+class _SkillMatrixSummaryHighlight {
+  final String label;
+  final String value;
+  final String helper;
+
+  const _SkillMatrixSummaryHighlight({
+    required this.label,
+    required this.value,
+    required this.helper,
+  });
 }
