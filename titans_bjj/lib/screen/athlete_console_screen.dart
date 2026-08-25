@@ -197,27 +197,31 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
                       ? widget.athleteNameOverride
                       : widget.loggedUser.name;
 
-              return _ConsoleContextHeader(
-                targetMode: widget.targetMode,
-                actor: widget.loggedUser,
-                target: widget.target,
+              final headerViewModel = _buildHeaderViewModel(
+                modules: modules,
+                selectedModule: selectedModule,
                 targetUser: targetUser,
                 fallbackName: fallbackName,
                 isSelfProfile: isSelfProfile,
-                canEditProfile: canEditTarget,
-                onEditProfile: () => _openTargetRegistration(),
+                canEditTarget: canEditTarget,
               );
-            },
-          ),
-          const SizedBox(height: TitansUI.spaceSm),
-          _ModuleHub(
-            modules: modules,
-            selectedIndex: _selectedModuleIndex,
-            onSelected: (index) {
-              if (index == _selectedModuleIndex || !modules[index].enabled) {
-                return;
-              }
-              setState(() => _selectedModuleIndex = index);
+
+              return _CollapsibleAthleteConsoleHeader(
+                viewModel: headerViewModel,
+                visualState: _ConsoleHeaderVisualState.expanded,
+                onBack:
+                    Navigator.of(context).canPop()
+                        ? () => Navigator.of(context).maybePop()
+                        : null,
+                onEditProfile: () => _openTargetRegistration(),
+                onModuleSelected: (index) {
+                  if (index == _selectedModuleIndex ||
+                      !modules[index].enabled) {
+                    return;
+                  }
+                  setState(() => _selectedModuleIndex = index);
+                },
+              );
             },
           ),
           const SizedBox(height: TitansUI.spaceSm),
@@ -258,8 +262,8 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
     return [
       _ConsoleModule(
         id: 'overview',
-        label: 'Overview',
-        shortLabel: 'Overview',
+        label: 'In\u00edcio',
+        shortLabel: 'In\u00edcio',
         icon: Icons.home_outlined,
         description: 'Resumo do perfil',
         builder:
@@ -339,6 +343,55 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
     ];
   }
 
+  _ConsoleHeaderViewModel _buildHeaderViewModel({
+    required List<_ConsoleModule> modules,
+    required _ConsoleModule selectedModule,
+    required AppUser? targetUser,
+    required String? fallbackName,
+    required bool isSelfProfile,
+    required bool canEditTarget,
+  }) {
+    final isViewingStudent = widget.targetMode == TargetMode.selectedStudent;
+    final user =
+        targetUser ??
+        (widget.target.uid == widget.loggedUser.uid ? widget.loggedUser : null);
+    final displayName = _displayName(user, fallbackName);
+    final contextLabel =
+        isSelfProfile
+            ? 'Meu perfil'
+            : isViewingStudent
+            ? 'Aluno'
+            : 'Atleta';
+    final beltLabel =
+        user == null ? 'Faixa carregando' : 'Faixa ${_beltName(user.belt)}';
+    final degreeLabel = user == null ? 'Grau --' : 'Grau ${user.degree}';
+
+    return _ConsoleHeaderViewModel(
+      displayName: displayName,
+      compactName: _compactName(displayName),
+      contextLabel: contextLabel,
+      beltLabel: beltLabel,
+      degreeLabel: degreeLabel,
+      currentModuleLabel: selectedModule.label,
+      currentModuleIndex: _selectedModuleIndex,
+      isSelf: isSelfProfile,
+      isViewingStudent: isViewingStudent,
+      canEditProfile: canEditTarget,
+      modules: [
+        for (var index = 0; index < modules.length; index++)
+          _ModuleNavigationItem(
+            id: modules[index].id,
+            label: modules[index].label,
+            compactLabel: modules[index].shortLabel,
+            icon: modules[index].icon,
+            isVisible: true,
+            isSelected: index == _selectedModuleIndex,
+            enabled: modules[index].enabled,
+          ),
+      ],
+    );
+  }
+
   void _openTargetRegistration() {
     if (widget.target.uid.trim().isEmpty ||
         widget.target.academyId.trim().isEmpty) {
@@ -381,6 +434,36 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
     return actor.academyId == target.academyId &&
         (actor.uid == target.uid || canManage);
   }
+
+  String _displayName(AppUser? user, String? fallback) {
+    final userName = user?.name.trim() ?? '';
+    if (userName.isNotEmpty) return userName;
+    final fallbackName = fallback?.trim() ?? '';
+    if (fallbackName.isNotEmpty) return fallbackName;
+    final email = user?.email.trim() ?? '';
+    if (email.isNotEmpty) return email;
+    return 'Atleta';
+  }
+
+  String _compactName(String displayName) {
+    final parts = displayName.trim().split(RegExp(r'\s+'));
+    return parts.isEmpty || parts.first.isEmpty ? 'Atleta' : parts.first;
+  }
+
+  String _beltName(BeltColor belt) {
+    switch (belt) {
+      case BeltColor.white:
+        return 'branca';
+      case BeltColor.blue:
+        return 'azul';
+      case BeltColor.purple:
+        return 'roxa';
+      case BeltColor.brown:
+        return 'marrom';
+      case BeltColor.black:
+        return 'preta';
+    }
+  }
 }
 
 class _ConsoleModule {
@@ -402,324 +485,362 @@ class _ConsoleModule {
   }) : enabled = true;
 }
 
-class _ModuleHub extends StatelessWidget {
-  final List<_ConsoleModule> modules;
-  final int selectedIndex;
-  final ValueChanged<int> onSelected;
+class _ConsoleHeaderViewModel {
+  final String displayName;
+  final String compactName;
+  final String contextLabel;
+  final String beltLabel;
+  final String degreeLabel;
+  final String currentModuleLabel;
+  final int currentModuleIndex;
+  final bool isSelf;
+  final bool isViewingStudent;
+  final bool canEditProfile;
+  final List<_ModuleNavigationItem> modules;
 
-  const _ModuleHub({
+  const _ConsoleHeaderViewModel({
+    required this.displayName,
+    required this.compactName,
+    required this.contextLabel,
+    required this.beltLabel,
+    required this.degreeLabel,
+    required this.currentModuleLabel,
+    required this.currentModuleIndex,
+    required this.isSelf,
+    required this.isViewingStudent,
+    required this.canEditProfile,
     required this.modules,
-    required this.selectedIndex,
-    required this.onSelected,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isWide = width >= 900;
-        final columns =
-            isWide
-                ? 5
-                : width >= 620
-                ? 3
-                : 2;
-        final gap = isWide ? TitansUI.spaceMd : TitansUI.spaceSm;
-        final cardWidth = (width - (gap * (columns - 1))) / columns;
-
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (var index = 0; index < modules.length; index++)
-              SizedBox(
-                width: cardWidth.clamp(148.0, 220.0).toDouble(),
-                child: Tooltip(
-                  message: modules[index].label,
-                  child: _ModuleCard(
-                    module: modules[index],
-                    selected: index == selectedIndex,
-                    onTap: () => onSelected(index),
-                  ),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
 }
 
-class _ModuleCard extends StatefulWidget {
-  final _ConsoleModule module;
-  final bool selected;
-  final VoidCallback onTap;
+class _ModuleNavigationItem {
+  final String id;
+  final String label;
+  final String compactLabel;
+  final IconData icon;
+  final bool isVisible;
+  final bool isSelected;
+  final bool enabled;
 
-  const _ModuleCard({
-    required this.module,
-    required this.selected,
-    required this.onTap,
+  const _ModuleNavigationItem({
+    required this.id,
+    required this.label,
+    required this.compactLabel,
+    required this.icon,
+    required this.isVisible,
+    required this.isSelected,
+    required this.enabled,
   });
-
-  @override
-  State<_ModuleCard> createState() => _ModuleCardState();
 }
 
-class _ModuleCardState extends State<_ModuleCard> {
-  bool _pressed = false;
+enum _ConsoleHeaderVisualState { expanded, compact, pinned }
+
+enum _ConsoleHeaderAction { editProfile }
+
+class _CollapsibleAthleteConsoleHeader extends StatelessWidget {
+  final _ConsoleHeaderViewModel viewModel;
+  final _ConsoleHeaderVisualState visualState;
+  final ValueChanged<int> onModuleSelected;
+  final VoidCallback? onBack;
+  final VoidCallback? onEditProfile;
+
+  const _CollapsibleAthleteConsoleHeader({
+    required this.viewModel,
+    required this.visualState,
+    required this.onModuleSelected,
+    this.onBack,
+    this.onEditProfile,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final accent = widget.selected ? cs.primary : cs.secondary;
-    final enabled = widget.module.enabled;
+    final accent = viewModel.isViewingStudent ? cs.primary : cs.secondary;
 
-    return AnimatedScale(
-      duration: const Duration(milliseconds: 120),
-      scale: _pressed && enabled ? 0.98 : 1,
-      child: AnimatedOpacity(
-        duration: const Duration(milliseconds: 160),
-        opacity: enabled ? 1 : 0.48,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-            onTap: enabled ? widget.onTap : null,
-            onHighlightChanged: (value) => setState(() => _pressed = value),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              constraints: const BoxConstraints(minHeight: 88),
-              padding: const EdgeInsets.all(TitansUI.spaceSm),
-              decoration: TitansUI.cardDecoration(
-                context,
-                accent: accent,
-                radius: TitansUI.radiusSmall,
-              ).copyWith(
-                color:
-                    widget.selected
-                        ? Color.lerp(TitansUI.card, accent, 0.12)
-                        : TitansUI.card,
-                border: Border.all(
-                  color:
-                      widget.selected
-                          ? accent.withValues(alpha: 0.72)
-                          : cs.onSurface.withValues(alpha: 0.09),
-                ),
-              ),
-              child: Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 180),
-                    width: 36,
-                    height: 36,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accent.withValues(
-                        alpha: widget.selected ? 0.20 : 0.10,
-                      ),
-                      border: Border.all(
-                        color: accent.withValues(
-                          alpha: widget.selected ? 0.55 : 0.24,
-                        ),
-                      ),
-                    ),
-                    child: Icon(widget.module.icon, color: accent, size: 20),
-                  ),
-                  const SizedBox(width: TitansUI.spaceSm),
-                  Expanded(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.module.shortLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.labelLarge
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          widget.module.description,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.64),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+    return TitansCard(
+      accent: accent,
+      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _ConsoleHeaderSummary(
+            viewModel: viewModel,
+            accent: accent,
+            onBack: onBack,
+            onEditProfile: viewModel.canEditProfile ? onEditProfile : null,
           ),
-        ),
+          const SizedBox(height: TitansUI.spaceMd),
+          _ConsoleModuleNavigation(
+            modules: viewModel.modules,
+            visualState: visualState,
+            onModuleSelected: onModuleSelected,
+          ),
+        ],
       ),
     );
   }
 }
 
-enum _ConsoleHeaderAction { editProfile }
-
-class _ConsoleContextHeader extends StatelessWidget {
-  final TargetMode targetMode;
-  final AppUser actor;
-  final TargetProfile target;
-  final AppUser? targetUser;
-  final String? fallbackName;
-  final bool isSelfProfile;
-  final bool canEditProfile;
+class _ConsoleHeaderSummary extends StatelessWidget {
+  final _ConsoleHeaderViewModel viewModel;
+  final Color accent;
+  final VoidCallback? onBack;
   final VoidCallback? onEditProfile;
 
-  const _ConsoleContextHeader({
-    required this.targetMode,
-    required this.actor,
-    required this.target,
-    required this.targetUser,
-    required this.fallbackName,
-    required this.isSelfProfile,
-    required this.canEditProfile,
+  const _ConsoleHeaderSummary({
+    required this.viewModel,
+    required this.accent,
+    required this.onBack,
     required this.onEditProfile,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isSelectedStudent = targetMode == TargetMode.selectedStudent;
-    final user = targetUser ?? (target.uid == actor.uid ? actor : null);
-    final displayName = _displayName(user, fallbackName);
-    final title = isSelfProfile ? 'MEU PERFIL' : displayName;
-    final subtitle =
-        isSelfProfile
-            ? '$displayName - ${_roleLabel(actor.role)}'
-            : user == null
-            ? 'Faixa carregando - Grau --'
-            : 'Faixa ${_beltName(user.belt)} - Grau ${user.degree}';
-    final accent = isSelectedStudent ? cs.primary : cs.secondary;
 
-    return TitansCard(
-      accent: accent,
-      padding: const EdgeInsets.all(TitansUI.spaceMd),
-      radius: TitansUI.radiusSmall,
-      child: Row(
-        children: [
-          if (Navigator.of(context).canPop()) ...[
-            IconButton(
-              tooltip: 'Voltar',
-              onPressed: () => Navigator.of(context).maybePop(),
-              icon: const Icon(Icons.arrow_back),
-            ),
-            const SizedBox(width: TitansUI.spaceXs),
-          ],
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: accent.withValues(alpha: 0.14),
-              border: Border.all(color: accent.withValues(alpha: 0.36)),
-            ),
-            child: Icon(
-              isSelectedStudent
-                  ? Icons.person_pin_circle_outlined
-                  : Icons.badge_outlined,
-              color: accent,
-            ),
+    return Row(
+      children: [
+        if (onBack != null) ...[
+          IconButton(
+            tooltip: 'Voltar',
+            onPressed: onBack,
+            icon: const Icon(Icons.arrow_back),
           ),
-          const SizedBox(width: TitansUI.spaceSm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.70),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
+          const SizedBox(width: TitansUI.spaceXs),
+        ],
+        Container(
+          width: 42,
+          height: 42,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: accent.withValues(alpha: 0.14),
+            border: Border.all(color: accent.withValues(alpha: 0.36)),
           ),
-          if (canEditProfile) ...[
-            const SizedBox(width: TitansUI.spaceXs),
-            PopupMenuButton<_ConsoleHeaderAction>(
-              tooltip: 'Acoes do perfil',
-              icon: const Icon(Icons.more_vert),
-              onSelected: (action) {
-                switch (action) {
-                  case _ConsoleHeaderAction.editProfile:
-                    onEditProfile?.call();
-                    break;
-                }
-              },
-              itemBuilder:
-                  (context) => const [
-                    PopupMenuItem(
-                      value: _ConsoleHeaderAction.editProfile,
-                      child: _HeaderMenuItem(
-                        icon: Icons.edit_outlined,
-                        label: 'Editar cadastro',
-                      ),
+          child: Icon(
+            viewModel.isViewingStudent
+                ? Icons.person_pin_circle_outlined
+                : Icons.badge_outlined,
+            color: accent,
+          ),
+        ),
+        const SizedBox(width: TitansUI.spaceSm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                viewModel.contextLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: accent,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.8,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                viewModel.displayName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 4),
+              Wrap(
+                spacing: TitansUI.spaceXs,
+                runSpacing: 2,
+                children: [
+                  _ConsoleHeaderPill(label: viewModel.beltLabel),
+                  _ConsoleHeaderPill(label: viewModel.degreeLabel),
+                  _ConsoleHeaderPill(
+                    label: viewModel.currentModuleLabel,
+                    icon: Icons.dashboard_customize_outlined,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        if (onEditProfile != null) ...[
+          const SizedBox(width: TitansUI.spaceXs),
+          PopupMenuButton<_ConsoleHeaderAction>(
+            tooltip: 'A\u00e7\u00f5es do perfil',
+            icon: const Icon(Icons.more_vert),
+            onSelected: (action) {
+              switch (action) {
+                case _ConsoleHeaderAction.editProfile:
+                  onEditProfile?.call();
+                  break;
+              }
+            },
+            itemBuilder:
+                (context) => const [
+                  PopupMenuItem(
+                    value: _ConsoleHeaderAction.editProfile,
+                    child: _HeaderMenuItem(
+                      icon: Icons.edit_outlined,
+                      label: 'Editar cadastro',
                     ),
-                  ],
-            ),
+                  ),
+                ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ConsoleHeaderPill extends StatelessWidget {
+  final String label;
+  final IconData? icon;
+
+  const _ConsoleHeaderPill({required this.label, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 180),
+      padding: const EdgeInsets.symmetric(
+        horizontal: TitansUI.spaceXs,
+        vertical: 3,
+      ),
+      decoration: BoxDecoration(
+        color: cs.onSurface.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.09)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            Icon(icon, size: 13, color: cs.onSurface.withValues(alpha: 0.70)),
+            const SizedBox(width: 4),
           ],
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.72),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
         ],
       ),
     );
   }
+}
 
-  String _displayName(AppUser? user, String? fallback) {
-    final userName = user?.name.trim() ?? '';
-    if (userName.isNotEmpty) return userName;
-    final fallbackName = fallback?.trim() ?? '';
-    if (fallbackName.isNotEmpty) return fallbackName;
-    final email = user?.email.trim() ?? '';
-    if (email.isNotEmpty) return email;
-    return 'Atleta';
+class _ConsoleModuleNavigation extends StatelessWidget {
+  final List<_ModuleNavigationItem> modules;
+  final _ConsoleHeaderVisualState visualState;
+  final ValueChanged<int> onModuleSelected;
+
+  const _ConsoleModuleNavigation({
+    required this.modules,
+    required this.visualState,
+    required this.onModuleSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 390;
+        final visibleModules =
+            modules.where((module) => module.isVisible).toList();
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              for (var index = 0; index < visibleModules.length; index++) ...[
+                _ConsoleModuleNavItem(
+                  item: visibleModules[index],
+                  label:
+                      isCompact
+                          ? visibleModules[index].compactLabel
+                          : visibleModules[index].label,
+                  visualState: visualState,
+                  onPressed: () => onModuleSelected(index),
+                ),
+                if (index < visibleModules.length - 1)
+                  const SizedBox(width: TitansUI.spaceXs),
+              ],
+            ],
+          ),
+        );
+      },
+    );
   }
+}
 
-  String _roleLabel(UserRole role) {
-    switch (role) {
-      case UserRole.admin:
-        return 'Admin';
-      case UserRole.professor:
-        return 'Professor';
-      case UserRole.athlete:
-        return 'Atleta';
-    }
-  }
+class _ConsoleModuleNavItem extends StatelessWidget {
+  final _ModuleNavigationItem item;
+  final String label;
+  final _ConsoleHeaderVisualState visualState;
+  final VoidCallback onPressed;
 
-  String _beltName(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return 'branca';
-      case BeltColor.blue:
-        return 'azul';
-      case BeltColor.purple:
-        return 'roxa';
-      case BeltColor.brown:
-        return 'marrom';
-      case BeltColor.black:
-        return 'preta';
-    }
+  const _ConsoleModuleNavItem({
+    required this.item,
+    required this.label,
+    required this.visualState,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final selected = item.isSelected;
+    final accent = selected ? cs.primary : cs.secondary;
+    final enabled = item.enabled;
+    final compact = visualState != _ConsoleHeaderVisualState.expanded;
+
+    return Tooltip(
+      message: item.label,
+      child: AnimatedOpacity(
+        duration: const Duration(milliseconds: 160),
+        opacity: enabled ? 1 : 0.48,
+        child: ChoiceChip(
+          selected: selected,
+          showCheckmark: false,
+          avatar: Icon(item.icon, size: compact ? 16 : 18, color: accent),
+          label: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: compact ? 96 : 124),
+            child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+          labelStyle: TextStyle(
+            color: selected ? cs.onPrimaryContainer : cs.onSurface,
+            fontWeight: selected ? FontWeight.w900 : FontWeight.w700,
+          ),
+          backgroundColor: TitansUI.card,
+          selectedColor: Color.lerp(TitansUI.card, accent, 0.18),
+          side: BorderSide(
+            color:
+                selected
+                    ? accent.withValues(alpha: 0.78)
+                    : cs.onSurface.withValues(alpha: 0.12),
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+          ),
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          visualDensity: const VisualDensity(horizontal: -1, vertical: -1),
+          onSelected: enabled ? (_) => onPressed() : null,
+        ),
+      ),
+    );
   }
 }
 
