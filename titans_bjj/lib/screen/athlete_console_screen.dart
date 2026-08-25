@@ -47,7 +47,7 @@ class AthleteConsoleScreen extends StatelessWidget {
     if (actor == null) {
       return TitansScaffold(
         scroll: false,
-        appBar: AppBar(title: Text(titleOverride ?? 'Inicio')),
+        appBar: AppBar(title: Text(titleOverride ?? 'In\u00edcio')),
         body: const TitansStateView.error(
           title: 'Usu\u00e1rio logado n\u00e3o encontrado',
           message:
@@ -95,7 +95,7 @@ class AthleteConsoleScreen extends StatelessWidget {
     );
 
     return _ConsoleBody(
-      title: titleOverride ?? 'Inicio',
+      title: titleOverride ?? 'In\u00edcio',
       athleteNameOverride: null,
       targetMode: TargetMode.self,
       target: selfTarget,
@@ -265,7 +265,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         builder:
             (context) => AthleteDashboardScreen(
               athleteNameOverride: widget.athleteNameOverride,
-              titleOverride: 'Inicio',
+              titleOverride: 'In\u00edcio',
               targetMode: widget.targetMode,
               explicitTarget: target,
               loggedUser: loggedUser,
@@ -277,7 +277,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         label: 'Treinos',
         shortLabel: 'Treinos',
         icon: Icons.sports_mma_outlined,
-        description: 'Historico e sessoes',
+        description: 'Hist\u00f3rico e sess\u00f5es',
         builder:
             (context) => TrainingScreen(
               titleOverride: selectedMode ? 'Treinos do aluno' : 'Treinos',
@@ -292,7 +292,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         label: 'Progresso',
         shortLabel: 'Progresso',
         icon: Icons.insights_outlined,
-        description: 'Evolucao e metas',
+        description: 'Evolu\u00e7\u00e3o e metas',
         builder:
             (context) => ProgressScreen(
               titleOverride: selectedMode ? 'Progresso do aluno' : 'Progresso',
@@ -307,7 +307,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
         label: 'Game Map',
         shortLabel: 'Game Map',
         icon: Icons.map_outlined,
-        description: 'Mapa tecnico',
+        description: 'Mapa t\u00e9cnico',
         builder:
             (context) => GameMapScreen(
               academyId: target.academyId,

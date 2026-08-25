@@ -20,9 +20,12 @@ import '../service/user_session.dart';
 import '../widgets/titans_belt_status_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
+import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
+import 'progress_screen.dart';
+import 'training_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
   final String? athleteNameOverride;
@@ -127,7 +130,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         'final.uid=${target?.uid} final.academyId=${target?.academyId}',
       );
       return _wrapModule(
-        appBar: AppBar(title: Text(widget.titleOverride ?? 'Inicio')),
+        appBar: AppBar(title: Text(widget.titleOverride ?? 'In\u00edcio')),
         body:
             widget.targetMode == TargetMode.selectedStudent
                 ? const TitansStateView.noStudent(
@@ -151,7 +154,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
     return _wrapModule(
       appBar: AppBar(
-        title: Text(widget.titleOverride ?? 'Inicio'),
+        title: Text(widget.titleOverride ?? 'In\u00edcio'),
         actions: [
           IconButton(
             tooltip: 'Configuracoes',
@@ -296,6 +299,84 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         target: target,
                       );
 
+                      void openTraining() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => TrainingScreen(
+                                  titleOverride:
+                                      widget.targetMode ==
+                                              TargetMode.selectedStudent
+                                          ? 'Treinos do aluno'
+                                          : 'Treinos',
+                                  targetMode: widget.targetMode,
+                                  explicitTarget: target,
+                                  loggedUser: actor,
+                                ),
+                          ),
+                        );
+                      }
+
+                      void openRegisterTraining() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => AddTrainingSessionScreen(
+                                  academyId: academyId,
+                                  uid: uid,
+                                ),
+                          ),
+                        );
+                      }
+
+                      void openProgress() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => ProgressScreen(
+                                  titleOverride:
+                                      widget.targetMode ==
+                                              TargetMode.selectedStudent
+                                          ? 'Progresso do aluno'
+                                          : 'Progresso',
+                                  targetMode: widget.targetMode,
+                                  explicitTarget: target,
+                                  loggedUser: actor,
+                                ),
+                          ),
+                        );
+                      }
+
+                      void openNutrition() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => NutritionScreen(
+                                  titleOverride:
+                                      isNutritionStudentView
+                                          ? 'Nutri\u00e7\u00e3o do aluno'
+                                          : 'Nutri\u00e7\u00e3o',
+                                  targetMode: widget.targetMode,
+                                  explicitTarget: target,
+                                  loggedUser: actor,
+                                ),
+                          ),
+                        );
+                      }
+
+                      void openGameMap() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => GameMapScreen(
+                                  academyId: academyId,
+                                  uid: uid,
+                                  targetName: headerName,
+                                ),
+                          ),
+                        );
+                      }
+
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final content = SingleChildScrollView(
@@ -396,6 +477,23 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     },
                                   ),
                                   const SizedBox(height: 12),
+                                  _NextTrainingCard(
+                                    cs: cs,
+                                    recommendation: nextTraining,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _RecommendedFocusCard(
+                                    cs: cs,
+                                    focus: recommendedFocus,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _DashboardPrimaryActionCard(
+                                    cs: cs,
+                                    nextTraining: nextTraining,
+                                    onRegisterTraining: openRegisterTraining,
+                                    onOpenTraining: openTraining,
+                                  ),
+                                  const SizedBox(height: 12),
                                   LayoutBuilder(
                                     builder: (context, c) {
                                       final isWide = c.maxWidth >= 980;
@@ -431,6 +529,14 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     },
                                   ),
                                   const SizedBox(height: 12),
+                                  _DashboardQuickActionsCard(
+                                    cs: cs,
+                                    onOpenTraining: openTraining,
+                                    onOpenProgress: openProgress,
+                                    onOpenNutrition: openNutrition,
+                                    onOpenGameMap: openGameMap,
+                                  ),
+                                  const SizedBox(height: 12),
                                   _NutritionDashboardLiteCard(
                                     cs: cs,
                                     profileStream: _nutritionProfileStream,
@@ -438,66 +544,19 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     isStudentView: isNutritionStudentView,
                                     isFallback: _nutritionFallbackToMock,
                                     hasLoadError: _nutritionLoadError != null,
-                                    onOpenNutrition: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder:
-                                              (_) => NutritionScreen(
-                                                titleOverride:
-                                                    isNutritionStudentView
-                                                        ? 'Nutri\u00e7\u00e3o do aluno'
-                                                        : 'Nutri\u00e7\u00e3o',
-                                                targetMode: widget.targetMode,
-                                                explicitTarget: target,
-                                                loggedUser: actor,
-                                              ),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _RecommendedFocusCard(
-                                    cs: cs,
-                                    focus: recommendedFocus,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _NextTrainingCard(
-                                    cs: cs,
-                                    recommendation: nextTraining,
+                                    onOpenNutrition: openNutrition,
                                   ),
                                   const SizedBox(height: 12),
                                   _SkillMatrixSummaryCard(
                                     cs: cs,
                                     entries: skillMatrix,
-                                    onOpenSkillMatrix: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder:
-                                              (_) => GameMapScreen(
-                                                academyId: academyId,
-                                                uid: uid,
-                                                targetName: headerName,
-                                              ),
-                                        ),
-                                      );
-                                    },
+                                    onOpenSkillMatrix: openGameMap,
                                   ),
                                   const SizedBox(height: 12),
                                   _GameMapLiteCard(
                                     cs: cs,
                                     entries: gameMapLite,
-                                    onOpenFullMap: () {
-                                      Navigator.of(context).push(
-                                        MaterialPageRoute(
-                                          builder:
-                                              (_) => GameMapScreen(
-                                                academyId: academyId,
-                                                uid: uid,
-                                                targetName: headerName,
-                                              ),
-                                        ),
-                                      );
-                                    },
+                                    onOpenFullMap: openGameMap,
                                   ),
                                   const SizedBox(height: 12),
                                   _RecentActivityCard(
@@ -1311,6 +1370,146 @@ class _InsightBlock extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _DashboardPrimaryActionCard extends StatelessWidget {
+  final ColorScheme cs;
+  final NextTrainingRecommendation nextTraining;
+  final VoidCallback onRegisterTraining;
+  final VoidCallback onOpenTraining;
+
+  const _DashboardPrimaryActionCard({
+    required this.cs,
+    required this.nextTraining,
+    required this.onRegisterTraining,
+    required this.onOpenTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'A\u00c7\u00c3O PRINCIPAL'),
+          const SizedBox(height: 10),
+          Text(
+            'Registrar treino',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            nextTraining.hasRecommendation
+                ? 'Use o pr\u00f3ximo treino como guia e registre o resultado depois.'
+                : 'Registre a pr\u00f3xima sess\u00e3o para liberar recomenda\u00e7\u00f5es mais precisas.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          OverflowBar(
+            spacing: 8,
+            overflowSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: onRegisterTraining,
+                icon: const Icon(Icons.add_task_outlined),
+                label: const Text('Registrar treino'),
+              ),
+              OutlinedButton.icon(
+                onPressed: onOpenTraining,
+                icon: const Icon(Icons.fitness_center_outlined),
+                label: const Text('Abrir treinos'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashboardQuickActionsCard extends StatelessWidget {
+  final ColorScheme cs;
+  final VoidCallback onOpenTraining;
+  final VoidCallback onOpenProgress;
+  final VoidCallback onOpenNutrition;
+  final VoidCallback onOpenGameMap;
+
+  const _DashboardQuickActionsCard({
+    required this.cs,
+    required this.onOpenTraining,
+    required this.onOpenProgress,
+    required this.onOpenNutrition,
+    required this.onOpenGameMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.tertiary.withValues(alpha: 0.24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'A\u00c7\u00d5ES R\u00c1PIDAS'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _QuickActionButton(
+                icon: Icons.fitness_center_outlined,
+                label: 'Treinos',
+                onPressed: onOpenTraining,
+              ),
+              _QuickActionButton(
+                icon: Icons.trending_up_outlined,
+                label: 'Progresso',
+                onPressed: onOpenProgress,
+              ),
+              _QuickActionButton(
+                icon: Icons.restaurant_outlined,
+                label: 'Nutri\u00e7\u00e3o',
+                onPressed: onOpenNutrition,
+              ),
+              _QuickActionButton(
+                icon: Icons.map_outlined,
+                label: 'Game Map',
+                onPressed: onOpenGameMap,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QuickActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+
+  const _QuickActionButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onPressed,
+      icon: Icon(icon),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
     );
   }
 }

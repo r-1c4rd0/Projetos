@@ -185,7 +185,7 @@ class _HomeShellState extends State<HomeShell> {
         ),
         NavigationDestination(
           icon: Icon(Icons.fact_check_outlined),
-          label: 'Presenca',
+          label: 'Presen\u00e7a',
         ),
         NavigationDestination(
           icon: Icon(Icons.person_add_alt_1_outlined),
