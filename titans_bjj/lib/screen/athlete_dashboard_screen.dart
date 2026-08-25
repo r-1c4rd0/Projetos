@@ -494,6 +494,14 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     onOpenTraining: openTraining,
                                   ),
                                   const SizedBox(height: 12),
+                                  _DashboardQuickActionsCard(
+                                    cs: cs,
+                                    onOpenTraining: openTraining,
+                                    onOpenProgress: openProgress,
+                                    onOpenNutrition: openNutrition,
+                                    onOpenGameMap: openGameMap,
+                                  ),
+                                  const SizedBox(height: 12),
                                   LayoutBuilder(
                                     builder: (context, c) {
                                       final isWide = c.maxWidth >= 980;
@@ -527,14 +535,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         ],
                                       );
                                     },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _DashboardQuickActionsCard(
-                                    cs: cs,
-                                    onOpenTraining: openTraining,
-                                    onOpenProgress: openProgress,
-                                    onOpenNutrition: openNutrition,
-                                    onOpenGameMap: openGameMap,
                                   ),
                                   const SizedBox(height: 12),
                                   _NutritionDashboardLiteCard(
