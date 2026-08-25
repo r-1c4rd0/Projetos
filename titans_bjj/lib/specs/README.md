@@ -7,7 +7,7 @@ Este arquivo e o indice oficial das specs do Titans BJJ. Qualquer agente deve le
 - `architecture_spec.md` - Arquitetura alvo em `lib/app`, `lib/core` e `lib/features`.
 - `firebase_schema_spec.md` - Schema Firebase/Firestore, ownership e rules futuras.
 - `design_system_spec.md` - Design system base e personalizacao por academia.
-- `auth_session_spec.md` - Auth, sessao, roles, biometria, session lock e escopos.
+- `auth_session_spec.md` - Auth, sessao, roles, biometria, session lock, escopos e roadmap AUTH-REAL-USERS.
 - `multi_academy_spec.md` - Multi-academia, memberships e academia ativa.
 - `graduation_spec.md` - Fonte unica de graduacao por modalidade.
 - `training_spec.md` - Treinos, sessoes e agregacoes.
@@ -30,7 +30,7 @@ Centralizar as especificacoes de produto, arquitetura, dados, design system e mi
 ## Responsabilidades
 - Servir como contrato de evolucao do app.
 - Registrar decisoes desejadas sem mover codigo legado.
-- Mapear riscos conhecidos: `academyId` default, graduacao duplicada, multi-academia pendente, rules por papel, streams em `build` e inconsistencia visual.
+- Mapear riscos conhecidos: `academyId` default, graduacao duplicada, multi-academia pendente, usuarios cadastrados sem conta Firebase Auth real, rules por papel, streams em `build` e inconsistencia visual.
 - Orientar fases futuras de refatoracao em `lib/app`, `lib/core` e `lib/features`.
 
 ## Dados usados

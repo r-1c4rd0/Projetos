@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
@@ -642,7 +642,7 @@ class _StudentActionsMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_StudentAction>(
-      tooltip: 'Acoes do atleta',
+      tooltip: 'Ações do atleta',
       icon: const Icon(Icons.more_vert),
       onSelected: (action) {
         switch (action) {

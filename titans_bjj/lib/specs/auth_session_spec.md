@@ -72,6 +72,29 @@ features/auth_session/
 5. Encapsular session lock e biometria.
 6. Migrar telas para consumir estado imutavel da sessao.
 
+
+## AUTH-REAL-USERS — Onboarding real de atletas e professores convidados
+Prioridade: P0 antes de uso real em academia; bloqueador para uso real.
+
+Problema: usuarios criados pelo mestre aparecem na academia, mas nao sao necessariamente usuarios autenticaveis se foram criados apenas como documento/perfil no Firestore, sem conta no Firebase Auth ou sem vinculo correto entre `uid`, `academyId` e `role`.
+
+Objetivo: criar fluxo real de onboarding para atletas e professores convidados.
+
+Decisao de produto: professor/mestre nao define senha do aluno diretamente. O fluxo preferido e convite: mestre cadastra atleta -> convite pendente -> atleta aceita convite -> cria conta propria -> `uid` real e vinculado ao cadastro da academia.
+
+Fases:
+1. AUTH-1 Diagnostico do cadastro atual.
+2. AUTH-2 Modelo de convite.
+3. AUTH-3 Aceite de convite e criacao/vinculo de conta.
+4. AUTH-4 Regras Firestore/Auth.
+5. AUTH-5 Migracao de atletas ja cadastrados sem login.
+6. AUTH-6 UX no Painel do Mestre com status Ativo/Pendente/Sem acesso/Expirado.
+
+Regras:
+- Convite deve pertencer a uma academia e possuir role pretendida.
+- Aceite de convite cria ou usa conta real do Firebase Auth do proprio convidado.
+- Vinculo final deve preservar `academyId`, `uid` real, `role` e membership.`r`n- Este roadmap nao cria implementacao, schema, regras Firestore/Auth ou alteracao do fluxo atual nesta etapa.
+- Cadastro legado sem Auth deve ser tratado como pendente/sem acesso ate migracao.
 ## Riscos de regressao
 - Usuarios ficarem presos no gate.
 - Sessao bloquear indevidamente apos background/foreground.

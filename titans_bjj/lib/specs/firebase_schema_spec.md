@@ -64,7 +64,9 @@ academies/{academyId}
 users/{uid}
   private/profile
   academyMemberships/{academyId}
+
 ```
+
 
 Campos comuns:
 - `academyId`

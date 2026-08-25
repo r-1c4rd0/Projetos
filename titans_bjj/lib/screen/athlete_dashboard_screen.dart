@@ -1300,7 +1300,7 @@ class _DebriefInsightsCard extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _InsightBlock(
-            title: 'PONTO DE ATENCAO',
+            title: 'PONTO DE ATENÇÃO',
             value: insights.attentionPoint,
             empty: 'Sem dificuldades registradas nos debriefs recentes.',
           ),
@@ -1316,7 +1316,7 @@ class _DebriefInsightsCard extends StatelessWidget {
             value:
                 insights.averageIntensity == null
                     ? null
-                    : 'Media recente: ${insights.averageIntensity!.toStringAsFixed(1)}/5',
+                    : 'Média recente: ${insights.averageIntensity!.toStringAsFixed(1)}/5',
             empty: 'Sem intensidade registrada nos debriefs recentes.',
           ),
         ],

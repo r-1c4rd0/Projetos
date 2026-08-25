@@ -36,11 +36,13 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 - Admin gerencia academia, configuracoes, professores e visao global.
 - Professor acompanha alunos da academia autorizada e opera presenca, progresso, treinos e graduacao.
 - Athlete ve dados proprios e conteudos liberados pela academia.
+- AUTH-REAL-USERS: atletas/professores convidados so devem ganhar acesso real apos aceitar convite e criar/usar conta propria do Firebase Auth vinculada ao cadastro da academia; mestre/professor nao define senha do aluno.
 - Todo dado operacional deve pertencer a uma academia.
 - Toda regra sensivel deve ser refletida em Firestore Rules no futuro.
 
 ## Problemas atuais
 - `academyId` default pode misturar dados.
+- Atletas cadastrados somente como perfil/documento Firestore podem ficar sem acesso real por falta de conta Firebase Auth e vinculo correto `uid`/`academyId`/`role`.
 - Multi-academia ainda nao e um requisito implementado ponta a ponta.
 - Status do atleta e graduacao ainda precisam de fonte unica.
 - Painel do mestre pode crescer sem limites claros.
@@ -55,7 +57,7 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 ## Plano de migracao incremental
 1. Congelar comportamento atual como baseline.
 2. Documentar regras por modulo.
-3. Corrigir fundacoes: auth, sessao, academyId.
+3. Corrigir fundacoes: auth, sessao, academyId e AUTH-REAL-USERS como P0 antes de uso real em academia.
 4. Migrar features de baixo risco antes das features criticas.
 5. Adicionar capacidades futuras por feature flag ou rollout controlado.
 

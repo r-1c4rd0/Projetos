@@ -61,8 +61,9 @@ features/<feature>/
 - Mapear fluxo `AuthGate`, `UserScope`, `SelectedStudentScope`, session lock e biometria.
 - Criar contrato explicito de usuario, role, academia ativa e aluno selecionado.
 - Eliminar uso conceitual de `academyId` default, mantendo fallback temporario se necessario.
+- AUTH-REAL-USERS — Onboarding real de atletas e professores convidados (P0 antes de uso real em academia): prever diagnostico do cadastro atual; modelo de convite; aceite com criacao/vinculo de conta Firebase Auth propria; regras Firestore/Auth; migracao de atletas sem login; UX no Painel do Mestre com status Ativo/Pendente/Sem acesso/Expirado.
 - Definir Firestore Rules esperadas para admin/professor/athlete.
-- Aceite: usuario autenticado sempre possui estado claro de perfil, role e academia ativa.
+- Aceite: usuario autenticado sempre possui estado claro de perfil, role, academia ativa e, quando convidado, vinculo real entre conta Auth e cadastro da academia.
 
 ### Fase 2: fonte unica de graduacao
 - Inventariar campos de faixa/grau.

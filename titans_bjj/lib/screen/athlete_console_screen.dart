@@ -907,10 +907,10 @@ class _ConsoleModuleNavItem extends StatelessWidget {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
           ),
-          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          materialTapTargetSize: MaterialTapTargetSize.padded,
           visualDensity: VisualDensity(
-            horizontal: pinned ? -2 : -1,
-            vertical: pinned ? -2 : -1,
+            horizontal: pinned ? -1 : 0,
+            vertical: pinned ? -1 : 0,
           ),
           onSelected: enabled ? (_) => onPressed() : null,
         ),
