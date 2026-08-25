@@ -399,8 +399,7 @@ class _ConsoleModule {
     required this.icon,
     required this.description,
     required this.builder,
-    this.enabled = true,
-  });
+  }) : enabled = true;
 }
 
 class _ModuleHub extends StatelessWidget {
