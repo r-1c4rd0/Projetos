@@ -71,6 +71,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final stats = _GameMapStats.from(entries, skillMatrix);
           final skillSummary = _SkillMatrixSummaryViewModel.from(skillMatrix);
           final visualMap = _GameMapVisualViewModel.from(entries, skillMatrix);
+          final rtcaEvidence = _RtcaEvidenceViewModel.from(
+            sessions: sessions,
+            entries: entries,
+            skillMatrix: skillMatrix,
+          );
 
           return ListView(
             padding:
@@ -85,6 +90,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
               _GameMapSummaryCard(stats: stats),
               const SizedBox(height: 12),
               _GameMapVisualClusterCard(viewModel: visualMap),
+              const SizedBox(height: 12),
+              _RtcaEvidencePanel(viewModel: rtcaEvidence),
               const SizedBox(height: 12),
               _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
               const SizedBox(height: 12),
@@ -460,6 +467,174 @@ class _GameMapTechniqueLinkChip extends StatelessWidget {
                 color: cs.onSurface.withValues(alpha: 0.62),
                 fontSize: 11,
                 fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RtcaEvidencePanel extends StatelessWidget {
+  final _RtcaEvidenceViewModel viewModel;
+
+  const _RtcaEvidencePanel({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'EVID\u00caNCIAS R/T/C/A'),
+          const SizedBox(height: 8),
+          Text(
+            viewModel.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.items.isEmpty)
+            TitansEmptyState(
+              icon: Icons.fact_check_outlined,
+              title: 'Painel sem evid\u00eancias',
+              message: viewModel.emptyStateLabel,
+              compact: true,
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth =
+                    constraints.maxWidth >= 720
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+
+                return Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final item in viewModel.items)
+                      SizedBox(
+                        width: cardWidth,
+                        child: _RtcaEvidenceCard(item: item),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RtcaEvidenceCard extends StatelessWidget {
+  final _RtcaEvidenceItem item;
+
+  const _RtcaEvidenceCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Tooltip(
+      message: item.helper,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+          color: cs.primary.withValues(alpha: 0.07),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: 42,
+              height: 42,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
+                color: cs.primary.withValues(alpha: 0.1),
+              ),
+              child: Text(
+                item.code,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.primary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        item.icon,
+                        size: 16,
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                      ),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          item.label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.value,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  _MiniBadge(label: item.statusLabel, color: cs.secondary),
+                  const SizedBox(height: 6),
+                  Text(
+                    item.helper,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -1306,6 +1481,150 @@ class _SkillStagePill extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RtcaEvidenceViewModel {
+  final String title;
+  final String subtitle;
+  final List<_RtcaEvidenceItem> items;
+  final String emptyStateLabel;
+
+  const _RtcaEvidenceViewModel({
+    required this.title,
+    required this.subtitle,
+    required this.items,
+    required this.emptyStateLabel,
+  });
+
+  factory _RtcaEvidenceViewModel.from({
+    required List<TrainingSession> sessions,
+    required List<GameMapEntry> entries,
+    required List<SkillMatrixCategoryEntry> skillMatrix,
+  }) {
+    final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
+    final recurring =
+        entries
+            .expand((entry) => entry.techniques)
+            .where((technique) => technique.sessionsCount >= 3)
+            .length;
+    final trainingDays = _recentTrainingDays(sessions, days: 84);
+    final applications =
+        sessions.where((session) {
+          return TrainingSession.isApplicationContextMeasured(
+                session.applicationContext,
+              ) &&
+              TrainingSession.isTechniqueOutcomeUseful(
+                session.techniqueOutcome,
+              );
+        }).length;
+
+    return _RtcaEvidenceViewModel(
+      title: 'Painel R/T/C/A',
+      subtitle:
+          'Evid\u00eancias dos treinos registrados, sem compara\u00e7\u00e3o entre atletas.',
+      items: [
+        _RtcaEvidenceItem(
+          code: 'R',
+          label: 'Recorr\u00eancia',
+          value: _techniquePlural(recurring, 'recorrente'),
+          helper: 'T\u00e9cnicas com registros repetidos na Skill Matrix.',
+          icon: Icons.repeat_outlined,
+          statusLabel: _statusForCount(recurring),
+        ),
+        _RtcaEvidenceItem(
+          code: 'T',
+          label: 'T\u00e9cnicas registradas',
+          value: TrainingAggregator.techniqueCountLabel(techniques.length),
+          helper: 'T\u00e9cnicas presentes nos treinos registrados.',
+          icon: Icons.sports_mma_outlined,
+          statusLabel: _statusForCount(techniques.length),
+        ),
+        _RtcaEvidenceItem(
+          code: 'C',
+          label: 'Consist\u00eancia',
+          value: _dayPlural(trainingDays),
+          helper: 'Dias com treino registrado nos \u00faltimos 84 dias.',
+          icon: Icons.calendar_month_outlined,
+          statusLabel: _statusForCount(trainingDays),
+        ),
+        _RtcaEvidenceItem(
+          code: 'A',
+          label: 'Aplica\u00e7\u00e3o registrada',
+          value: _applicationPlural(applications),
+          helper:
+              'Treinos com contexto de aplica\u00e7\u00e3o e resultado registrados.',
+          icon: Icons.fact_check_outlined,
+          statusLabel: _statusForCount(applications),
+        ),
+      ],
+      emptyStateLabel:
+          'Registre treinos para preencher evid\u00eancias R/T/C/A com dados reais.',
+    );
+  }
+
+  static int _recentTrainingDays(
+    List<TrainingSession> sessions, {
+    required int days,
+  }) {
+    final today = _dateOnly(DateTime.now());
+    final start = today.subtract(Duration(days: days - 1));
+    final trainingDays = <String>{};
+
+    for (final session in sessions) {
+      final day = _dateOnly(session.date);
+      if (day.isBefore(start) || day.isAfter(today)) continue;
+      trainingDays.add(_dateKey(day));
+    }
+
+    return trainingDays.length;
+  }
+
+  static String _dateKey(DateTime date) {
+    return '${date.year}-${date.month}-${date.day}';
+  }
+
+  static DateTime _dateOnly(DateTime date) {
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  static String _techniquePlural(int count, String suffix) {
+    if (count == 1) return '1 t\u00e9cnica $suffix';
+    return '$count t\u00e9cnicas ${suffix}s';
+  }
+
+  static String _dayPlural(int count) {
+    if (count == 1) return '1 dia com treino';
+    return '$count dias com treino';
+  }
+
+  static String _applicationPlural(int count) {
+    if (count == 1) return '1 aplica\u00e7\u00e3o registrada';
+    return '$count aplica\u00e7\u00f5es registradas';
+  }
+
+  static String _statusForCount(int count) {
+    if (count <= 0) return 'Sem registros suficientes';
+    if (count < 3) return 'Em constru\u00e7\u00e3o';
+    return 'Registrado';
+  }
+}
+
+class _RtcaEvidenceItem {
+  final String code;
+  final String label;
+  final String value;
+  final String helper;
+  final IconData icon;
+  final String statusLabel;
+
+  const _RtcaEvidenceItem({
+    required this.code,
+    required this.label,
+    required this.value,
+    required this.helper,
+    required this.icon,
+    required this.statusLabel,
+  });
 }
 
 class _GameMapVisualViewModel {
