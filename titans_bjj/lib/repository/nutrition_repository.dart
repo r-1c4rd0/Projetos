@@ -272,13 +272,13 @@ class InMemoryNutritionRepository implements NutritionRepository {
 
   final _db = <FoodItem>[
     FoodItem('Arroz (1 concha)', 110),
-    FoodItem('Feijao (1 concha)', 90),
+    FoodItem('Feij\u00e3o (1 concha)', 90),
     FoodItem('Frango grelhado (100g)', 165),
     FoodItem('Ovo cozido (1 un)', 78),
     FoodItem('Salada verde (1 prato)', 35),
     FoodItem('Banana (1 un)', 95),
-    FoodItem('Maca (1 un)', 80),
-    FoodItem('Pao integral (1 fatia)', 70),
+    FoodItem('Ma\u00e7\u00e3 (1 un)', 80),
+    FoodItem('P\u00e3o integral (1 fatia)', 70),
     FoodItem('Queijo minas (30g)', 85),
     FoodItem('Aveia (30g)', 115),
     FoodItem('Iogurte natural (170g)', 100),
