@@ -41,7 +41,7 @@ class NutritionScreen extends StatefulWidget {
 
 class _NutritionScreenState extends State<NutritionScreen> {
   late final NutritionRepository _repo;
-  late Future<UserProfile> _profileFuture;
+  late Future<UserProfile?> _profileFuture;
   late Future<List<MealEntry>> _mealsFuture;
 
   bool _repoReady = false;
@@ -270,16 +270,27 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     'Estas informa\u00e7\u00f5es s\u00e3o educativas e ajudam no registro da rotina. Para um plano alimentar individual, consulte um profissional de sa\u00fade ou nutri\u00e7\u00e3o.',
               ),
               const SizedBox(height: 12),
-              FutureBuilder<UserProfile>(
+              FutureBuilder<UserProfile?>(
                 future: _profileFuture,
                 builder: (context, profSnap) {
-                  if (!profSnap.hasData) {
-                    return _NutritionProfilePlaceholder(
-                      canEditNutrition: canEditNutrition,
-                    );
+                  if (profSnap.connectionState == ConnectionState.waiting) {
+                    return const TitansSkeletonCard(lines: 3);
                   }
 
-                  final profile = profSnap.data!;
+                  final profile = profSnap.data;
+
+                  if (profile == null) {
+                    return Column(
+                      children: [
+                        _NutritionProfilePlaceholder(
+                          canEditNutrition: canEditNutrition,
+                          onComplete: canEditNutrition ? _editProfile : null,
+                        ),
+                        const SizedBox(height: 12),
+                        const _NutritionEnergyPendingCard(),
+                      ],
+                    );
+                  }
 
                   return Column(
                     children: [
@@ -349,7 +360,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
 
     final updated = await showDialog<UserProfile>(
       context: context,
-      builder: (_) => _ProfileDialog(existing: profile),
+      builder:
+          (_) =>
+              _ProfileDialog(existing: profile ?? _defaultProfileForEditing()),
     );
 
     if (updated != null) {
@@ -369,6 +382,16 @@ class _NutritionScreenState extends State<NutritionScreen> {
       await _repo.addMeal(created);
       if (mounted) _reloadNutritionData();
     }
+  }
+
+  UserProfile _defaultProfileForEditing() {
+    return UserProfile(
+      weightKg: 80,
+      heightCm: 180,
+      age: 30,
+      sex: Sex.male,
+      activityFactor: 1.375,
+    );
   }
 
   static String _fmtDate(DateTime date) {
@@ -486,18 +509,30 @@ class _NutritionInfoCard extends StatelessWidget {
 
 class _NutritionProfilePlaceholder extends StatelessWidget {
   final bool canEditNutrition;
+  final VoidCallback? onComplete;
 
-  const _NutritionProfilePlaceholder({required this.canEditNutrition});
+  const _NutritionProfilePlaceholder({
+    required this.canEditNutrition,
+    this.onComplete,
+  });
 
   @override
   Widget build(BuildContext context) {
     return TitansEmptyState(
       icon: Icons.person_outline,
-      title: 'Perfil nutricional',
+      title: 'Perfil nutricional ainda n\u00e3o preenchido',
       message:
           canEditNutrition
-              ? 'Complete seu perfil nutricional para estimar energia de rotina.'
+              ? 'Preencha o perfil para estimar energia de rotina.'
               : 'Perfil nutricional ainda n\u00e3o preenchido.',
+      action:
+          canEditNutrition && onComplete != null
+              ? FilledButton.icon(
+                onPressed: onComplete,
+                icon: const Icon(Icons.edit_outlined),
+                label: const Text('Completar perfil'),
+              )
+              : null,
       compact: true,
     );
   }
@@ -567,6 +602,38 @@ class _NutritionProfileCard extends StatelessWidget {
             Text(
               'Esses dados ajudam a manter o registro consistente.',
               style: TextStyle(color: muted, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NutritionEnergyPendingCard extends StatelessWidget {
+  const _NutritionEnergyPendingCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final muted = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.68);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionTitle(
+              title: 'Energia estimada',
+              subtitle:
+                  'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o alimentar.',
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Preencha o perfil para estimar energia de rotina.',
+              style: TextStyle(color: muted, fontWeight: FontWeight.w700),
             ),
           ],
         ),

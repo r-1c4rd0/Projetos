@@ -23,17 +23,17 @@ class UserProfile {
     return (10 * weightKg) + (6.25 * heightCm) - (5 * age) + s;
   }
 
-  /// TDEE
+  /// Energia estimada de rotina
   double tdee() => bmr() * activityFactor;
 
   Map<String, dynamic> toMap() => {
-        'weightKg': weightKg,
-        'heightCm': heightCm,
-        'age': age,
-        'sex': sex == Sex.female ? 'female' : 'male',
-        'activityFactor': activityFactor,
-        'updatedAt': FieldValue.serverTimestamp(),
-      };
+    'weightKg': weightKg,
+    'heightCm': heightCm,
+    'age': age,
+    'sex': sex == Sex.female ? 'female' : 'male',
+    'activityFactor': activityFactor,
+    'updatedAt': FieldValue.serverTimestamp(),
+  };
 
   factory UserProfile.fromMap(Map<String, dynamic> map) {
     final sexStr = (map['sex'] ?? 'male').toString();
@@ -55,10 +55,7 @@ class FoodItem {
   Map<String, dynamic> toMap() => {'name': name, 'kcal': kcal};
 
   factory FoodItem.fromMap(Map<String, dynamic> map) {
-    return FoodItem(
-      (map['name'] ?? '').toString(),
-      (map['kcal'] ?? 0).toInt(),
-    );
+    return FoodItem((map['name'] ?? '').toString(), (map['kcal'] ?? 0).toInt());
   }
 }
 
@@ -72,11 +69,11 @@ class MealEntry {
   int totalKcal() => items.fold(0, (a, b) => a + b.kcal);
 
   Map<String, dynamic> toMap() => {
-        'date': Timestamp.fromDate(date),
-        'mealType': mealType,
-        'items': items.map((food) => food.toMap()).toList(),
-        'createdAt': FieldValue.serverTimestamp(),
-      };
+    'date': Timestamp.fromDate(date),
+    'mealType': mealType,
+    'items': items.map((food) => food.toMap()).toList(),
+    'createdAt': FieldValue.serverTimestamp(),
+  };
 
   factory MealEntry.fromMap(Map<String, dynamic> map) {
     final ts = map['date'];
@@ -89,16 +86,17 @@ class MealEntry {
 
     final mealType = (map['mealType'] ?? 'Almoco').toString();
     final itemsRaw = (map['items'] as List?) ?? const [];
-    final items = itemsRaw
-        .whereType<Map>()
-        .map(
-          (item) => FoodItem(
-            (item['name'] ?? '').toString(),
-            (item['kcal'] ?? 0).toInt(),
-          ),
-        )
-        .where((food) => food.name.trim().isNotEmpty)
-        .toList();
+    final items =
+        itemsRaw
+            .whereType<Map>()
+            .map(
+              (item) => FoodItem(
+                (item['name'] ?? '').toString(),
+                (item['kcal'] ?? 0).toInt(),
+              ),
+            )
+            .where((food) => food.name.trim().isNotEmpty)
+            .toList();
 
     return MealEntry(date: date, mealType: mealType, items: items);
   }

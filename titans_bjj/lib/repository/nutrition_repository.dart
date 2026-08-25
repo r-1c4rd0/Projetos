@@ -4,17 +4,14 @@ import '../config/app_config.dart';
 import '../model/nutrition_models.dart';
 
 abstract class NutritionRepository {
-  Future<UserProfile> getProfileCached();
-  Stream<UserProfile> watchProfile();
+  Future<UserProfile?> getProfileCached();
+  Stream<UserProfile?> watchProfile();
   Future<void> upsertProfile(UserProfile profile);
 
   Future<List<MealEntry>> listMealsCached();
   Stream<List<MealEntry>> watchMeals();
   Future<void> addMeal(MealEntry meal);
-  Future<void> upsertMeal({
-    required String mealId,
-    required MealEntry meal,
-  });
+  Future<void> upsertMeal({required String mealId, required MealEntry meal});
   Future<void> deleteMeal(String mealId);
 
   List<FoodItem> foodDb(String query);
@@ -62,7 +59,7 @@ class FirestoreNutritionRepository implements NutritionRepository {
   final void Function()? onPermissionDeniedFallback;
   final void Function(Object error)? onError;
 
-  Future<UserProfile>? _profileFuture;
+  Future<UserProfile?>? _profileFuture;
   Future<List<MealEntry>>? _mealsFuture;
 
   DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
@@ -107,31 +104,19 @@ class FirestoreNutritionRepository implements NutritionRepository {
     }
   }
 
-  UserProfile _defaultProfile() {
-    return UserProfile(
-      weightKg: 80,
-      heightCm: 180,
-      age: 30,
-      sex: Sex.male,
-      activityFactor: 1.375,
-    );
-  }
-
   @override
-  Future<UserProfile> getProfileCached() {
+  Future<UserProfile?> getProfileCached() {
     _profileFuture ??= _loadProfile();
     return _profileFuture!;
   }
 
-  Future<UserProfile> _loadProfile() async {
+  Future<UserProfile?> _loadProfile() async {
     try {
       final snap = await _profileRef().get();
       final data = snap.data();
 
       if (data == null) {
-        final profile = _defaultProfile();
-        await upsertProfile(profile);
-        return profile;
+        return null;
       }
 
       return UserProfile.fromMap(data);
@@ -145,11 +130,11 @@ class FirestoreNutritionRepository implements NutritionRepository {
   }
 
   @override
-  Stream<UserProfile> watchProfile() async* {
+  Stream<UserProfile?> watchProfile() async* {
     try {
       await for (final snap in _profileRef().snapshots()) {
         final data = snap.data();
-        yield data == null ? _defaultProfile() : UserProfile.fromMap(data);
+        yield data == null ? null : UserProfile.fromMap(data);
       }
     } catch (error) {
       _handleError(error);
@@ -185,9 +170,8 @@ class FirestoreNutritionRepository implements NutritionRepository {
 
   Future<List<MealEntry>> _loadMeals() async {
     try {
-      final snap = await _mealsCollectionRef()
-          .orderBy('date', descending: false)
-          .get();
+      final snap =
+          await _mealsCollectionRef().orderBy('date', descending: false).get();
       return snap.docs.map((doc) => MealEntry.fromMap(doc.data())).toList();
     } catch (error) {
       _handleError(error);
@@ -201,9 +185,10 @@ class FirestoreNutritionRepository implements NutritionRepository {
   @override
   Stream<List<MealEntry>> watchMeals() async* {
     try {
-      await for (final snap in _mealsCollectionRef()
-          .orderBy('date', descending: false)
-          .snapshots()) {
+      await for (final snap
+          in _mealsCollectionRef()
+              .orderBy('date', descending: false)
+              .snapshots()) {
         yield snap.docs.map((doc) => MealEntry.fromMap(doc.data())).toList();
       }
     } catch (error) {
@@ -300,10 +285,10 @@ class InMemoryNutritionRepository implements NutritionRepository {
   ];
 
   @override
-  Future<UserProfile> getProfileCached() async => _profile;
+  Future<UserProfile?> getProfileCached() async => _profile;
 
   @override
-  Stream<UserProfile> watchProfile() async* {
+  Stream<UserProfile?> watchProfile() async* {
     yield _profile;
   }
 

@@ -62,7 +62,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<UserProgressProfile?>? _profileStream;
   Stream<GradingRules?>? _rulesStream;
   Stream<List<TrainingSession>>? _sessionsStream;
-  Stream<UserProfile>? _nutritionProfileStream;
+  Stream<UserProfile?>? _nutritionProfileStream;
   Stream<List<MealEntry>>? _nutritionMealsStream;
   bool _nutritionFallbackToMock = false;
   Object? _nutritionLoadError;
@@ -1326,7 +1326,7 @@ class _InsightBlock extends StatelessWidget {
 
 class _NutritionDashboardLiteCard extends StatelessWidget {
   final ColorScheme cs;
-  final Stream<UserProfile>? profileStream;
+  final Stream<UserProfile?>? profileStream;
   final Stream<List<MealEntry>>? mealsStream;
   final bool isStudentView;
   final bool isFallback;
@@ -1347,7 +1347,7 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _GlassCard(
       accent: cs.secondary.withValues(alpha: 0.26),
-      child: StreamBuilder<UserProfile>(
+      child: StreamBuilder<UserProfile?>(
         stream: profileStream,
         builder: (context, profileSnap) {
           return StreamBuilder<List<MealEntry>>(
@@ -1435,7 +1435,9 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
                           label: 'Energia estimada',
                           value:
                               profile == null
-                                  ? 'Completar perfil'
+                                  ? (isStudentView
+                                      ? 'Pendente'
+                                      : 'Completar perfil')
                                   : '${profile.tdee().toStringAsFixed(0)} kcal/dia',
                         ),
                         _NutritionLiteMetric(
@@ -1450,7 +1452,9 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
                     const SizedBox(height: 10),
                     Text(
                       profile == null
-                          ? 'Complete seu perfil para estimar energia de rotina.'
+                          ? (isStudentView
+                              ? 'Perfil nutricional ainda n\u00e3o preenchido.'
+                              : 'Complete seu perfil para estimar energia de rotina.')
                           : 'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o.',
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
