@@ -67,11 +67,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   bool _nutritionFallbackToMock = false;
   Object? _nutritionLoadError;
 
-  TargetProfile? _resolveTarget(BuildContext context) {
-    return widget.explicitTarget ??
-        TargetResolver.maybeOf(context, mode: widget.targetMode);
-  }
-
   void _syncStreams({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
 
@@ -915,10 +910,6 @@ String _formatShortDate(DateTime date) {
   return '$day/$month';
 }
 
-String _plural(int count, String singular, String plural) {
-  return '$count ${count == 1 ? singular : plural}';
-}
-
 String _beltLabel(BeltColor belt) {
   return TitansUI.beltLabel(belt.name);
 }
@@ -1314,7 +1305,7 @@ class _InsightBlock extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          hasValue ? text! : empty,
+          hasValue ? text : empty,
           style: TextStyle(
             color: cs.onSurface.withValues(alpha: hasValue ? 0.86 : 0.62),
           ),
@@ -2063,7 +2054,6 @@ class _InsightBadge extends StatelessWidget {
   final bool muted;
 
   const _InsightBadge({
-    super.key,
     required this.label,
     required this.color,
     this.icon = Icons.circle,
