@@ -153,16 +153,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     final uid = target.uid;
 
     return _wrapModule(
-      appBar: AppBar(
-        title: Text(widget.titleOverride ?? 'In\u00edcio'),
-        actions: [
-          IconButton(
-            tooltip: 'Configuracoes',
-            onPressed: () {},
-            icon: const Icon(Icons.settings_outlined),
-          ),
-        ],
-      ),
+      appBar: AppBar(title: Text(widget.titleOverride ?? 'In\u00edcio')),
       body: StreamBuilder<AppUser?>(
         stream: _athleteStream,
         builder: (context, userSnap) {
@@ -1591,7 +1582,7 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 8),
                     ],
-                    if (hasLoadError) ...[
+                    if (hasLoadError || isFallback) ...[
                       Text(
                         'Resumo indispon\u00edvel agora.',
                         style: TextStyle(
@@ -1601,69 +1592,68 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 8),
-                    ],
-                    if (isFallback) ...[
                       Text(
-                        'Dados de exemplo',
-                        style: TextStyle(
-                          color: cs.error,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                    ],
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: [
-                        _NutritionLiteMetric(
-                          label: 'Perfil nutricional',
-                          value: profile == null ? 'Pendente' : 'Ativo',
-                        ),
-                        _NutritionLiteMetric(
-                          label: 'Energia estimada',
-                          value:
-                              profile == null
-                                  ? (isStudentView
-                                      ? 'Pendente'
-                                      : 'Completar perfil')
-                                  : '${profile.tdee().toStringAsFixed(0)} kcal/dia',
-                        ),
-                        _NutritionLiteMetric(
-                          label: 'Refei\u00e7\u00f5es',
-                          value:
-                              registeredMeals == 0
-                                  ? 'Sem refei\u00e7\u00f5es registradas'
-                                  : '$registeredMeals recentes',
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      profile == null
-                          ? (isStudentView
-                              ? 'Perfil nutricional ainda n\u00e3o preenchido.'
-                              : 'Complete seu perfil para estimar energia de rotina.')
-                          : 'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o.',
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.68),
-                        fontSize: 12,
-                      ),
-                    ),
-                    if (registeredMeals > 0) ...[
-                      const SizedBox(height: 6),
-                      Text(
-                        'Energia registrada recentemente: $recentKcal kcal.',
-                        maxLines: 1,
+                        'N\u00e3o foi poss\u00edvel carregar os dados nutricionais.',
+                        maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           color: cs.onSurface.withValues(alpha: 0.68),
                           fontSize: 12,
                         ),
                       ),
+                    ] else ...[
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _NutritionLiteMetric(
+                            label: 'Perfil nutricional',
+                            value: profile == null ? 'Pendente' : 'Ativo',
+                          ),
+                          _NutritionLiteMetric(
+                            label: 'Energia estimada',
+                            value:
+                                profile == null
+                                    ? (isStudentView
+                                        ? 'Pendente'
+                                        : 'Completar perfil')
+                                    : '${profile.tdee().toStringAsFixed(0)} kcal/dia',
+                          ),
+                          _NutritionLiteMetric(
+                            label: 'Refei\u00e7\u00f5es',
+                            value:
+                                registeredMeals == 0
+                                    ? 'Sem refei\u00e7\u00f5es registradas'
+                                    : '$registeredMeals recentes',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        profile == null
+                            ? (isStudentView
+                                ? 'Perfil nutricional ainda n\u00e3o preenchido.'
+                                : 'Complete seu perfil para estimar energia de rotina.')
+                            : 'Refer\u00eancia de rotina, n\u00e3o prescri\u00e7\u00e3o.',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.68),
+                          fontSize: 12,
+                        ),
+                      ),
+                      if (registeredMeals > 0) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Energia registrada recentemente: $recentKcal kcal.',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.68),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ],

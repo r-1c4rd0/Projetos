@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
@@ -534,7 +534,7 @@ class _StudentCard extends StatelessWidget {
                     Expanded(
                       child: _CompactMetric(
                         label: 'Frequ\u00eancia',
-                        value: '0%',
+                        value: 'Sem dados',
                         color: cs.primary,
                       ),
                     ),
@@ -542,7 +542,7 @@ class _StudentCard extends StatelessWidget {
                     Expanded(
                       child: _CompactMetric(
                         label: 'Prontid\u00e3o',
-                        value: '0%',
+                        value: 'não calculada',
                         color: TitansUI.neonGold,
                       ),
                     ),

@@ -1,4 +1,4 @@
-import 'package:fl_chart/fl_chart.dart';
+﻿import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
@@ -207,7 +207,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         title: Text(widget.titleOverride ?? 'Nutri\u00e7\u00e3o'),
       ),
       floatingActionButton:
-          !widget.embedded && canEditNutrition
+          !widget.embedded && canEditNutrition && !_hasUnavailableNutritionData
               ? FloatingActionButton(
                 heroTag: 'nutrition_fab',
                 onPressed: _addMeal,
@@ -217,6 +217,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
       body: FutureBuilder<List<MealEntry>>(
         future: _mealsFuture,
         builder: (context, snap) {
+          if (_hasUnavailableNutritionData || snap.hasError) {
+            return _NutritionUnavailableView(
+              title: widget.titleOverride ?? 'Nutri\u00e7\u00e3o',
+              embedded: widget.embedded,
+            );
+          }
+
           if (!snap.hasData) {
             return const TitansSkeletonCard(lines: 4);
           }
@@ -234,26 +241,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 title: widget.titleOverride ?? 'Nutri\u00e7\u00e3o',
               ),
               const SizedBox(height: 12),
-              if (_fallbackToMock) ...[
-                const _NutritionStatusCard(
-                  icon: Icons.science_outlined,
-                  title: 'Dados de exemplo',
-                  message:
-                      'N\u00e3o foi poss\u00edvel carregar os dados reais. Exibindo dados de exemplo.',
-                  isWarning: true,
-                ),
-                const SizedBox(height: 12),
-              ],
-              if (_repoError != null && !_fallbackToMock) ...[
-                const _NutritionStatusCard(
-                  icon: Icons.cloud_off_outlined,
-                  title: 'Dados indispon\u00edveis',
-                  message:
-                      'N\u00e3o foi poss\u00edvel carregar os dados reais agora. Tente novamente mais tarde.',
-                  isWarning: true,
-                ),
-                const SizedBox(height: 12),
-              ],
+
               if (isReadOnlyStudentView) ...[
                 const _NutritionInfoCard(
                   icon: Icons.visibility_outlined,
@@ -312,7 +300,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 onAddMeal: _addMeal,
               ),
               const SizedBox(height: 12),
-              _DailyCaloriesChart(meals: meals, isFallback: _fallbackToMock),
+              _DailyCaloriesChart(meals: meals),
             ],
           );
         },
@@ -353,6 +341,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
     return loggedUser?.role == UserRole.admin ||
         loggedUser?.role == UserRole.professor;
   }
+
+  bool get _hasUnavailableNutritionData =>
+      _fallbackToMock || _repoError != null;
 
   Future<void> _editProfile() async {
     final profile = await _repo.getProfileCached();
@@ -400,6 +391,45 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 }
 
+class _NutritionUnavailableView extends StatelessWidget {
+  final String title;
+  final bool embedded;
+
+  const _NutritionUnavailableView({
+    required this.title,
+    required this.embedded,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final padding =
+        embedded
+            ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
+            : TitansUI.listPadding(context, extra: 80);
+
+    return ListView(
+      padding: padding,
+      children: [
+        _NutritionHeader(title: title),
+        const SizedBox(height: 12),
+        const _NutritionInfoCard(
+          icon: Icons.info_outline,
+          title: 'Informa\u00e7\u00f5es educativas',
+          message:
+              'As informa\u00e7\u00f5es de nutri\u00e7\u00e3o s\u00e3o educativas e n\u00e3o substituem orienta\u00e7\u00e3o profissional.',
+        ),
+        const SizedBox(height: 12),
+        const TitansStateView.error(
+          title: 'Dados nutricionais indispon\u00edveis',
+          message:
+              'N\u00e3o foi poss\u00edvel carregar os dados nutricionais. Tente novamente mais tarde.',
+          compact: true,
+        ),
+      ],
+    );
+  }
+}
+
 class _NutritionHeader extends StatelessWidget {
   final String title;
 
@@ -439,19 +469,16 @@ class _NutritionStatusCard extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
-  final bool isWarning;
-
   const _NutritionStatusCard({
     required this.icon,
     required this.title,
     required this.message,
-    this.isWarning = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final color = isWarning ? cs.error : cs.primary;
+    final color = cs.primary;
 
     return Card(
       child: Padding(
@@ -920,9 +947,7 @@ class _SectionTitle extends StatelessWidget {
 
 class _DailyCaloriesChart extends StatelessWidget {
   final List<MealEntry> meals;
-  final bool isFallback;
-
-  const _DailyCaloriesChart({required this.meals, required this.isFallback});
+  const _DailyCaloriesChart({required this.meals});
 
   @override
   Widget build(BuildContext context) {
@@ -978,17 +1003,7 @@ class _DailyCaloriesChart extends StatelessWidget {
               subtitle:
                   'Calorias registradas nos \u00faltimos 7 dias; n\u00e3o indica meta alimentar.',
             ),
-            if (isFallback) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Dados de exemplo',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.error,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+
             const SizedBox(height: 12),
             if (meals.isEmpty)
               const TitansEmptyState(
