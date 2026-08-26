@@ -305,6 +305,79 @@ service cloud.firestore {
         }
       }
 
+      match /invites/{inviteId} {
+        function authEmailNormalized() {
+          return request.auth.token.email.lower();
+        }
+
+        function hasAuthEmail() {
+          return signedIn()
+            && request.auth.token.email is string
+            && request.auth.token.email.size() > 0;
+        }
+
+        function isInviteEmailOwner() {
+          return hasAuthEmail()
+            && resource.data.emailNormalized == authEmailNormalized();
+        }
+
+        function isInviteRole(role) {
+          return role in ['athlete', 'professor'];
+        }
+
+        function isClientInviteStatus(status) {
+          return status in ['pending', 'revoked', 'expired'];
+        }
+
+        function hasNoBackendOnlyInviteFields(data) {
+          return !data.keys().hasAny(['acceptedAuthUid', 'acceptedAt']);
+        }
+
+        function staffCreateInvitePayload(academyId) {
+          return request.resource.data.keys().hasAll([
+              'academyId',
+              'emailNormalized',
+              'role',
+              'status',
+              'invitedByUid',
+              'invitedByRole',
+              'createdAt',
+              'expiresAt'
+            ])
+            && request.resource.data.academyId == academyId
+            && request.resource.data.emailNormalized is string
+            && request.resource.data.emailNormalized.size() > 0
+            && request.resource.data.emailNormalized != authEmailNormalized()
+            && isInviteRole(request.resource.data.role)
+            && request.resource.data.status == 'pending'
+            && request.resource.data.invitedByUid == request.auth.uid
+            && request.resource.data.invitedByRole == currentUserRole(academyId)
+            && isStaffRole(request.resource.data.invitedByRole)
+            && hasNoBackendOnlyInviteFields(request.resource.data);
+        }
+
+        function staffUpdateInvitePayload(academyId) {
+          return resource.data.academyId == academyId
+            && request.resource.data.academyId == academyId
+            && request.resource.data.emailNormalized == resource.data.emailNormalized
+            && request.resource.data.role == resource.data.role
+            && request.resource.data.invitedByUid == resource.data.invitedByUid
+            && request.resource.data.invitedByRole == resource.data.invitedByRole
+            && (!resource.data.keys().hasAny(['pendingProfileId'])
+              || request.resource.data.pendingProfileId == resource.data.pendingProfileId)
+            && isClientInviteStatus(request.resource.data.status)
+            && hasNoBackendOnlyInviteFields(request.resource.data)
+            && !request.resource.data.diff(resource.data).affectedKeys()
+              .hasAny(['acceptedAuthUid', 'acceptedAt']);
+        }
+
+        allow get, list: if isAcademyStaff(academyId) || isInviteEmailOwner();
+        allow create: if isAcademyStaff(academyId)
+          && staffCreateInvitePayload(academyId);
+        allow update: if isAcademyStaff(academyId)
+          && staffUpdateInvitePayload(academyId);
+        allow delete: if false;
+      }
       match /{document=**} {
         allow read, write: if false;
       }
