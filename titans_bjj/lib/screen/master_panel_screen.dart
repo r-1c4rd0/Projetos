@@ -189,8 +189,8 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
             SnackBar(
               content: Text(
                 invite.status == 'pending'
-                    ? 'Convite registrado para $email.'
-                    : 'Ja existe convite para este aluno.',
+                    ? 'Convite preparado para $email.'
+                    : 'Já existe convite preparado para este aluno.',
               ),
             ),
           );
@@ -258,7 +258,9 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
       'E-mail convidado: ${invite.emailNormalized}',
       'academyId: ${invite.academyId}',
       'inviteId: ${invite.id}',
-      'Entre ou crie uma conta com o mesmo e-mail e use Aceitar convite no app.',
+      'Este convite está preparado para ativação futura.',
+      'No ambiente atual, o aceite automático ainda não está disponível.',
+      'Quando for habilitado, entre ou crie uma conta com o mesmo e-mail.',
     ].join(String.fromCharCode(10));
   }
 

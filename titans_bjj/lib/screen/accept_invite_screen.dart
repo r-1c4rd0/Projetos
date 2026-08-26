@@ -30,6 +30,7 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
   Widget build(BuildContext context) {
     final user = FirebaseAuth.instance.currentUser;
     final cs = Theme.of(context).colorScheme;
+    final acceptanceAvailable = _repo.canAcceptInvites;
 
     return TitansScaffold(
       scroll: true,
@@ -50,7 +51,9 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    user == null
+                    !acceptanceAvailable
+                        ? 'Aceite automático de convite ainda não está disponível neste ambiente.'
+                        : user == null
                         ? 'Entre com o mesmo e-mail do convite antes de aceitar.'
                         : 'Conta atual: ${user.email ?? user.uid}. Confirme que é o mesmo e-mail do convite.',
                     style: TextStyle(
@@ -79,7 +82,10 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
                   ),
                   const SizedBox(height: 16),
                   FilledButton.icon(
-                    onPressed: user == null || _submitting ? null : _accept,
+                    onPressed:
+                        !acceptanceAvailable || user == null || _submitting
+                            ? null
+                            : _accept,
                     icon:
                         _submitting
                             ? const SizedBox(
@@ -89,12 +95,18 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
                             )
                             : const Icon(Icons.verified_user_outlined),
                     label: Text(
-                      _submitting ? 'Aceitando...' : 'Aceitar convite',
+                      !acceptanceAvailable
+                          ? 'Aceite indisponível'
+                          : _submitting
+                          ? 'Aceitando...'
+                          : 'Aceitar convite',
                     ),
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Use o mesmo e-mail informado no convite. Depois do aceite, volte e atualize a sessão; se necessário, entre novamente.',
+                    acceptanceAvailable
+                        ? 'Use o mesmo e-mail informado no convite. Depois do aceite, volte e atualize a sessão; se necessário, entre novamente.'
+                        : 'O código fica preparado para ativação futura. Entre com o mesmo e-mail quando o aceite real for habilitado.',
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.62),
                       fontSize: 12,
@@ -110,6 +122,17 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
   }
 
   Future<void> _accept() async {
+    if (!_repo.canAcceptInvites) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aceite automático de convite ainda não está disponível neste ambiente.',
+          ),
+        ),
+      );
+      return;
+    }
+
     final academyId = _academyCtrl.text.trim();
     final inviteId = _inviteCtrl.text.trim();
     if (academyId.isEmpty || inviteId.isEmpty) {
@@ -121,8 +144,21 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
 
     setState(() => _submitting = true);
     try {
-      await _repo.acceptManualInvite(academyId: academyId, inviteId: inviteId);
+      final accepted = await _repo.acceptManualInvite(
+        academyId: academyId,
+        inviteId: inviteId,
+      );
       if (!mounted) return;
+      if (!accepted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Convite preparado para ativação futura. O aceite real ainda não está disponível.',
+            ),
+          ),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(

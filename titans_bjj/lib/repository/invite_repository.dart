@@ -72,6 +72,8 @@ class InviteRepository {
   InviteRepository(this.db, {FirebaseFunctions? functions})
     : functions = functions ?? FirebaseFunctions.instance;
 
+  static const bool inviteAcceptanceEnabled = false;
+
   final FirebaseFirestore db;
   final FirebaseFunctions functions;
 
@@ -81,6 +83,8 @@ class InviteRepository {
   );
 
   String normalizeEmail(String email) => email.trim().toLowerCase();
+
+  bool get canAcceptInvites => inviteAcceptanceEnabled;
 
   CollectionReference<Map<String, dynamic>> _invitesRef(String academyId) {
     return db.collection('academies').doc(academyId).collection('invites');
@@ -231,6 +235,8 @@ class InviteRepository {
     required String academyId,
     required String inviteId,
   }) async {
+    if (!canAcceptInvites) return false;
+
     final firebaseUser = FirebaseAuth.instance.currentUser;
     if (firebaseUser == null) {
       throw StateError('Faca login antes de aceitar o convite.');
@@ -247,6 +253,8 @@ class InviteRepository {
     required String inviteId,
     required User firebaseUser,
   }) async {
+    if (!canAcceptInvites) return false;
+
     final authEmail = normalizeEmail(firebaseUser.email ?? '');
     if (firebaseUser.uid.trim().isEmpty || authEmail.isEmpty) return false;
 

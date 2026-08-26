@@ -9,6 +9,7 @@ import '../service/target_resolver.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
+import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'add_training_session_screen.dart';

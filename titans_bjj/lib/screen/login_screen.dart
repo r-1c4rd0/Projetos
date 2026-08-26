@@ -207,8 +207,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           icon: const Icon(Icons.mark_email_read_outlined),
                           label: Text(
                             _hasSession
-                                ? 'Usar código do convite'
-                                : 'Entre antes de usar o convite',
+                                ? 'Ver convite preparado'
+                                : 'Entre para ver convite preparado',
                           ),
                         ),
                       ],

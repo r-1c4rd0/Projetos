@@ -112,6 +112,7 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     final inviteRepo = InviteRepository.instance;
     final email = widget.firebaseUser.email ?? '';
     if (inviteRepo.normalizeEmail(email).isEmpty) return;
+    if (!inviteRepo.canAcceptInvites) return;
 
     try {
       final invite = await inviteRepo
