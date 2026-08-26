@@ -118,6 +118,23 @@ Rules futuras:
 - Convites `expired` ou `revoked` nao podem gravar vinculo.
 - `acceptedAuthUid` e write-once.
 
+## Radar Tecnico futuro
+
+O Radar Tecnico Retencao/Transicao/Controle/Ataque deve ser derivado de classificacao explicita de taxonomia, nao de campos operacionais isolados.
+
+Eixos aceitos:
+- `retention`
+- `transition`
+- `control`
+- `attack`
+- `unclassified`
+
+Contrato de persistencia futura:
+- A classificacao oficial deve viver na taxonomia/contrato de treino antes de virar dado persistido por atleta.
+- Taxonomias customizadas poderao receber um campo futuro `technicalRadarAxis`, mas este campo nao deve ser exigido no schema atual.
+- Registros historicos sem classificacao devem permanecer como `unclassified`.
+- Nenhum documento de treino deve salvar score, percentual ou formula do Radar nesta fase.
+
 ## Plano de migracao incremental
 1. Inventariar colecoes reais antes de mudar schema.
 2. Introduzir validacao de `academyId` em camada de repository.

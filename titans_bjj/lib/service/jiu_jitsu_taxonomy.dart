@@ -10,6 +10,27 @@ enum JiuJitsuSkillCategory {
   other,
 }
 
+enum TechnicalRadarAxis { retention, transition, control, attack, unclassified }
+
+extension TechnicalRadarAxisLabel on TechnicalRadarAxis {
+  String get displayLabel {
+    switch (this) {
+      case TechnicalRadarAxis.retention:
+        return 'Reten\u00e7\u00e3o';
+      case TechnicalRadarAxis.transition:
+        return 'Transi\u00e7\u00e3o';
+      case TechnicalRadarAxis.control:
+        return 'Controle';
+      case TechnicalRadarAxis.attack:
+        return 'Ataque';
+      case TechnicalRadarAxis.unclassified:
+        return 'Sem classifica\u00e7\u00e3o';
+    }
+  }
+
+  String get label => displayLabel;
+}
+
 extension JiuJitsuSkillCategoryLabel on JiuJitsuSkillCategory {
   String get displayLabel {
     switch (this) {
@@ -161,12 +182,32 @@ class JiuJitsuTaxonomy {
     return JiuJitsuSkillCategory.other;
   }
 
+  static TechnicalRadarAxis technicalRadarAxisForCategory(
+    JiuJitsuSkillCategory category,
+  ) {
+    switch (category) {
+      case JiuJitsuSkillCategory.submissions:
+        return TechnicalRadarAxis.attack;
+      case JiuJitsuSkillCategory.escapes:
+        return TechnicalRadarAxis.transition;
+      case JiuJitsuSkillCategory.guard:
+      case JiuJitsuSkillCategory.passing:
+      case JiuJitsuSkillCategory.takedowns:
+      case JiuJitsuSkillCategory.mount:
+      case JiuJitsuSkillCategory.back:
+      case JiuJitsuSkillCategory.defense:
+      case JiuJitsuSkillCategory.other:
+        return TechnicalRadarAxis.unclassified;
+    }
+  }
+
   static String normalizedKey(String value) {
-    final normalized = _removeAccents(value)
-        .toLowerCase()
-        .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final normalized =
+        _removeAccents(value)
+            .toLowerCase()
+            .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
+            .replaceAll(RegExp(r'\s+'), ' ')
+            .trim();
 
     return _aliases[normalized] ?? normalized;
   }
@@ -312,12 +353,7 @@ class JiuJitsuTaxonomy {
     'leg drag',
     'pass',
   ];
-  static const _takedownTerms = [
-    'queda',
-    'single leg',
-    'double leg',
-    'baiana',
-  ];
+  static const _takedownTerms = ['queda', 'single leg', 'double leg', 'baiana'];
   static const _mountTerms = ['montada', 'mount'];
   static const _backTerms = ['costas', 'back', 'mata leao'];
   static const _submissionTerms = [

@@ -33,6 +33,36 @@ Definir o modulo de treinos como registro, consulta e agregacao de sessoes de tr
 - Treino deve pertencer a academia e modalidade.
 - Agregados nao devem ser calculados de forma duplicada em varias telas.
 
+- O painel atual de evidencias R/T/C/A no Game Map representa dados operacionais de treino, nao o futuro Radar Tecnico.
+- O futuro Radar Tecnico Retencao/Transicao/Controle/Ataque nao deve usar Recorrencia/Tecnicas/Consistencia/Aplicacao como eixos semanticos.
+- Nenhum score, peso, percentual ou formula final deve ser criado sem taxonomia validada e evidencia minima por eixo.
+
+## Radar Tecnico - contrato semantico futuro
+
+O Radar Tecnico deve ser tratado como um perfil tecnico em formacao ate que as tecnicas tenham classificacao confiavel por eixo.
+
+Eixos:
+- `retention`: capacidade de manter posicao, vantagem ou conexao tecnica.
+- `transition`: capacidade de mover entre posicoes ou fases do jogo.
+- `control`: capacidade de estabilizar, dominar e reduzir respostas do oponente.
+- `attack`: capacidade de ameacar, pontuar, raspar, passar ou finalizar.
+- `unclassified`: tecnica ou categoria sem classificacao segura.
+
+Mapeamento inicial seguro por categoria:
+- `submissions` -> `attack`.
+- `escapes` -> `transition`.
+
+Categorias que exigem revisao antes de pontuar:
+- `guard`
+- `passing`
+- `takedowns`
+- `mount`
+- `back`
+- `defense`
+- `other`
+
+Enquanto a revisao nao existir, a UI futura deve exibir Radar Preview com a copy "Perfil tecnico em formacao" e evidencias reais, sem score.
+
 ## Problemas atuais
 - Agregacao de treino pode estar em service separado e telas.
 - Streams em build podem afetar performance.
