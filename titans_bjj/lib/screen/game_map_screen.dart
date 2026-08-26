@@ -7,6 +7,7 @@ import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
+import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -89,19 +90,42 @@ class _GameMapScreenState extends State<GameMapScreen> {
               ],
               _GameMapSummaryCard(stats: stats),
               const SizedBox(height: 12),
-              _GameMapVisualClusterCard(viewModel: visualMap),
+              TitansExpandableSection(
+                title: 'Mapa por posições',
+                subtitle: visualMap.subtitle,
+                initiallyExpanded: true,
+                child: _GameMapVisualClusterCard(viewModel: visualMap),
+              ),
               const SizedBox(height: 12),
-              _RtcaEvidencePanel(viewModel: rtcaEvidence),
+              TitansExpandableSection(
+                title: 'Evidências R/T/C/A',
+                subtitle: rtcaEvidence.subtitle,
+                child: _RtcaEvidencePanel(viewModel: rtcaEvidence),
+              ),
               const SizedBox(height: 12),
-              _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
+              TitansExpandableSection(
+                title: 'Resumo da Skill Matrix',
+                subtitle: skillSummary.subtitle,
+                initiallyExpanded: true,
+                child: _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
+              ),
               const SizedBox(height: 12),
-              _SkillMatrixCard(colorScheme: cs, entries: skillMatrix),
+              TitansExpandableSection(
+                title: 'Categorias técnicas',
+                subtitle: _categorySectionSummary(skillMatrix),
+                child: _SkillMatrixCard(colorScheme: cs, entries: skillMatrix),
+              ),
               const SizedBox(height: 12),
               if (entries.isEmpty)
                 _EmptyGameMapCard(colorScheme: cs)
               else
                 for (final entry in entries) ...[
-                  _GameMapPositionCard(entry: entry),
+                  TitansExpandableSection(
+                    title: entry.position,
+                    subtitle:
+                        '${TrainingAggregator.sessionCountLabel(entry.sessionsCount)} • ${entry.techniques.length} técnicas',
+                    child: _GameMapPositionCard(entry: entry),
+                  ),
                   const SizedBox(height: 12),
                 ],
             ],
@@ -207,29 +231,39 @@ class _GameMapSummaryCard extends StatelessWidget {
             runSpacing: 10,
             children: [
               _MetricPill(
-                label: 'POSI\u00c7\u00d5ES',
-                value: stats.positions.toString(),
-                color: cs.secondary,
-              ),
-              _MetricPill(
-                label: 'T\u00c9CNICAS',
+                label: 'TÉCNICAS',
                 value: stats.techniques.toString(),
                 color: cs.primary,
               ),
               _MetricPill(
-                label: 'DOMINANTE',
-                value: stats.dominantCategory ?? 'Sem dados',
+                label: 'RECORRENTES',
+                value: stats.recurring.toString(),
                 color: Colors.lightGreenAccent,
               ),
               _MetricPill(
-                label: 'INTENSIDADE',
-                value:
-                    stats.averageIntensity == null
-                        ? 'Sem dados'
-                        : '${stats.averageIntensity!.toStringAsFixed(1)}/5',
+                label: 'APLICAÇÕES +',
+                value: stats.positiveApplications.toString(),
                 color: Colors.amber,
               ),
+              _MetricPill(
+                label: 'SEM MEDIÇÃO',
+                value: stats.unmeasured.toString(),
+                color: cs.onSurface.withValues(alpha: 0.58),
+              ),
             ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            stats.dominantCategory == null
+                ? 'Aguardando registros técnicos para montar o mapa.'
+                : 'Categoria mais recorrente: ${stats.dominantCategory}. ${stats.positions} posições mapeadas nos debriefs registrados.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
       ),
@@ -974,6 +1008,16 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final positive = _hasPositiveApplicationEvidence(entry);
+    final unmeasured = entry.application != true;
+    final accent =
+        positive
+            ? Colors.lightGreenAccent
+            : entry.consistent
+            ? cs.secondary
+            : unmeasured
+            ? cs.onSurface.withValues(alpha: 0.46)
+            : cs.primary;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
@@ -981,8 +1025,8 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-        color: Colors.black.withValues(alpha: 0.16),
+        border: Border.all(color: accent.withValues(alpha: 0.22)),
+        color: accent.withValues(alpha: 0.07),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1015,6 +1059,18 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                     ),
                     color: cs.secondary,
                   ),
+                  if (entry.consistent)
+                    _MiniBadge(label: 'recorrente', color: cs.secondary),
+                  if (positive)
+                    const _MiniBadge(
+                      label: 'resultado positivo',
+                      color: Colors.lightGreenAccent,
+                    ),
+                  if (unmeasured)
+                    _MiniBadge(
+                      label: 'sem medição',
+                      color: cs.onSurface.withValues(alpha: 0.52),
+                    ),
                   _MiniBadge(
                     label:
                         '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
@@ -1145,7 +1201,7 @@ class _GameMapPositionCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final technique in entry.techniques.take(10))
+              for (final technique in entry.techniques.take(6))
                 _TechniqueChip(
                   label: technique.technique,
                   count: technique.sessionsCount,
@@ -1866,12 +1922,18 @@ SkillMatrixTechniqueEntry? _findSkillEntry(
 class _GameMapStats {
   final int positions;
   final int techniques;
+  final int recurring;
+  final int positiveApplications;
+  final int unmeasured;
   final String? dominantCategory;
   final double? averageIntensity;
 
   const _GameMapStats({
     required this.positions,
     required this.techniques,
+    required this.recurring,
+    required this.positiveApplications,
+    required this.unmeasured,
     required this.dominantCategory,
     required this.averageIntensity,
   });
@@ -1886,13 +1948,15 @@ class _GameMapStats {
         if (sessionsCompare != 0) return sessionsCompare;
         return b.techniquesCount.compareTo(a.techniquesCount);
       });
+    final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
 
     return _GameMapStats(
       positions: entries.length,
-      techniques: entries.fold<int>(
-        0,
-        (sum, entry) => sum + entry.techniques.length,
-      ),
+      techniques: techniques.length,
+      recurring: techniques.where((entry) => entry.consistent).length,
+      positiveApplications:
+          techniques.where(_hasPositiveApplicationEvidence).length,
+      unmeasured: techniques.where((entry) => entry.application != true).length,
       dominantCategory:
           activeCategories.isEmpty
               ? null
@@ -1917,6 +1981,23 @@ double? _weightedGameMapIntensity(List<GameMapEntry> entries) {
 
   if (sessions == 0) return null;
   return weighted / sessions;
+}
+
+bool _hasPositiveApplicationEvidence(SkillMatrixTechniqueEntry entry) {
+  final outcome = TrainingAggregator.techniqueOutcomeLabel(
+    entry.techniqueOutcome,
+  );
+  return entry.application == true &&
+      (outcome == 'Funcionou' || outcome == 'Quase funcionou');
+}
+
+String _categorySectionSummary(List<SkillMatrixCategoryEntry> entries) {
+  if (entries.isEmpty) return 'Aguardando registros por categoria';
+  final techniques = entries.fold<int>(
+    0,
+    (sum, entry) => sum + entry.techniquesCount,
+  );
+  return '${entries.length} categorias • ${TrainingAggregator.techniqueCountLabel(techniques)}';
 }
 
 double? _averageEntryIntensity(GameMapEntry entry) {

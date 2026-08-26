@@ -143,6 +143,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
           );
           final periodSessions = _filterSessionsForPeriod(sessions, _period);
           final summary = _buildTrainingSummary(periodSessions);
+          final lastTrainingLabel =
+              sessions.isEmpty
+                  ? 'Último treino: sem registro'
+                  : 'Último treino: ${_smartDateLabel(sessions.last.date)}';
 
           final listPadding =
               widget.embedded
@@ -154,6 +158,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
             children: [
               _TrainingSummaryCard(
                 summary: summary,
+                lastTrainingLabel: lastTrainingLabel,
                 period: _period,
                 onPeriodChanged: (p) => setState(() => _period = p),
                 canAddTraining: widget.embedded && canEditTarget,
@@ -164,68 +169,66 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         : null,
               ),
               const SizedBox(height: 12),
-              _TrainingChartCard(
-                viewModel: chart,
-                onPeriodChanged: (p) => setState(() => _period = p),
+              TitansExpandableSection(
+                title: 'Evolução dos treinos',
+                subtitle: chart.totalLabel,
+                initiallyExpanded: true,
+                child: _TrainingChartCard(viewModel: chart),
               ),
               const SizedBox(height: 12),
-              if (sessions.isEmpty)
-                TitansEmptyState(
-                  icon: Icons.fitness_center_outlined,
-                  title: 'Sem treinos registrados',
-                  message:
-                      'Adicione uma sess\u00e3o para iniciar o hist\u00f3rico.',
-                  compact: true,
-                  action:
-                      canEditTarget
-                          ? FilledButton.icon(
-                            onPressed:
-                                () => _openTrainingForm(
-                                  academyId: academyId,
-                                  uid: uid,
-                                ),
-                            icon: const Icon(Icons.add),
-                            label: const Text('Adicionar treino'),
-                          )
-                          : null,
-                )
-              else
-                ...sessions.reversed.map((s) {
-                  debugPrint(
-                    '[TRAINING_EDIT] canEditTarget=$canEditTarget '
-                    'actor.uid=${actor?.uid} target.uid=$uid '
-                    'academyId=$academyId session.id=${s.id}',
-                  );
-                  if (_hasDebrief(s)) {
-                    debugPrint(
-                      '[TRAINING_DEBRIEF_CARD] mode=card session.id=${s.id} '
-                      'target.uid=$uid position=${s.position} '
-                      'technique=${s.technique} intensity=${s.intensity}',
-                    );
-                  }
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _TrainingSessionCard(
-                      session: s,
-                      canEdit: canEditTarget,
-                      onEdit:
-                          canEditTarget
-                              ? () {
-                                debugPrint(
-                                  '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                                  'target.uid=$uid canEditTarget=$canEditTarget '
-                                  'academyId=$academyId session.id=${s.id}',
-                                );
-                                return _openTrainingForm(
-                                  academyId: academyId,
-                                  uid: uid,
+              TitansExpandableSection(
+                title: 'Registros de treino',
+                subtitle:
+                    '${_trainingCountLabel(sessions.length)} • $lastTrainingLabel',
+                child:
+                    sessions.isEmpty
+                        ? TitansEmptyState(
+                          icon: Icons.fitness_center_outlined,
+                          title: 'Sem treinos registrados',
+                          message:
+                              'Adicione uma sessão para iniciar o histórico.',
+                          compact: true,
+                          action:
+                              canEditTarget
+                                  ? FilledButton.icon(
+                                    onPressed:
+                                        () => _openTrainingForm(
+                                          academyId: academyId,
+                                          uid: uid,
+                                        ),
+                                    icon: const Icon(Icons.add),
+                                    label: const Text('Adicionar treino'),
+                                  )
+                                  : null,
+                        )
+                        : Column(
+                          children: [
+                            for (final s in sessions.reversed)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: _TrainingSessionCard(
                                   session: s,
-                                );
-                              }
-                              : null,
-                    ),
-                  );
-                }),
+                                  canEdit: canEditTarget,
+                                  onEdit:
+                                      canEditTarget
+                                          ? () {
+                                            debugPrint(
+                                              '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                                              'target.uid=$uid canEditTarget=$canEditTarget '
+                                              'academyId=$academyId session.id=${s.id}',
+                                            );
+                                            return _openTrainingForm(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              session: s,
+                                            );
+                                          }
+                                          : null,
+                                ),
+                              ),
+                          ],
+                        ),
+              ),
             ],
           );
         },
@@ -259,14 +262,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   static String _fmt2(int n) => n.toString().padLeft(2, '0');
-
-  bool _hasDebrief(TrainingSession session) {
-    return (session.position?.trim().isNotEmpty ?? false) ||
-        (session.technique?.trim().isNotEmpty ?? false) ||
-        session.intensity != null ||
-        (session.applicationContext?.trim().isNotEmpty ?? false) ||
-        (session.techniqueOutcome?.trim().isNotEmpty ?? false);
-  }
 
   Future<void> _openTrainingForm({
     required String academyId,
@@ -347,6 +342,7 @@ class _TrainingSummary {
 
 class _TrainingSummaryCard extends StatelessWidget {
   final _TrainingSummary summary;
+  final String lastTrainingLabel;
   final _TrainingChartPeriod period;
   final ValueChanged<_TrainingChartPeriod> onPeriodChanged;
   final bool canAddTraining;
@@ -354,6 +350,7 @@ class _TrainingSummaryCard extends StatelessWidget {
 
   const _TrainingSummaryCard({
     required this.summary,
+    required this.lastTrainingLabel,
     required this.period,
     required this.onPeriodChanged,
     required this.canAddTraining,
@@ -376,52 +373,89 @@ class _TrainingSummaryCard extends StatelessWidget {
             alignment: MainAxisAlignment.spaceBetween,
             overflowAlignment: OverflowBarAlignment.start,
             children: [
-              Text(
-                'Hist\u00f3rico de treinos',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w900,
-                ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Histórico de treinos',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    lastTrainingLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.66),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
               ),
               if (canAddTraining)
-                FilledButton.icon(
+                IconButton.filledTonal(
+                  tooltip: 'Adicionar treino',
                   onPressed: onAddTraining,
-                  icon: const Icon(Icons.add, size: 18),
-                  label: const Text('Adicionar treino'),
+                  icon: const Icon(Icons.add),
                 ),
             ],
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _SummaryMetric(
-                label: 'Treinos',
-                value: summary.total.toString(),
-                color: cs.primary,
-              ),
-              _SummaryMetric(
-                label: 'T\u00e9cnicas',
-                value: summary.techniques.toString(),
-                color: TitansUI.info,
-              ),
-              _SummaryMetric(
-                label: 'Intensidade',
-                value:
-                    intensity == null
-                        ? '--'
-                        : '${intensity.toStringAsFixed(1)}/5',
-                color: TitansUI.warning,
-              ),
-              _SummaryMetric(
-                label: 'Aplica\u00e7\u00e3o',
-                value: summary.applicationCount.toString(),
-                color: TitansUI.success,
-              ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width =
+                  constraints.maxWidth < 390
+                      ? (constraints.maxWidth - 8) / 2
+                      : (constraints.maxWidth - 24) / 4;
+              return Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  SizedBox(
+                    width: width,
+                    child: _SummaryMetric(
+                      label: 'Treinos',
+                      value: summary.total.toString(),
+                      color: cs.primary,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _SummaryMetric(
+                      label: 'Técnicas',
+                      value: summary.techniques.toString(),
+                      color: TitansUI.info,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _SummaryMetric(
+                      label: 'Intensidade',
+                      value:
+                          intensity == null
+                              ? 'Sem dados'
+                              : '${intensity.toStringAsFixed(1)}/5',
+                      color: TitansUI.warning,
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: _SummaryMetric(
+                      label: 'Aplicação',
+                      value: summary.applicationCount.toString(),
+                      color: TitansUI.success,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
           const SizedBox(height: 12),
           _PeriodFilter(
@@ -501,17 +535,27 @@ class _PeriodFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final option in periods)
-          _PeriodChip(
-            label: option.label,
-            selected: period == option.id,
-            onSelected: () => onChanged(option.id),
-          ),
-      ],
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.all(4),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            for (final option in periods)
+              _PeriodChip(
+                label: option.label,
+                selected: period == option.id,
+                onSelected: () => onChanged(option.id),
+              ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -529,11 +573,21 @@ class _PeriodChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return ChoiceChip(
-      label: Text(label),
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
       selected: selected,
       onSelected: (_) => onSelected(),
+      showCheckmark: false,
       visualDensity: VisualDensity.compact,
+      labelStyle: TextStyle(
+        color: selected ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.72),
+        fontWeight: FontWeight.w900,
+      ),
+      selectedColor: cs.primary,
+      backgroundColor: Colors.transparent,
+      side: BorderSide.none,
+      shape: const StadiumBorder(),
     );
   }
 }
@@ -955,59 +1009,35 @@ class _TrainingChartPoint {
 
 class _TrainingChartCard extends StatelessWidget {
   final _TrainingChartViewModel viewModel;
-  final ValueChanged<_TrainingChartPeriod> onPeriodChanged;
 
-  const _TrainingChartCard({
-    required this.viewModel,
-    required this.onPeriodChanged,
-  });
+  const _TrainingChartCard({required this.viewModel});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final periodLabel =
+        _TrainingChartPeriodOption.byId(viewModel.selectedPeriod).label;
 
     return glassCard(
       context,
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          OverflowBar(
-            spacing: 8,
-            overflowSpacing: 8,
-            alignment: MainAxisAlignment.spaceBetween,
-            overflowAlignment: OverflowBarAlignment.start,
+          Row(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    viewModel.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
-                    ),
+              Expanded(
+                child: Text(
+                  viewModel.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w900,
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    viewModel.totalLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
+                ),
               ),
-              _PeriodFilter(
-                period: viewModel.selectedPeriod,
-                periods: viewModel.periods,
-                onChanged: onPeriodChanged,
-              ),
+              const SizedBox(width: 8),
+              _TrainingActionChip(label: periodLabel, color: cs.primary),
             ],
           ),
           const SizedBox(height: 8),
@@ -1021,17 +1051,33 @@ class _TrainingChartCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 6),
+          Text(
+            viewModel.isEmpty
+                ? 'A evolução aparece quando houver treinos no período selecionado.'
+                : 'Leitura simples da frequência registrada neste período.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.52),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
           if (viewModel.isEmpty)
-            TitansEmptyState(
-              icon: Icons.bar_chart_outlined,
-              title: 'Sem registros no per\u00edodo',
-              message: viewModel.emptyStateLabel,
-              compact: true,
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TitansEmptyState(
+                icon: Icons.bar_chart_outlined,
+                title: 'Sem registros no período',
+                message: viewModel.emptyStateLabel,
+                compact: true,
+              ),
             )
           else
             SizedBox(
-              height: 224,
+              height: 238,
               child: _TrainingBarChart(points: viewModel.points),
             ),
         ],

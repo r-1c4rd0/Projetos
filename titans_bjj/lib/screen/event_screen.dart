@@ -1,11 +1,13 @@
 // event_screen.dart
 import 'package:flutter/material.dart';
+import '../core/titans_ui.dart';
 import '../model/event_models.dart';
 import '../main.dart';
 import 'package:uuid/uuid.dart';
 
 import '../repository/event_repository.dart';
 import '../service/user_session.dart';
+import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_scaffold.dart';
 
 class EventScreen extends StatefulWidget {
@@ -45,33 +47,39 @@ class _EventScreenState extends State<EventScreen> {
     _seeded = true;
 
     final now = DateTime.now();
-    await repo.create(EventModel(
-      id: const Uuid().v4(),
-      title: 'Graduação Faixas',
-      type: EventType.graduation,
-      start: now.add(const Duration(days: 20)),
-      end: now.add(const Duration(days: 20, hours: 2)),
-      location: 'Matriz',
-      description: 'Cerimônia de graduação e rola comemorativo.',
-    ));
-    await repo.create(EventModel(
-      id: const Uuid().v4(),
-      title: 'Aula Especial com Professor X',
-      type: EventType.specialClass,
-      start: now.add(const Duration(days: 7, hours: 19)),
-      end: now.add(const Duration(days: 7, hours: 21)),
-      location: 'Filial Centro',
-      description: 'Guarda laço e variações.',
-    ));
-    await repo.create(EventModel(
-      id: const Uuid().v4(),
-      title: 'Campeonato Estadual',
-      type: EventType.tournament,
-      start: now.subtract(const Duration(days: 10)),
-      end: now.subtract(const Duration(days: 10, hours: -8)),
-      location: 'Ginásio Municipal',
-      description: 'Equipe completa, categorias adulto e master.',
-    ));
+    await repo.create(
+      EventModel(
+        id: const Uuid().v4(),
+        title: 'Graduação Faixas',
+        type: EventType.graduation,
+        start: now.add(const Duration(days: 20)),
+        end: now.add(const Duration(days: 20, hours: 2)),
+        location: 'Matriz',
+        description: 'Cerimônia de graduação e rola comemorativo.',
+      ),
+    );
+    await repo.create(
+      EventModel(
+        id: const Uuid().v4(),
+        title: 'Aula Especial com Professor X',
+        type: EventType.specialClass,
+        start: now.add(const Duration(days: 7, hours: 19)),
+        end: now.add(const Duration(days: 7, hours: 21)),
+        location: 'Filial Centro',
+        description: 'Guarda laço e variações.',
+      ),
+    );
+    await repo.create(
+      EventModel(
+        id: const Uuid().v4(),
+        title: 'Campeonato Estadual',
+        type: EventType.tournament,
+        start: now.subtract(const Duration(days: 10)),
+        end: now.subtract(const Duration(days: 10, hours: -8)),
+        location: 'Ginásio Municipal',
+        description: 'Equipe completa, categorias adulto e master.',
+      ),
+    );
     if (!mounted) return;
     setState(() {});
   }
@@ -88,80 +96,125 @@ class _EventScreenState extends State<EventScreen> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    return DefaultTabController(
-      length: 2,
-      child: TitansScaffold(
-        scroll: false,
-        appBar: AppBar(
-          leading: const AppLogoLeading(),
-          title: const Text('Eventos'),
-          bottom: const TabBar(tabs: [
-            Tab(text: 'Próximos'),
-            Tab(text: 'Passados'),
-          ]),
-          actions: [
-            PopupMenuButton<EventType?>(
-              initialValue: filterType,
-              onSelected: (v) => setState(() => filterType = v),
-              itemBuilder: (ctx) => [
-                const PopupMenuItem(value: null, child: Text('Todos os tipos')),
-                const PopupMenuItem(value: EventType.graduation, child: Text('Graduação')),
-                const PopupMenuItem(value: EventType.specialClass, child: Text('Aula especial')),
-                const PopupMenuItem(value: EventType.tournament, child: Text('Campeonato')),
-                const PopupMenuItem(value: EventType.other, child: Text('Outros')),
-              ],
-              icon: const Icon(Icons.filter_list),
-            ),
-          ],
-        ),
-        floatingActionButton: FloatingActionButton(
-          heroTag: 'events_fab',
-          onPressed: _openCreate,
-          child: const Icon(Icons.add),
-        ),
-        body: TabBarView(children: [
-          _buildList(upcoming: true),
-          _buildList(upcoming: false),
-        ]),
+    return TitansScaffold(
+      scroll: false,
+      appBar: AppBar(
+        leading: const AppLogoLeading(),
+        title: const Text('Eventos'),
+        actions: [
+          PopupMenuButton<EventType?>(
+            initialValue: filterType,
+            tooltip: 'Filtrar eventos',
+            onSelected: (v) => setState(() => filterType = v),
+            itemBuilder:
+                (ctx) => const [
+                  PopupMenuItem(value: null, child: Text('Todos os tipos')),
+                  PopupMenuItem(
+                    value: EventType.graduation,
+                    child: Text('Graduação'),
+                  ),
+                  PopupMenuItem(
+                    value: EventType.specialClass,
+                    child: Text('Aula especial'),
+                  ),
+                  PopupMenuItem(
+                    value: EventType.tournament,
+                    child: Text('Campeonato'),
+                  ),
+                  PopupMenuItem(value: EventType.other, child: Text('Outros')),
+                ],
+            icon: const Icon(Icons.filter_list),
+          ),
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        heroTag: 'events_fab',
+        onPressed: _openCreate,
+        child: const Icon(Icons.add),
+      ),
+      body: FutureBuilder<List<EventModel>>(
+        future: _eventsFuture,
+        builder: (context, snap) {
+          if (!snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          return _buildContent(snap.data ?? const <EventModel>[]);
+        },
       ),
     );
   }
 
-  Widget _buildList({required bool upcoming}) {
-    return FutureBuilder<List<EventModel>>(
-      future: _eventsFuture,
-      builder: (context, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final now = DateTime.now();
-        var items = snap.data!;
-        items = upcoming ? items.where((e) => e.start.isAfter(now)).toList()
-            : items.where((e) => e.end.isBefore(now)).toList();
-        if (filterType != null) items = items.where((e) => e.type == filterType).toList();
+  Widget _buildContent(List<EventModel> events) {
+    final now = DateTime.now();
+    final filtered =
+        filterType == null
+            ? List<EventModel>.from(events)
+            : events.where((e) => e.type == filterType).toList();
 
-        if (items.isEmpty) {
-          return Center(
-            child: Text(upcoming ? 'Sem eventos futuros.' : 'Sem eventos passados.',
-                style: TextStyle(color: Theme.of(context).colorScheme.onSurface)),
-          );
-        }
+    final upcoming =
+        filtered.where((e) => e.start.isAfter(now)).toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
+    final active =
+        filtered
+            .where((e) => !e.start.isAfter(now) && !e.end.isBefore(now))
+            .toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
+    final past =
+        filtered.where((e) => e.end.isBefore(now)).toList()
+          ..sort((a, b) => b.start.compareTo(a.start));
 
-        return ListView.separated(
-          padding: const EdgeInsets.all(12),
-          itemCount: items.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 8),
-          itemBuilder: (context, i) {
-            final e = items[i];
-            return Card(
-              child: ListTile(
-                title: Text(e.title),
-                subtitle: Text('${_fmtDate(e.start)} • ${e.location}'),
-                trailing: Icon(_iconForType(e.type), color: Theme.of(context).colorScheme.primary),
-                onTap: () => _openDetails(e),
-              ),
-            );
-          },
-        );
-      },
+    final padding = TitansUI.listPadding(context, extra: 80);
+    return ListView(
+      padding: padding,
+      children: [
+        _EventsOverviewCard(
+          upcomingCount: upcoming.length,
+          activeCount: active.length,
+          pastCount: past.length,
+          filterLabel: _filterLabel(filterType),
+        ),
+        const SizedBox(height: TitansUI.spaceSm),
+        if (upcoming.isNotEmpty)
+          _NextEventCard(event: upcoming.first, fmtDate: _fmtDate),
+        if (upcoming.isNotEmpty) const SizedBox(height: TitansUI.spaceSm),
+        TitansExpandableSection(
+          title: 'Próximos eventos',
+          subtitle: _sectionSummary(upcoming.length, 'evento futuro'),
+          initiallyExpanded: true,
+          child: _EventsList(
+            events: upcoming,
+            emptyMessage: 'Sem eventos futuros para este filtro.',
+            fmtDate: _fmtDate,
+            iconForType: _iconForType,
+            onTap: _openDetails,
+          ),
+        ),
+        const SizedBox(height: TitansUI.spaceSm),
+        TitansExpandableSection(
+          title: 'Eventos ativos',
+          subtitle: _sectionSummary(active.length, 'evento em andamento'),
+          initiallyExpanded: active.isNotEmpty,
+          child: _EventsList(
+            events: active,
+            emptyMessage: 'Nenhum evento ativo agora.',
+            fmtDate: _fmtDate,
+            iconForType: _iconForType,
+            onTap: _openDetails,
+          ),
+        ),
+        const SizedBox(height: TitansUI.spaceSm),
+        TitansExpandableSection(
+          title: 'Histórico',
+          subtitle: _sectionSummary(past.length, 'evento passado'),
+          child: _EventsList(
+            events: past,
+            emptyMessage: 'Sem eventos passados para este filtro.',
+            fmtDate: _fmtDate,
+            iconForType: _iconForType,
+            onTap: _openDetails,
+          ),
+        ),
+      ],
     );
   }
 
@@ -190,10 +243,14 @@ class _EventScreenState extends State<EventScreen> {
 
   IconData _iconForType(EventType t) {
     switch (t) {
-      case EventType.graduation: return Icons.military_tech_outlined;
-      case EventType.specialClass: return Icons.school_outlined;
-      case EventType.tournament: return Icons.emoji_events_outlined;
-      case EventType.other: return Icons.event_outlined;
+      case EventType.graduation:
+        return Icons.military_tech_outlined;
+      case EventType.specialClass:
+        return Icons.school_outlined;
+      case EventType.tournament:
+        return Icons.emoji_events_outlined;
+      case EventType.other:
+        return Icons.event_outlined;
     }
   }
 
@@ -202,6 +259,303 @@ class _EventScreenState extends State<EventScreen> {
     return '${two(d.day)}/${two(d.month)} ${two(d.hour)}:${two(d.minute)}';
     // Para i18n, depois trocamos por intl.
   }
+}
+
+class _EventsOverviewCard extends StatelessWidget {
+  final int upcomingCount;
+  final int activeCount;
+  final int pastCount;
+  final String filterLabel;
+
+  const _EventsOverviewCard({
+    required this.upcomingCount,
+    required this.activeCount,
+    required this.pastCount,
+    required this.filterLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return TitansCard(
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Agenda da academia',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Filtro: $filterLabel',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: TitansUI.spaceSm),
+          Wrap(
+            spacing: TitansUI.spaceSm,
+            runSpacing: TitansUI.spaceSm,
+            children: [
+              _EventMetric(
+                label: 'Próximos',
+                value: upcomingCount.toString(),
+                color: cs.primary,
+              ),
+              _EventMetric(
+                label: 'Ativos',
+                value: activeCount.toString(),
+                color: TitansUI.success,
+              ),
+              _EventMetric(
+                label: 'Histórico',
+                value: pastCount.toString(),
+                color: TitansUI.info,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventMetric extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _EventMetric({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(minWidth: 92),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label.toUpperCase(),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NextEventCard extends StatelessWidget {
+  final EventModel event;
+  final String Function(DateTime) fmtDate;
+
+  const _NextEventCard({required this.event, required this.fmtDate});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return TitansCard(
+      accent: cs.primary,
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Próximo compromisso',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            event.title,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${fmtDate(event.start)} • ${event.location}',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EventsList extends StatelessWidget {
+  final List<EventModel> events;
+  final String emptyMessage;
+  final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
+  final ValueChanged<EventModel> onTap;
+
+  const _EventsList({
+    required this.events,
+    required this.emptyMessage,
+    required this.fmtDate,
+    required this.iconForType,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (events.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: TitansUI.spaceSm),
+        child: Text(
+          emptyMessage,
+          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.70)),
+        ),
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < events.length; i++) ...[
+          _EventListCard(
+            event: events[i],
+            fmtDate: fmtDate,
+            iconForType: iconForType,
+            onTap: () => onTap(events[i]),
+          ),
+          if (i != events.length - 1) const SizedBox(height: TitansUI.spaceSm),
+        ],
+      ],
+    );
+  }
+}
+
+class _EventListCard extends StatelessWidget {
+  final EventModel event;
+  final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
+  final VoidCallback onTap;
+
+  const _EventListCard({
+    required this.event,
+    required this.fmtDate,
+    required this.iconForType,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Material(
+      color: cs.surfaceContainerHighest.withValues(alpha: 0.28),
+      borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(TitansUI.spaceSm),
+          child: Row(
+            children: [
+              Icon(iconForType(event.type), color: cs.primary),
+              const SizedBox(width: TitansUI.spaceSm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      event.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      '${fmtDate(event.start)} • ${event.location}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.66),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: TitansUI.spaceXs),
+              Icon(
+                Icons.chevron_right,
+                color: cs.onSurface.withValues(alpha: 0.54),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _filterLabel(EventType? type) {
+  switch (type) {
+    case null:
+      return 'Todos os tipos';
+    case EventType.graduation:
+      return 'Graduação';
+    case EventType.specialClass:
+      return 'Aula especial';
+    case EventType.tournament:
+      return 'Campeonato';
+    case EventType.other:
+      return 'Outros';
+  }
+}
+
+String _sectionSummary(int count, String singular) {
+  if (count == 0) return 'Nenhum registro';
+  if (count == 1) return '1 $singular';
+  return '$count registros';
 }
 
 class _EventForm extends StatefulWidget {
@@ -255,22 +609,40 @@ class _EventFormState extends State<_EventForm> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(widget.existing == null ? 'Novo evento' : 'Editar evento',
-                  style: Theme.of(context).textTheme.titleLarge),
+              Text(
+                widget.existing == null ? 'Novo evento' : 'Editar evento',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _title,
                 decoration: const InputDecoration(labelText: 'Título'),
-                validator: (v) => (v == null || v.trim().isEmpty) ? 'Informe o título' : null,
+                validator:
+                    (v) =>
+                        (v == null || v.trim().isEmpty)
+                            ? 'Informe o título'
+                            : null,
               ),
               const SizedBox(height: 8),
               DropdownButtonFormField<EventType>(
                 initialValue: _type,
                 items: const [
-                  DropdownMenuItem(value: EventType.graduation, child: Text('Graduação')),
-                  DropdownMenuItem(value: EventType.specialClass, child: Text('Aula especial')),
-                  DropdownMenuItem(value: EventType.tournament, child: Text('Campeonato')),
-                  DropdownMenuItem(value: EventType.other, child: Text('Outro')),
+                  DropdownMenuItem(
+                    value: EventType.graduation,
+                    child: Text('Graduação'),
+                  ),
+                  DropdownMenuItem(
+                    value: EventType.specialClass,
+                    child: Text('Aula especial'),
+                  ),
+                  DropdownMenuItem(
+                    value: EventType.tournament,
+                    child: Text('Campeonato'),
+                  ),
+                  DropdownMenuItem(
+                    value: EventType.other,
+                    child: Text('Outro'),
+                  ),
                 ],
                 onChanged: (v) => setState(() => _type = v ?? EventType.other),
                 decoration: const InputDecoration(labelText: 'Tipo'),
@@ -281,11 +653,25 @@ class _EventFormState extends State<_EventForm> {
                 decoration: const InputDecoration(labelText: 'Local'),
               ),
               const SizedBox(height: 8),
-              Row(children: [
-                Expanded(child: _DateTimeField(label: 'Início', value: _start, onPick: (d) => setState(() => _start = d))),
-                const SizedBox(width: 8),
-                Expanded(child: _DateTimeField(label: 'Fim', value: _end, onPick: (d) => setState(() => _end = d))),
-              ]),
+              Row(
+                children: [
+                  Expanded(
+                    child: _DateTimeField(
+                      label: 'Início',
+                      value: _start,
+                      onPick: (d) => setState(() => _start = d),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _DateTimeField(
+                      label: 'Fim',
+                      value: _end,
+                      onPick: (d) => setState(() => _end = d),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _description,
@@ -304,7 +690,10 @@ class _EventFormState extends State<_EventForm> {
                     title: _title.text.trim(),
                     type: _type,
                     start: _start,
-                    end: _end.isAfter(_start) ? _end : _start.add(const Duration(hours: 1)),
+                    end:
+                        _end.isAfter(_start)
+                            ? _end
+                            : _start.add(const Duration(hours: 1)),
                     location: _location.text.trim(),
                     description: _description.text.trim(),
                     status: widget.existing?.status ?? EventStatus.scheduled,
@@ -326,7 +715,11 @@ class _DateTimeField extends StatelessWidget {
   final String label;
   final DateTime value;
   final ValueChanged<DateTime> onPick;
-  const _DateTimeField({required this.label, required this.value, required this.onPick});
+  const _DateTimeField({
+    required this.label,
+    required this.value,
+    required this.onPick,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -340,8 +733,17 @@ class _DateTimeField extends StatelessWidget {
         );
         if (d == null) return;
         if (!context.mounted) return;
-        final t = await showTimePicker(context: context, initialTime: TimeOfDay.fromDateTime(value));
-        final picked = DateTime(d.year, d.month, d.day, t?.hour ?? 0, t?.minute ?? 0);
+        final t = await showTimePicker(
+          context: context,
+          initialTime: TimeOfDay.fromDateTime(value),
+        );
+        final picked = DateTime(
+          d.year,
+          d.month,
+          d.day,
+          t?.hour ?? 0,
+          t?.minute ?? 0,
+        );
         onPick(picked);
       },
       child: InputDecorator(
@@ -351,6 +753,7 @@ class _DateTimeField extends StatelessWidget {
     );
   }
 
-  String _fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
+  String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }

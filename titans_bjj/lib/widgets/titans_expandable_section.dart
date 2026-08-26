@@ -89,17 +89,18 @@ class _TitansExpandableSectionState extends State<TitansExpandableSection>
             duration: const Duration(milliseconds: 220),
             curve: Curves.easeOutCubic,
             alignment: Alignment.topCenter,
-            child: _expanded
-                ? Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      TitansUI.spaceMd,
-                      0,
-                      TitansUI.spaceMd,
-                      TitansUI.spaceMd,
-                    ),
-                    child: widget.child,
-                  )
-                : const SizedBox.shrink(),
+            child:
+                _expanded
+                    ? Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        TitansUI.spaceMd,
+                        0,
+                        TitansUI.spaceMd,
+                        TitansUI.spaceMd,
+                      ),
+                      child: widget.child,
+                    )
+                    : const SizedBox.shrink(),
           ),
         ],
       ),
