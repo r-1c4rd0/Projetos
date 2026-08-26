@@ -7,6 +7,7 @@ import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
+import '../widgets/charts/titans_technical_radar.dart';
 import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
@@ -77,6 +78,9 @@ class _GameMapScreenState extends State<GameMapScreen> {
             entries: entries,
             skillMatrix: skillMatrix,
           );
+          final technicalRadar = _TechnicalRadarPreviewViewModel.from(
+            skillMatrix,
+          );
 
           return ListView(
             padding:
@@ -89,6 +93,16 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 const SizedBox(height: 12),
               ],
               _GameMapSummaryCard(stats: stats),
+              const SizedBox(height: 12),
+              TitansExpandableSection(
+                title: 'Radar T\u00e9cnico Preview',
+                subtitle: technicalRadar.subtitle,
+                initiallyExpanded: true,
+                child: TitansTechnicalRadar(
+                  subtitle: technicalRadar.subtitle,
+                  evidences: technicalRadar.evidences,
+                ),
+              ),
               const SizedBox(height: 12),
               TitansExpandableSection(
                 title: 'Mapa por posições',
@@ -1554,6 +1568,54 @@ class _SkillStagePill extends StatelessWidget {
   }
 }
 
+class _TechnicalRadarPreviewViewModel {
+  final String subtitle;
+  final List<TitansTechnicalRadarEvidence> evidences;
+
+  const _TechnicalRadarPreviewViewModel({
+    required this.subtitle,
+    required this.evidences,
+  });
+
+  factory _TechnicalRadarPreviewViewModel.from(
+    List<SkillMatrixCategoryEntry> skillMatrix,
+  ) {
+    final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
+    final classified = techniques.where((entry) {
+      final axis = JiuJitsuTaxonomy.technicalRadarAxisForCategory(
+        entry.category,
+      );
+      return axis != TechnicalRadarAxis.unclassified;
+    }).length;
+    final unclassified = techniques.length - classified;
+
+    return _TechnicalRadarPreviewViewModel(
+      subtitle:
+          'Perfil t\u00e9cnico em forma\u00e7\u00e3o; eixos visuais sem nota ou percentual.',
+      evidences: [
+        TitansTechnicalRadarEvidence(
+          label: 'T\u00e9cnicas registradas',
+          value: techniques.length.toString(),
+          helper: 'Total de t\u00e9cnicas presentes na Skill Matrix.',
+          icon: Icons.sports_mma_outlined,
+        ),
+        TitansTechnicalRadarEvidence(
+          label: 'Com eixo seguro',
+          value: classified.toString(),
+          helper:
+              'T\u00e9cnicas em categorias com mapeamento sem\u00e2ntico conservador.',
+          icon: Icons.verified_outlined,
+        ),
+        TitansTechnicalRadarEvidence(
+          label: 'Sem classifica\u00e7\u00e3o',
+          value: unclassified.toString(),
+          helper: 'T\u00e9cnicas que ainda exigem revis\u00e3o antes de pontuar.',
+          icon: Icons.pending_outlined,
+        ),
+      ],
+    );
+  }
+}
 class _RtcaEvidenceViewModel {
   final String title;
   final String subtitle;
