@@ -46,6 +46,7 @@ dependencies:
   firebase_auth: ^5.2.0
   # Firestore (banco NoSQL)
   cloud_firestore: ^5.4.4
+  cloud_functions: ^5.1.3
   # Storage (logo, mídias)
   firebase_storage: ^12.3.2
   # FaceId Unlock
