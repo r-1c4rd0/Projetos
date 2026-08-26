@@ -4,6 +4,7 @@ import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
 import '../repository/grading_rules_repository.dart';
+import '../repository/invite_repository.dart';
 import '../repository/students_repository.dart';
 import '../repository/user_repository.dart';
 import '../service/selected_student.dart';
@@ -23,6 +24,7 @@ class MasterPanelScreen extends StatefulWidget {
 
 class _MasterPanelScreenState extends State<MasterPanelScreen> {
   late final IStudentRepository _studentRepo = StudentRepository.create();
+  late final InviteRepository _inviteRepo = InviteRepository.instance;
   late final GradingRulesRepository _rulesRepo =
       GradingRulesRepository.instance;
   late final UserRepository _userRepo = UserRepository.instance;
@@ -101,23 +103,37 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                 );
               }
 
-              return _StudentsGrid(
-                actor: loggedUser,
-                students: students,
-                rules: rules,
-                onCreate: () => _openRegistration(loggedUser),
-                onOpen: (student) => _openStudent(student, loggedUser),
-                onEdit:
-                    (student) => _openStudentRegistration(
-                      actor: loggedUser,
-                      student: student,
-                    ),
-                onEditGraduation:
-                    (student) => _openGraduationSheet(
-                      actor: loggedUser,
-                      student: student,
-                      rules: rules,
-                    ),
+              return StreamBuilder<List<AcademyInvite>>(
+                stream: _inviteRepo.watchAcademyInvites(
+                  academyId: loggedUser.academyId,
+                ),
+                builder: (context, inviteSnap) {
+                  final studentAccess = _StudentAccessEntry.resolve(
+                    students: students,
+                    invites: inviteSnap.data ?? const <AcademyInvite>[],
+                  );
+
+                  return _StudentsGrid(
+                    actor: loggedUser,
+                    students: studentAccess,
+                    rules: rules,
+                    onCreate: () => _openRegistration(loggedUser),
+                    onOpen:
+                        (entry) =>
+                            _openStudent(entry.targetStudent, loggedUser),
+                    onEdit:
+                        (entry) => _openStudentRegistration(
+                          actor: loggedUser,
+                          student: entry.targetStudent,
+                        ),
+                    onEditGraduation:
+                        (entry) => _openGraduationSheet(
+                          actor: loggedUser,
+                          student: entry.targetStudent,
+                          rules: rules,
+                        ),
+                  );
+                },
               );
             },
           );
@@ -286,14 +302,127 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
   }
 }
 
+enum _StudentAccessStatus { active, pending, noAccess, expired, revoked }
+
+class _StudentAccessEntry {
+  final StudentVm displayStudent;
+  final StudentVm targetStudent;
+  final _StudentAccessStatus status;
+
+  const _StudentAccessEntry({
+    required this.displayStudent,
+    required this.targetStudent,
+    required this.status,
+  });
+
+  static List<_StudentAccessEntry> resolve({
+    required List<StudentVm> students,
+    required List<AcademyInvite> invites,
+  }) {
+    final studentsByUid = {
+      for (final student in students) student.uid: student,
+    };
+    final inviteByPendingId = <String, AcademyInvite>{};
+
+    for (final invite in invites) {
+      final pendingId = invite.pendingProfileId?.trim();
+      if (pendingId == null || pendingId.isEmpty) continue;
+      final current = inviteByPendingId[pendingId];
+      if (current == null ||
+          _statusPriority(invite.status) < _statusPriority(current.status)) {
+        inviteByPendingId[pendingId] = invite;
+      }
+    }
+
+    final hiddenLegacyUids = <String>{};
+    for (final invite in invites) {
+      final pendingId = invite.pendingProfileId?.trim();
+      final authUid = invite.acceptedAuthUid?.trim();
+      if (invite.status != 'accepted' ||
+          pendingId == null ||
+          pendingId.isEmpty ||
+          authUid == null ||
+          authUid.isEmpty) {
+        continue;
+      }
+      if (studentsByUid.containsKey(authUid)) hiddenLegacyUids.add(pendingId);
+    }
+
+    final entries = <_StudentAccessEntry>[];
+    for (final student in students) {
+      if (hiddenLegacyUids.contains(student.uid)) continue;
+
+      final invite = inviteByPendingId[student.uid];
+      final acceptedAuthUid = invite?.acceptedAuthUid?.trim();
+      final hasAcceptedInvite =
+          invite?.status == 'accepted' &&
+          acceptedAuthUid != null &&
+          acceptedAuthUid.isNotEmpty;
+      final isActive =
+          student.hasAuthLink ||
+          (student.migratedFromPendingProfileId?.trim().isNotEmpty ?? false) ||
+          invites.any((invite) => invite.acceptedAuthUid == student.uid) ||
+          hasAcceptedInvite;
+
+      final targetStudent =
+          hasAcceptedInvite && acceptedAuthUid != student.uid
+              ? student.copyWith(uid: acceptedAuthUid, hasAuthLink: true)
+              : student;
+
+      entries.add(
+        _StudentAccessEntry(
+          displayStudent: student,
+          targetStudent: targetStudent,
+          status: isActive ? _StudentAccessStatus.active : _statusFrom(invite),
+        ),
+      );
+    }
+
+    entries.sort(
+      (a, b) => a.displayStudent.name.compareTo(b.displayStudent.name),
+    );
+    return entries;
+  }
+
+  static int _statusPriority(String status) {
+    switch (status) {
+      case 'accepted':
+        return 0;
+      case 'pending':
+        return 1;
+      case 'expired':
+        return 2;
+      case 'revoked':
+        return 3;
+      default:
+        return 4;
+    }
+  }
+
+  static _StudentAccessStatus _statusFrom(AcademyInvite? invite) {
+    switch (invite?.status) {
+      case 'pending':
+        return _StudentAccessStatus.pending;
+      case 'expired':
+        return _StudentAccessStatus.expired;
+      case 'revoked':
+        return _StudentAccessStatus.revoked;
+      case 'accepted':
+        return _StudentAccessStatus.active;
+      default:
+        return _StudentAccessStatus.noAccess;
+    }
+  }
+}
+
 class _StudentsGrid extends StatelessWidget {
   final AppUser actor;
-  final List<StudentVm> students;
+  final List<_StudentAccessEntry> students;
   final GradingRules rules;
   final VoidCallback onCreate;
-  final ValueChanged<StudentVm> onOpen;
-  final ValueChanged<StudentVm> onEdit;
-  final ValueChanged<StudentVm> onEditGraduation;
+  final ValueChanged<_StudentAccessEntry> onOpen;
+  final ValueChanged<_StudentAccessEntry> onEdit;
+  final ValueChanged<_StudentAccessEntry> onEditGraduation;
 
   const _StudentsGrid({
     required this.actor,
@@ -351,14 +480,16 @@ class _StudentsGrid extends StatelessWidget {
                   childAspectRatio: ratio,
                 ),
                 delegate: SliverChildBuilderDelegate((context, index) {
-                  final student = students[index];
+                  final entry = students[index];
+                  final student = entry.displayStudent;
+                  final targetStudent = entry.targetStudent;
                   final maxDegree = rules.maxDegrees(student.belt);
                   final degree = student.degree.clamp(0, maxDegree).toInt();
 
                   final capabilities = _TargetCapabilities.resolve(
                     actor: actor,
-                    targetUid: student.uid,
-                    targetAcademyId: student.academyId,
+                    targetUid: targetStudent.uid,
+                    targetAcademyId: targetStudent.academyId,
                     targetMode: TargetMode.selectedStudent,
                   );
 
@@ -367,9 +498,10 @@ class _StudentsGrid extends StatelessWidget {
                     degree: degree,
                     maxDegree: maxDegree,
                     capabilities: capabilities,
-                    onOpen: () => onOpen(student),
-                    onEdit: () => onEdit(student),
-                    onEditGraduation: () => onEditGraduation(student),
+                    accessStatus: entry.status,
+                    onOpen: () => onOpen(entry),
+                    onEdit: () => onEdit(entry),
+                    onEditGraduation: () => onEditGraduation(entry),
                   );
                 }, childCount: students.length),
               ),
@@ -450,6 +582,7 @@ class _StudentCard extends StatelessWidget {
   final int degree;
   final int maxDegree;
   final _TargetCapabilities capabilities;
+  final _StudentAccessStatus accessStatus;
   final VoidCallback onEdit;
   final VoidCallback onEditGraduation;
   final VoidCallback onOpen;
@@ -459,6 +592,7 @@ class _StudentCard extends StatelessWidget {
     required this.degree,
     required this.maxDegree,
     required this.capabilities,
+    required this.accessStatus,
     required this.onEdit,
     required this.onEditGraduation,
     required this.onOpen,
@@ -516,6 +650,8 @@ class _StudentCard extends StatelessWidget {
                               fontSize: 12,
                             ),
                           ),
+                          const SizedBox(height: 5),
+                          _AccessStatusBadge(status: accessStatus),
                         ],
                       ),
                     ),
@@ -620,6 +756,67 @@ class _StudentCard extends StatelessWidget {
         return 'Marrom';
       case BeltColor.black:
         return 'Preta';
+    }
+  }
+}
+
+class _AccessStatusBadge extends StatelessWidget {
+  final _StudentAccessStatus status;
+
+  const _AccessStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _color(cs);
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.pill),
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Text(
+        _label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: color,
+          fontSize: 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  String get _label {
+    switch (status) {
+      case _StudentAccessStatus.active:
+        return 'Ativo';
+      case _StudentAccessStatus.pending:
+        return 'Convite pendente';
+      case _StudentAccessStatus.expired:
+        return 'Expirado';
+      case _StudentAccessStatus.revoked:
+        return 'Revogado';
+      case _StudentAccessStatus.noAccess:
+        return 'Sem acesso';
+    }
+  }
+
+  Color _color(ColorScheme cs) {
+    switch (status) {
+      case _StudentAccessStatus.active:
+        return cs.primary;
+      case _StudentAccessStatus.pending:
+        return TitansUI.neonGold;
+      case _StudentAccessStatus.expired:
+      case _StudentAccessStatus.revoked:
+        return cs.error;
+      case _StudentAccessStatus.noAccess:
+        return cs.onSurface.withValues(alpha: 0.62);
     }
   }
 }

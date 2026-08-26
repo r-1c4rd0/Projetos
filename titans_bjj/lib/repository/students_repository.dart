@@ -20,6 +20,8 @@ class StudentVm {
   final String academyId;
   final BeltColor belt;
   final int degree;
+  final bool hasAuthLink;
+  final String? migratedFromPendingProfileId;
 
   const StudentVm({
     required this.uid,
@@ -28,6 +30,8 @@ class StudentVm {
     required this.academyId,
     required this.belt,
     required this.degree,
+    this.hasAuthLink = false,
+    this.migratedFromPendingProfileId,
   });
 
   factory StudentVm.fromMap(
@@ -42,6 +46,9 @@ class StudentVm {
       academyId: (data['academyId'] ?? academyId).toString(),
       belt: beltColorFromString(data['belt']),
       degree: _degreeFromValue(data['degree']),
+      hasAuthLink: data['authLinkedAt'] != null,
+      migratedFromPendingProfileId:
+          data['migratedFromPendingProfileId']?.toString(),
     );
   }
 
@@ -53,6 +60,29 @@ class StudentVm {
       'belt': belt.name,
       'degree': degree,
     };
+  }
+
+  StudentVm copyWith({
+    String? uid,
+    String? name,
+    String? role,
+    String? academyId,
+    BeltColor? belt,
+    int? degree,
+    bool? hasAuthLink,
+    String? migratedFromPendingProfileId,
+  }) {
+    return StudentVm(
+      uid: uid ?? this.uid,
+      name: name ?? this.name,
+      role: role ?? this.role,
+      academyId: academyId ?? this.academyId,
+      belt: belt ?? this.belt,
+      degree: degree ?? this.degree,
+      hasAuthLink: hasAuthLink ?? this.hasAuthLink,
+      migratedFromPendingProfileId:
+          migratedFromPendingProfileId ?? this.migratedFromPendingProfileId,
+    );
   }
 
   static int _degreeFromValue(Object? value) {
@@ -74,10 +104,7 @@ abstract class IStudentRepository {
 
   Future<void> upsertStudent(StudentVm student);
 
-  Future<void> deleteStudent({
-    required String academyId,
-    required String uid,
-  });
+  Future<void> deleteStudent({required String academyId, required String uid});
 }
 
 class StudentRepository implements IStudentRepository {
@@ -85,9 +112,7 @@ class StudentRepository implements IStudentRepository {
 
   final FirebaseFirestore db;
 
-  static IStudentRepository create({
-    bool useMocks = AppConfig.useMocks,
-  }) {
+  static IStudentRepository create({bool useMocks = AppConfig.useMocks}) {
     if (useMocks || AppConfig.useMocks) return InMemoryStudentRepository();
     return StudentRepository(FirebaseFirestore.instance);
   }
@@ -120,10 +145,14 @@ class StudentRepository implements IStudentRepository {
     String academyId,
     Iterable<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
   ) {
-    final students = docs
-        .where((doc) => _isAthlete(doc.data()))
-        .map((doc) => StudentVm.fromMap(doc.id, doc.data(), academyId: academyId))
-        .toList();
+    final students =
+        docs
+            .where((doc) => _isAthlete(doc.data()))
+            .map(
+              (doc) =>
+                  StudentVm.fromMap(doc.id, doc.data(), academyId: academyId),
+            )
+            .toList();
     students.sort((a, b) => a.name.compareTo(b.name));
     return students;
   }
@@ -165,22 +194,19 @@ class StudentRepository implements IStudentRepository {
         .snapshots()
         .map((snap) => _studentsFromDocs(academyId, snap.docs))
         .handleError((Object error) {
-      if (_isPermissionDenied(error)) {
-        throw const StudentPermissionDeniedException();
-      }
-      throw error;
-    });
+          if (_isPermissionDenied(error)) {
+            throw const StudentPermissionDeniedException();
+          }
+          throw error;
+        });
   }
 
   @override
   Future<void> upsertStudent(StudentVm student) async {
-    await _userRef(academyId: student.academyId, uid: student.uid).set(
-      {
-        ...student.toMap(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      },
-      SetOptions(merge: true),
-    );
+    await _userRef(academyId: student.academyId, uid: student.uid).set({
+      ...student.toMap(),
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
   }
 
   @override
@@ -246,18 +272,19 @@ class InMemoryStudentRepository implements IStudentRepository {
 
   @override
   Future<List<StudentVm>> listStudents({required String academyId}) async {
-    final students = _students
-        .map(
-          (student) => StudentVm(
-            uid: student.uid,
-            name: student.name,
-            role: student.role,
-            academyId: academyId,
-            belt: student.belt,
-            degree: student.degree,
-          ),
-        )
-        .toList();
+    final students =
+        _students
+            .map(
+              (student) => StudentVm(
+                uid: student.uid,
+                name: student.name,
+                role: student.role,
+                academyId: academyId,
+                belt: student.belt,
+                degree: student.degree,
+              ),
+            )
+            .toList();
     students.sort((a, b) => a.name.compareTo(b.name));
     return students;
   }
