@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
@@ -50,23 +51,29 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
                   const SizedBox(height: 8),
                   Text(
                     user == null
-                        ? 'Entre com o e-mail convidado antes de aceitar.'
-                        : 'Conta atual: ${user.email ?? user.uid}',
+                        ? 'Entre com o mesmo e-mail do convite antes de aceitar.'
+                        : 'Conta atual: ${user.email ?? user.uid}. Confirme que é o mesmo e-mail do convite.',
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.70),
                     ),
                   ),
                   const SizedBox(height: 16),
+                  const Text(
+                    'O professor fornece o ID da academia e o código do convite.',
+                  ),
+                  const SizedBox(height: 12),
                   TextField(
                     controller: _academyCtrl,
-                    decoration: const InputDecoration(labelText: 'academyId'),
+                    decoration: const InputDecoration(
+                      labelText: 'ID da academia (academyId)',
+                    ),
                     enabled: !_submitting,
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _inviteCtrl,
                     decoration: const InputDecoration(
-                      labelText: 'inviteId / codigo',
+                      labelText: 'Código do convite (inviteId)',
                     ),
                     enabled: !_submitting,
                   ),
@@ -87,7 +94,7 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Use o mesmo e-mail informado no convite. Depois de aceitar, reabra o app ou faca login novamente para recarregar a sessao.',
+                    'Use o mesmo e-mail informado no convite. Depois do aceite, volte e atualize a sessão; se necessário, entre novamente.',
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.62),
                       fontSize: 12,
@@ -119,17 +126,39 @@ class _AcceptInviteScreenState extends State<AcceptInviteScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Convite aceito. Reabra o app ou faca login novamente.',
+            'Convite aceito. Volte e atualize a sessão; se os dados não aparecerem, entre novamente.',
           ),
         ),
       );
     } catch (error) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Nao foi possivel aceitar convite: $error')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(_inviteErrorMessage(error))));
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
+  }
+
+  String _inviteErrorMessage(Object error) {
+    if (error is FirebaseFunctionsException) {
+      switch (error.code) {
+        case 'permission-denied':
+          return 'Este convite pertence a outro e-mail. Entre com o mesmo e-mail informado pelo professor.';
+        case 'deadline-exceeded':
+          return 'Este convite expirou. Peça ao professor para reenviá-lo.';
+        case 'not-found':
+          return 'Convite não encontrado. Confira o ID da academia e o código enviados pelo professor.';
+        case 'invalid-argument':
+          return 'Código inválido. Confira o ID da academia e o código do convite.';
+        case 'unauthenticated':
+          return 'Sua sessão não está ativa. Entre novamente antes de aceitar o convite.';
+        case 'already-exists':
+          return 'Este convite ou esta conta já possui um vínculo com a academia.';
+        case 'failed-precondition':
+          return 'Este convite não pode mais ser aceito. Peça ao professor para verificar ou reenviar o convite.';
+      }
+    }
+    return 'Não foi possível aceitar o convite. Confira os dados e tente novamente.';
   }
 }

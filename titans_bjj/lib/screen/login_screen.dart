@@ -196,7 +196,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                         TextButton.icon(
                           onPressed:
-                              _loading
+                              _loading || !_hasSession
                                   ? null
                                   : () => Navigator.of(context).push(
                                     MaterialPageRoute(
@@ -205,7 +205,11 @@ class _LoginScreenState extends State<LoginScreen> {
                                     ),
                                   ),
                           icon: const Icon(Icons.mark_email_read_outlined),
-                          label: const Text('Aceitar convite'),
+                          label: Text(
+                            _hasSession
+                                ? 'Usar código do convite'
+                                : 'Entre antes de usar o convite',
+                          ),
                         ),
                       ],
                     ),
