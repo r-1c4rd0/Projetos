@@ -954,6 +954,7 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final intensity = entry.averageIntensity;
     final visibleTechniques = entry.techniques.take(5).toList();
+    final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -993,6 +994,13 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
           for (final technique in visibleTechniques) ...[
             _SkillMatrixTechniqueRow(entry: technique),
             if (technique != visibleTechniques.last) const SizedBox(height: 8),
+          ],
+          if (hiddenTechniques > 0) ...[
+            const SizedBox(height: 8),
+            _MiniBadge(
+              label: '+$hiddenTechniques técnicas nesta categoria',
+              color: cs.onSurface.withValues(alpha: 0.58),
+            ),
           ],
         ],
       ),
@@ -1152,6 +1160,8 @@ class _GameMapPositionCard extends StatelessWidget {
       entry.techniques.map((technique) => technique.recentDifficulty),
       maxLength: 44,
     );
+    final visibleTechniques = entry.techniques.take(6).toList();
+    final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
 
     return _VisualCard(
       accent: cs.secondary,
@@ -1201,10 +1211,15 @@ class _GameMapPositionCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final technique in entry.techniques.take(6))
+              for (final technique in visibleTechniques)
                 _TechniqueChip(
                   label: technique.technique,
                   count: technique.sessionsCount,
+                ),
+              if (hiddenTechniques > 0)
+                _MiniBadge(
+                  label: '+$hiddenTechniques técnicas',
+                  color: cs.onSurface.withValues(alpha: 0.58),
                 ),
             ],
           ),
