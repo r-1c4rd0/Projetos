@@ -93,8 +93,10 @@ Fases:
 Regras:
 - Convite deve pertencer a uma academia e possuir role pretendida.
 - Aceite de convite cria ou usa conta real do Firebase Auth do proprio convidado.
-- Vinculo final deve preservar `academyId`, `uid` real, `role` e membership.`r`n- Este roadmap nao cria implementacao, schema, regras Firestore/Auth ou alteracao do fluxo atual nesta etapa.
+- Vinculo final deve preservar `academyId`, `uid` real, `role` e membership.
+- Este roadmap nao cria implementacao, schema, regras Firestore/Auth ou alteracao do fluxo atual nesta etapa.
 - Cadastro legado sem Auth deve ser tratado como pendente/sem acesso ate migracao.
+
 ## Riscos de regressao
 - Usuarios ficarem presos no gate.
 - Sessao bloquear indevidamente apos background/foreground.
