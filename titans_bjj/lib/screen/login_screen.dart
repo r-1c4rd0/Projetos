@@ -1,17 +1,15 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../service/biometric_service.dart';
 import '../service/session_lock_controller.dart';
 import '../widgets/titans_logo.dart';
+import 'accept_invite_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool unlockOnly;
 
-  const LoginScreen({
-    super.key,
-    this.unlockOnly = false,
-  });
+  const LoginScreen({super.key, this.unlockOnly = false});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -68,9 +66,10 @@ class _LoginScreenState extends State<LoginScreen> {
     final showBio = _bioReady && _hasSession;
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final subtitle = widget.unlockOnly
-        ? 'Desbloqueie sua sessao ativa com biometria'
-        : 'Entre com e-mail ou desbloqueie com biometria';
+    final subtitle =
+        widget.unlockOnly
+            ? 'Desbloqueie sua sessao ativa com biometria'
+            : 'Entre com e-mail ou desbloqueie com biometria';
 
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
@@ -156,18 +155,20 @@ class _LoginScreenState extends State<LoginScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: FilledButton(
-                            onPressed: (_loading || _refreshingBio)
-                                ? null
-                                : _loginEmail,
-                            child: _loading
-                                ? const SizedBox(
-                                    height: 18,
-                                    width: 18,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Entrar'),
+                            onPressed:
+                                (_loading || _refreshingBio)
+                                    ? null
+                                    : _loginEmail,
+                            child:
+                                _loading
+                                    ? const SizedBox(
+                                      height: 18,
+                                      width: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                    : const Text('Entrar'),
                           ),
                         ),
                         const SizedBox(height: 10),
@@ -177,21 +178,34 @@ class _LoginScreenState extends State<LoginScreen> {
                             child: OutlinedButton.icon(
                               icon: const Icon(Icons.fingerprint),
                               label: const Text('Desbloquear com biometria'),
-                              onPressed: (_loading || _refreshingBio)
-                                  ? null
-                                  : _unlockWithBiometrics,
+                              onPressed:
+                                  (_loading || _refreshingBio)
+                                      ? null
+                                      : _unlockWithBiometrics,
                             ),
                           ),
                         const SizedBox(height: 8),
                         TextButton(
-                          onPressed: (_loading || _refreshingBio)
-                              ? null
-                              : _reloadBio,
+                          onPressed:
+                              (_loading || _refreshingBio) ? null : _reloadBio,
                           child: Text(
                             _refreshingBio
                                 ? 'Recarregando biometria...'
                                 : 'Recarregar biometria',
                           ),
+                        ),
+                        TextButton.icon(
+                          onPressed:
+                              _loading
+                                  ? null
+                                  : () => Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder:
+                                          (_) => const AcceptInviteScreen(),
+                                    ),
+                                  ),
+                          icon: const Icon(Icons.mark_email_read_outlined),
+                          label: const Text('Aceitar convite'),
                         ),
                       ],
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
@@ -194,6 +195,23 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
             ),
           );
           break;
+        case _StudentInviteAction.copy:
+          final invite = entry.invite;
+          if (invite == null) return;
+          await Clipboard.setData(
+            ClipboardData(
+              text: _manualInviteText(
+                actor: actor,
+                entry: entry,
+                invite: invite,
+              ),
+            ),
+          );
+          if (!mounted) return;
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Convite copiado.')),
+          );
+          break;
         case _StudentInviteAction.resend:
           final inviteId = entry.invite?.id;
           if (inviteId == null || inviteId.isEmpty) return;
@@ -225,6 +243,23 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
         SnackBar(content: Text('Nao foi possivel atualizar convite: $error')),
       );
     }
+  }
+
+  String _manualInviteText({
+    required AppUser actor,
+    required _StudentAccessEntry entry,
+    required AcademyInvite invite,
+  }) {
+    final academyLabel = actor.academyId.trim();
+    return [
+      'Convite Titans BJJ',
+      'Academia: $academyLabel',
+      'Aluno: ${entry.displayStudent.name}',
+      'E-mail convidado: ${invite.emailNormalized}',
+      'academyId: ${invite.academyId}',
+      'inviteId: ${invite.id}',
+      'Entre ou crie uma conta com o mesmo e-mail e use Aceitar convite no app.',
+    ].join(String.fromCharCode(10));
   }
 
   void _openOwnProfile(AppUser loggedUser) {
@@ -593,6 +628,7 @@ class _StudentsGrid extends StatelessWidget {
                     onEdit: () => onEdit(entry),
                     onEditGraduation: () => onEditGraduation(entry),
                     onInviteAction: (action) => onInviteAction(action, entry),
+                    canCopyInvite: entry.invite != null,
                   );
                 }, childCount: students.length),
               ),
@@ -678,6 +714,7 @@ class _StudentCard extends StatelessWidget {
   final VoidCallback onEditGraduation;
   final VoidCallback onOpen;
   final ValueChanged<_StudentInviteAction> onInviteAction;
+  final bool canCopyInvite;
 
   const _StudentCard({
     required this.student,
@@ -689,6 +726,7 @@ class _StudentCard extends StatelessWidget {
     required this.onEditGraduation,
     required this.onOpen,
     required this.onInviteAction,
+    required this.canCopyInvite,
   });
   @override
   Widget build(BuildContext context) {
@@ -755,6 +793,7 @@ class _StudentCard extends StatelessWidget {
                         onEditGraduation: onEditGraduation,
                         accessStatus: accessStatus,
                         onInviteAction: onInviteAction,
+                        canCopyInvite: canCopyInvite,
                       ),
                   ],
                 ),
@@ -915,12 +954,13 @@ class _AccessStatusBadge extends StatelessWidget {
   }
 }
 
-enum _StudentInviteAction { send, resend, revoke }
+enum _StudentInviteAction { send, copy, resend, revoke }
 
 enum _StudentAction {
   edit,
   editGraduation,
   sendInvite,
+  copyInvite,
   resendInvite,
   revokeInvite,
 }
@@ -932,6 +972,7 @@ class _StudentActionsMenu extends StatelessWidget {
   final VoidCallback onEditGraduation;
   final _StudentAccessStatus accessStatus;
   final ValueChanged<_StudentInviteAction> onInviteAction;
+  final bool canCopyInvite;
 
   const _StudentActionsMenu({
     required this.canEditProfile,
@@ -940,12 +981,13 @@ class _StudentActionsMenu extends StatelessWidget {
     required this.onEditGraduation,
     required this.accessStatus,
     required this.onInviteAction,
+    required this.canCopyInvite,
   });
 
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<_StudentAction>(
-      tooltip: 'Ações do atleta',
+      tooltip: 'A\u00e7\u00f5es do atleta',
       icon: const Icon(Icons.more_vert),
       onSelected: (action) {
         switch (action) {
@@ -957,6 +999,9 @@ class _StudentActionsMenu extends StatelessWidget {
             break;
           case _StudentAction.sendInvite:
             onInviteAction(_StudentInviteAction.send);
+            break;
+          case _StudentAction.copyInvite:
+            onInviteAction(_StudentInviteAction.copy);
             break;
           case _StudentAction.resendInvite:
             onInviteAction(_StudentInviteAction.resend);
@@ -990,6 +1035,16 @@ class _StudentActionsMenu extends StatelessWidget {
                 child: const _MenuItem(
                   icon: Icons.outgoing_mail,
                   label: 'Enviar convite',
+                ),
+              ),
+            if (canCopyInvite &&
+                (accessStatus == _StudentAccessStatus.pending ||
+                    accessStatus == _StudentAccessStatus.expired))
+              PopupMenuItem(
+                value: _StudentAction.copyInvite,
+                child: const _MenuItem(
+                  icon: Icons.copy_outlined,
+                  label: 'Copiar convite',
                 ),
               ),
             if (accessStatus == _StudentAccessStatus.pending ||

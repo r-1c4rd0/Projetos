@@ -227,6 +227,21 @@ class InviteRepository {
     });
   }
 
+  Future<bool> acceptManualInvite({
+    required String academyId,
+    required String inviteId,
+  }) async {
+    final firebaseUser = FirebaseAuth.instance.currentUser;
+    if (firebaseUser == null) {
+      throw StateError('Faca login antes de aceitar o convite.');
+    }
+    return acceptInviteForCurrentUser(
+      academyId: academyId,
+      inviteId: inviteId,
+      firebaseUser: firebaseUser,
+    );
+  }
+
   Future<bool> acceptInviteForCurrentUser({
     required String academyId,
     required String inviteId,
