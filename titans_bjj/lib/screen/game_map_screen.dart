@@ -218,14 +218,14 @@ class _GameMapSummaryCard extends StatelessWidget {
               ),
               _MetricPill(
                 label: 'DOMINANTE',
-                value: stats.dominantCategory ?? '--',
+                value: stats.dominantCategory ?? 'Sem dados',
                 color: Colors.lightGreenAccent,
               ),
               _MetricPill(
                 label: 'INTENSIDADE',
                 value:
                     stats.averageIntensity == null
-                        ? '--'
+                        ? 'Sem dados'
                         : '${stats.averageIntensity!.toStringAsFixed(1)}/5',
                 color: Colors.amber,
               ),

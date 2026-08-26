@@ -987,7 +987,6 @@ class _DailyCaloriesChart extends StatelessWidget {
           barRods: [
             BarChartRodData(toY: (map[keys[i]] ?? 0).toDouble(), width: 12),
           ],
-          showingTooltipIndicators: const [0],
         ),
       );
     }

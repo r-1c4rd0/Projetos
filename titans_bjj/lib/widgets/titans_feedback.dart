@@ -38,12 +38,15 @@ class _TitansPressableCardState extends State<TitansPressableCard> {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final accent = widget.accent ?? cs.primary;
-    final scale = _pressed ? 0.985 : (_hovered ? 1.006 : 1.0);
+    final interactive = widget.onTap != null;
+    final scale =
+        !interactive ? 1.0 : (_pressed ? 0.985 : (_hovered ? 1.006 : 1.0));
     return MouseRegion(
-      onEnter: (_) => _setHovered(true),
-      onExit: (_) => _setHovered(false),
+      onEnter: interactive ? (_) => _setHovered(true) : null,
+      onExit: interactive ? (_) => _setHovered(false) : null,
       child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
+        behavior:
+            interactive ? HitTestBehavior.opaque : HitTestBehavior.deferToChild,
         onTapDown: widget.onTap == null ? null : (_) => _setPressed(true),
         onTapCancel: widget.onTap == null ? null : () => _setPressed(false),
         onTapUp: widget.onTap == null ? null : (_) => _setPressed(false),
@@ -59,7 +62,7 @@ class _TitansPressableCardState extends State<TitansPressableCard> {
             decoration: TitansUI.cardDecoration(context, accent: accent),
             child: AnimatedOpacity(
               duration: const Duration(milliseconds: 120),
-              opacity: _pressed ? 0.92 : 1,
+              opacity: interactive && _pressed ? 0.92 : 1,
               child: widget.child,
             ),
           ),
@@ -73,11 +76,7 @@ class TitansSkeletonCard extends StatelessWidget {
   final int lines;
   final bool showHeader;
 
-  const TitansSkeletonCard({
-    super.key,
-    this.lines = 4,
-    this.showHeader = true,
-  });
+  const TitansSkeletonCard({super.key, this.lines = 4, this.showHeader = true});
 
   @override
   Widget build(BuildContext context) {
@@ -201,9 +200,9 @@ class TitansEmptyState extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 6),
           Text(
@@ -213,10 +212,7 @@ class TitansEmptyState extends StatelessWidget {
             textAlign: TextAlign.center,
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
           ),
-          if (action != null) ...[
-            SizedBox(height: compact ? 10 : 14),
-            action!,
-          ],
+          if (action != null) ...[SizedBox(height: compact ? 10 : 14), action!],
         ],
       ),
     );
