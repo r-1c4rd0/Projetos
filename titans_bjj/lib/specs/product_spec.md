@@ -37,6 +37,8 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 - Professor acompanha alunos da academia autorizada e opera presenca, progresso, treinos e graduacao.
 - Athlete ve dados proprios e conteudos liberados pela academia.
 - AUTH-REAL-USERS: atletas/professores convidados so devem ganhar acesso real apos aceitar convite e criar/usar conta propria do Firebase Auth vinculada ao cadastro da academia; mestre/professor nao define senha do aluno.
+- O convite AUTH-REAL-USERS usa `academies/{academyId}/invites/{inviteId}` com status `pending`, `accepted`, `expired` ou `revoked`.
+- O UUID atual do cadastro legado deve ser tratado como `pendingProfileId`; apos aceite, o Firebase Auth UID vira identidade principal em `academies/{academyId}/users/{firebaseUser.uid}`.
 - Todo dado operacional deve pertencer a uma academia.
 - Toda regra sensivel deve ser refletida em Firestore Rules no futuro.
 
@@ -60,6 +62,19 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 3. Corrigir fundacoes: auth, sessao, academyId e AUTH-REAL-USERS como P0 antes de uso real em academia.
 4. Migrar features de baixo risco antes das features criticas.
 5. Adicionar capacidades futuras por feature flag ou rollout controlado.
+
+## UX minima AUTH-REAL-USERS
+
+O Painel do Mestre deve exibir o estado de acesso de cada atleta/professor:
+- Ativo
+- Convite pendente
+- Sem acesso
+- Expirado
+
+Acoes futuras:
+- Enviar convite
+- Reenviar
+- Revogar
 
 ## Riscos de regressao
 - Usuarios existentes perderem acesso por role mal interpretada.

@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'config/app_config.dart';
 import 'model/app_user.dart';
 import 'screen/login_screen.dart';
+import 'repository/invite_repository.dart';
 import 'repository/user_repository.dart';
 import 'service/session_lock_controller.dart';
 import 'service/user_session.dart';
@@ -32,7 +33,9 @@ class _AuthGateState extends State<AuthGate> {
       stream: _authStateChanges,
       builder: (context, authSnap) {
         if (authSnap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (authSnap.hasError) {
@@ -67,10 +70,7 @@ class _AuthenticatedApp extends StatefulWidget {
   final User firebaseUser;
   final Widget app;
 
-  const _AuthenticatedApp({
-    required this.firebaseUser,
-    required this.app,
-  });
+  const _AuthenticatedApp({required this.firebaseUser, required this.app});
 
   @override
   State<_AuthenticatedApp> createState() => _AuthenticatedAppState();
@@ -96,7 +96,9 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     }
   }
 
-  Future<AppUser> _loadUser() {
+  Future<AppUser> _loadUser() async {
+    await _acceptPendingInviteIfAvailable();
+
     return UserRepository.instance
         .ensureUserDoc(
           uid: widget.firebaseUser.uid,
@@ -106,13 +108,43 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
         .timeout(const Duration(seconds: 12));
   }
 
+  Future<void> _acceptPendingInviteIfAvailable() async {
+    final inviteRepo = InviteRepository.instance;
+    final email = widget.firebaseUser.email ?? '';
+    if (inviteRepo.normalizeEmail(email).isEmpty) return;
+
+    try {
+      final invite = await inviteRepo
+          .watchPendingInviteForEmail(academyId: _activeAcademyId, email: email)
+          .first
+          .timeout(const Duration(seconds: 6), onTimeout: () => null);
+
+      if (invite == null) return;
+
+      await inviteRepo.acceptInviteForCurrentUser(
+        academyId: _activeAcademyId,
+        inviteId: invite.id,
+        firebaseUser: widget.firebaseUser,
+      );
+    } on FirebaseException catch (error) {
+      debugPrint(
+        '[AUTH_INVITE] skipped code=${error.code} message=${error.message}',
+      );
+    } catch (error, stackTrace) {
+      debugPrint('[AUTH_INVITE] skipped error=$error');
+      debugPrintStack(stackTrace: stackTrace);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<AppUser>(
       future: _userFuture,
       builder: (context, userSnap) {
         if (userSnap.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         if (userSnap.hasError) {

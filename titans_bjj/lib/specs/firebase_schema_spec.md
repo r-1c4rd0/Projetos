@@ -51,6 +51,7 @@ Schema alvo sugerido:
 ```text
 academies/{academyId}
   settings/{settingsDoc}
+  invites/{inviteId}
   memberships/{uid}
   students/{studentId}
   trainingSessions/{sessionId}
@@ -75,6 +76,47 @@ Campos comuns:
 - `createdBy`
 - `updatedBy`
 - `status`
+
+## Convites AUTH-REAL-USERS
+
+Path proposto:
+
+```text
+academies/{academyId}/invites/{inviteId}
+```
+
+Campos obrigatorios:
+- `academyId`
+- `emailNormalized`
+- `role`: `athlete` ou `professor`
+- `status`: `pending`, `accepted`, `expired` ou `revoked`
+- `invitedByUid`
+- `invitedByRole`
+- `createdAt`
+- `expiresAt`
+
+Campos opcionais/controlados:
+- `pendingProfileId`
+- `acceptedAuthUid`
+- `acceptedAt`
+- `revokedAt`
+- `lastSentAt`
+
+Contrato de identidade:
+- `pendingProfileId` aponta para cadastro legado criado com UUID local.
+- `acceptedAuthUid` aponta para o UID real do Firebase Auth apos aceite.
+- A fonte principal apos aceite deve ser `academies/{academyId}/users/{acceptedAuthUid}`.
+- Alias permanente entre UUID legado e Auth UID nao deve ser fonte principal do MVP.
+
+Migracao de aceite:
+- Copiar/migrar dados de `progress/profile`, `training_sessions`, `nutrition/profile`, graduacao, `belt` e `degree` do `pendingProfileId` para o Auth UID.
+- `MasterPanel` e `selectedStudent` devem resolver Auth UID para usuarios ativos e manter pendentes visiveis por status.
+
+Rules futuras:
+- Admin/professor da academia pode criar, reenviar e revogar convite.
+- Usuario autenticado so pode aceitar convite cujo `emailNormalized` corresponda ao e-mail do Auth user.
+- Convites `expired` ou `revoked` nao podem gravar vinculo.
+- `acceptedAuthUid` e write-once.
 
 ## Plano de migracao incremental
 1. Inventariar colecoes reais antes de mudar schema.

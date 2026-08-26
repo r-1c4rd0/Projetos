@@ -97,6 +97,58 @@ Regras:
 - Este roadmap nao cria implementacao, schema, regras Firestore/Auth ou alteracao do fluxo atual nesta etapa.
 - Cadastro legado sem Auth deve ser tratado como pendente/sem acesso ate migracao.
 
+### AUTH-2.1 Contrato de convite
+
+Path proposto:
+
+```text
+academies/{academyId}/invites/{inviteId}
+```
+
+Campos:
+- `academyId`
+- `emailNormalized`
+- `role`: `athlete` ou `professor`
+- `status`: `pending`, `accepted`, `expired` ou `revoked`
+- `invitedByUid`
+- `invitedByRole`
+- `pendingProfileId?`
+- `acceptedAuthUid?`
+- `createdAt`
+- `expiresAt`
+- `acceptedAt?`
+- `revokedAt?`
+- `lastSentAt?`
+
+Fluxo:
+1. Mestre cadastra ou seleciona atleta/professor.
+2. Sistema cria convite `pending` vinculado ao `pendingProfileId`.
+3. Convidado aceita o convite.
+4. Convidado cria ou usa conta propria do Firebase Auth.
+5. Sistema valida e-mail/Auth.
+6. Sistema cria ou migra perfil final para `academies/{academyId}/users/{firebaseUser.uid}`.
+7. Sistema grava `acceptedAuthUid`.
+8. Convite muda para `accepted`.
+
+Decisao de identidade:
+- Manter o UUID atual do cadastro legado como `pendingProfileId`.
+- Nao usar alias permanente como fonte principal.
+- Apos aceite, o Auth UID vira identidade principal do usuario.
+
+Impactos obrigatorios do aceite:
+- Migrar/copiar `progress/profile`.
+- Migrar/copiar `training_sessions`.
+- Migrar/copiar `nutrition/profile`.
+- Migrar/copiar graduacao, `belt` e `degree`.
+- `MasterPanel` e `selectedStudent` devem usar Auth UID quando o usuario estiver ativo.
+- Perfis pendentes continuam visiveis como convite/status ate aceite, expiracao ou revogacao.
+
+Seguranca futura:
+- Somente admin/professor da academia cria, reenvia ou revoga convite.
+- Somente Auth user com e-mail igual a `emailNormalized` aceita convite.
+- Convite `expired` ou `revoked` nao vincula usuario.
+- `acceptedAuthUid` so pode ser definido uma vez.
+
 ## Riscos de regressao
 - Usuarios ficarem presos no gate.
 - Sessao bloquear indevidamente apos background/foreground.
