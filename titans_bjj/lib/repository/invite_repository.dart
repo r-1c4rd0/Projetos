@@ -192,11 +192,20 @@ class InviteRepository {
     required String inviteId,
     Duration ttl = const Duration(days: 14),
   }) async {
-    await _invitesRef(academyId).doc(inviteId).update({
-      'status': 'pending',
-      'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
-      'lastSentAt': FieldValue.serverTimestamp(),
-      'revokedAt': FieldValue.delete(),
+    final ref = _invitesRef(academyId).doc(inviteId);
+    await db.runTransaction<void>((transaction) async {
+      final snap = await transaction.get(ref);
+      final data = snap.data();
+      final status = data?['status']?.toString();
+      if (!snap.exists || (status != 'pending' && status != 'expired')) {
+        throw StateError('Convite nao pode ser reenviado neste status.');
+      }
+      transaction.update(ref, {
+        'status': 'pending',
+        'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+        'lastSentAt': FieldValue.serverTimestamp(),
+        'revokedAt': FieldValue.delete(),
+      });
     });
   }
 
@@ -204,9 +213,17 @@ class InviteRepository {
     required String academyId,
     required String inviteId,
   }) async {
-    await _invitesRef(academyId).doc(inviteId).update({
-      'status': 'revoked',
-      'revokedAt': FieldValue.serverTimestamp(),
+    final ref = _invitesRef(academyId).doc(inviteId);
+    await db.runTransaction<void>((transaction) async {
+      final snap = await transaction.get(ref);
+      final data = snap.data();
+      if (!snap.exists || data?['status']?.toString() != 'pending') {
+        throw StateError('Apenas convite pendente pode ser revogado.');
+      }
+      transaction.update(ref, {
+        'status': 'revoked',
+        'revokedAt': FieldValue.serverTimestamp(),
+      });
     });
   }
 

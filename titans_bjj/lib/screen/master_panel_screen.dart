@@ -984,32 +984,31 @@ class _StudentActionsMenu extends StatelessWidget {
                 label: 'Editar gradua\u00e7\u00e3o',
               ),
             ),
-            PopupMenuItem(
-              value: _StudentAction.sendInvite,
-              enabled: accessStatus == _StudentAccessStatus.noAccess,
-              child: const _MenuItem(
-                icon: Icons.outgoing_mail,
-                label: 'Enviar convite',
+            if (accessStatus == _StudentAccessStatus.noAccess)
+              PopupMenuItem(
+                value: _StudentAction.sendInvite,
+                child: const _MenuItem(
+                  icon: Icons.outgoing_mail,
+                  label: 'Enviar convite',
+                ),
               ),
-            ),
-            PopupMenuItem(
-              value: _StudentAction.resendInvite,
-              enabled:
-                  accessStatus == _StudentAccessStatus.pending ||
-                  accessStatus == _StudentAccessStatus.expired,
-              child: const _MenuItem(
-                icon: Icons.mark_email_unread_outlined,
-                label: 'Reenviar convite',
+            if (accessStatus == _StudentAccessStatus.pending ||
+                accessStatus == _StudentAccessStatus.expired)
+              PopupMenuItem(
+                value: _StudentAction.resendInvite,
+                child: const _MenuItem(
+                  icon: Icons.mark_email_unread_outlined,
+                  label: 'Reenviar convite',
+                ),
               ),
-            ),
-            PopupMenuItem(
-              value: _StudentAction.revokeInvite,
-              enabled: accessStatus == _StudentAccessStatus.pending,
-              child: const _MenuItem(
-                icon: Icons.block_outlined,
-                label: 'Revogar convite',
+            if (accessStatus == _StudentAccessStatus.pending)
+              PopupMenuItem(
+                value: _StudentAction.revokeInvite,
+                child: const _MenuItem(
+                  icon: Icons.block_outlined,
+                  label: 'Revogar convite',
+                ),
               ),
-            ),
           ],
     );
   }
