@@ -53,10 +53,8 @@ class AcademyInvite {
   final String? pendingProfileId;
   final String? acceptedAuthUid;
 
-  factory AcademyInvite.fromDoc(
-    QueryDocumentSnapshot<Map<String, dynamic>> doc,
-  ) {
-    final data = doc.data();
+  factory AcademyInvite.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? const <String, dynamic>{};
     return AcademyInvite(
       id: doc.id,
       academyId: (data['academyId'] ?? '').toString(),
@@ -110,6 +108,106 @@ class InviteRepository {
     return _invitesRef(
       academyId,
     ).snapshots().map((snap) => snap.docs.map(AcademyInvite.fromDoc).toList());
+  }
+
+  Future<AcademyInvite?> findInviteForStudent({
+    required String academyId,
+    required String pendingProfileId,
+    required String email,
+    List<String> statuses = const ['pending', 'accepted', 'expired', 'revoked'],
+  }) async {
+    final profileId = pendingProfileId.trim();
+    final emailNormalized = normalizeEmail(email);
+    if (profileId.isEmpty && emailNormalized.isEmpty) return null;
+
+    final byProfile =
+        profileId.isEmpty
+            ? null
+            : await _invitesRef(academyId)
+                .where('pendingProfileId', isEqualTo: profileId)
+                .where('status', whereIn: statuses)
+                .limit(1)
+                .get();
+    if (byProfile != null && byProfile.docs.isNotEmpty) {
+      return AcademyInvite.fromDoc(byProfile.docs.first);
+    }
+
+    if (emailNormalized.isEmpty) return null;
+    final byEmail =
+        await _invitesRef(academyId)
+            .where('emailNormalized', isEqualTo: emailNormalized)
+            .where('status', whereIn: statuses)
+            .limit(1)
+            .get();
+    if (byEmail.docs.isEmpty) return null;
+    return AcademyInvite.fromDoc(byEmail.docs.first);
+  }
+
+  Future<AcademyInvite> createInviteForStudent({
+    required String academyId,
+    required String email,
+    required String role,
+    required String pendingProfileId,
+    required String invitedByUid,
+    required String invitedByRole,
+    Duration ttl = const Duration(days: 14),
+  }) async {
+    final emailNormalized = normalizeEmail(email);
+    final profileId = pendingProfileId.trim();
+    if (emailNormalized.isEmpty) {
+      throw StateError('Aluno sem e-mail para convite.');
+    }
+    if (profileId.isEmpty) {
+      throw StateError('Aluno sem perfil pendente para convite.');
+    }
+
+    final existing = await findInviteForStudent(
+      academyId: academyId,
+      pendingProfileId: profileId,
+      email: emailNormalized,
+      statuses: const ['pending', 'accepted'],
+    );
+    if (existing != null) return existing;
+
+    final doc = _invitesRef(academyId).doc();
+    await doc.set({
+      'academyId': academyId,
+      'emailNormalized': emailNormalized,
+      'role': role,
+      'status': 'pending',
+      'invitedByUid': invitedByUid,
+      'invitedByRole': invitedByRole,
+      'pendingProfileId': profileId,
+      'createdAt': FieldValue.serverTimestamp(),
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+      'lastSentAt': FieldValue.serverTimestamp(),
+    });
+
+    final snap = await doc.get();
+    return AcademyInvite.fromDoc(snap);
+  }
+
+  Future<void> resendInvite({
+    required String academyId,
+    required String inviteId,
+    Duration ttl = const Duration(days: 14),
+  }) async {
+    await _invitesRef(academyId).doc(inviteId).update({
+      'status': 'pending',
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(ttl)),
+      'lastSentAt': FieldValue.serverTimestamp(),
+      'revokedAt': FieldValue.delete(),
+    });
+  }
+
+  Future<void> revokeInvite({
+    required String academyId,
+    required String inviteId,
+  }) async {
+    await _invitesRef(academyId).doc(inviteId).update({
+      'status': 'revoked',
+      'revokedAt': FieldValue.serverTimestamp(),
+    });
   }
 
   Future<bool> acceptInviteForCurrentUser({

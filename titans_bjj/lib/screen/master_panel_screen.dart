@@ -132,6 +132,12 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                           student: entry.targetStudent,
                           rules: rules,
                         ),
+                    onInviteAction:
+                        (action, entry) => _handleInviteAction(
+                          action: action,
+                          entry: entry,
+                          actor: loggedUser,
+                        ),
                   );
                 },
               );
@@ -140,6 +146,85 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _handleInviteAction({
+    required _StudentInviteAction action,
+    required _StudentAccessEntry entry,
+    required AppUser actor,
+  }) async {
+    final student = entry.displayStudent;
+    final messenger = ScaffoldMessenger.of(context);
+
+    try {
+      switch (action) {
+        case _StudentInviteAction.send:
+          final targetUser = await _userRepo.getUser(
+            academyId: student.academyId,
+            uid: student.uid,
+          );
+          if (!mounted) return;
+
+          final email = targetUser?.email.trim() ?? '';
+          if (email.isEmpty) {
+            messenger.showSnackBar(
+              const SnackBar(
+                content: Text('Cadastre um e-mail para enviar o convite.'),
+              ),
+            );
+            return;
+          }
+
+          final invite = await _inviteRepo.createInviteForStudent(
+            academyId: student.academyId,
+            email: email,
+            role: 'athlete',
+            pendingProfileId: student.uid,
+            invitedByUid: actor.uid,
+            invitedByRole: actor.role.name,
+          );
+          if (!mounted) return;
+          messenger.showSnackBar(
+            SnackBar(
+              content: Text(
+                invite.status == 'pending'
+                    ? 'Convite registrado para $email.'
+                    : 'Ja existe convite para este aluno.',
+              ),
+            ),
+          );
+          break;
+        case _StudentInviteAction.resend:
+          final inviteId = entry.invite?.id;
+          if (inviteId == null || inviteId.isEmpty) return;
+          await _inviteRepo.resendInvite(
+            academyId: student.academyId,
+            inviteId: inviteId,
+          );
+          if (!mounted) return;
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Convite reenviado.')),
+          );
+          break;
+        case _StudentInviteAction.revoke:
+          final inviteId = entry.invite?.id;
+          if (inviteId == null || inviteId.isEmpty) return;
+          await _inviteRepo.revokeInvite(
+            academyId: student.academyId,
+            inviteId: inviteId,
+          );
+          if (!mounted) return;
+          messenger.showSnackBar(
+            const SnackBar(content: Text('Convite revogado.')),
+          );
+          break;
+      }
+    } catch (error) {
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(content: Text('Nao foi possivel atualizar convite: $error')),
+      );
+    }
   }
 
   void _openOwnProfile(AppUser loggedUser) {
@@ -308,11 +393,13 @@ class _StudentAccessEntry {
   final StudentVm displayStudent;
   final StudentVm targetStudent;
   final _StudentAccessStatus status;
+  final AcademyInvite? invite;
 
   const _StudentAccessEntry({
     required this.displayStudent,
     required this.targetStudent,
     required this.status,
+    this.invite,
   });
 
   static List<_StudentAccessEntry> resolve({
@@ -374,6 +461,7 @@ class _StudentAccessEntry {
           displayStudent: student,
           targetStudent: targetStudent,
           status: isActive ? _StudentAccessStatus.active : _statusFrom(invite),
+          invite: invite,
         ),
       );
     }
@@ -423,6 +511,7 @@ class _StudentsGrid extends StatelessWidget {
   final ValueChanged<_StudentAccessEntry> onOpen;
   final ValueChanged<_StudentAccessEntry> onEdit;
   final ValueChanged<_StudentAccessEntry> onEditGraduation;
+  final void Function(_StudentInviteAction, _StudentAccessEntry) onInviteAction;
 
   const _StudentsGrid({
     required this.actor,
@@ -432,6 +521,7 @@ class _StudentsGrid extends StatelessWidget {
     required this.onOpen,
     required this.onEdit,
     required this.onEditGraduation,
+    required this.onInviteAction,
   });
 
   @override
@@ -502,6 +592,7 @@ class _StudentsGrid extends StatelessWidget {
                     onOpen: () => onOpen(entry),
                     onEdit: () => onEdit(entry),
                     onEditGraduation: () => onEditGraduation(entry),
+                    onInviteAction: (action) => onInviteAction(action, entry),
                   );
                 }, childCount: students.length),
               ),
@@ -586,6 +677,7 @@ class _StudentCard extends StatelessWidget {
   final VoidCallback onEdit;
   final VoidCallback onEditGraduation;
   final VoidCallback onOpen;
+  final ValueChanged<_StudentInviteAction> onInviteAction;
 
   const _StudentCard({
     required this.student,
@@ -596,8 +688,8 @@ class _StudentCard extends StatelessWidget {
     required this.onEdit,
     required this.onEditGraduation,
     required this.onOpen,
+    required this.onInviteAction,
   });
-
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -661,6 +753,8 @@ class _StudentCard extends StatelessWidget {
                         canEditGraduation: capabilities.canEditGraduation,
                         onEdit: onEdit,
                         onEditGraduation: onEditGraduation,
+                        accessStatus: accessStatus,
+                        onInviteAction: onInviteAction,
                       ),
                   ],
                 ),
@@ -821,19 +915,31 @@ class _AccessStatusBadge extends StatelessWidget {
   }
 }
 
-enum _StudentAction { edit, editGraduation }
+enum _StudentInviteAction { send, resend, revoke }
+
+enum _StudentAction {
+  edit,
+  editGraduation,
+  sendInvite,
+  resendInvite,
+  revokeInvite,
+}
 
 class _StudentActionsMenu extends StatelessWidget {
   final bool canEditProfile;
   final bool canEditGraduation;
   final VoidCallback onEdit;
   final VoidCallback onEditGraduation;
+  final _StudentAccessStatus accessStatus;
+  final ValueChanged<_StudentInviteAction> onInviteAction;
 
   const _StudentActionsMenu({
     required this.canEditProfile,
     required this.canEditGraduation,
     required this.onEdit,
     required this.onEditGraduation,
+    required this.accessStatus,
+    required this.onInviteAction,
   });
 
   @override
@@ -848,6 +954,15 @@ class _StudentActionsMenu extends StatelessWidget {
             break;
           case _StudentAction.editGraduation:
             onEditGraduation();
+            break;
+          case _StudentAction.sendInvite:
+            onInviteAction(_StudentInviteAction.send);
+            break;
+          case _StudentAction.resendInvite:
+            onInviteAction(_StudentInviteAction.resend);
+            break;
+          case _StudentAction.revokeInvite:
+            onInviteAction(_StudentInviteAction.revoke);
             break;
         }
       },
@@ -867,6 +982,32 @@ class _StudentActionsMenu extends StatelessWidget {
               child: const _MenuItem(
                 icon: Icons.workspace_premium_outlined,
                 label: 'Editar gradua\u00e7\u00e3o',
+              ),
+            ),
+            PopupMenuItem(
+              value: _StudentAction.sendInvite,
+              enabled: accessStatus == _StudentAccessStatus.noAccess,
+              child: const _MenuItem(
+                icon: Icons.outgoing_mail,
+                label: 'Enviar convite',
+              ),
+            ),
+            PopupMenuItem(
+              value: _StudentAction.resendInvite,
+              enabled:
+                  accessStatus == _StudentAccessStatus.pending ||
+                  accessStatus == _StudentAccessStatus.expired,
+              child: const _MenuItem(
+                icon: Icons.mark_email_unread_outlined,
+                label: 'Reenviar convite',
+              ),
+            ),
+            PopupMenuItem(
+              value: _StudentAction.revokeInvite,
+              enabled: accessStatus == _StudentAccessStatus.pending,
+              child: const _MenuItem(
+                icon: Icons.block_outlined,
+                label: 'Revogar convite',
               ),
             ),
           ],
