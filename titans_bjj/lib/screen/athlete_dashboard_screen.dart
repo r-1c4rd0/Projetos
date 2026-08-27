@@ -2301,32 +2301,104 @@ class _GameMapLiteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final positionsCount = entries.length;
+    final techniquesCount = entries.fold<int>(
+      0,
+      (sum, entry) => sum + entry.techniques.length,
+    );
+    final sessionsCount = entries.fold<int>(
+      0,
+      (sum, entry) => sum + entry.sessionsCount,
+    );
+    final mainEntry =
+        entries.isEmpty
+            ? null
+            : (List<GameMapEntry>.from(entries)..sort(
+              (a, b) => b.sessionsCount.compareTo(a.sessionsCount),
+            )).first;
+    final mainTechniques =
+        mainEntry?.techniques.take(3).toList() ??
+        const <GameMapTechniqueSummary>[];
+    final recentSignal = _firstGameMapSignal(entries);
+
     return _GlassCard(
       accent: cs.secondary.withValues(alpha: 0.35),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'GAME MAP LITE',
+            'GAME MAP INSIGHT',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.75),
               fontWeight: FontWeight.w800,
             ),
           ),
+          const SizedBox(height: 4),
+          Text(
+            'Baseado nos últimos treinos',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.62)),
+          ),
           const SizedBox(height: 10),
           if (entries.isEmpty)
             Text(
-              'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o Game Map.',
+              'Registre posição e técnica nos debriefs para montar o Game Map.',
               style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
             )
-          else
+          else if (mainEntry != null)
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                for (var i = 0; i < entries.length; i++) ...[
-                  _GameMapPositionBlock(entry: entries[i]),
-                  if (i != entries.length - 1)
-                    Divider(color: cs.onSurface.withValues(alpha: 0.08)),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _GameMapInsightPill(
+                      label: 'Posições',
+                      value: positionsCount.toString(),
+                      color: cs.primary,
+                    ),
+                    _GameMapInsightPill(
+                      label: 'Técnicas',
+                      value: techniquesCount.toString(),
+                      color: cs.secondary,
+                    ),
+                    _GameMapInsightPill(
+                      label: 'Sessões',
+                      value: sessionsCount.toString(),
+                      color: Colors.amber,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  'Olhe primeiro para',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  mainEntry.position,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final technique in mainTechniques)
+                      _GameMapInsightTechniqueChip(technique: technique),
+                  ],
+                ),
+                if (recentSignal != null) ...[
+                  const SizedBox(height: 12),
+                  _GameMapInsightSignal(signal: recentSignal),
                 ],
               ],
             ),
@@ -2345,91 +2417,174 @@ class _GameMapLiteCard extends StatelessWidget {
   }
 }
 
-class _GameMapPositionBlock extends StatelessWidget {
-  final GameMapEntry entry;
+class _GameMapInsightPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
 
-  const _GameMapPositionBlock({required this.entry});
+  const _GameMapInsightPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.26)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            entry.position,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+            value,
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 8),
-          for (final technique in entry.techniques) ...[
-            _GameMapTechniqueBlock(technique: technique),
-            if (technique != entry.techniques.last)
-              SizedBox(
-                height: 12,
-                child: Center(
-                  child: Container(
-                    height: 1,
-                    color: cs.onSurface.withValues(alpha: 0.05),
-                  ),
-                ),
-              ),
-          ],
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _GameMapTechniqueBlock extends StatelessWidget {
+class _GameMapInsightTechniqueChip extends StatelessWidget {
   final GameMapTechniqueSummary technique;
 
-  const _GameMapTechniqueBlock({required this.technique});
+  const _GameMapInsightTechniqueChip({required this.technique});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final intensity = technique.averageIntensity;
-    final summary = <String>[
-      TrainingAggregator.sessionCountLabel(technique.sessionsCount),
-      '\u00faltima em ${_formatShortDate(technique.lastTrainedAt)}',
-      if (intensity != null)
-        'intensidade m\u00e9dia ${intensity.toStringAsFixed(1)}/5',
-    ];
-    final difficulty = _shortDebriefText(technique.recentDifficulty);
-    final success = _shortDebriefText(technique.recentSuccess);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          '- ${technique.technique}',
-          style: const TextStyle(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 3),
-        Text(
-          summary.join(' - '),
-          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.66)),
-        ),
-        if (difficulty != null) ...[
-          const SizedBox(height: 4),
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 220),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.28),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.bubble_chart_outlined, size: 15, color: cs.secondary),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              technique.technique,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w800),
+            ),
+          ),
+          const SizedBox(width: 6),
           Text(
-            'Dificuldade recente: $difficulty',
-            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+            TrainingAggregator.sessionCountLabel(technique.sessionsCount),
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
           ),
         ],
-        if (success != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Sucesso recente: $success',
-            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
-          ),
-        ],
-      ],
+      ),
     );
   }
+}
+
+class _GameMapInsightSignal extends StatelessWidget {
+  final _GameMapInsightSignalViewModel signal;
+
+  const _GameMapInsightSignal({required this.signal});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: signal.color.withValues(alpha: 0.08),
+        border: Border.all(color: signal.color.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(signal.icon, size: 18, color: signal.color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              '${signal.label}: ${signal.text}',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.78),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GameMapInsightSignalViewModel {
+  final String label;
+  final String text;
+  final IconData icon;
+  final Color color;
+
+  const _GameMapInsightSignalViewModel({
+    required this.label,
+    required this.text,
+    required this.icon,
+    required this.color,
+  });
+}
+
+_GameMapInsightSignalViewModel? _firstGameMapSignal(
+  List<GameMapEntry> entries,
+) {
+  for (final entry in entries) {
+    for (final technique in entry.techniques) {
+      final difficulty = _shortDebriefText(technique.recentDifficulty);
+      if (difficulty != null) {
+        return _GameMapInsightSignalViewModel(
+          label: 'Atenção recente',
+          text: difficulty,
+          icon: Icons.warning_amber_outlined,
+          color: Colors.amber,
+        );
+      }
+
+      final success = _shortDebriefText(technique.recentSuccess);
+      if (success != null) {
+        return _GameMapInsightSignalViewModel(
+          label: 'Sucesso recente',
+          text: success,
+          icon: Icons.check_circle_outline,
+          color: Colors.lightGreenAccent,
+        );
+      }
+    }
+  }
+
+  return null;
 }
 
 class _RecentActivityCard extends StatelessWidget {
