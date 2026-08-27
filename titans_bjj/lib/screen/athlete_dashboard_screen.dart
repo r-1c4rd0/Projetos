@@ -24,7 +24,6 @@ import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
-import 'progress_screen.dart';
 import 'training_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
@@ -320,24 +319,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
-                      void openProgress() {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (_) => ProgressScreen(
-                                  titleOverride:
-                                      widget.targetMode ==
-                                              TargetMode.selectedStudent
-                                          ? 'Progresso do aluno'
-                                          : 'Progresso',
-                                  targetMode: widget.targetMode,
-                                  explicitTarget: target,
-                                  loggedUser: actor,
-                                ),
-                          ),
-                        );
-                      }
-
                       void openNutrition() {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -487,9 +468,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   const SizedBox(height: 12),
                                   _DashboardQuickActionsCard(
                                     cs: cs,
-                                    onOpenTraining: openTraining,
-                                    onOpenProgress: openProgress,
-                                    onOpenNutrition: openNutrition,
                                     onOpenGameMap: openGameMap,
                                   ),
                                   const SizedBox(height: 12),
@@ -1430,53 +1408,44 @@ class _DashboardPrimaryActionCard extends StatelessWidget {
 
 class _DashboardQuickActionsCard extends StatelessWidget {
   final ColorScheme cs;
-  final VoidCallback onOpenTraining;
-  final VoidCallback onOpenProgress;
-  final VoidCallback onOpenNutrition;
   final VoidCallback onOpenGameMap;
 
   const _DashboardQuickActionsCard({
     required this.cs,
-    required this.onOpenTraining,
-    required this.onOpenProgress,
-    required this.onOpenNutrition,
     required this.onOpenGameMap,
   });
 
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      accent: cs.tertiary.withValues(alpha: 0.24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      accent: cs.tertiary.withValues(alpha: 0.18),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          _SectionHeaderCompact(title: 'A\u00c7\u00d5ES R\u00c1PIDAS'),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _QuickActionButton(
-                icon: Icons.fitness_center_outlined,
-                label: 'Treinos',
-                onPressed: onOpenTraining,
-              ),
-              _QuickActionButton(
-                icon: Icons.trending_up_outlined,
-                label: 'Progresso',
-                onPressed: onOpenProgress,
-              ),
-              _QuickActionButton(
-                icon: Icons.restaurant_outlined,
-                label: 'Nutri\u00e7\u00e3o',
-                onPressed: onOpenNutrition,
-              ),
-              _QuickActionButton(
-                icon: Icons.map_outlined,
-                label: 'Game Map',
-                onPressed: onOpenGameMap,
-              ),
-            ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SectionHeaderCompact(title: 'ATALHO ÚTIL'),
+                const SizedBox(height: 5),
+                Text(
+                  'Mapa técnico e Skill Matrix em uma tela.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.68),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          _QuickActionButton(
+            icon: Icons.map_outlined,
+            label: 'Game Map',
+            onPressed: onOpenGameMap,
           ),
         ],
       ),
@@ -1716,23 +1685,34 @@ class _NutritionLiteMetric extends StatelessWidget {
   }
 }
 
-class _RecommendedFocusCard extends StatelessWidget {
+class _RecommendedFocusCard extends StatefulWidget {
   final ColorScheme cs;
   final RecommendedTrainingFocus focus;
 
   const _RecommendedFocusCard({required this.cs, required this.focus});
 
   @override
+  State<_RecommendedFocusCard> createState() => _RecommendedFocusCardState();
+}
+
+class _RecommendedFocusCardState extends State<_RecommendedFocusCard> {
+  bool _expanded = false;
+
+  @override
   Widget build(BuildContext context) {
+    final cs = widget.cs;
+    final focus = widget.focus;
     final priorityColor = _priorityColor(cs, focus.priority);
+    final primaryTags = focus.tags.take(1).toList();
+    final secondaryTags = focus.tags.skip(1).toList();
     final evidence = <String>[
       ...focus.evidenceTags,
       focus.confidenceLabel,
       focus.evidenceLabel,
       if (focus.avgIntensity != null)
-        'Intensidade m\u00e9dia ${focus.avgIntensity!.toStringAsFixed(1)}/5',
+        'Intensidade média ${focus.avgIntensity!.toStringAsFixed(1)}/5',
       if (focus.lastTrainedAt != null)
-        '\u00daltimo treino: ${_formatShortDate(focus.lastTrainedAt!)}',
+        'Último treino: ${_formatShortDate(focus.lastTrainedAt!)}',
     ];
 
     return _GlassCard(
@@ -1740,67 +1720,72 @@ class _RecommendedFocusCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _SectionHeaderCompact(title: 'FOCO RECOMENDADO'),
-          const SizedBox(height: 12),
-          Text(
-            focus.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => setState(() => _expanded = !_expanded),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 2),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionHeaderCompact(title: 'FOCO RECOMENDADO'),
+                        const SizedBox(height: 10),
+                        Text(
+                          focus.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          focus.summary,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.72),
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Icon(
+                    _expanded
+                        ? Icons.keyboard_arrow_up_rounded
+                        : Icons.keyboard_arrow_down_rounded,
+                    color: priorityColor,
+                  ),
+                ],
+              ),
+            ),
           ),
-          const SizedBox(height: 5),
+          const SizedBox(height: 8),
           Text(
-            focus.summary,
+            _focusStatusLabel(focus.priority),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.72),
-              fontWeight: FontWeight.w800,
+              color: priorityColor,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 5),
           Text(
             focus.reason,
-            maxLines: 2,
+            maxLines: _expanded ? 3 : 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
           ),
           const SizedBox(height: 10),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(Icons.flag_outlined, size: 18, color: priorityColor),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'A\u00e7\u00e3o sugerida:',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.62),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      focus.suggestedAction,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.82),
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
           Wrap(
             spacing: 8,
             runSpacing: 8,
@@ -1811,23 +1796,75 @@ class _RecommendedFocusCard extends StatelessWidget {
                 icon: Icons.bolt_outlined,
                 muted: focus.priority == RecommendedTrainingFocusPriority.none,
               ),
-              for (final tag in focus.tags)
+              for (final tag in primaryTags)
                 _InsightBadge(label: tag, color: priorityColor),
             ],
           ),
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final label in evidence.take(3))
-                _InsightBadge(
-                  label: label,
-                  color: cs.onSurface.withValues(alpha: 0.46),
-                  icon: Icons.analytics_outlined,
-                  muted: true,
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState:
+                _expanded
+                    ? CrossFadeState.showSecond
+                    : CrossFadeState.showFirst,
+            firstChild: const SizedBox.shrink(),
+            secondChild: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: 12),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.flag_outlined, size: 18, color: priorityColor),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Ação sugerida:',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.62),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            focus.suggestedAction,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.82),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-            ],
+                if (secondaryTags.isNotEmpty || evidence.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      for (final tag in secondaryTags.take(3))
+                        _InsightBadge(label: tag, color: priorityColor),
+                      for (final label in evidence.take(3))
+                        _InsightBadge(
+                          label: label,
+                          color: cs.onSurface.withValues(alpha: 0.46),
+                          icon: Icons.analytics_outlined,
+                          muted: true,
+                        ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -1850,12 +1887,24 @@ class _RecommendedFocusCard extends StatelessWidget {
     }
   }
 
+  String _focusStatusLabel(RecommendedTrainingFocusPriority priority) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+      case RecommendedTrainingFocusPriority.medium:
+        return 'Precisa de ajuste';
+      case RecommendedTrainingFocusPriority.low:
+        return 'Manter atenção';
+      case RecommendedTrainingFocusPriority.none:
+        return 'Aguardando debrief';
+    }
+  }
+
   String _priorityLabel(RecommendedTrainingFocusPriority priority) {
     switch (priority) {
       case RecommendedTrainingFocusPriority.high:
         return 'Prioridade alta';
       case RecommendedTrainingFocusPriority.medium:
-        return 'Prioridade m\u00e9dia';
+        return 'Prioridade média';
       case RecommendedTrainingFocusPriority.low:
         return 'Prioridade baixa';
       case RecommendedTrainingFocusPriority.none:
