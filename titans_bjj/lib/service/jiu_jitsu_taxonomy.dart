@@ -131,6 +131,7 @@ class JiuJitsuTaxonomy {
     'Baseball Bat Choke',
     'Loop Choke',
     'Cross Collar Choke',
+    'Arco e Flecha',
     'Bow and Arrow',
     'Paper Cutter',
     'North-South Choke',
@@ -420,6 +421,9 @@ class JiuJitsuTaxonomy {
     'mount': 'mount',
     'costas': 'back',
     'back control': 'back',
+    'arco e flecha': 'bow and arrow',
+    'bow and arrow': 'bow and arrow',
+    'bow and arrow choke': 'bow and arrow',
   };
 
   static const _guardTerms = [
@@ -459,6 +463,7 @@ class JiuJitsuTaxonomy {
     'heel hook',
     'kneebar',
     'toe hold',
+    'bow and arrow',
     'botinha',
     'chave de pe',
   ];

@@ -1329,7 +1329,58 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   bool _matchesSearch(String option, String query) {
     final normalizedQuery = query.toLowerCase();
     return normalizedQuery.isEmpty ||
-        option.toLowerCase().contains(normalizedQuery);
+        _searchableTechniqueText(option).toLowerCase().contains(
+          normalizedQuery,
+        );
+  }
+
+  bool _isHiddenTechniqueAlias(String option) {
+    if (!_isTechniqueSheet) return false;
+    if (_isPortugueseBowAndArrow(option)) return false;
+
+    final key = JiuJitsuTaxonomy.normalizedKey(option);
+    if (key != 'bow and arrow' && key != 'bow and arrow choke') return false;
+
+    return widget.options.any(_isPortugueseBowAndArrow);
+  }
+
+  bool _isPortugueseBowAndArrow(String option) {
+    final label = option.toLowerCase();
+    return label.contains('arco') && label.contains('flecha');
+  }
+
+  String _searchableTechniqueText(String option) {
+    if (!_isTechniqueSheet) return option;
+
+    final key = JiuJitsuTaxonomy.normalizedKey(option);
+    if (key == 'arco e flecha') {
+      return '$option bow bow and arrow bow and arrow choke';
+    }
+    if (key == 'bow and arrow' || key == 'bow and arrow choke') {
+      return '$option arco flecha arco e flecha';
+    }
+
+    return option;
+  }
+
+  Set<String> _techniqueAliasKeys(String option) {
+    if (!_isTechniqueSheet) return const <String>{};
+
+    final key = JiuJitsuTaxonomy.normalizedKey(option);
+    if (key == 'arco e flecha' ||
+        key == 'bow and arrow' ||
+        key == 'bow and arrow choke') {
+      return const {
+        'arco',
+        'flecha',
+        'arco e flecha',
+        'bow',
+        'bow and arrow',
+        'bow and arrow choke',
+      };
+    }
+
+    return const <String>{};
   }
 
   bool _matchesTechniqueFilter(String option) {
@@ -1392,6 +1443,7 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     final recentKeys = recentOptions.map(JiuJitsuTaxonomy.normalizedKey).toSet();
     final filtered =
         widget.options
+            .where((option) => !_isHiddenTechniqueAlias(option))
             .where((option) => _matchesSearch(option, query))
             .where(_matchesTechniqueFilter)
             .where(
@@ -1401,7 +1453,9 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
             )
             .toList();
     final exactMatch = widget.options.any(
-      (option) => JiuJitsuTaxonomy.normalizedKey(option) == queryKey,
+      (option) =>
+          JiuJitsuTaxonomy.normalizedKey(option) == queryKey ||
+          _techniqueAliasKeys(option).contains(queryKey),
     );
     final showCustom = query.isNotEmpty && !exactMatch;
     final selectedIsVisible =

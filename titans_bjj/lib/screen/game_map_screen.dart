@@ -995,6 +995,7 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
     );
   }
 }
+
 class _SkillMatrixTechniqueRow extends StatelessWidget {
   final SkillMatrixTechniqueEntry entry;
 
@@ -1097,6 +1098,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
     );
   }
 }
+
 class _EmptyGameMapCard extends StatelessWidget {
   const _EmptyGameMapCard();
 
@@ -1187,6 +1189,7 @@ class _GameMapPositionCard extends StatelessWidget {
     );
   }
 }
+
 class _VisualCard extends StatelessWidget {
   final Widget child;
   final Color? accent;
