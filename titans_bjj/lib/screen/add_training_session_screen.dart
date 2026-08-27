@@ -162,6 +162,39 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     );
   }
 
+  List<String> _recentTechniqueOptions({String? excluding}) {
+    return _recentValues(
+      _techniqueEntries.map((entry) => entry.technique.text),
+      excluding: excluding,
+    );
+  }
+
+  List<String> _recentPositionOptions({String? excluding}) {
+    return _recentValues(
+      _techniqueEntries.map((entry) => entry.position.text),
+      excluding: excluding,
+    );
+  }
+
+  List<String> _recentValues(Iterable<String> values, {String? excluding}) {
+    final recent = <String>[];
+    final seen = <String>{};
+    final excludingKey = JiuJitsuTaxonomy.normalizedKey(excluding ?? '');
+
+    for (final value in values) {
+      final label = value.trim();
+      if (label.isEmpty) continue;
+
+      final key = JiuJitsuTaxonomy.normalizedKey(label);
+      if (key.isEmpty || key == excludingKey || !seen.add(key)) continue;
+
+      recent.add(label);
+      if (recent.length == 6) break;
+    }
+
+    return recent;
+  }
+
   List<TrainingTechniqueEntry> _buildTechniqueEntries() {
     final entries = <TrainingTechniqueEntry>[];
     final seen = <String>{};
@@ -314,6 +347,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                     placeholder: 'Buscar posição',
                                     type: JiuJitsuTaxonomyType.position,
                                     options: positionOptions,
+                                    recentOptions: _recentPositionOptions(
+                                      excluding: _techniqueEntries[i].position.text,
+                                    ),
                                     controller: _techniqueEntries[i].position,
                                     canAddToAcademy: canAddToAcademy,
                                     actorUid: actor?.uid,
@@ -324,6 +360,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                     placeholder: 'Buscar técnica',
                                     type: JiuJitsuTaxonomyType.technique,
                                     options: techniqueOptions,
+                                    recentOptions: _recentTechniqueOptions(
+                                      excluding: _techniqueEntries[i].technique.text,
+                                    ),
                                     controller: _techniqueEntries[i].technique,
                                     canAddToAcademy: canAddToAcademy,
                                     actorUid: actor?.uid,
@@ -465,6 +504,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     required String placeholder,
     required JiuJitsuTaxonomyType type,
     required List<String> options,
+    required List<String> recentOptions,
     required TextEditingController controller,
     required bool canAddToAcademy,
     required String? actorUid,
@@ -478,6 +518,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
             title: title,
             placeholder: placeholder,
             options: options,
+            recentOptions: recentOptions,
             currentValue: controller.text,
             canAddToAcademy: canAddToAcademy,
           ),
@@ -1210,6 +1251,7 @@ class _DebriefSelectSheet extends StatefulWidget {
   final String title;
   final String placeholder;
   final List<String> options;
+  final List<String> recentOptions;
   final String currentValue;
   final bool canAddToAcademy;
 
@@ -1217,6 +1259,7 @@ class _DebriefSelectSheet extends StatefulWidget {
     required this.title,
     required this.placeholder,
     required this.options,
+    required this.recentOptions,
     required this.currentValue,
     required this.canAddToAcademy,
   });
@@ -1253,16 +1296,46 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     super.dispose();
   }
 
+  List<String> _filteredRecentOptions(String query) {
+    final filtered = <String>[];
+    final seen = <String>{};
+    final normalizedQuery = query.toLowerCase();
+
+    for (final option in widget.recentOptions) {
+      final label = option.trim();
+      if (label.isEmpty) continue;
+      if (normalizedQuery.isNotEmpty &&
+          !label.toLowerCase().contains(normalizedQuery)) {
+        continue;
+      }
+
+      final key = JiuJitsuTaxonomy.normalizedKey(label);
+      if (key.isEmpty || !seen.add(key)) continue;
+
+      filtered.add(label);
+      if (filtered.length == 6) break;
+    }
+
+    return filtered;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final query = _search.text.trim();
     final queryKey = JiuJitsuTaxonomy.normalizedKey(query);
+    final recentOptions = _filteredRecentOptions(query);
+    final recentKeys = recentOptions.map(JiuJitsuTaxonomy.normalizedKey).toSet();
     final filtered =
         widget.options
             .where(
               (option) => option.toLowerCase().contains(query.toLowerCase()),
+            )
+            .where(
+              (option) => !recentKeys.contains(
+                JiuJitsuTaxonomy.normalizedKey(option),
+              ),
             )
             .toList();
     final exactMatch = widget.options.any(
@@ -1324,6 +1397,47 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                     }),
               ),
               const SizedBox(height: 10),
+              if (recentOptions.isNotEmpty) ...[
+                Text(
+                  'Recentes',
+                  style: textTheme.labelLarge?.copyWith(
+                    color: cs.onSurface.withValues(alpha: 0.72),
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: recentOptions.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final option = recentOptions[index];
+                      final selected =
+                          JiuJitsuTaxonomy.normalizedKey(option) ==
+                              JiuJitsuTaxonomy.normalizedKey(_selected) &&
+                          !_addSelectedToAcademy;
+
+                      return ChoiceChip(
+                        label: Text(option),
+                        selected: selected,
+                        onSelected:
+                            (_) => setState(() {
+                              _selected = option;
+                              _addSelectedToAcademy = false;
+                            }),
+                        visualDensity: VisualDensity.compact,
+                        labelStyle: TextStyle(
+                          fontWeight:
+                              selected ? FontWeight.w900 : FontWeight.w700,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               Flexible(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
