@@ -29,7 +29,7 @@ class TitansTechnicalRadar extends StatelessWidget {
     super.key,
     this.title = 'Radar T\u00e9cnico',
     this.subtitle =
-        'Preview visual sem score, criado apenas com evid\u00eancias dispon\u00edveis.',
+        'Preview visual criado apenas com evid\u00eancias dispon\u00edveis.',
     this.stateLabel = 'Perfil t\u00e9cnico em forma\u00e7\u00e3o',
     this.evidences = const [],
   });
@@ -71,59 +71,105 @@ class TitansTechnicalRadar extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
-              final size = constraints.maxWidth < 360 ? 220.0 : 244.0;
+              final size = constraints.maxWidth < 360 ? 216.0 : 238.0;
               return Center(
                 child: SizedBox(
                   width: size,
                   height: size,
                   child: CustomPaint(
                     painter: _TechnicalRadarPreviewPainter(cs),
-                    child: Center(
-                      child: Container(
-                        constraints: const BoxConstraints(maxWidth: 150),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(999),
-                          color: cs.surface.withValues(alpha: 0.72),
-                          border: Border.all(
-                            color: cs.tertiary.withValues(alpha: 0.32),
-                          ),
-                        ),
-                        child: Text(
-                          stateLabel,
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.tertiary,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                      ),
-                    ),
                   ),
                 ),
               );
             },
           ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final evidence in evidences)
-                _RadarEvidenceChip(evidence: evidence),
-            ],
+          const SizedBox(height: 8),
+          _RadarStatusLabel(label: stateLabel),
+          const SizedBox(height: 6),
+          Text(
+            'Sem nota, percentual ou avalia\u00e7\u00e3o; cores apenas distinguem eixos.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
           ),
+          if (evidences.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _RadarEvidenceRail(evidences: evidences),
+          ],
         ],
       ),
+    );
+  }
+}
+
+class _RadarStatusLabel extends StatelessWidget {
+  final String label;
+
+  const _RadarStatusLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Align(
+      alignment: Alignment.center,
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 260),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: cs.tertiary.withValues(alpha: 0.08),
+          border: Border.all(color: cs.tertiary.withValues(alpha: 0.22)),
+        ),
+        child: Text(
+          label,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.tertiary,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _RadarEvidenceRail extends StatelessWidget {
+  final List<TitansTechnicalRadarEvidence> evidences;
+
+  const _RadarEvidenceRail({required this.evidences});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final cardWidth = constraints.maxWidth < 380 ? 136.0 : 154.0;
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              for (var i = 0; i < evidences.length; i++) ...[
+                SizedBox(
+                  width: cardWidth,
+                  child: _RadarEvidenceChip(evidence: evidences[i]),
+                ),
+                if (i != evidences.length - 1)
+                  const SizedBox(width: TitansUI.spaceSm),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -140,7 +186,6 @@ class _RadarEvidenceChip extends StatelessWidget {
     return Tooltip(
       message: evidence.helper,
       child: Container(
-        constraints: const BoxConstraints(minWidth: 118, maxWidth: 170),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
@@ -148,11 +193,10 @@ class _RadarEvidenceChip extends StatelessWidget {
           color: cs.tertiary.withValues(alpha: 0.07),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(evidence.icon, size: 17, color: cs.tertiary),
-            const SizedBox(width: 8),
-            Flexible(
+            Icon(evidence.icon, size: 16, color: cs.tertiary),
+            const SizedBox(width: 7),
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
@@ -170,7 +214,7 @@ class _RadarEvidenceChip extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.64),
-                      fontSize: 11,
+                      fontSize: 10.5,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -196,31 +240,60 @@ class _TechnicalRadarPreviewPainter extends CustomPainter {
     'Ataque',
   ];
 
+  static const _axisColors = <Color>[
+    Color(0xFF4CC9F0),
+    Color(0xFFE9C46A),
+    Color(0xFFB026FF),
+    Color(0xFF2D6BFF),
+  ];
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.min(size.width, size.height) * 0.32;
-    final gridPaint = Paint()
-      ..color = colorScheme.onSurface.withValues(alpha: 0.14)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final axisPaint = Paint()
-      ..color = colorScheme.tertiary.withValues(alpha: 0.26)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.2;
-    final nodePaint = Paint()
-      ..color = colorScheme.tertiary.withValues(alpha: 0.16)
-      ..style = PaintingStyle.fill;
+    final radius = math.min(size.width, size.height) * 0.34;
+    final gridPaint =
+        Paint()
+          ..color = colorScheme.onSurface.withValues(alpha: 0.13)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final centerPaint =
+        Paint()
+          ..color = colorScheme.onSurface.withValues(alpha: 0.12)
+          ..style = PaintingStyle.fill;
 
     for (final factor in const [0.34, 0.67, 1.0]) {
       canvas.drawPath(_polygonPath(center, radius * factor), gridPaint);
     }
 
+    canvas.drawCircle(center, 2.5, centerPaint);
+
     for (var i = 0; i < 4; i++) {
+      final axisColor = _axisColors[i];
       final point = _point(center, radius, i);
+      final axisGlowPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.07)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.5;
+      final axisPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.40)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.25;
+      final nodeHaloPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.13)
+            ..style = PaintingStyle.fill;
+      final nodePaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.70)
+            ..style = PaintingStyle.fill;
+
+      canvas.drawLine(center, point, axisGlowPaint);
       canvas.drawLine(center, point, axisPaint);
-      canvas.drawCircle(point, 5, nodePaint);
-      _paintLabel(canvas, size, point, _labels[i], i);
+      canvas.drawCircle(point, 7, nodeHaloPaint);
+      canvas.drawCircle(point, 3.6, nodePaint);
+      _paintLabel(canvas, size, point, _labels[i], i, axisColor);
     }
   }
 
@@ -245,12 +318,19 @@ class _TechnicalRadarPreviewPainter extends CustomPainter {
     );
   }
 
-  void _paintLabel(Canvas canvas, Size size, Offset point, String label, int i) {
+  void _paintLabel(
+    Canvas canvas,
+    Size size,
+    Offset point,
+    String label,
+    int i,
+    Color color,
+  ) {
     final textPainter = TextPainter(
       text: TextSpan(
         text: label,
         style: TextStyle(
-          color: colorScheme.onSurface.withValues(alpha: 0.76),
+          color: color.withValues(alpha: 0.9),
           fontSize: 11,
           fontWeight: FontWeight.w800,
         ),
@@ -260,13 +340,13 @@ class _TechnicalRadarPreviewPainter extends CustomPainter {
     )..layout(maxWidth: 92);
 
     final offset = switch (i) {
-      0 => Offset(point.dx - textPainter.width / 2, point.dy - 28),
-      1 => Offset(point.dx + 10, point.dy - textPainter.height / 2),
-      2 => Offset(point.dx - textPainter.width / 2, point.dy + 14),
+      0 => Offset(point.dx - textPainter.width / 2, point.dy - 24),
+      1 => Offset(point.dx + 9, point.dy - textPainter.height / 2),
+      2 => Offset(point.dx - textPainter.width / 2, point.dy + 10),
       _ => Offset(
-          point.dx - textPainter.width - 10,
-          point.dy - textPainter.height / 2,
-        ),
+        point.dx - textPainter.width - 9,
+        point.dy - textPainter.height / 2,
+      ),
     };
 
     textPainter.paint(canvas, offset);

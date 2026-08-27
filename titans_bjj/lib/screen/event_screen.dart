@@ -162,6 +162,8 @@ class _EventScreenState extends State<EventScreen> {
     final past =
         filtered.where((e) => e.end.isBefore(now)).toList()
           ..sort((a, b) => b.start.compareTo(a.start));
+    final nextEvent = upcoming.isEmpty ? null : upcoming.first;
+    final scheduled = nextEvent == null ? upcoming : upcoming.skip(1).toList();
 
     final padding = TitansUI.listPadding(context, extra: 80);
     return ListView(
@@ -173,26 +175,19 @@ class _EventScreenState extends State<EventScreen> {
           pastCount: past.length,
           filterLabel: _filterLabel(filterType),
         ),
-        const SizedBox(height: TitansUI.spaceSm),
-        if (upcoming.isNotEmpty)
-          _NextEventCard(event: upcoming.first, fmtDate: _fmtDate),
-        if (upcoming.isNotEmpty) const SizedBox(height: TitansUI.spaceSm),
-        TitansExpandableSection(
-          title: 'Próximos eventos',
-          subtitle: _sectionSummary(upcoming.length, 'evento futuro'),
-          initiallyExpanded: true,
-          child: _EventsList(
-            events: upcoming,
-            emptyMessage: 'Sem eventos futuros para este filtro.',
+        const SizedBox(height: TitansUI.spaceMd),
+        if (nextEvent != null)
+          _NextEventCard(
+            event: nextEvent,
             fmtDate: _fmtDate,
             iconForType: _iconForType,
-            onTap: _openDetails,
-          ),
-        ),
-        const SizedBox(height: TitansUI.spaceSm),
+          )
+        else
+          _EmptyNextEventCard(filterLabel: _filterLabel(filterType)),
+        const SizedBox(height: TitansUI.spaceMd),
         TitansExpandableSection(
           title: 'Eventos ativos',
-          subtitle: _sectionSummary(active.length, 'evento em andamento'),
+          subtitle: _sectionSummary(active, 'evento em andamento'),
           initiallyExpanded: active.isNotEmpty,
           child: _EventsList(
             events: active,
@@ -204,8 +199,21 @@ class _EventScreenState extends State<EventScreen> {
         ),
         const SizedBox(height: TitansUI.spaceSm),
         TitansExpandableSection(
+          title: 'Eventos agendados',
+          subtitle: _sectionSummary(scheduled, 'evento agendado'),
+          initiallyExpanded: scheduled.isNotEmpty && scheduled.length <= 2,
+          child: _EventsList(
+            events: scheduled,
+            emptyMessage: 'Sem outros eventos agendados para este filtro.',
+            fmtDate: _fmtDate,
+            iconForType: _iconForType,
+            onTap: _openDetails,
+          ),
+        ),
+        const SizedBox(height: TitansUI.spaceSm),
+        TitansExpandableSection(
           title: 'Histórico',
-          subtitle: _sectionSummary(past.length, 'evento passado'),
+          subtitle: _sectionSummary(past, 'evento passado'),
           child: _EventsList(
             events: past,
             emptyMessage: 'Sem eventos passados para este filtro.',
@@ -383,8 +391,13 @@ class _EventMetric extends StatelessWidget {
 class _NextEventCard extends StatelessWidget {
   final EventModel event;
   final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
 
-  const _NextEventCard({required this.event, required this.fmtDate});
+  const _NextEventCard({
+    required this.event,
+    required this.fmtDate,
+    required this.iconForType,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -392,34 +405,148 @@ class _NextEventCard extends StatelessWidget {
     return TitansCard(
       accent: cs.primary,
       radius: TitansUI.radiusSmall,
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Próximo compromisso',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.62),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: cs.primary.withValues(alpha: 0.12),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
+            ),
+            child: Icon(iconForType(event.type), color: cs.primary),
+          ),
+          const SizedBox(width: TitansUI.spaceSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Próximo compromisso',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  event.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 7),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 4,
+                  children: [
+                    _EventInfoPill(
+                      icon: Icons.schedule_outlined,
+                      label: fmtDate(event.start),
+                    ),
+                    _EventInfoPill(
+                      icon: Icons.place_outlined,
+                      label: event.location.trim().isEmpty
+                          ? 'Local a definir'
+                          : event.location,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            event.title,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyNextEventCard extends StatelessWidget {
+  final String filterLabel;
+
+  const _EmptyNextEventCard({required this.filterLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return TitansCard(
+      accent: cs.secondary,
+      radius: TitansUI.radiusSmall,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.event_available_outlined, color: cs.secondary),
+          const SizedBox(width: TitansUI.spaceSm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Sem próximo compromisso',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Filtro atual: $filterLabel.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.66),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            '${fmtDate(event.start)} • ${event.location}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.68),
-              fontWeight: FontWeight.w700,
+        ],
+      ),
+    );
+  }
+}
+
+class _EventInfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _EventInfoPill({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 210),
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(999),
+        color: cs.primary.withValues(alpha: 0.08),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: cs.primary),
+          const SizedBox(width: 5),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.72),
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
             ),
           ),
         ],
@@ -552,10 +679,11 @@ String _filterLabel(EventType? type) {
   }
 }
 
-String _sectionSummary(int count, String singular) {
-  if (count == 0) return 'Nenhum registro';
-  if (count == 1) return '1 $singular';
-  return '$count registros';
+String _sectionSummary(List<EventModel> events, String singular) {
+  final count = events.length;
+  if (count == 0) return 'Nenhum registro neste filtro';
+  if (count == 1) return '1 $singular nesta seção';
+  return '$count registros nesta seção';
 }
 
 class _EventForm extends StatefulWidget {

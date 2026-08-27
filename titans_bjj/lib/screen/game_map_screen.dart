@@ -1591,7 +1591,7 @@ class _TechnicalRadarPreviewViewModel {
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
-          'Perfil t\u00e9cnico em forma\u00e7\u00e3o; eixos visuais sem nota ou percentual.',
+          'Perfil t\u00e9cnico em forma\u00e7\u00e3o; eixos visuais sem avalia\u00e7\u00e3o.',
       evidences: [
         TitansTechnicalRadarEvidence(
           label: 'T\u00e9cnicas registradas',
@@ -1616,6 +1616,7 @@ class _TechnicalRadarPreviewViewModel {
     );
   }
 }
+
 class _RtcaEvidenceViewModel {
   final String title;
   final String subtitle;
