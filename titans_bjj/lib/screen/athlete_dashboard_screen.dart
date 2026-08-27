@@ -454,16 +454,16 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     recommendation: nextTraining,
                                   ),
                                   const SizedBox(height: 12),
-                                  _RecommendedFocusCard(
-                                    cs: cs,
-                                    focus: recommendedFocus,
-                                  ),
-                                  const SizedBox(height: 12),
                                   _DashboardPrimaryActionCard(
                                     cs: cs,
                                     nextTraining: nextTraining,
                                     onRegisterTraining: openRegisterTraining,
                                     onOpenTraining: openTraining,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  _RecommendedFocusCard(
+                                    cs: cs,
+                                    focus: recommendedFocus,
                                   ),
                                   const SizedBox(height: 12),
                                   _DashboardQuickActionsCard(
