@@ -1247,6 +1247,15 @@ class _DebriefSelection {
   const _DebriefSelection({required this.label, required this.addToAcademy});
 }
 
+enum _TechniqueQuickFilter {
+  all,
+  submissions,
+  passing,
+  sweeps,
+  takedowns,
+  escapesDefense,
+  other,
+}
 class _DebriefSelectSheet extends StatefulWidget {
   final String title;
   final String placeholder;
@@ -1272,6 +1281,7 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   late final TextEditingController _search;
   late String _selected;
   bool _addSelectedToAcademy = false;
+  _TechniqueQuickFilter _selectedTechniqueFilter = _TechniqueQuickFilter.all;
 
   bool get _isTechniqueSheet => widget.title.toLowerCase().contains('técnica');
 
@@ -1299,15 +1309,12 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   List<String> _filteredRecentOptions(String query) {
     final filtered = <String>[];
     final seen = <String>{};
-    final normalizedQuery = query.toLowerCase();
 
     for (final option in widget.recentOptions) {
       final label = option.trim();
       if (label.isEmpty) continue;
-      if (normalizedQuery.isNotEmpty &&
-          !label.toLowerCase().contains(normalizedQuery)) {
-        continue;
-      }
+      if (!_matchesSearch(label, query)) continue;
+      if (!_matchesTechniqueFilter(label)) continue;
 
       final key = JiuJitsuTaxonomy.normalizedKey(label);
       if (key.isEmpty || !seen.add(key)) continue;
@@ -1317,6 +1324,62 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     }
 
     return filtered;
+  }
+
+  bool _matchesSearch(String option, String query) {
+    final normalizedQuery = query.toLowerCase();
+    return normalizedQuery.isEmpty ||
+        option.toLowerCase().contains(normalizedQuery);
+  }
+
+  bool _matchesTechniqueFilter(String option) {
+    if (!_isTechniqueSheet) return true;
+    if (_selectedTechniqueFilter == _TechniqueQuickFilter.all) return true;
+    return _techniqueFilterFor(option) == _selectedTechniqueFilter;
+  }
+
+  _TechniqueQuickFilter _techniqueFilterFor(String option) {
+    final key = JiuJitsuTaxonomy.normalizedKey(option);
+    if (key.contains('raspagem') || key.contains('sweep')) {
+      return _TechniqueQuickFilter.sweeps;
+    }
+
+    final category = JiuJitsuTaxonomy.categoryFor(technique: option);
+    switch (category) {
+      case JiuJitsuSkillCategory.submissions:
+        return _TechniqueQuickFilter.submissions;
+      case JiuJitsuSkillCategory.passing:
+        return _TechniqueQuickFilter.passing;
+      case JiuJitsuSkillCategory.takedowns:
+        return _TechniqueQuickFilter.takedowns;
+      case JiuJitsuSkillCategory.escapes:
+      case JiuJitsuSkillCategory.defense:
+        return _TechniqueQuickFilter.escapesDefense;
+      case JiuJitsuSkillCategory.guard:
+      case JiuJitsuSkillCategory.mount:
+      case JiuJitsuSkillCategory.back:
+      case JiuJitsuSkillCategory.other:
+        return _TechniqueQuickFilter.other;
+    }
+  }
+
+  String _techniqueFilterLabel(_TechniqueQuickFilter filter) {
+    switch (filter) {
+      case _TechniqueQuickFilter.all:
+        return 'Todas';
+      case _TechniqueQuickFilter.submissions:
+        return 'Finalizações';
+      case _TechniqueQuickFilter.passing:
+        return 'Passagens';
+      case _TechniqueQuickFilter.sweeps:
+        return 'Raspagens';
+      case _TechniqueQuickFilter.takedowns:
+        return 'Quedas';
+      case _TechniqueQuickFilter.escapesDefense:
+        return 'Defesas/Saídas';
+      case _TechniqueQuickFilter.other:
+        return 'Outras';
+    }
   }
 
   @override
@@ -1329,9 +1392,8 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     final recentKeys = recentOptions.map(JiuJitsuTaxonomy.normalizedKey).toSet();
     final filtered =
         widget.options
-            .where(
-              (option) => option.toLowerCase().contains(query.toLowerCase()),
-            )
+            .where((option) => _matchesSearch(option, query))
+            .where(_matchesTechniqueFilter)
             .where(
               (option) => !recentKeys.contains(
                 JiuJitsuTaxonomy.normalizedKey(option),
@@ -1342,7 +1404,12 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
       (option) => JiuJitsuTaxonomy.normalizedKey(option) == queryKey,
     );
     final showCustom = query.isNotEmpty && !exactMatch;
-    final valueToConfirm = _selected;
+    final selectedIsVisible =
+        _selected.trim().isNotEmpty &&
+        ((showCustom && _selected == query) ||
+            (_matchesSearch(_selected, query) &&
+                _matchesTechniqueFilter(_selected)));
+    final valueToConfirm = selectedIsVisible ? _selected : '';
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return SafeArea(
@@ -1397,6 +1464,36 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                     }),
               ),
               const SizedBox(height: 10),
+              if (_isTechniqueSheet) ...[
+                SizedBox(
+                  height: 38,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _TechniqueQuickFilter.values.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final filter = _TechniqueQuickFilter.values[index];
+                      final selected = _selectedTechniqueFilter == filter;
+
+                      return ChoiceChip(
+                        label: Text(_techniqueFilterLabel(filter)),
+                        selected: selected,
+                        onSelected:
+                            (_) => setState(() {
+                              _selectedTechniqueFilter = filter;
+                              _addSelectedToAcademy = false;
+                            }),
+                        visualDensity: VisualDensity.compact,
+                        labelStyle: TextStyle(
+                          fontWeight:
+                              selected ? FontWeight.w900 : FontWeight.w700,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
               if (recentOptions.isNotEmpty) ...[
                 Text(
                   'Recentes',
