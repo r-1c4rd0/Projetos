@@ -2,6 +2,85 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 enum TrainingPlace { academy, home, other }
 
+enum TrainingTechniqueSide { left, right, both, notApplicable, unknown }
+
+class TrainingTechniqueEntry {
+  final String technique;
+  final String? position;
+  final String? category;
+  final TrainingTechniqueSide side;
+  final String? applicationContext;
+  final String? techniqueOutcome;
+  final String? notes;
+
+  const TrainingTechniqueEntry({
+    required this.technique,
+    this.position,
+    this.category,
+    this.side = TrainingTechniqueSide.unknown,
+    this.applicationContext,
+    this.techniqueOutcome,
+    this.notes,
+  });
+
+  factory TrainingTechniqueEntry.legacy({
+    required String technique,
+    String? position,
+    String? applicationContext,
+    String? techniqueOutcome,
+  }) {
+    return TrainingTechniqueEntry(
+      technique: technique,
+      position: position,
+      applicationContext: applicationContext,
+      techniqueOutcome: techniqueOutcome,
+    );
+  }
+
+  static TrainingTechniqueEntry? fromMap(Object? value) {
+    if (value is! Map) return null;
+
+    final technique = _optionalString(value['technique']);
+    if (technique == null) return null;
+
+    return TrainingTechniqueEntry(
+      technique: technique,
+      position: _optionalString(value['position']),
+      category: _optionalString(value['category']),
+      side: _sideFromValue(value['side']),
+      applicationContext: _optionalString(value['applicationContext']),
+      techniqueOutcome: _optionalString(value['techniqueOutcome']),
+      notes: _optionalString(value['notes']),
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'technique': technique,
+      if (position != null) 'position': position,
+      if (category != null) 'category': category,
+      'side': side.name,
+      if (applicationContext != null) 'applicationContext': applicationContext,
+      if (techniqueOutcome != null) 'techniqueOutcome': techniqueOutcome,
+      if (notes != null) 'notes': notes,
+    };
+  }
+
+  static TrainingTechniqueSide _sideFromValue(Object? value) {
+    final normalized = value?.toString().trim();
+    return TrainingTechniqueSide.values.firstWhere(
+      (side) => side.name == normalized,
+      orElse: () => TrainingTechniqueSide.unknown,
+    );
+  }
+
+  static String? _optionalString(Object? value) {
+    final text = value?.toString().trim();
+    if (text == null || text.isEmpty) return null;
+    return text;
+  }
+}
+
 class TrainingSession {
   static const applicationContextDrill = 'drill';
   static const applicationContextPositionalSparring = 'positionalSparring';
@@ -81,6 +160,7 @@ class TrainingSession {
 
   final String? position;
   final String? technique;
+  final List<TrainingTechniqueEntry> techniques;
   final String? successes;
   final String? difficulties;
   final int? intensity;
@@ -104,13 +184,18 @@ class TrainingSession {
     this.instructorName,
     this.position,
     this.technique,
+    List<TrainingTechniqueEntry>? techniques,
     this.successes,
     this.difficulties,
     this.intensity,
     this.debriefNotes,
     this.applicationContext,
     this.techniqueOutcome,
-  }) : scores = scores ?? const {};
+  }) : scores = scores ?? const {},
+       techniques =
+           techniques == null
+               ? const <TrainingTechniqueEntry>[]
+               : List.unmodifiable(techniques);
 
   TrainingSession copyWith({
     DateTime? date,
@@ -127,6 +212,7 @@ class TrainingSession {
     String? instructorName,
     String? position,
     String? technique,
+    List<TrainingTechniqueEntry>? techniques,
     String? successes,
     String? difficulties,
     int? intensity,
@@ -150,6 +236,7 @@ class TrainingSession {
       instructorName: instructorName ?? this.instructorName,
       position: position ?? this.position,
       technique: technique ?? this.technique,
+      techniques: techniques ?? this.techniques,
       successes: successes ?? this.successes,
       difficulties: difficulties ?? this.difficulties,
       intensity: intensity ?? this.intensity,
@@ -157,6 +244,22 @@ class TrainingSession {
       applicationContext: applicationContext ?? this.applicationContext,
       techniqueOutcome: techniqueOutcome ?? this.techniqueOutcome,
     );
+  }
+
+  List<TrainingTechniqueEntry> get effectiveTechniqueEntries {
+    if (techniques.isNotEmpty) return techniques;
+
+    final legacyTechnique = _optionalString(technique);
+    if (legacyTechnique == null) return const <TrainingTechniqueEntry>[];
+
+    return [
+      TrainingTechniqueEntry.legacy(
+        technique: legacyTechnique,
+        position: _optionalString(position),
+        applicationContext: _optionalString(applicationContext),
+        techniqueOutcome: _optionalString(techniqueOutcome),
+      ),
+    ];
   }
 
   Map<String, dynamic> toMap({bool includeApplicationDeletes = false}) {
@@ -177,6 +280,8 @@ class TrainingSession {
       if (instructorName != null) 'instructorName': instructorName,
       if (position != null) 'position': position,
       if (technique != null) 'technique': technique,
+      if (techniques.isNotEmpty)
+        'techniques': techniques.map((entry) => entry.toMap()).toList(),
       if (successes != null) 'successes': successes,
       if (difficulties != null) 'difficulties': difficulties,
       if (intensity != null) 'intensity': intensity,
@@ -193,10 +298,7 @@ class TrainingSession {
     };
   }
 
-  static TrainingSession fromDoc(
-    String id,
-    Map<String, dynamic> data,
-  ) {
+  static TrainingSession fromDoc(String id, Map<String, dynamic> data) {
     final rawDate = data['date'];
     DateTime date;
 
@@ -243,12 +345,25 @@ class TrainingSession {
       instructorName: data['instructorName']?.toString(),
       position: _optionalString(data['position']),
       technique: _optionalString(data['technique']),
+      techniques: _techniqueEntriesFromValue(data['techniques']),
       successes: _optionalString(data['successes']),
       difficulties: _optionalString(data['difficulties']),
       intensity: _intensityFromValue(data['intensity']),
       debriefNotes: _optionalString(data['debriefNotes']),
       applicationContext: _optionalString(data['applicationContext']),
       techniqueOutcome: _optionalString(data['techniqueOutcome']),
+    );
+  }
+
+  static List<TrainingTechniqueEntry> _techniqueEntriesFromValue(
+    Object? value,
+  ) {
+    if (value is! Iterable) return const <TrainingTechniqueEntry>[];
+
+    return List.unmodifiable(
+      value
+          .map(TrainingTechniqueEntry.fromMap)
+          .whereType<TrainingTechniqueEntry>(),
     );
   }
 
