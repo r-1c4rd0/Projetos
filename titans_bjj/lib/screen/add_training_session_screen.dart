@@ -36,6 +36,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   final _successes = TextEditingController();
   final _difficulties = TextEditingController();
   final _debriefNotes = TextEditingController();
+  final List<_TechniqueFormEntry> _techniqueEntries = [];
 
   bool _recurring = false;
 
@@ -73,6 +74,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     );
 
     final session = widget.session;
+    _initTechniqueEntries(session);
     debugPrint(
       "[TRAINING_DEBRIEF_FORM] mode=${session == null ? 'create' : 'edit'} "
       'session.id=${session?.id} target.uid=${widget.uid} '
@@ -101,7 +103,91 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     _successes.dispose();
     _difficulties.dispose();
     _debriefNotes.dispose();
+    for (final entry in _techniqueEntries) {
+      entry.dispose();
+    }
     super.dispose();
+  }
+
+  void _initTechniqueEntries(TrainingSession? session) {
+    final entries =
+        session?.effectiveTechniqueEntries ?? const <TrainingTechniqueEntry>[];
+    if (entries.isEmpty) {
+      _techniqueEntries.add(_TechniqueFormEntry(expanded: true));
+      return;
+    }
+
+    for (var i = 0; i < entries.length; i++) {
+      final entry = entries[i];
+      _techniqueEntries.add(
+        _TechniqueFormEntry.fromEntry(entry, expanded: i == 0),
+      );
+    }
+  }
+
+  void _addTechniqueEntry() {
+    setState(() {
+      for (final entry in _techniqueEntries) {
+        entry.expanded = false;
+      }
+      _techniqueEntries.add(_TechniqueFormEntry(expanded: true));
+    });
+  }
+
+  void _removeTechniqueEntry(int index) {
+    if (_techniqueEntries.length == 1) {
+      final entry = _techniqueEntries.single;
+      setState(() {
+        entry.position.clear();
+        entry.technique.clear();
+        entry.notes.clear();
+        entry.side = TrainingTechniqueSide.unknown;
+        entry.applicationContext = null;
+        entry.techniqueOutcome = null;
+        entry.expanded = true;
+      });
+      return;
+    }
+
+    final removed = _techniqueEntries.removeAt(index);
+    removed.dispose();
+    setState(() {});
+  }
+
+  void _toggleTechniqueEntry(int index) {
+    setState(
+      () =>
+          _techniqueEntries[index].expanded =
+              !_techniqueEntries[index].expanded,
+    );
+  }
+
+  List<TrainingTechniqueEntry> _buildTechniqueEntries() {
+    final entries = <TrainingTechniqueEntry>[];
+    final seen = <String>{};
+
+    for (final formEntry in _techniqueEntries) {
+      final technique = _optionalText(formEntry.technique);
+      if (technique == null) continue;
+
+      final position = _optionalText(formEntry.position);
+      final key =
+          '${JiuJitsuTaxonomy.normalizedKey(position ?? '')}:${JiuJitsuTaxonomy.normalizedKey(technique)}';
+      if (!seen.add(key)) continue;
+
+      entries.add(
+        TrainingTechniqueEntry(
+          technique: technique,
+          position: position,
+          side: formEntry.side,
+          applicationContext: formEntry.applicationContext,
+          techniqueOutcome: formEntry.techniqueOutcome,
+          notes: _optionalText(formEntry.notes),
+        ),
+      );
+    }
+
+    return entries;
   }
 
   @override
@@ -200,49 +286,61 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                       ),
                       const SizedBox(height: 12),
                       _TrainingFormSection(
-                        title: 'T\u00e9cnica trabalhada',
+                        title: 'Técnicas do treino',
                         icon: Icons.psychology_alt_outlined,
                         children: [
-                          _DebriefSelectCard(
-                            label: 'Posi\u00e7\u00e3o',
-                            placeholder: 'Selecionar posi\u00e7\u00e3o',
-                            value: _optionalText(_position),
-                            icon: Icons.sports_mma_outlined,
-                            loading:
-                                positionSnap.connectionState ==
-                                    ConnectionState.waiting &&
-                                !positionSnap.hasData,
-                            onTap:
-                                () => _selectDebriefValue(
-                                  title: 'Posi\u00e7\u00e3o trabalhada',
-                                  placeholder: 'Buscar posi\u00e7\u00e3o',
-                                  type: JiuJitsuTaxonomyType.position,
-                                  options: positionOptions,
-                                  controller: _position,
-                                  canAddToAcademy: canAddToAcademy,
-                                  actorUid: actor?.uid,
-                                ),
-                          ),
+                          for (
+                            var i = 0;
+                            i < _techniqueEntries.length;
+                            i++
+                          ) ...[
+                            _TechniqueEntryCard(
+                              index: i,
+                              entry: _techniqueEntries[i],
+                              canRemove: _techniqueEntries.length > 1,
+                              positionLoading:
+                                  positionSnap.connectionState ==
+                                      ConnectionState.waiting &&
+                                  !positionSnap.hasData,
+                              techniqueLoading:
+                                  techniqueSnap.connectionState ==
+                                      ConnectionState.waiting &&
+                                  !techniqueSnap.hasData,
+                              onToggle: () => _toggleTechniqueEntry(i),
+                              onRemove: () => _removeTechniqueEntry(i),
+                              onPickPosition:
+                                  () => _selectDebriefValue(
+                                    title: 'Posição da técnica',
+                                    placeholder: 'Buscar posição',
+                                    type: JiuJitsuTaxonomyType.position,
+                                    options: positionOptions,
+                                    controller: _techniqueEntries[i].position,
+                                    canAddToAcademy: canAddToAcademy,
+                                    actorUid: actor?.uid,
+                                  ),
+                              onPickTechnique:
+                                  () => _selectDebriefValue(
+                                    title: 'Técnica trabalhada',
+                                    placeholder: 'Buscar técnica',
+                                    type: JiuJitsuTaxonomyType.technique,
+                                    options: techniqueOptions,
+                                    controller: _techniqueEntries[i].technique,
+                                    canAddToAcademy: canAddToAcademy,
+                                    actorUid: actor?.uid,
+                                  ),
+                              onChanged: () => setState(() {}),
+                            ),
+                            if (i != _techniqueEntries.length - 1)
+                              const SizedBox(height: 10),
+                          ],
                           const SizedBox(height: 12),
-                          _DebriefSelectCard(
-                            label: 'T\u00e9cnica',
-                            placeholder: 'Selecionar t\u00e9cnica',
-                            value: _optionalText(_technique),
-                            icon: Icons.psychology_alt_outlined,
-                            loading:
-                                techniqueSnap.connectionState ==
-                                    ConnectionState.waiting &&
-                                !techniqueSnap.hasData,
-                            onTap:
-                                () => _selectDebriefValue(
-                                  title: 'T\u00e9cnica trabalhada',
-                                  placeholder: 'Buscar t\u00e9cnica',
-                                  type: JiuJitsuTaxonomyType.technique,
-                                  options: techniqueOptions,
-                                  controller: _technique,
-                                  canAddToAcademy: canAddToAcademy,
-                                  actorUid: actor?.uid,
-                                ),
+                          SizedBox(
+                            width: double.infinity,
+                            child: OutlinedButton.icon(
+                              onPressed: _addTechniqueEntry,
+                              icon: const Icon(Icons.add),
+                              label: const Text('Adicionar técnica'),
+                            ),
                           ),
                         ],
                       ),
@@ -305,42 +403,6 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                               prefixIcon: Icon(Icons.report_problem_outlined),
                             ),
                             maxLines: 2,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      _TrainingFormSection(
-                        title: 'Aplica\u00e7\u00e3o t\u00e9cnica',
-                        icon: Icons.sports_score_outlined,
-                        children: [
-                          _DebriefChoiceSection(
-                            title: 'Contexto',
-                            subtitle: 'Onde voc\u00ea tentou usar?',
-                            options: _applicationContextOptions,
-                            selectedValue: _applicationContext,
-                            onSelected:
-                                (value) => setState(
-                                  () =>
-                                      _applicationContext =
-                                          _applicationContext == value
-                                              ? null
-                                              : value,
-                                ),
-                          ),
-                          const SizedBox(height: 12),
-                          _DebriefChoiceSection(
-                            title: 'Resultado',
-                            subtitle: 'Como foi a tentativa?',
-                            options: _techniqueOutcomeOptions,
-                            selectedValue: _techniqueOutcome,
-                            onSelected:
-                                (value) => setState(
-                                  () =>
-                                      _techniqueOutcome =
-                                          _techniqueOutcome == value
-                                              ? null
-                                              : value,
-                                ),
                           ),
                         ],
                       ),
@@ -452,13 +514,19 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     try {
       const uuid = Uuid();
       final notesOrNull = _optionalText(_notes);
-      final position = _optionalText(_position);
-      final technique = _optionalText(_technique);
+      final techniqueEntries = _buildTechniqueEntries();
+      final primaryTechnique =
+          techniqueEntries.isEmpty ? null : techniqueEntries.first;
+      final position = primaryTechnique?.position ?? _optionalText(_position);
+      final technique =
+          primaryTechnique?.technique ?? _optionalText(_technique);
       final successes = _optionalText(_successes);
       final difficulties = _optionalText(_difficulties);
       final debriefNotes = _optionalText(_debriefNotes);
-      final applicationContext = _applicationContext;
-      final techniqueOutcome = _techniqueOutcome;
+      final applicationContext =
+          primaryTechnique?.applicationContext ?? _applicationContext;
+      final techniqueOutcome =
+          primaryTechnique?.techniqueOutcome ?? _techniqueOutcome;
 
       if (!_recurring) {
         final existing = widget.session;
@@ -478,6 +546,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           instructorName: existing?.instructorName,
           position: position,
           technique: technique,
+          techniques: techniqueEntries,
           successes: successes,
           difficulties: difficulties,
           intensity: _intensity,
@@ -559,6 +628,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                     notes: notesOrNull,
                     position: position,
                     technique: technique,
+                    techniques: techniqueEntries,
                     successes: successes,
                     difficulties: difficulties,
                     intensity: _intensity,
@@ -603,6 +673,291 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   String? _optionalText(TextEditingController controller) {
     final text = controller.text.trim();
     return text.isEmpty ? null : text;
+  }
+}
+
+class _TechniqueFormEntry {
+  final TextEditingController position;
+  final TextEditingController technique;
+  final TextEditingController notes;
+  TrainingTechniqueSide side;
+  String? applicationContext;
+  String? techniqueOutcome;
+  bool expanded;
+
+  _TechniqueFormEntry({
+    String? position,
+    String? technique,
+    String? notes,
+    this.side = TrainingTechniqueSide.unknown,
+    this.applicationContext,
+    this.techniqueOutcome,
+    this.expanded = false,
+  }) : position = TextEditingController(text: position ?? ''),
+       technique = TextEditingController(text: technique ?? ''),
+       notes = TextEditingController(text: notes ?? '');
+
+  factory _TechniqueFormEntry.fromEntry(
+    TrainingTechniqueEntry entry, {
+    required bool expanded,
+  }) {
+    return _TechniqueFormEntry(
+      position: entry.position,
+      technique: entry.technique,
+      notes: entry.notes,
+      side: entry.side,
+      applicationContext: entry.applicationContext,
+      techniqueOutcome: entry.techniqueOutcome,
+      expanded: expanded,
+    );
+  }
+
+  void dispose() {
+    position.dispose();
+    technique.dispose();
+    notes.dispose();
+  }
+}
+
+class _TechniqueEntryCard extends StatelessWidget {
+  final int index;
+  final _TechniqueFormEntry entry;
+  final bool canRemove;
+  final bool positionLoading;
+  final bool techniqueLoading;
+  final VoidCallback onToggle;
+  final VoidCallback onRemove;
+  final VoidCallback onPickPosition;
+  final VoidCallback onPickTechnique;
+  final VoidCallback onChanged;
+
+  const _TechniqueEntryCard({
+    required this.index,
+    required this.entry,
+    required this.canRemove,
+    required this.positionLoading,
+    required this.techniqueLoading,
+    required this.onToggle,
+    required this.onRemove,
+    required this.onPickPosition,
+    required this.onPickTechnique,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final technique = _clean(entry.technique.text);
+    final position = _clean(entry.position.text);
+    final title = technique ?? 'Técnica ${index + 1}';
+    final subtitle = [
+      if (position != null) position,
+      _sideLabel(entry.side),
+      if (entry.applicationContext != null)
+        TrainingAggregator.applicationContextLabel(entry.applicationContext),
+      if (entry.techniqueOutcome != null)
+        TrainingAggregator.techniqueOutcomeLabel(entry.techniqueOutcome),
+    ].whereType<String>().join(' • ');
+
+    return Container(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.10)),
+        color: cs.surface.withValues(alpha: 0.34),
+      ),
+      child: Column(
+        children: [
+          InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: onToggle,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 15,
+                    backgroundColor: cs.primary.withValues(alpha: 0.16),
+                    child: Text(
+                      '${index + 1}',
+                      style: TextStyle(
+                        color: cs.primary,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 3),
+                          Text(
+                            subtitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.64),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (canRemove)
+                    IconButton(
+                      tooltip: 'Remover técnica',
+                      onPressed: onRemove,
+                      icon: const Icon(Icons.delete_outline),
+                    ),
+                  AnimatedRotation(
+                    turns: entry.expanded ? 0.5 : 0,
+                    duration: const Duration(milliseconds: 180),
+                    child: const Icon(Icons.keyboard_arrow_down),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            duration: const Duration(milliseconds: 180),
+            crossFadeState:
+                entry.expanded
+                    ? CrossFadeState.showFirst
+                    : CrossFadeState.showSecond,
+            firstChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: Column(
+                children: [
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  _DebriefSelectCard(
+                    label: 'Técnica',
+                    placeholder: 'Selecionar técnica',
+                    value: _clean(entry.technique.text),
+                    icon: Icons.psychology_alt_outlined,
+                    loading: techniqueLoading,
+                    onTap: onPickTechnique,
+                  ),
+                  const SizedBox(height: 12),
+                  _DebriefSelectCard(
+                    label: 'Posição/contexto',
+                    placeholder: 'Selecionar posição',
+                    value: _clean(entry.position.text),
+                    icon: Icons.sports_mma_outlined,
+                    loading: positionLoading,
+                    onTap: onPickPosition,
+                  ),
+                  const SizedBox(height: 12),
+                  _TechniqueSideChoiceSection(
+                    selected: entry.side,
+                    onSelected: (side) {
+                      entry.side = side;
+                      onChanged();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _DebriefChoiceSection(
+                    title: 'Contexto',
+                    subtitle: 'Onde essa técnica foi aplicada?',
+                    options: _applicationContextOptions,
+                    selectedValue: entry.applicationContext,
+                    onSelected: (value) {
+                      entry.applicationContext =
+                          entry.applicationContext == value ? null : value;
+                      onChanged();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  _DebriefChoiceSection(
+                    title: 'Resultado',
+                    subtitle: 'Como foi a tentativa dessa técnica?',
+                    options: _techniqueOutcomeOptions,
+                    selectedValue: entry.techniqueOutcome,
+                    onSelected: (value) {
+                      entry.techniqueOutcome =
+                          entry.techniqueOutcome == value ? null : value;
+                      onChanged();
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: entry.notes,
+                    decoration: const InputDecoration(
+                      labelText: 'Observação da técnica',
+                      prefixIcon: Icon(Icons.edit_note_outlined),
+                    ),
+                    maxLines: 2,
+                  ),
+                ],
+              ),
+            ),
+            secondChild: const SizedBox.shrink(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static String? _clean(String value) {
+    final text = value.trim();
+    return text.isEmpty ? null : text;
+  }
+}
+
+class _TechniqueSideChoiceSection extends StatelessWidget {
+  final TrainingTechniqueSide selected;
+  final ValueChanged<TrainingTechniqueSide> onSelected;
+
+  const _TechniqueSideChoiceSection({
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InputDecorator(
+      decoration: const InputDecoration(
+        labelText: 'Lado',
+        prefixIcon: Icon(Icons.compare_arrows_outlined),
+      ),
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final side in TrainingTechniqueSide.values)
+            FilterChip(
+              label: Text(_sideLabel(side)),
+              selected: selected == side,
+              onSelected: (_) => onSelected(side),
+              visualDensity: VisualDensity.compact,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+String _sideLabel(TrainingTechniqueSide side) {
+  switch (side) {
+    case TrainingTechniqueSide.left:
+      return 'Esquerda';
+    case TrainingTechniqueSide.right:
+      return 'Direita';
+    case TrainingTechniqueSide.both:
+      return 'Ambos';
+    case TrainingTechniqueSide.notApplicable:
+      return 'Não se aplica';
+    case TrainingTechniqueSide.unknown:
+      return 'Desconhecido';
   }
 }
 
