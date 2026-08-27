@@ -310,7 +310,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                               onRemove: () => _removeTechniqueEntry(i),
                               onPickPosition:
                                   () => _selectDebriefValue(
-                                    title: 'Posição da técnica',
+                                    title: 'Posi\u00e7\u00e3o trabalhada',
                                     placeholder: 'Buscar posição',
                                     type: JiuJitsuTaxonomyType.position,
                                     options: positionOptions,
@@ -1230,6 +1230,16 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   late String _selected;
   bool _addSelectedToAcademy = false;
 
+  bool get _isTechniqueSheet => widget.title.toLowerCase().contains('técnica');
+
+  bool get _isPositionSheet => widget.title.toLowerCase().contains('posição');
+
+  String get _subtitle {
+    if (_isTechniqueSheet) return 'Escolha uma técnica usada neste treino';
+    if (_isPositionSheet) return 'Onde essa técnica foi trabalhada?';
+    return 'Escolha uma opção para continuar';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -1246,6 +1256,7 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
     final query = _search.text.trim();
     final queryKey = JiuJitsuTaxonomy.normalizedKey(query);
     final filtered =
@@ -1258,15 +1269,15 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
       (option) => JiuJitsuTaxonomy.normalizedKey(option) == queryKey,
     );
     final showCustom = query.isNotEmpty && !exactMatch;
-    final valueToConfirm = showCustom ? query : _selected;
+    final valueToConfirm = _selected;
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
 
     return SafeArea(
       child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+        padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomInset),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.82,
+            maxHeight: MediaQuery.sizeOf(context).height * 0.84,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1274,75 +1285,118 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
             children: [
               Text(
                 widget.title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
+              Text(
+                _subtitle,
+                style: textTheme.bodyMedium?.copyWith(
+                  color: cs.onSurface.withValues(alpha: 0.68),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 14),
               TextField(
                 controller: _search,
                 autofocus: true,
                 decoration: InputDecoration(
-                  labelText: widget.placeholder,
+                  hintText: widget.placeholder,
                   prefixIcon: const Icon(Icons.search),
+                  filled: true,
+                  fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.34),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(
+                      color: cs.onSurface.withValues(alpha: 0.10),
+                    ),
+                  ),
                 ),
                 onChanged:
                     (_) => setState(() {
                       _addSelectedToAcademy = false;
                     }),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 10),
               Flexible(
-                child: ListView(
-                  shrinkWrap: true,
-                  children: [
-                    if (showCustom) ...[
-                      _DebriefOptionTile(
-                        label: 'Usar "$query"',
-                        selected: _selected == query && !_addSelectedToAcademy,
-                        accent: true,
-                        onTap:
-                            () => setState(() {
-                              _selected = query;
-                              _addSelectedToAcademy = false;
-                            }),
-                      ),
-                      if (widget.canAddToAcademy)
-                        _DebriefOptionTile(
-                          label: 'Adicionar "$query" a lista da academia',
-                          selected: _selected == query && _addSelectedToAcademy,
-                          accent: true,
-                          onTap:
-                              () => setState(() {
-                                _selected = query;
-                                _addSelectedToAcademy = true;
-                              }),
-                        ),
-                    ],
-                    for (final option in filtered)
-                      _DebriefOptionTile(
-                        label: option,
-                        selected:
-                            JiuJitsuTaxonomy.normalizedKey(option) ==
-                                JiuJitsuTaxonomy.normalizedKey(_selected) &&
-                            !_addSelectedToAcademy,
-                        onTap:
-                            () => setState(() {
-                              _selected = option;
-                              _addSelectedToAcademy = false;
-                            }),
-                      ),
-                    if (filtered.isEmpty && !showCustom)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 24),
-                        child: Text(
-                          'Nenhuma opcao encontrada.',
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.62),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(
+                      color: cs.onSurface.withValues(alpha: 0.08),
+                    ),
+                    color: cs.surface.withValues(alpha: 0.22),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: ListView(
+                      shrinkWrap: true,
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      children: [
+                        if (showCustom) ...[
+                          _DebriefOptionTile(
+                            label: 'Usar "$query"',
+                            selected:
+                                _selected == query && !_addSelectedToAcademy,
+                            accent: true,
+                            onTap:
+                                () => setState(() {
+                                  _selected = query;
+                                  _addSelectedToAcademy = false;
+                                }),
                           ),
-                        ),
-                      ),
-                  ],
+                          if (widget.canAddToAcademy)
+                            _DebriefOptionTile(
+                              label: 'Adicionar "$query" à lista da academia',
+                              selected:
+                                  _selected == query && _addSelectedToAcademy,
+                              accent: true,
+                              onTap:
+                                  () => setState(() {
+                                    _selected = query;
+                                    _addSelectedToAcademy = true;
+                                  }),
+                            ),
+                        ],
+                        for (final option in filtered)
+                          _DebriefOptionTile(
+                            label: option,
+                            selected:
+                                JiuJitsuTaxonomy.normalizedKey(option) ==
+                                    JiuJitsuTaxonomy.normalizedKey(_selected) &&
+                                !_addSelectedToAcademy,
+                            onTap:
+                                () => setState(() {
+                                  _selected = option;
+                                  _addSelectedToAcademy = false;
+                                }),
+                          ),
+                        if (filtered.isEmpty && !showCustom)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 28,
+                            ),
+                            child: Text(
+                              'Nenhum resultado encontrado.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.62),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 12),
@@ -1356,11 +1410,15 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                             context,
                             _DebriefSelection(
                               label: valueToConfirm.trim(),
-                              addToAcademy: showCustom && _addSelectedToAcademy,
+                              addToAcademy: _addSelectedToAcademy,
                             ),
                           ),
                   icon: const Icon(Icons.check),
-                  label: const Text('Confirmar sele\u00e7\u00e3o'),
+                  label: Text(
+                    valueToConfirm.trim().isEmpty
+                        ? 'Selecione uma opção'
+                        : 'Confirmar seleção',
+                  ),
                 ),
               ),
             ],
@@ -1388,24 +1446,52 @@ class _DebriefOptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Card(
+    return Material(
       color:
           selected
-              ? cs.primaryContainer.withValues(alpha: 0.55)
+              ? cs.primary.withValues(alpha: 0.16)
               : accent
-              ? cs.secondaryContainer.withValues(alpha: 0.35)
-              : null,
-      child: ListTile(
+              ? cs.secondary.withValues(alpha: 0.12)
+              : Colors.transparent,
+      child: InkWell(
         onTap: onTap,
-        title: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 50),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: Row(
+              children: [
+                Icon(
+                  selected
+                      ? Icons.check_circle
+                      : accent
+                      ? Icons.add_circle_outline
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                  color:
+                      selected
+                          ? cs.primary
+                          : cs.onSurface.withValues(alpha: 0.45),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontWeight: selected ? FontWeight.w900 : FontWeight.w600,
+                      color:
+                          selected
+                              ? cs.onSurface
+                              : cs.onSurface.withValues(alpha: 0.84),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
-        trailing: selected ? const Icon(Icons.check) : null,
       ),
     );
   }
