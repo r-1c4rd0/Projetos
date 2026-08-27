@@ -127,11 +127,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
               TitansExpandableSection(
                 title: 'Categorias técnicas',
                 subtitle: _categorySectionSummary(skillMatrix),
-                child: _SkillMatrixCard(colorScheme: cs, entries: skillMatrix),
+                child: _SkillMatrixCard(entries: skillMatrix),
               ),
               const SizedBox(height: 12),
               if (entries.isEmpty)
-                _EmptyGameMapCard(colorScheme: cs)
+                _EmptyGameMapCard()
               else
                 for (final entry in entries) ...[
                   TitansExpandableSection(
@@ -924,38 +924,43 @@ Color _skillSummaryBarColor(ColorScheme cs, String kind) {
 }
 
 class _SkillMatrixCard extends StatelessWidget {
-  final ColorScheme colorScheme;
   final List<SkillMatrixCategoryEntry> entries;
 
-  const _SkillMatrixCard({required this.colorScheme, required this.entries});
+  const _SkillMatrixCard({required this.entries});
 
   @override
   Widget build(BuildContext context) {
-    return _VisualCard(
-      accent: colorScheme.primary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CompactHeader(title: 'SKILL MATRIX'),
-          const SizedBox(height: 12),
-          if (entries.isEmpty)
-            const TitansEmptyState(
-              icon: Icons.grid_view_outlined,
-              title: 'Skill Matrix vazia',
-              message:
-                  'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar sua Skill Matrix.',
-              compact: true,
-            )
-          else
-            for (var i = 0; i < entries.length; i++) ...[
-              _SkillMatrixCategoryBlock(entry: entries[i]),
-              if (i != entries.length - 1)
-                Divider(color: colorScheme.onSurface.withValues(alpha: 0.08)),
-            ],
+    if (entries.isEmpty) {
+      return const TitansEmptyState(
+        icon: Icons.grid_view_outlined,
+        title: 'Skill Matrix vazia',
+        message:
+            'Registre posição e técnica nos debriefs para montar sua Skill Matrix.',
+        compact: true,
+      );
+    }
+
+    return Column(
+      children: [
+        for (var i = 0; i < entries.length; i++) ...[
+          TitansExpandableSection(
+            title: entries[i].category.displayLabel,
+            subtitle: _skillCategorySubtitle(entries[i]),
+            child: _SkillMatrixCategoryBlock(entry: entries[i]),
+          ),
+          if (i != entries.length - 1) const SizedBox(height: 8),
         ],
-      ),
+      ],
     );
   }
+}
+
+String _skillCategorySubtitle(SkillMatrixCategoryEntry entry) {
+  final techniques =
+      entry.techniquesCount == 1
+          ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
+          : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas';
+  return '$techniques • ${entry.consistencyCount} recorrentes';
 }
 
 class _SkillMatrixCategoryBlock extends StatelessWidget {
@@ -966,45 +971,14 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final intensity = entry.averageIntensity;
     final visibleTechniques = entry.techniques.take(5).toList();
     final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.only(top: 2),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            entry.category.displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 6,
-            runSpacing: 6,
-            children: [
-              _MiniBadge(
-                label:
-                    entry.techniquesCount == 1
-                        ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
-                        : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas',
-                color: cs.primary,
-              ),
-              _MiniBadge(
-                label: '${entry.consistencyCount} recorrentes',
-                color: Colors.lightGreenAccent,
-              ),
-              if (intensity != null)
-                _MiniBadge(
-                  label: '${intensity.toStringAsFixed(1)}/5',
-                  color: Colors.amber,
-                ),
-            ],
-          ),
-          const SizedBox(height: 10),
           for (final technique in visibleTechniques) ...[
             _SkillMatrixTechniqueRow(entry: technique),
             if (technique != visibleTechniques.last) const SizedBox(height: 8),
@@ -1021,7 +995,6 @@ class _SkillMatrixCategoryBlock extends StatelessWidget {
     );
   }
 }
-
 class _SkillMatrixTechniqueRow extends StatelessWidget {
   final SkillMatrixTechniqueEntry entry;
 
@@ -1032,23 +1005,23 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final positive = _hasPositiveApplicationEvidence(entry);
     final unmeasured = entry.application != true;
-    final accent =
-        positive
-            ? Colors.lightGreenAccent
-            : entry.consistent
-            ? cs.secondary
-            : unmeasured
-            ? cs.onSurface.withValues(alpha: 0.46)
-            : cs.primary;
+    final accent = entry.consistent ? cs.secondary : cs.primary;
+    final metadata = <String>[
+      if ((entry.position ?? '').trim().isNotEmpty) entry.position!.trim(),
+      TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+      'última ${_formatShortDate(entry.lastTrainedAt)}',
+      if (entry.averageIntensity != null)
+        'intensidade ${entry.averageIntensity!.toStringAsFixed(1)}/5',
+    ].join(' • ');
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 180),
       curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.all(10),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-        color: accent.withValues(alpha: 0.07),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accent.withValues(alpha: 0.16)),
+        color: accent.withValues(alpha: 0.05),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -1061,26 +1034,22 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 4),
+              Text(
+                metadata,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 7),
               Wrap(
                 spacing: 6,
                 runSpacing: 6,
                 children: [
-                  _MiniBadge(
-                    label: entry.category.displayLabel,
-                    color: cs.primary,
-                  ),
-                  if ((entry.position ?? '').trim().isNotEmpty)
-                    _MiniBadge(
-                      label: entry.position!.trim(),
-                      color: cs.secondary,
-                    ),
-                  _MiniBadge(
-                    label: TrainingAggregator.sessionCountLabel(
-                      entry.sessionsCount,
-                    ),
-                    color: cs.secondary,
-                  ),
                   if (entry.consistent)
                     _MiniBadge(label: 'recorrente', color: cs.secondary),
                   if (positive)
@@ -1092,17 +1061,6 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
                     _MiniBadge(
                       label: 'sem medição',
                       color: cs.onSurface.withValues(alpha: 0.52),
-                    ),
-                  _MiniBadge(
-                    label:
-                        '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
-                    color: cs.onSurface.withValues(alpha: 0.5),
-                  ),
-                  if (entry.averageIntensity != null)
-                    _MiniBadge(
-                      label:
-                          'intensidade ${entry.averageIntensity!.toStringAsFixed(1)}/5',
-                      color: Colors.amber,
                     ),
                 ],
               ),
@@ -1120,7 +1078,7 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
           if (constraints.maxWidth < 520) {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
-              children: [details, const SizedBox(height: 10), levels],
+              children: [details, const SizedBox(height: 8), levels],
             );
           }
 
@@ -1139,11 +1097,8 @@ class _SkillMatrixTechniqueRow extends StatelessWidget {
     );
   }
 }
-
 class _EmptyGameMapCard extends StatelessWidget {
-  final ColorScheme colorScheme;
-
-  const _EmptyGameMapCard({required this.colorScheme});
+  const _EmptyGameMapCard();
 
   @override
   Widget build(BuildContext context) {
@@ -1176,92 +1131,62 @@ class _GameMapPositionCard extends StatelessWidget {
     );
     final visibleTechniques = entry.techniques.take(6).toList();
     final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
+    final metadata = <String>[
+      TrainingAggregator.sessionCountLabel(entry.sessionsCount),
+      'última ${_formatShortDate(entry.lastTrainedAt)}',
+      if (intensity != null) 'intensidade ${intensity.toStringAsFixed(1)}/5',
+    ].join(' • ');
 
-    return _VisualCard(
-      accent: cs.secondary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  entry.position,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(width: 10),
-              _MiniBadge(
-                label: TrainingAggregator.sessionCountLabel(
-                  entry.sessionsCount,
-                ),
-                color: cs.primary,
-              ),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          metadata,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.64),
+            fontSize: 12,
+            fontWeight: FontWeight.w800,
           ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 7,
+          runSpacing: 7,
+          children: [
+            for (final technique in visibleTechniques)
+              _TechniqueChip(
+                label: technique.technique,
+                count: technique.sessionsCount,
+              ),
+            if (hiddenTechniques > 0)
+              _MiniBadge(
+                label: '+$hiddenTechniques técnicas',
+                color: cs.onSurface.withValues(alpha: 0.58),
+              ),
+          ],
+        ),
+        if (success != null || difficulty != null) ...[
           const SizedBox(height: 10),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: 7,
+            runSpacing: 7,
             children: [
-              _MiniBadge(
-                label: '\u00faltima ${_formatShortDate(entry.lastTrainedAt)}',
-                color: cs.onSurface.withValues(alpha: 0.5),
-              ),
-              if (intensity != null)
+              if (success != null)
                 _MiniBadge(
-                  label: 'intensidade ${intensity.toStringAsFixed(1)}/5',
-                  color: Colors.amber,
+                  label: 'resultado positivo: $success',
+                  color: Colors.lightGreenAccent,
                 ),
+              if (difficulty != null)
+                _MiniBadge(label: 'atenção: $difficulty', color: cs.error),
             ],
           ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final technique in visibleTechniques)
-                _TechniqueChip(
-                  label: technique.technique,
-                  count: technique.sessionsCount,
-                ),
-              if (hiddenTechniques > 0)
-                _MiniBadge(
-                  label: '+$hiddenTechniques técnicas',
-                  color: cs.onSurface.withValues(alpha: 0.58),
-                ),
-            ],
-          ),
-          if (success != null || difficulty != null) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                if (success != null)
-                  _MiniBadge(
-                    label: 'forte: $success',
-                    color: Colors.lightGreenAccent,
-                  ),
-                if (difficulty != null)
-                  _MiniBadge(
-                    label: 'aten\u00e7\u00e3o: $difficulty',
-                    color: cs.error,
-                  ),
-              ],
-            ),
-          ],
         ],
-      ),
+      ],
     );
   }
 }
-
 class _VisualCard extends StatelessWidget {
   final Widget child;
   final Color? accent;
