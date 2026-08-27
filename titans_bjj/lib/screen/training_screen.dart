@@ -367,11 +367,8 @@ class _TrainingSummaryCard extends StatelessWidget {
       Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          OverflowBar(
-            spacing: 8,
-            overflowSpacing: 8,
-            alignment: MainAxisAlignment.spaceBetween,
-            overflowAlignment: OverflowBarAlignment.start,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -538,24 +535,31 @@ class _PeriodFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-      ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(
-          children: [
-            for (final option in periods)
-              _PeriodChip(
-                label: option.label,
-                selected: period == option.id,
-                onSelected: () => onChanged(option.id),
-              ),
-          ],
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 520),
+        child: Container(
+          padding: const EdgeInsets.all(4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
+            border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+          ),
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (final option in periods)
+                  _PeriodChip(
+                    label: option.label,
+                    selected: period == option.id,
+                    onSelected: () => onChanged(option.id),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );

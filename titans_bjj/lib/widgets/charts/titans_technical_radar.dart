@@ -339,7 +339,7 @@ class _TechnicalRadarPreviewPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: 92);
 
-    final offset = switch (i) {
+    final rawOffset = switch (i) {
       0 => Offset(point.dx - textPainter.width / 2, point.dy - 24),
       1 => Offset(point.dx + 9, point.dy - textPainter.height / 2),
       2 => Offset(point.dx - textPainter.width / 2, point.dy + 10),
@@ -348,6 +348,10 @@ class _TechnicalRadarPreviewPainter extends CustomPainter {
         point.dy - textPainter.height / 2,
       ),
     };
+    final offset = Offset(
+      rawOffset.dx.clamp(0.0, size.width - textPainter.width).toDouble(),
+      rawOffset.dy.clamp(0.0, size.height - textPainter.height).toDouble(),
+    );
 
     textPainter.paint(canvas, offset);
   }
