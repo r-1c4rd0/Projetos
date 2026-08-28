@@ -146,10 +146,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final skillEvidences = TrainingAggregator.buildSkillEvidences(
             sessions,
           );
-          final technicalRadar =
-              _TechnicalRadarPreviewViewModel.fromSkillEvidences(
-                skillEvidences,
-              );
           final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
             sessions,
           );
@@ -171,6 +167,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
                   final coachEvaluationCount = _coachEvaluatedTechniqueCount(
                     evaluationSnapshot.data ?? const <CoachEvaluation>[],
                   );
+                  final technicalRadar =
+                      _TechnicalRadarPreviewViewModel.fromSkillEvidences(
+                        skillEvidences,
+                        coachEvaluationCount: coachEvaluationCount,
+                      );
                   return TitansExpandableSection(
                     title: 'Radar de Evidências Técnicas',
                     subtitle:
@@ -189,12 +190,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
                           awaitingClassificationCount:
                               technicalRadar.awaitingClassificationCount,
                         ),
-                        if (coachEvaluationCount > 0) ...[
-                          const SizedBox(height: 8),
-                          _CoachEvaluationRadarCounter(
-                            evaluatedTechniqueCount: coachEvaluationCount,
-                          ),
-                        ],
                       ],
                     ),
                   );
@@ -2616,8 +2611,9 @@ class _TechnicalRadarPreviewViewModel {
   });
 
   factory _TechnicalRadarPreviewViewModel.fromSkillEvidences(
-    List<SkillEvidence> skillEvidences,
-  ) {
+    List<SkillEvidence> skillEvidences, {
+    int coachEvaluationCount = 0,
+  }) {
     final axisEvidence = <TechnicalRadarAxis, int>{
       for (final axis in _technicalRadarAxisOrder) axis: 0,
     };
@@ -2690,44 +2686,14 @@ class _TechnicalRadarPreviewViewModel {
               'Eixo com mais evidências registradas. Não indica desempenho.',
           icon: Icons.radar_outlined,
         ),
-      ],
-    );
-  }
-}
-
-class _CoachEvaluationRadarCounter extends StatelessWidget {
-  final int evaluatedTechniqueCount;
-
-  const _CoachEvaluationRadarCounter({required this.evaluatedTechniqueCount});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final label =
-        evaluatedTechniqueCount == 1
-            ? '1 técnica com avaliação do professor'
-            : '$evaluatedTechniqueCount técnicas com avaliação do professor';
-
-    return _VisualCard(
-      accent: cs.tertiary,
-      child: Row(
-        children: [
-          Icon(Icons.rate_review_outlined, color: cs.tertiary, size: 18),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.72),
-                fontSize: 12,
-                fontWeight: FontWeight.w800,
-              ),
-            ),
+        if (coachEvaluationCount > 0)
+          TitansTechnicalRadarEvidence(
+            label: 'Avaliações registradas',
+            value: coachEvaluationCount.toString(),
+            helper: 'Técnicas com avaliação humana do professor.',
+            icon: Icons.rate_review_outlined,
           ),
-        ],
-      ),
+      ],
     );
   }
 }

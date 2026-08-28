@@ -223,6 +223,30 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     return entries;
   }
 
+  bool _validateTechniquePositions() {
+    for (var i = 0; i < _techniqueEntries.length; i++) {
+      final entry = _techniqueEntries[i];
+      final technique = _optionalText(entry.technique);
+      final position = _optionalText(entry.position);
+      if (technique == null || position != null) continue;
+
+      setState(() {
+        for (final formEntry in _techniqueEntries) {
+          formEntry.expanded = false;
+        }
+        entry.expanded = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Informe a posição/contexto desta técnica.'),
+        ),
+      );
+      return false;
+    }
+
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final actor = UserScope.maybeOf(context);
@@ -348,7 +372,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                     type: JiuJitsuTaxonomyType.position,
                                     options: positionOptions,
                                     recentOptions: _recentPositionOptions(
-                                      excluding: _techniqueEntries[i].position.text,
+                                      excluding:
+                                          _techniqueEntries[i].position.text,
                                     ),
                                     controller: _techniqueEntries[i].position,
                                     canAddToAcademy: canAddToAcademy,
@@ -361,7 +386,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                     type: JiuJitsuTaxonomyType.technique,
                                     options: techniqueOptions,
                                     recentOptions: _recentTechniqueOptions(
-                                      excluding: _techniqueEntries[i].technique.text,
+                                      excluding:
+                                          _techniqueEntries[i].technique.text,
                                     ),
                                     controller: _techniqueEntries[i].technique,
                                     canAddToAcademy: canAddToAcademy,
@@ -550,6 +576,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
 
   Future<void> _save() async {
     if (_saving) return;
+    if (!_validateTechniquePositions()) return;
     setState(() => _saving = true);
 
     try {
@@ -1256,6 +1283,7 @@ enum _TechniqueQuickFilter {
   escapesDefense,
   other,
 }
+
 class _DebriefSelectSheet extends StatefulWidget {
   final String title;
   final String placeholder;
@@ -1329,9 +1357,9 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   bool _matchesSearch(String option, String query) {
     final normalizedQuery = query.toLowerCase();
     return normalizedQuery.isEmpty ||
-        _searchableTechniqueText(option).toLowerCase().contains(
-          normalizedQuery,
-        );
+        _searchableTechniqueText(
+          option,
+        ).toLowerCase().contains(normalizedQuery);
   }
 
   bool _isHiddenTechniqueAlias(String option) {
@@ -1427,7 +1455,7 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
       case _TechniqueQuickFilter.takedowns:
         return 'Quedas';
       case _TechniqueQuickFilter.escapesDefense:
-        return 'Defesas/Saídas';
+        return 'Defesas';
       case _TechniqueQuickFilter.other:
         return 'Outras';
     }
@@ -1440,16 +1468,16 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
     final query = _search.text.trim();
     final queryKey = JiuJitsuTaxonomy.normalizedKey(query);
     final recentOptions = _filteredRecentOptions(query);
-    final recentKeys = recentOptions.map(JiuJitsuTaxonomy.normalizedKey).toSet();
+    final recentKeys =
+        recentOptions.map(JiuJitsuTaxonomy.normalizedKey).toSet();
     final filtered =
         widget.options
             .where((option) => !_isHiddenTechniqueAlias(option))
             .where((option) => _matchesSearch(option, query))
             .where(_matchesTechniqueFilter)
             .where(
-              (option) => !recentKeys.contains(
-                JiuJitsuTaxonomy.normalizedKey(option),
-              ),
+              (option) =>
+                  !recentKeys.contains(JiuJitsuTaxonomy.normalizedKey(option)),
             )
             .toList();
     final exactMatch = widget.options.any(
@@ -1520,9 +1548,13 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
               const SizedBox(height: 10),
               if (_isTechniqueSheet) ...[
                 SizedBox(
-                  height: 38,
+                  height: 44,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsetsDirectional.only(
+                      start: 4,
+                      end: 20,
+                    ),
                     itemCount: _TechniqueQuickFilter.values.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {
@@ -1558,9 +1590,13 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                 ),
                 const SizedBox(height: 8),
                 SizedBox(
-                  height: 38,
+                  height: 44,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsetsDirectional.only(
+                      start: 4,
+                      end: 20,
+                    ),
                     itemCount: recentOptions.length,
                     separatorBuilder: (_, __) => const SizedBox(width: 8),
                     itemBuilder: (context, index) {

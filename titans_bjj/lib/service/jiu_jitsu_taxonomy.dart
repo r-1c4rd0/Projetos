@@ -211,6 +211,13 @@ class JiuJitsuTaxonomy {
     'Transição Norte-Sul',
     'Granby Roll',
     'Technical Stand Up',
+    'Retenção de Guarda',
+    'Frames',
+    'Seatbelt',
+    'Crossface',
+    'Underhook de Controle',
+    'Entrada para Costas',
+    'Defesa de Passagem',
   ];
   static List<String> mergeStaticAndCustom({
     required List<String> staticItems,
@@ -238,8 +245,17 @@ class JiuJitsuTaxonomy {
 
     if (skillIdentity != null) return skillIdentity.category;
 
+    if (_containsAny(techniqueKey, _retentionTerms)) {
+      return JiuJitsuSkillCategory.guard;
+    }
     if (_containsAny(techniqueKey, _submissionTerms)) {
       return JiuJitsuSkillCategory.submissions;
+    }
+    if (_containsAny(techniqueKey, _transitionTerms)) {
+      return JiuJitsuSkillCategory.escapes;
+    }
+    if (_containsAny(techniqueKey, _controlTerms)) {
+      return JiuJitsuSkillCategory.mount;
     }
     if (_containsAny(techniqueKey, _takedownTerms)) {
       return JiuJitsuSkillCategory.takedowns;
@@ -263,6 +279,15 @@ class JiuJitsuTaxonomy {
       return JiuJitsuSkillCategory.guard;
     }
 
+    if (_containsAny(positionKey, _retentionTerms)) {
+      return JiuJitsuSkillCategory.guard;
+    }
+    if (_containsAny(positionKey, _transitionTerms)) {
+      return JiuJitsuSkillCategory.escapes;
+    }
+    if (_containsAny(positionKey, _controlTerms)) {
+      return JiuJitsuSkillCategory.mount;
+    }
     if (_containsAny(positionKey, _guardTerms)) {
       return JiuJitsuSkillCategory.guard;
     }
@@ -292,16 +317,18 @@ class JiuJitsuTaxonomy {
     JiuJitsuSkillCategory category,
   ) {
     switch (category) {
-      case JiuJitsuSkillCategory.submissions:
-        return TechnicalRadarAxis.attack;
-      case JiuJitsuSkillCategory.escapes:
-        return TechnicalRadarAxis.transition;
       case JiuJitsuSkillCategory.guard:
+      case JiuJitsuSkillCategory.defense:
+        return TechnicalRadarAxis.retention;
       case JiuJitsuSkillCategory.passing:
       case JiuJitsuSkillCategory.takedowns:
+      case JiuJitsuSkillCategory.escapes:
+        return TechnicalRadarAxis.transition;
       case JiuJitsuSkillCategory.mount:
       case JiuJitsuSkillCategory.back:
-      case JiuJitsuSkillCategory.defense:
+        return TechnicalRadarAxis.control;
+      case JiuJitsuSkillCategory.submissions:
+        return TechnicalRadarAxis.attack;
       case JiuJitsuSkillCategory.other:
         return TechnicalRadarAxis.unclassified;
     }
@@ -450,30 +477,390 @@ class JiuJitsuTaxonomy {
 
   static const List<TechnicalSkillIdentity> _technicalSkillIdentities = [
     TechnicalSkillIdentity(
+      skillId: 'submission.armbar',
+      displayName: 'Armbar',
+      normalizedName: 'armbar',
+      aliases: ['Armbar', 'Armlock', 'Chave de braço'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.omoplata',
+      displayName: 'Omoplata',
+      normalizedName: 'omoplata',
+      aliases: ['Omoplata'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.kimura',
+      displayName: 'Kimura',
+      normalizedName: 'kimura',
+      aliases: ['Kimura'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.americana',
+      displayName: 'Americana',
+      normalizedName: 'americana',
+      aliases: ['Americana', 'Keylock'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.rear_naked_choke',
+      displayName: 'Mata-Leão',
+      normalizedName: 'rear naked choke',
+      aliases: ['Mata-Leão', 'Mata Leão', 'Rear Naked Choke', 'RNC'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.triangle_choke',
+      displayName: 'Triângulo',
+      normalizedName: 'triangle choke',
+      aliases: ['Triângulo', 'Triangulo', 'Triangle', 'Triangle Choke'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.guillotine',
+      displayName: 'Guilhotina',
+      normalizedName: 'guillotine',
+      aliases: ['Guilhotina', 'Guillotine', 'Arm-in Guillotine'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.ezekiel',
+      displayName: 'Ezequiel',
+      normalizedName: 'ezekiel',
+      aliases: ['Ezequiel', 'Ezekiel', 'Ezekiel Choke'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'submission.anaconda_choke',
+      displayName: 'Anaconda',
+      normalizedName: 'anaconda',
+      aliases: ['Anaconda', 'Anaconda Choke'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
       skillId: 'submission.bow_and_arrow_choke',
       displayName: 'Arco e Flecha',
       normalizedName: 'bow and arrow',
       aliases: ['Arco e Flecha', 'Bow and Arrow', 'Bow and Arrow Choke'],
       category: JiuJitsuSkillCategory.submissions,
     ),
+    TechnicalSkillIdentity(
+      skillId: 'control.side_control',
+      displayName: 'Controle Lateral',
+      normalizedName: 'side control',
+      aliases: ['Controle Lateral', '100 Quilos', 'Cem Quilos', 'Side Control'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.mount',
+      displayName: 'Montada',
+      normalizedName: 'mount',
+      aliases: ['Montada', 'Mount', 'Montada Alta', 'Montada Técnica'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.back_control',
+      displayName: 'Costas',
+      normalizedName: 'back control',
+      aliases: ['Costas', 'Back Control', 'Costas com ganchos'],
+      category: JiuJitsuSkillCategory.back,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.north_south',
+      displayName: 'Norte-Sul',
+      normalizedName: 'north south',
+      aliases: ['Norte-Sul', 'Norte Sul', 'North South'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.knee_on_belly',
+      displayName: 'Joelho na Barriga',
+      normalizedName: 'knee on belly',
+      aliases: ['Joelho na Barriga', 'Knee on Belly'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.seatbelt',
+      displayName: 'Seatbelt',
+      normalizedName: 'seatbelt',
+      aliases: ['Seatbelt', 'Cinto de segurança', 'Cinto de seguranca'],
+      category: JiuJitsuSkillCategory.back,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.crossface',
+      displayName: 'Crossface',
+      normalizedName: 'crossface',
+      aliases: ['Crossface'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.underhook_control',
+      displayName: 'Underhook de Controle',
+      normalizedName: 'underhook control',
+      aliases: ['Underhook de Controle', 'Underhook Control'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.top_pressure',
+      displayName: 'Pressão por cima',
+      normalizedName: 'top pressure',
+      aliases: ['Pressão', 'Pressao', 'Pressão por cima', 'Controle por cima'],
+      category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.guard_pass',
+      displayName: 'Passagem de Guarda',
+      normalizedName: 'guard pass',
+      aliases: ['Passagem', 'Passagem de Guarda', 'Guard Pass'],
+      category: JiuJitsuSkillCategory.passing,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.knee_slice',
+      displayName: 'Knee Slice',
+      normalizedName: 'knee slice',
+      aliases: ['Knee Slice', 'Corte do joelho'],
+      category: JiuJitsuSkillCategory.passing,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.toreando',
+      displayName: 'Torreando',
+      normalizedName: 'toreando',
+      aliases: ['Torreando', 'Toreando'],
+      category: JiuJitsuSkillCategory.passing,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.leg_drag',
+      displayName: 'Leg Drag',
+      normalizedName: 'leg drag',
+      aliases: ['Leg Drag'],
+      category: JiuJitsuSkillCategory.passing,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.sweep',
+      displayName: 'Raspagem',
+      normalizedName: 'sweep',
+      aliases: ['Raspagem', 'Sweep', 'Raspagem Tesoura', 'Butterfly Sweep'],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.takedown',
+      displayName: 'Queda',
+      normalizedName: 'takedown',
+      aliases: ['Queda', 'Takedown', 'Single Leg', 'Double Leg', 'Baiana'],
+      category: JiuJitsuSkillCategory.takedowns,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.technical_stand_up',
+      displayName: 'Technical Stand Up',
+      normalizedName: 'technical stand up',
+      aliases: ['Technical Stand Up', 'Levantada técnica', 'Levantada tecnica'],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.back_take',
+      displayName: 'Entrada para Costas',
+      normalizedName: 'back take',
+      aliases: ['Entrada para Costas', 'Back Take', 'Transição para Costas'],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.mount_to_back',
+      displayName: 'Transição Montada/Costas',
+      normalizedName: 'mount to back transition',
+      aliases: [
+        'Transição Montada/Costas',
+        'Transição para Montada',
+        'Transição para Costas',
+      ],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.guard_retention',
+      displayName: 'Retenção de Guarda',
+      normalizedName: 'guard retention',
+      aliases: [
+        'Retenção de Guarda',
+        'Retencao de Guarda',
+        'Manutenção da Guarda',
+      ],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.defensive_guard_recovery',
+      displayName: 'Reposição de Guarda Defensiva',
+      normalizedName: 'defensive guard recovery',
+      aliases: [
+        'Reposição de Guarda Defensiva',
+        'Reposicao de Guarda Defensiva',
+      ],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.frames',
+      displayName: 'Frames',
+      normalizedName: 'frames',
+      aliases: ['Frames', 'Frame'],
+      category: JiuJitsuSkillCategory.defense,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.knee_shield',
+      displayName: 'Knee Shield',
+      normalizedName: 'knee shield',
+      aliases: ['Knee Shield', 'Guarda Z'],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.granby',
+      displayName: 'Granby',
+      normalizedName: 'granby',
+      aliases: ['Granby', 'Granby Roll'],
+      category: JiuJitsuSkillCategory.defense,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.defensive_inversion',
+      displayName: 'Inversão Defensiva',
+      normalizedName: 'defensive inversion',
+      aliases: ['Inversão Defensiva', 'Inversões Defensivas'],
+      category: JiuJitsuSkillCategory.defense,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.half_guard_recovery',
+      displayName: 'Recuperação de Meia Guarda',
+      normalizedName: 'half guard recovery',
+      aliases: ['Recuperação de Meia Guarda', 'Recuperacao de Meia Guarda'],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.pass_defense',
+      displayName: 'Defesa de Passagem',
+      normalizedName: 'pass defense',
+      aliases: ['Defesa de Passagem', 'Pass Defense'],
+      category: JiuJitsuSkillCategory.defense,
+    ),
   ];
   static const Map<String, String> _aliases = {
     'arm bar': 'armbar',
+    'armlock': 'armbar',
     'chave de braco': 'armbar',
-    'chave de bra\u00e7o': 'armbar',
+    'chave de braço': 'armbar',
+    'mata leao': 'rear naked choke',
+    'mata-leao': 'rear naked choke',
+    'rnc': 'rear naked choke',
+    'triangulo': 'triangle choke',
+    'triangle': 'triangle choke',
+    'guilhotina': 'guillotine',
+    'ezequiel': 'ezekiel',
     'guarda fechada': 'closed guard',
     'closed guard': 'closed guard',
     'meia guarda': 'half guard',
     'half guard': 'half guard',
+    'guarda aberta': 'open guard',
+    'open guard': 'open guard',
+    'guarda borboleta': 'butterfly guard',
     'montada': 'mount',
     'mount': 'mount',
-    'costas': 'back',
-    'back control': 'back',
+    'costas': 'back control',
+    'back control': 'back control',
+    '100 quilos': 'side control',
+    'cem quilos': 'side control',
+    'controle lateral': 'side control',
+    'norte sul': 'north south',
+    'norte-sul': 'north south',
+    'joelho na barriga': 'knee on belly',
+    'cinto de seguranca': 'seatbelt',
+    'cinto de segurança': 'seatbelt',
+    'underhook de controle': 'underhook control',
+    'pressao': 'top pressure',
+    'pressão': 'top pressure',
+    'controle por cima': 'top pressure',
     'arco e flecha': 'bow and arrow',
     'bow and arrow': 'bow and arrow',
     'bow and arrow choke': 'bow and arrow',
+    'passagem': 'guard pass',
+    'passagem de guarda': 'guard pass',
+    'raspagem': 'sweep',
+    'raspagem tesoura': 'sweep',
+    'butterfly sweep': 'sweep',
+    'queda': 'takedown',
+    'levantada tecnica': 'technical stand up',
+    'levantada técnica': 'technical stand up',
+    'entrada para costas': 'back take',
+    'transicao para costas': 'back take',
+    'transição para costas': 'back take',
+    'retencao de guarda': 'guard retention',
+    'retenção de guarda': 'guard retention',
+    'manutencao da guarda': 'guard retention',
+    'manutenção da guarda': 'guard retention',
+    'reposicao de guarda defensiva': 'defensive guard recovery',
+    'reposição de guarda defensiva': 'defensive guard recovery',
+    'recuperacao de meia guarda': 'half guard recovery',
+    'recuperação de meia guarda': 'half guard recovery',
+    'defesa de passagem': 'pass defense',
   };
 
+  static const _retentionTerms = [
+    'guard retention',
+    'retencao de guarda',
+    'manutencao da guarda',
+    'defensive guard recovery',
+    'reposicao de guarda defensiva',
+    'pass defense',
+    'defesa de passagem',
+    'frames',
+    'frame',
+    'knee shield',
+    'granby',
+    'defensive inversion',
+    'inversao defensiva',
+    'inversoes defensivas',
+    'half guard recovery',
+    'recuperacao de meia guarda',
+  ];
+  static const _controlTerms = [
+    'side control',
+    '100 quilos',
+    'cem quilos',
+    'controle lateral',
+    'north south',
+    'norte sul',
+    'knee on belly',
+    'joelho na barriga',
+    'mount',
+    'montada',
+    'back control',
+    'costas',
+    'seatbelt',
+    'crossface',
+    'underhook control',
+    'underhook de controle',
+    'top pressure',
+    'pressao',
+    'controle por cima',
+  ];
+  static const _transitionTerms = [
+    'guard pass',
+    'passagem',
+    'passagem de guarda',
+    'sweep',
+    'raspagem',
+    'takedown',
+    'queda',
+    'reposicao',
+    'reposicao de guarda',
+    'technical stand up',
+    'levantada tecnica',
+    'knee slice',
+    'torreando',
+    'toreando',
+    'leg drag',
+    'back take',
+    'entrada para costas',
+    'transicao para montada',
+    'transicao para costas',
+    'mount to back transition',
+  ];
   static const _guardTerms = [
     'guarda',
     'closed guard',
@@ -481,28 +868,43 @@ class JiuJitsuTaxonomy {
     'spider guard',
     'de la riva',
     'half guard',
+    'butterfly guard',
     'worm guard',
   ];
   static const _passingTerms = [
     'passagem',
     'passagem de guarda',
+    'guard pass',
     'knee slice',
     'torreando',
+    'toreando',
     'leg drag',
     'pass',
   ];
-  static const _takedownTerms = ['queda', 'single leg', 'double leg', 'baiana'];
+  static const _takedownTerms = [
+    'queda',
+    'takedown',
+    'single leg',
+    'double leg',
+    'ankle pick',
+    'baiana',
+  ];
   static const _mountTerms = ['montada', 'mount'];
-  static const _backTerms = ['costas', 'back', 'mata leao'];
+  static const _backTerms = ['costas', 'back', 'back control'];
   static const _submissionTerms = [
     'armbar',
     'armlock',
     'omoplata',
     'kimura',
     'americana',
+    'rear naked choke',
+    'mata leao',
     'triangulo',
+    'triangle choke',
     'guilhotina',
+    'guillotine',
     'ezequiel',
+    'ezekiel',
     'relogio',
     'anaconda',
     'd arce',
@@ -515,6 +917,6 @@ class JiuJitsuTaxonomy {
     'botinha',
     'chave de pe',
   ];
-  static const _escapeTerms = ['escape', 'saida', 'fuga'];
+  static const _escapeTerms = ['escape', 'saida', 'fuga', 'technical stand up'];
   static const _defenseTerms = ['defesa', 'bloqueio', 'prevencao'];
 }

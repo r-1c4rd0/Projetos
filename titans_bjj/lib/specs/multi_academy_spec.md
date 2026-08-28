@@ -32,6 +32,11 @@ Definir a evolucao para suporte real a multi-academia, incluindo memberships, co
 - Futuro `AcademyRepository` e `MembershipRepository`.
 
 ## Regras de negocio
+- `academyId` representa um contexto de treino ativo, nao obrigatoriamente uma academia formal.
+- O container tecnico continua sendo `academies/{academyId}` para dados, permissao, alunos, professores, treinos, presencas, eventos e avaliacoes.
+- Contextos permitidos conceitualmente: `academy`, `team`, `personal` e `group`.
+- Para professor personal, criar um documento em `academies/{academyId}` com `type: "personal"`; o professor entra como `role: "professor"` e o aluno como `role: "athlete"`.
+- `CoachEvaluation` continua seguro: a escrita deve exigir target com `role == "athlete"`; professor/admin nao pode avaliar outro staff por escrita direta.
 - Nenhuma query operacional deve rodar sem academia ativa.
 - Role deve ser avaliada no contexto da academia.
 - Usuario pode ser athlete em uma academia e professor/admin em outra.

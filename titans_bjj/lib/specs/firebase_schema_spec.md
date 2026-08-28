@@ -77,6 +77,49 @@ Campos comuns:
 - `updatedBy`
 - `status`
 
+## Academia como contexto de treino
+
+`academies/{academyId}` e o container tecnico obrigatorio do app, mas o documento nao precisa representar apenas uma academia formal. Ele tambem pode representar uma equipe pequena, turma, nucleo de treino ou atendimento personal.
+
+Tipos conceituais permitidos no documento da academia/contexto:
+- `academy`
+- `team`
+- `personal`
+- `group`
+
+Exemplo minimo de personal:
+
+```text
+academies/{personalContextId}
+  name: "Personal BJJ - Prof. Ana"
+  type: "personal"
+  academyId: "{personalContextId}"
+  status: "active"
+
+academies/{personalContextId}/users/{professorUid}
+  uid: "{professorUid}"
+  academyId: "{personalContextId}"
+  role: "professor"
+  name: "Ana"
+
+academies/{personalContextId}/users/{athleteUid}
+  uid: "{athleteUid}"
+  academyId: "{personalContextId}"
+  role: "athlete"
+  name: "Aluno Personal"
+
+users/{professorUid}/academyMemberships/{personalContextId}
+  academyId: "{personalContextId}"
+  role: "professor"
+  isActive: true
+
+users/{athleteUid}/academyMemberships/{personalContextId}
+  academyId: "{personalContextId}"
+  role: "athlete"
+  isActive: true
+```
+
+Avaliacao do professor continua exigindo contexto e target seguros: `coach_evaluations` vive em `academies/{academyId}/users/{athleteUid}` e a escrita deve validar que `{athleteUid}` existe nesse contexto com `role == "athlete"`.
 ## Convites AUTH-REAL-USERS
 
 Path proposto:
