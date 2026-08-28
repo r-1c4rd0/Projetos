@@ -283,6 +283,61 @@ service cloud.firestore {
           && taxonomyItemUpdatePayload(academyId);
         allow delete: if false;
       }
+      match /events/{eventId} {
+        function isEventType(type) {
+          return type in ['graduation', 'specialClass', 'tournament', 'other'];
+        }
+
+        function isEventStatus(status) {
+          return status in ['scheduled', 'cancelled', 'finished'];
+        }
+
+        function eventAcademyIdMatches(data, academyId) {
+          return !data.keys().hasAny(['academyId']) || data.academyId == academyId;
+        }
+
+        function eventPayload(academyId) {
+          return request.resource.data.keys().hasAll([
+              'title',
+              'type',
+              'start',
+              'end',
+              'location',
+              'description',
+              'status',
+              'attendees'
+            ])
+            && request.resource.data.keys().hasOnly([
+              'academyId',
+              'title',
+              'type',
+              'start',
+              'end',
+              'location',
+              'description',
+              'status',
+              'attendees',
+              'createdAt',
+              'updatedAt'
+            ])
+            && eventAcademyIdMatches(request.resource.data, academyId)
+            && request.resource.data.title is string
+            && request.resource.data.type is string
+            && isEventType(request.resource.data.type)
+            && request.resource.data.start is timestamp
+            && request.resource.data.end is timestamp
+            && request.resource.data.location is string
+            && request.resource.data.description is string
+            && request.resource.data.status is string
+            && isEventStatus(request.resource.data.status)
+            && request.resource.data.attendees is list;
+        }
+
+        allow get, list: if isAcademyMember(academyId);
+        allow create, update: if isAcademyStaff(academyId)
+          && eventPayload(academyId);
+        allow delete: if isAcademyStaff(academyId);
+      }
       match /attendance_sessions/{sessionId} {
         allow get, list: if isAcademyMember(academyId);
         allow create: if isAcademyStaff(academyId)

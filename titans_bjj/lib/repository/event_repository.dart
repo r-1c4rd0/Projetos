@@ -35,12 +35,22 @@ class EventRepository implements IEventRepository {
     return _collectionRef(academyId).doc(eventId);
   }
 
+  Map<String, dynamic> _dataForModel(Map<String, dynamic> data) {
+    final normalized = Map<String, dynamic>.from(data);
+    normalized['start'] ??= normalized['startAt'];
+    normalized['end'] ??= normalized['endAt'];
+    normalized['description'] ??= normalized['notes'];
+    if (normalized['type'] == 'championship') {
+      normalized['type'] = 'tournament';
+    }
+    return normalized;
+  }
+
   Query<Map<String, dynamic>> _query({
     DateTime? from,
     DateTime? to,
   }) {
-    Query<Map<String, dynamic>> query =
-        _collectionRef(academyId).orderBy('start', descending: false);
+    Query<Map<String, dynamic>> query = _collectionRef(academyId);
 
     if (from != null) {
       query = query.where('end', isGreaterThan: Timestamp.fromDate(from.toUtc()));
@@ -57,24 +67,28 @@ class EventRepository implements IEventRepository {
     final snap = await _eventRef(academyId: academyId, eventId: id).get();
     final data = snap.data();
     if (!snap.exists || data == null) return null;
-    return EventModel.fromMap(snap.id, data);
+    return EventModel.fromMap(snap.id, _dataForModel(data));
   }
 
   @override
   Stream<List<EventModel>> watch({DateTime? from, DateTime? to}) {
-    return _query(from: from, to: to).snapshots().map(
-          (snap) => snap.docs
-              .map((doc) => EventModel.fromMap(doc.id, doc.data()))
-              .toList(),
-        );
+    return _query(from: from, to: to).snapshots().map((snap) {
+      final events = snap.docs
+          .map((doc) => EventModel.fromMap(doc.id, _dataForModel(doc.data())))
+          .toList();
+      events.sort((a, b) => a.start.compareTo(b.start));
+      return events;
+    });
   }
 
   @override
   Future<List<EventModel>> list({DateTime? from, DateTime? to}) async {
     final snap = await _query(from: from, to: to).get();
-    return snap.docs
-        .map((doc) => EventModel.fromMap(doc.id, doc.data()))
+    final events = snap.docs
+        .map((doc) => EventModel.fromMap(doc.id, _dataForModel(doc.data())))
         .toList();
+    events.sort((a, b) => a.start.compareTo(b.start));
+    return events;
   }
 
   Future<void> upsert(EventModel event) async {

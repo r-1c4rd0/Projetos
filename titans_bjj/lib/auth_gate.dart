@@ -1,10 +1,13 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'config/app_config.dart';
+import 'model/academy_membership.dart';
 import 'model/app_user.dart';
 import 'screen/login_screen.dart';
+import 'repository/academy_membership_repository.dart';
 import 'repository/invite_repository.dart';
 import 'repository/user_repository.dart';
 import 'service/session_lock_controller.dart';
@@ -77,14 +80,13 @@ class _AuthenticatedApp extends StatefulWidget {
 }
 
 class _AuthenticatedAppState extends State<_AuthenticatedApp> {
-  late final String _activeAcademyId;
-  late Future<AppUser> _userFuture;
+  late Future<_ResolvedUserSession> _sessionFuture;
+  String _lastResolvedAcademyId = AppConfig.resolveActiveAcademyId();
 
   @override
   void initState() {
     super.initState();
-    _activeAcademyId = AppConfig.resolveActiveAcademyId();
-    _userFuture = _loadUser();
+    _sessionFuture = _loadSession();
   }
 
   @override
@@ -92,23 +94,72 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.firebaseUser.uid != widget.firebaseUser.uid ||
         oldWidget.firebaseUser.email != widget.firebaseUser.email) {
-      _userFuture = _loadUser();
+      _sessionFuture = _loadSession();
     }
   }
 
-  Future<AppUser> _loadUser() async {
-    await _acceptPendingInviteIfAvailable();
+  Future<_ResolvedUserSession> _loadSession() async {
+    final memberships = await _loadMemberships();
+    final activeMembership = _resolveActiveMembership(memberships);
+    final activeAcademyId = activeMembership?.academyId ?? _fallbackAcademyId();
+    _lastResolvedAcademyId = activeAcademyId;
 
-    return UserRepository.instance
+    await _acceptPendingInviteIfAvailable(activeAcademyId);
+
+    final appUser = await UserRepository.instance
         .ensureUserDoc(
           uid: widget.firebaseUser.uid,
           email: widget.firebaseUser.email ?? '',
-          academyId: _activeAcademyId,
+          academyId: activeAcademyId,
         )
         .timeout(const Duration(seconds: 12));
+
+    return _ResolvedUserSession(
+      user: appUser,
+      activeAcademyId: activeAcademyId,
+      memberships: memberships,
+      activeMembership: activeMembership,
+    );
   }
 
-  Future<void> _acceptPendingInviteIfAvailable() async {
+  Future<List<AcademyMembership>> _loadMemberships() async {
+    try {
+      return await AcademyMembershipRepository.instance
+          .listMemberships(widget.firebaseUser.uid)
+          .timeout(const Duration(seconds: 8));
+    } on FirebaseException catch (error) {
+      if (error.code == 'permission-denied' || error.code == 'unavailable') {
+        debugPrint(
+          '[MULTI_ACADEMY] memberships fallback code=${error.code} message=${error.message}',
+        );
+        return const <AcademyMembership>[];
+      }
+      rethrow;
+    }
+  }
+
+  AcademyMembership? _resolveActiveMembership(
+    List<AcademyMembership> memberships,
+  ) {
+    final activeMemberships = memberships
+        .where((membership) => membership.isActive)
+        .toList(growable: false);
+    if (activeMemberships.isEmpty) return null;
+
+    if (activeMemberships.length > 1) {
+      debugPrint(
+        '[MULTI_ACADEMY] usuário com ${activeMemberships.length} memberships ativas; usando ${activeMemberships.first.academyId} até existir seletor.',
+      );
+    }
+
+    return activeMemberships.first;
+  }
+
+  String _fallbackAcademyId() {
+    return AppConfig.resolveActiveAcademyId();
+  }
+
+  Future<void> _acceptPendingInviteIfAvailable(String activeAcademyId) async {
     final inviteRepo = InviteRepository.instance;
     final email = widget.firebaseUser.email ?? '';
     if (inviteRepo.normalizeEmail(email).isEmpty) return;
@@ -116,14 +167,14 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
 
     try {
       final invite = await inviteRepo
-          .watchPendingInviteForEmail(academyId: _activeAcademyId, email: email)
+          .watchPendingInviteForEmail(academyId: activeAcademyId, email: email)
           .first
           .timeout(const Duration(seconds: 6), onTimeout: () => null);
 
       if (invite == null) return;
 
       await inviteRepo.acceptInviteForCurrentUser(
-        academyId: _activeAcademyId,
+        academyId: activeAcademyId,
         inviteId: invite.id,
         firebaseUser: widget.firebaseUser,
       );
@@ -139,17 +190,17 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<AppUser>(
-      future: _userFuture,
-      builder: (context, userSnap) {
-        if (userSnap.connectionState == ConnectionState.waiting) {
+    return FutureBuilder<_ResolvedUserSession>(
+      future: _sessionFuture,
+      builder: (context, sessionSnap) {
+        if (sessionSnap.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
-        if (userSnap.hasError) {
-          final err = userSnap.error?.toString() ?? '';
+        if (sessionSnap.hasError) {
+          final err = sessionSnap.error?.toString() ?? '';
           final isOfflineFirestore =
               err.contains('client is offline') ||
               err.contains('cloud_firestore/unavailable');
@@ -158,30 +209,54 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
             final appUser = AppUser(
               uid: widget.firebaseUser.uid,
               email: widget.firebaseUser.email ?? '',
-              academyId: _activeAcademyId,
+              academyId: _lastResolvedAcademyId,
               role: UserRole.athlete,
             );
-            return UserScope(user: appUser, child: widget.app);
+            return UserScope(
+              user: appUser,
+              activeAcademyId: _lastResolvedAcademyId,
+              child: widget.app,
+            );
           }
 
           return _ErrorScreen(
             title: 'Erro ao criar/ler academies/{academyId}/users/{uid}',
-            error: userSnap.error,
+            error: sessionSnap.error,
           );
         }
 
-        final appUser = userSnap.data;
-        if (appUser == null) {
+        final session = sessionSnap.data;
+        if (session == null) {
           return const _ErrorScreen(
             title: 'Usuario nao carregou',
             error: 'ensureUserDoc retornou null',
           );
         }
 
-        return UserScope(user: appUser, child: widget.app);
+        return UserScope(
+          user: session.user,
+          activeAcademyId: session.activeAcademyId,
+          memberships: session.memberships,
+          activeMembership: session.activeMembership,
+          child: widget.app,
+        );
       },
     );
   }
+}
+
+class _ResolvedUserSession {
+  final AppUser user;
+  final String activeAcademyId;
+  final List<AcademyMembership> memberships;
+  final AcademyMembership? activeMembership;
+
+  const _ResolvedUserSession({
+    required this.user,
+    required this.activeAcademyId,
+    required this.memberships,
+    required this.activeMembership,
+  });
 }
 
 class _ErrorScreen extends StatelessWidget {

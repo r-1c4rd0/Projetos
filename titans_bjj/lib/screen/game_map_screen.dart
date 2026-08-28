@@ -95,12 +95,17 @@ class _GameMapScreenState extends State<GameMapScreen> {
               _GameMapSummaryCard(stats: stats),
               const SizedBox(height: 12),
               TitansExpandableSection(
-                title: 'Radar T\u00e9cnico Preview',
-                subtitle: technicalRadar.subtitle,
+                title: 'Radar de Evid\u00eancias T\u00e9cnicas',
+                'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
                 initiallyExpanded: true,
                 child: TitansTechnicalRadar(
                   subtitle: technicalRadar.subtitle,
+                  stateLabel: technicalRadar.stateLabel,
                   evidences: technicalRadar.evidences,
+                  axisEvidence: technicalRadar.axisEvidence,
+                  classifiedEvidenceCount: technicalRadar.classifiedEvidenceCount,
+                  awaitingClassificationCount:
+                      technicalRadar.awaitingClassificationCount,
                 ),
               ),
               const SizedBox(height: 12),
@@ -1862,28 +1867,64 @@ class _SkillStagePill extends StatelessWidget {
 
 class _TechnicalRadarPreviewViewModel {
   final String subtitle;
+  final String stateLabel;
   final List<TitansTechnicalRadarEvidence> evidences;
+  final Map<TechnicalRadarAxis, int> axisEvidence;
+  final int classifiedEvidenceCount;
+  final int awaitingClassificationCount;
 
   const _TechnicalRadarPreviewViewModel({
     required this.subtitle,
+    required this.stateLabel,
     required this.evidences,
+    required this.axisEvidence,
+    required this.classifiedEvidenceCount,
+    required this.awaitingClassificationCount,
   });
 
   factory _TechnicalRadarPreviewViewModel.from(
     List<SkillMatrixCategoryEntry> skillMatrix,
   ) {
     final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
-    final classified = techniques.where((entry) {
+    final axisSessionKeys = <TechnicalRadarAxis, Set<String>>{
+      for (final axis in _technicalRadarAxisOrder) axis: <String>{},
+    };
+
+    var classified = 0;
+    var unclassified = 0;
+
+    for (final technique in techniques) {
       final axis = JiuJitsuTaxonomy.technicalRadarAxisForCategory(
-        entry.category,
+        technique.category,
       );
-      return axis != TechnicalRadarAxis.unclassified;
-    }).length;
-    final unclassified = techniques.length - classified;
+      if (axis == TechnicalRadarAxis.unclassified) {
+        unclassified += 1;
+        continue;
+      }
+
+      classified += 1;
+      axisSessionKeys[axis]?.addAll(technique.sessionKeys);
+    }
+
+    final axisEvidence = <TechnicalRadarAxis, int>{
+      for (final axis in _technicalRadarAxisOrder)
+        axis: axisSessionKeys[axis]?.length ?? 0,
+    };
+    final topAxis = _topTechnicalRadarAxis(axisEvidence);
+    final stateLabel = classified < 3
+        ? 'Perfil t\u00e9cnico em forma\u00e7\u00e3o'
+        : 'Evid\u00eancias t\u00e9cnicas distribu\u00eddas por eixo';
+    final topAxisLabel = topAxis == null
+        ? 'Em forma\u00e7\u00e3o'
+        : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evid\u00eancias)';
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
-          'Perfil t\u00e9cnico em forma\u00e7\u00e3o; eixos visuais sem avalia\u00e7\u00e3o.',
+          'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
+      stateLabel: stateLabel,
+      axisEvidence: axisEvidence,
+      classifiedEvidenceCount: classified,
+      awaitingClassificationCount: unclassified,
       evidences: [
         TitansTechnicalRadarEvidence(
           label: 'T\u00e9cnicas registradas',
@@ -1899,14 +1940,45 @@ class _TechnicalRadarPreviewViewModel {
           icon: Icons.verified_outlined,
         ),
         TitansTechnicalRadarEvidence(
-          label: 'Sem classifica\u00e7\u00e3o',
+          label: 'Aguardando classifica\u00e7\u00e3o',
           value: unclassified.toString(),
-          helper: 'T\u00e9cnicas que ainda exigem revis\u00e3o antes de pontuar.',
+          helper: 'T\u00e9cnicas que ainda exigem revis\u00e3o antes de entrar no radar.',
           icon: Icons.pending_outlined,
+        ),
+        TitansTechnicalRadarEvidence(
+          label: 'Eixo mais evidenciado',
+          value: topAxisLabel,
+          helper:
+              'Eixo com mais sess\u00f5es \u00fanicas classificadas. N\u00e3o indica desempenho.',
+          icon: Icons.radar_outlined,
         ),
       ],
     );
   }
+}
+
+const _technicalRadarAxisOrder = <TechnicalRadarAxis>[
+  TechnicalRadarAxis.retention,
+  TechnicalRadarAxis.transition,
+  TechnicalRadarAxis.control,
+  TechnicalRadarAxis.attack,
+];
+
+TechnicalRadarAxis? _topTechnicalRadarAxis(
+  Map<TechnicalRadarAxis, int> axisEvidence,
+) {
+  TechnicalRadarAxis? selected;
+  var selectedValue = 0;
+
+  for (final axis in _technicalRadarAxisOrder) {
+    final value = axisEvidence[axis] ?? 0;
+    if (value > selectedValue) {
+      selected = axis;
+      selectedValue = value;
+    }
+  }
+
+  return selectedValue > 0 ? selected : null;
 }
 
 class _RtcaEvidenceViewModel {

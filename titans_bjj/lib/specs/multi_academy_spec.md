@@ -78,3 +78,14 @@ features/academy/
 - `academyId` e tratado como fronteira obrigatoria.
 - Roles por academia estao previstas.
 - Nenhum dado foi migrado nesta etapa.
+## MULTI-ACADEMY-BASE-001 — Academia ativa sem Blaze
+
+Base implementada: após login, o app deve tentar ler `users/{uid}/academyMemberships/{academyId}` e resolver a academia ativa antes de carregar `academies/{academyId}/users/{uid}`.
+
+Regras da base:
+- Memberships ativas são a fonte preferencial para `activeAcademyId`.
+- Uma única membership ativa pode ser selecionada automaticamente.
+- Múltiplas memberships ativas ficam preparadas no `UserScope` para futuro seletor de academia.
+- Sem membership legível, o app mantém fallback legado via `AppConfig.resolveActiveAcademyId()` apenas para compatibilidade de desenvolvimento.
+- O perfil `AppUser` continua sendo o documento da academia ativa em `academies/{academyId}/users/{uid}`.
+- Esta base não cria Cloud Function, não usa Storage e não altera telas operacionais.

@@ -1,6 +1,7 @@
 // event_screen.dart
 import 'package:flutter/material.dart';
 import '../core/titans_ui.dart';
+import '../model/app_user.dart';
 import '../model/event_models.dart';
 import '../main.dart';
 import 'package:uuid/uuid.dart';
@@ -23,6 +24,7 @@ class _EventScreenState extends State<EventScreen> {
   EventType? filterType;
   bool _repoReady = false;
   bool _seeded = false;
+  bool _canManageEvents = false;
 
   @override
   void didChangeDependencies() {
@@ -31,6 +33,8 @@ class _EventScreenState extends State<EventScreen> {
 
     final user = UserScope.of(context);
     repo = EventRepository.build(academyId: user.academyId);
+    _canManageEvents =
+        user.role == UserRole.admin || user.role == UserRole.professor;
     _eventsFuture = _seedAndLoad();
     _repoReady = true;
   }
@@ -127,14 +131,24 @@ class _EventScreenState extends State<EventScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        heroTag: 'events_fab',
-        onPressed: _openCreate,
-        child: const Icon(Icons.add),
-      ),
+      floatingActionButton:
+          _canManageEvents
+              ? FloatingActionButton(
+                heroTag: 'events_fab',
+                onPressed: _openCreate,
+                child: const Icon(Icons.add),
+              )
+              : null,
       body: FutureBuilder<List<EventModel>>(
         future: _eventsFuture,
         builder: (context, snap) {
+          if (snap.hasError) {
+            return _EventsErrorState(
+              message:
+                  'Não foi possível carregar os eventos. Verifique sua permissão ou conexão.',
+              onRetry: _reloadEvents,
+            );
+          }
           if (!snap.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
@@ -227,6 +241,11 @@ class _EventScreenState extends State<EventScreen> {
   }
 
   Future<void> _openCreate() async {
+    if (!_canManageEvents) {
+      _showAccessDenied();
+      return;
+    }
+
     final created = await showModalBottomSheet<EventModel?>(
       context: context,
       isScrollControlled: true,
@@ -239,6 +258,11 @@ class _EventScreenState extends State<EventScreen> {
   }
 
   Future<void> _openDetails(EventModel e) async {
+    if (!_canManageEvents) {
+      _showAccessDenied();
+      return;
+    }
+
     final updated = await showModalBottomSheet<EventModel?>(
       context: context,
       isScrollControlled: true,
@@ -247,6 +271,14 @@ class _EventScreenState extends State<EventScreen> {
     if (updated == null) return;
     await repo.update(updated);
     if (mounted) _reloadEvents();
+  }
+
+  void _showAccessDenied() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Apenas professores e administradores editam eventos.'),
+      ),
+    );
   }
 
   IconData _iconForType(EventType t) {
@@ -269,6 +301,43 @@ class _EventScreenState extends State<EventScreen> {
   }
 }
 
+class _EventsErrorState extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _EventsErrorState({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.event_busy_outlined, color: cs.error, size: 36),
+            const SizedBox(height: TitansUI.spaceSm),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.78),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: TitansUI.spaceMd),
+            OutlinedButton.icon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_outlined),
+              label: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class _EventsOverviewCard extends StatelessWidget {
   final int upcomingCount;
   final int activeCount;

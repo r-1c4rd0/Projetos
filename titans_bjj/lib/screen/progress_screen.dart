@@ -604,11 +604,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final requiredByRules = rules.requiredSessions(belt);
     final safeFallback = sessionsInBelt > 0 ? sessionsInBelt : maxDeg;
     final sessionsRequired =
-        (estimated != null && estimated > 0)
-            ? estimated
-            : (requiredByRules > 0 ? requiredByRules : safeFallback)
-                .clamp(1, 1 << 30)
-                .toInt();
+        (requiredByRules > 0 ? requiredByRules : (estimated ?? safeFallback))
+            .clamp(1, 1 << 30)
+            .toInt();
 
     final percent =
         (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();

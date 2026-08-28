@@ -367,8 +367,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   LayoutBuilder(
-                                    builder: (context, c) {
-                                      final isWide = c.maxWidth >= 980;
+                                    builder: (context, _) {
                                       debugPrint(
                                         '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
                                         'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
@@ -384,6 +383,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         maxDegree: beltProgress.maxDegree,
                                         percentToNext:
                                             beltProgress.percentToNextBelt,
+                                        sessionsInBelt: beltProgress.sessionsInBelt,
+                                        sessionsRequired: beltProgress.sessionsRequired,
                                         onEditProfile:
                                             canEditTarget
                                                 ? () {
@@ -415,37 +416,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                                 : null,
                                       );
 
-                                      if (isWide) {
-                                        return Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(
-                                              flex: 4,
-                                              child: athleteCard,
-                                            ),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                              flex: 6,
-                                              child: _GraduationProgressCard(
-                                                cs: cs,
-                                                progress: beltProgress,
-                                              ),
-                                            ),
-                                          ],
-                                        );
-                                      }
-
-                                      return Column(
-                                        children: [
-                                          athleteCard,
-                                          const SizedBox(height: 12),
-                                          _GraduationProgressCard(
-                                            cs: cs,
-                                            progress: beltProgress,
-                                          ),
-                                        ],
-                                      );
+                                      return athleteCard;
                                     },
                                   ),
                                   const SizedBox(height: 12),
@@ -765,11 +736,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                 .clamp(1, 1 << 30)
                 .toInt();
 
-    final perSegment = sessionsRequired / maxDeg;
-    final startOfThisSegment = safeDegree * perSegment;
-    final doneIntoSegment = sessionsInBelt - startOfThisSegment;
-    final pctSegment =
-        perSegment <= 0 ? 0.0 : (doneIntoSegment / perSegment).clamp(0.0, 1.0);
+    final progressInBelt =
+        (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
 
     return _BeltProgress(
       belt: belt,
@@ -777,7 +745,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       maxDegree: maxDeg,
       sessionsInBelt: sessionsInBelt,
       sessionsRequired: sessionsRequired,
-      percentToNextBelt: pctSegment,
+      percentToNextBelt: progressInBelt,
     );
   }
 
@@ -950,6 +918,8 @@ class _AthleteCard extends StatelessWidget {
   final int degree;
   final int maxDegree;
   final double percentToNext;
+  final int sessionsInBelt;
+  final int sessionsRequired;
   final VoidCallback? onEditProfile;
   final VoidCallback? onEditGraduation;
 
@@ -961,6 +931,8 @@ class _AthleteCard extends StatelessWidget {
     required this.degree,
     required this.maxDegree,
     required this.percentToNext,
+    required this.sessionsInBelt,
+    required this.sessionsRequired,
     this.onEditProfile,
     this.onEditGraduation,
   });
@@ -1011,7 +983,8 @@ class _AthleteCard extends StatelessWidget {
             maxDegree: maxDegree,
             title: 'Gradua\u00e7\u00e3o atual',
             progressPercent: percentToNext,
-            progressLabel: 'Progresso para o pr\u00f3ximo grau',
+            progressLabel: 'Progresso da faixa',
+            subtitle: '$sessionsInBelt/$sessionsRequired sess\u00f5es na faixa atual',
             compact: true,
             framed: false,
             onEdit: onEditGraduation,
@@ -1030,165 +1003,6 @@ class _AthleteCard extends StatelessWidget {
               ],
             ),
           ],
-        ],
-      ),
-    );
-  }
-}
-
-class _GraduationProgressCard extends StatelessWidget {
-  final ColorScheme cs;
-  final _BeltProgress progress;
-
-  const _GraduationProgressCard({required this.cs, required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    final percent = (progress.percentToNextBelt * 100).round();
-    final beltColor = TitansUI.beltColor(progress.belt.name);
-    final remaining =
-        (progress.sessionsRequired - progress.sessionsInBelt)
-            .clamp(0, 1 << 30)
-            .toInt();
-
-    return _GlassCard(
-      accent: beltColor.withValues(alpha: 0.45),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'PROGRESSO DE GRADUA\u00c7\u00c3O',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '${TitansBeltStatusCard.beltName(progress.belt)} - Grau ${progress.degree} de ${progress.maxDegree}',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 10),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              minHeight: 10,
-              value: progress.percentToNextBelt,
-              backgroundColor: cs.onSurface.withValues(alpha: 0.12),
-              color: beltColor,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Expanded(
-                child: _StatMini(
-                  title: 'NA FAIXA',
-                  value: progress.sessionsInBelt.toString(),
-                  highlight: beltColor,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatMini(
-                  title: 'ESTIMADO',
-                  value: progress.sessionsRequired.toString(),
-                  highlight: Colors.amber,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatMini(
-                  title: 'PR\u00d3X. GRAU',
-                  value: '$percent%',
-                  highlight: cs.error,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            remaining == 0
-                ? 'Meta estimada desta etapa atingida pelos treinos registrados.'
-                : 'Faltam cerca de ${TrainingAggregator.sessionCountLabel(remaining)} para a refer\u00eancia estimada da faixa.',
-            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StatsCard extends StatelessWidget {
-  final ColorScheme cs;
-  final int frequency;
-  final TrainingMetrics metrics;
-
-  const _StatsCard({
-    required this.cs,
-    required this.frequency,
-    required this.metrics,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'FREQU\u00caNCIA RECENTE',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _StatMini(
-                  title: '8 SEMANAS',
-                  value: '$frequency%',
-                  highlight: cs.primary,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatMini(
-                  title: '30 DIAS',
-                  value: metrics.recent.toString(),
-                  highlight: cs.error,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Expanded(
-                child: _StatMini(
-                  title: 'MES',
-                  value: metrics.month.toString(),
-                  highlight: Colors.purpleAccent,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: _StatMini(
-                  title: 'ANO',
-                  value: metrics.year.toString(),
-                  highlight: Colors.amber,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _StatMini(
-            title: 'TOTAL DE TREINOS',
-            value: metrics.total.toString(),
-            highlight: Colors.lightGreenAccent,
-          ),
         ],
       ),
     );
@@ -1242,6 +1056,82 @@ class _StatMini extends StatelessWidget {
                 fontWeight: FontWeight.w900,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatsCard extends StatelessWidget {
+  final ColorScheme cs;
+  final int frequency;
+  final TrainingMetrics metrics;
+
+  const _StatsCard({
+    required this.cs,
+    required this.frequency,
+    required this.metrics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'FREQUÊNCIA RECENTE',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.75),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _StatMini(
+                  title: '8 SEMANAS',
+                  value: '$frequency%',
+                  highlight: cs.primary,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatMini(
+                  title: '30 DIAS',
+                  value: metrics.recent.toString(),
+                  highlight: cs.error,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Expanded(
+                child: _StatMini(
+                  title: 'MES',
+                  value: metrics.month.toString(),
+                  highlight: Colors.purpleAccent,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: _StatMini(
+                  title: 'ANO',
+                  value: metrics.year.toString(),
+                  highlight: Colors.amber,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _StatMini(
+            title: 'TOTAL DE TREINOS',
+            value: metrics.total.toString(),
+            highlight: Colors.lightGreenAccent,
           ),
         ],
       ),
