@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
@@ -9,8 +7,9 @@ import 'core/titans_theme.dart';
 import 'firebase_options.dart';
 import 'model/academy_models.dart';
 import 'model/app_user.dart';
+import 'repository/academy_repository.dart';
+import 'screen/academy_screen.dart';
 import 'screen/athlete_dashboard_screen.dart';
-import 'screen/athlete_registration_screen.dart';
 import 'screen/attendance_screen.dart';
 import 'screen/event_screen.dart';
 // Telas
@@ -23,6 +22,7 @@ import 'service/selected_student.dart';
 import 'service/selected_student_scope.dart';
 import 'service/session_lifecycle.dart';
 import 'service/user_session.dart';
+import 'widgets/academy_branding.dart';
 
 final ThemeController themeController = ThemeController(
   initialMode: ThemeMode.dark,
@@ -100,27 +100,71 @@ class _TitansAppState extends State<TitansApp> {
   }
 }
 
-/// Mantive seu leading de logo (in-memory por enquanto)
-class AppLogoLeading extends StatelessWidget {
+class AppLogoLeading extends StatefulWidget {
   const AppLogoLeading({super.key});
 
   @override
+  State<AppLogoLeading> createState() => _AppLogoLeadingState();
+}
+
+class _AppLogoLeadingState extends State<AppLogoLeading> {
+  Future<AcademyProfile>? _profileFuture;
+  String? _academyId;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final scope = UserScope.maybeScopeOf(context);
+    final academyId = scope?.activeAcademyId.trim();
+    if (academyId == null || academyId.isEmpty) return;
+    if (_academyId == academyId && _profileFuture != null) return;
+
+    _academyId = academyId;
+    _profileFuture = AcademyRepository.instance.getAcademy(academyId);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final repo = InMemoryAcademyRepository();
+    final future = _profileFuture;
+    if (future == null) return const SizedBox.shrink();
 
     return FutureBuilder<AcademyProfile>(
-      future: repo.get(),
+      future: future,
       builder: (context, snap) {
-        if (!snap.hasData) return const SizedBox.shrink();
-        final profile = snap.data!;
-        if (profile.logoPath == null) return const SizedBox.shrink();
-
-        final file = File(profile.logoPath!);
-        if (!file.existsSync()) return const SizedBox.shrink();
+        final branding = snap.data?.branding ?? const AcademyBranding();
+        final primary = academyBrandColor(branding.primaryColor);
+        final secondary = academyBrandColor(branding.secondaryColor);
+        final accent = primary ?? secondary;
+        final colorScheme = Theme.of(context).colorScheme;
 
         return Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Image.file(file),
+          padding: const EdgeInsets.all(8),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color:
+                  accent?.withValues(alpha: 0.10) ??
+                  colorScheme.surfaceContainerHighest,
+              border: Border.all(
+                color:
+                    accent?.withValues(alpha: 0.32) ??
+                    colorScheme.onSurface.withValues(alpha: 0.10),
+              ),
+            ),
+            child: ClipOval(
+              child: SizedBox.square(
+                dimension: 40,
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: AcademyBrandLogo(
+                    branding: branding,
+                    size: 30,
+                    fallbackSize: 30,
+                  ),
+                ),
+              ),
+            ),
+          ),
         );
       },
     );
@@ -153,9 +197,8 @@ class _HomeShellState extends State<HomeShell> {
         const MasterPanelScreen(),
         const EventScreen(),
         const AttendanceScreen(),
-        AthleteRegistrationScreen(academyId: user.academyId),
+        const AcademyScreen(),
         // (Opcional)
-        // AcademyScreen(),
         // ShoppingScreen(),
       ];
     }
@@ -188,10 +231,9 @@ class _HomeShellState extends State<HomeShell> {
           label: 'Presen\u00e7a',
         ),
         NavigationDestination(
-          icon: Icon(Icons.person_add_alt_1_outlined),
-          label: 'Matrícula',
+          icon: Icon(Icons.school_outlined),
+          label: 'Academia',
         ),
-        // NavigationDestination(icon: Icon(Icons.school_outlined), label: 'Academia'),
         // NavigationDestination(icon: Icon(Icons.shopping_cart_outlined), label: 'Compras'),
       ];
     }

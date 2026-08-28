@@ -1,8 +1,12 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../config/app_config.dart';
+import '../model/academy_models.dart';
+import '../repository/academy_repository.dart';
 import '../service/biometric_service.dart';
 import '../service/session_lock_controller.dart';
+import '../widgets/academy_branding.dart';
 import '../widgets/titans_logo.dart';
 import 'accept_invite_screen.dart';
 
@@ -24,10 +28,12 @@ class _LoginScreenState extends State<LoginScreen> {
   bool _hasSession = false;
   bool _refreshingBio = false;
   String? _error;
+  late final Future<AcademyProfile> _brandingFuture;
 
   @override
   void initState() {
     super.initState();
+    _brandingFuture = _loadBranding();
     _reloadBio();
   }
 
@@ -36,6 +42,11 @@ class _LoginScreenState extends State<LoginScreen> {
     _email.dispose();
     _pass.dispose();
     super.dispose();
+  }
+
+  Future<AcademyProfile> _loadBranding() async {
+    final academyId = AppConfig.resolveActiveAcademyId();
+    return AcademyRepository.instance.getAcademy(academyId);
   }
 
   Future<void> _reloadBio() async {
@@ -71,156 +82,191 @@ class _LoginScreenState extends State<LoginScreen> {
             ? 'Desbloqueie sua sessao ativa com biometria'
             : 'Entre com e-mail ou desbloqueie com biometria';
 
-    return Scaffold(
-      backgroundColor: theme.scaffoldBackgroundColor,
-      body: Stack(
-        children: [
-          Positioned.fill(
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: RadialGradient(
-                  center: const Alignment(-0.35, -0.55),
-                  radius: 1.2,
-                  colors: [
-                    cs.primary.withValues(alpha: 0.16),
-                    cs.surface.withValues(alpha: 0.98),
-                    cs.surface,
-                  ],
+    return FutureBuilder<AcademyProfile>(
+      future: _brandingFuture,
+      builder: (context, snapshot) {
+        final branding = snapshot.data?.branding ?? const AcademyBranding();
+        final primary = academyBrandColor(branding.primaryColor) ?? cs.primary;
+        final secondary =
+            academyBrandColor(branding.secondaryColor) ?? cs.secondary;
+
+        return Scaffold(
+          backgroundColor: theme.scaffoldBackgroundColor,
+          body: Stack(
+            children: [
+              Positioned.fill(
+                child: AcademyLoginBackground(
+                  branding: branding,
+                  fallback: _DefaultLoginBackground(
+                    primary: primary,
+                    surface: cs.surface,
+                  ),
                 ),
               ),
-            ),
-          ),
-          const Positioned.fill(child: TitansLogo.watermark()),
-          Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Card(
-                  color: cs.surfaceContainerHighest.withValues(alpha: 0.78),
-                  elevation: 16,
-                  shadowColor: Colors.black.withValues(alpha: 0.35),
-                  child: Padding(
-                    padding: const EdgeInsets.all(20),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const TitansLogo.icon(size: 72),
-                        const SizedBox(height: 10),
-                        Text(
-                          'TITANS BJJ',
-                          style: theme.textTheme.headlineSmall,
+              if (!branding.hasLoginBackground)
+                const Positioned.fill(child: TitansLogo.watermark()),
+              Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(24),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Card(
+                      color: cs.surfaceContainerHighest.withValues(alpha: 0.78),
+                      elevation: 16,
+                      shadowColor: Colors.black.withValues(alpha: 0.35),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: primary.withValues(alpha: 0.28),
                         ),
-                        const SizedBox(height: 6),
-                        Text(
-                          subtitle,
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.75),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        TextField(
-                          controller: _email,
-                          decoration: const InputDecoration(
-                            labelText: 'E-mail',
-                          ),
-                          keyboardType: TextInputType.emailAddress,
-                          enabled: !_loading,
-                        ),
-                        const SizedBox(height: 8),
-                        TextField(
-                          controller: _pass,
-                          decoration: const InputDecoration(labelText: 'Senha'),
-                          obscureText: true,
-                          enabled: !_loading,
-                        ),
-                        const SizedBox(height: 12),
-                        if (_error != null)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              _error!,
-                              style: const TextStyle(color: Colors.redAccent),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AcademyBrandLogo(branding: branding, size: 72),
+                            const SizedBox(height: 10),
+                            Text(
+                              'TITANS BJJ',
+                              style: theme.textTheme.headlineSmall,
                             ),
-                          ),
-                        if (!_hasSession)
-                          const Padding(
-                            padding: EdgeInsets.only(bottom: 8),
-                            child: Text(
-                              'Faca login com e-mail primeiro. A biometria apenas desbloqueia uma sessao ativa.',
+                            const SizedBox(height: 6),
+                            Text(
+                              subtitle,
                               textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.75),
+                              ),
                             ),
-                          ),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            onPressed:
-                                (_loading || _refreshingBio)
-                                    ? null
-                                    : _loginEmail,
-                            child:
-                                _loading
-                                    ? const SizedBox(
-                                      height: 18,
-                                      width: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                    : const Text('Entrar'),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        if (showBio)
-                          SizedBox(
-                            width: double.infinity,
-                            child: OutlinedButton.icon(
-                              icon: const Icon(Icons.fingerprint),
-                              label: const Text('Desbloquear com biometria'),
+                            const SizedBox(height: 16),
+                            TextField(
+                              controller: _email,
+                              decoration: const InputDecoration(
+                                labelText: 'E-mail',
+                              ),
+                              keyboardType: TextInputType.emailAddress,
+                              enabled: !_loading,
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _pass,
+                              decoration: const InputDecoration(
+                                labelText: 'Senha',
+                              ),
+                              obscureText: true,
+                              enabled: !_loading,
+                            ),
+                            const SizedBox(height: 12),
+                            if (_error != null)
+                              Padding(
+                                padding: const EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  _error!,
+                                  style: const TextStyle(
+                                    color: Colors.redAccent,
+                                  ),
+                                ),
+                              ),
+                            if (!_hasSession)
+                              const Padding(
+                                padding: EdgeInsets.only(bottom: 8),
+                                child: Text(
+                                  'Faca login com e-mail primeiro. A biometria apenas desbloqueia uma sessao ativa.',
+                                  textAlign: TextAlign.center,
+                                ),
+                              ),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton(
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: primary,
+                                  foregroundColor: _onBrandColor(primary),
+                                ),
+                                onPressed:
+                                    (_loading || _refreshingBio)
+                                        ? null
+                                        : _loginEmail,
+                                child:
+                                    _loading
+                                        ? const SizedBox(
+                                          height: 18,
+                                          width: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                          ),
+                                        )
+                                        : const Text('Entrar'),
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            if (showBio)
+                              SizedBox(
+                                width: double.infinity,
+                                child: OutlinedButton.icon(
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: secondary,
+                                    side: BorderSide(
+                                      color: secondary.withValues(alpha: 0.58),
+                                    ),
+                                  ),
+                                  icon: const Icon(Icons.fingerprint),
+                                  label: const Text(
+                                    'Desbloquear com biometria',
+                                  ),
+                                  onPressed:
+                                      (_loading || _refreshingBio)
+                                          ? null
+                                          : _unlockWithBiometrics,
+                                ),
+                              ),
+                            const SizedBox(height: 8),
+                            TextButton(
                               onPressed:
                                   (_loading || _refreshingBio)
                                       ? null
-                                      : _unlockWithBiometrics,
+                                      : _reloadBio,
+                              child: Text(
+                                _refreshingBio
+                                    ? 'Recarregando biometria...'
+                                    : 'Recarregar biometria',
+                              ),
                             ),
-                          ),
-                        const SizedBox(height: 8),
-                        TextButton(
-                          onPressed:
-                              (_loading || _refreshingBio) ? null : _reloadBio,
-                          child: Text(
-                            _refreshingBio
-                                ? 'Recarregando biometria...'
-                                : 'Recarregar biometria',
-                          ),
+                            TextButton.icon(
+                              onPressed:
+                                  _loading || !_hasSession
+                                      ? null
+                                      : () => Navigator.of(context).push(
+                                        MaterialPageRoute(
+                                          builder:
+                                              (_) => const AcceptInviteScreen(),
+                                        ),
+                                      ),
+                              icon: const Icon(Icons.mark_email_read_outlined),
+                              label: Text(
+                                _hasSession
+                                    ? 'Ver convite preparado'
+                                    : 'Entre para ver convite preparado',
+                              ),
+                            ),
+                          ],
                         ),
-                        TextButton.icon(
-                          onPressed:
-                              _loading || !_hasSession
-                                  ? null
-                                  : () => Navigator.of(context).push(
-                                    MaterialPageRoute(
-                                      builder:
-                                          (_) => const AcceptInviteScreen(),
-                                    ),
-                                  ),
-                          icon: const Icon(Icons.mark_email_read_outlined),
-                          label: Text(
-                            _hasSession
-                                ? 'Ver convite preparado'
-                                : 'Entre para ver convite preparado',
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
+  }
+
+  Color _onBrandColor(Color color) {
+    return ThemeData.estimateBrightnessForColor(color) == Brightness.dark
+        ? Colors.white
+        : Colors.black;
   }
 
   Future<void> _loginEmail() async {
@@ -279,5 +325,29 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() => _loading = false);
       }
     }
+  }
+}
+
+class _DefaultLoginBackground extends StatelessWidget {
+  final Color primary;
+  final Color surface;
+
+  const _DefaultLoginBackground({required this.primary, required this.surface});
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: RadialGradient(
+          center: const Alignment(-0.35, -0.55),
+          radius: 1.2,
+          colors: [
+            primary.withValues(alpha: 0.16),
+            surface.withValues(alpha: 0.98),
+            surface,
+          ],
+        ),
+      ),
+    );
   }
 }

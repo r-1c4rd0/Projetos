@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../model/academy_models.dart';
 import '../repository/academy_repository.dart';
 import '../service/user_session.dart';
-import '../widgets/titans_logo.dart';
+import '../widgets/academy_branding.dart';
 
 class AcademyScreen extends StatefulWidget {
   const AcademyScreen({super.key});
@@ -132,15 +132,19 @@ class _AcademyBrandingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logoUrl = profile.branding.logoUrl;
+    final primary = academyBrandColor(profile.branding.primaryColor);
+    final secondary = academyBrandColor(profile.branding.secondaryColor);
+    final accent = primary ?? secondary;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Center(
       child: Column(
         children: [
           CircleAvatar(
             radius: 54,
-            backgroundColor: Theme.of(context).colorScheme.surface,
-            backgroundImage: logoUrl.isEmpty ? null : NetworkImage(logoUrl),
-            child: logoUrl.isEmpty ? const TitansLogo.icon(size: 56) : null,
+            backgroundColor:
+                accent?.withValues(alpha: 0.10) ?? colorScheme.surface,
+            child: AcademyBrandLogo(branding: profile.branding, size: 56),
           ),
           const SizedBox(height: 12),
           Text(
@@ -151,7 +155,7 @@ class _AcademyBrandingHeader extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             profile.branding.isEmpty
-                ? 'Visual padrão Titans'
+                ? 'Visual padrao Titans'
                 : 'Branding carregado da academia ativa',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodySmall,
