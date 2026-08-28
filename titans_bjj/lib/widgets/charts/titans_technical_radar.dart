@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
-import '../../core/titans_ui.dart';
 import '../../service/jiu_jitsu_taxonomy.dart';
 import '../titans_feedback.dart';
 
@@ -139,13 +138,10 @@ class _RadarEvidenceDistribution extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final maxValue = _axisOrder.fold<int>(
-      0,
-      (max, axis) {
-        final value = axisEvidence[axis] ?? 0;
-        return value > max ? value : max;
-      },
-    );
+    final maxValue = _axisOrder.fold<int>(0, (max, axis) {
+      final value = axisEvidence[axis] ?? 0;
+      return value > max ? value : max;
+    });
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -168,8 +164,7 @@ class _RadarEvidenceDistribution extends StatelessWidget {
             maxValue: maxValue,
             color: _distributionAxisColors[i],
           ),
-          if (i != _distributionAxisOrder.length - 1)
-            const SizedBox(height: 7),
+          if (i != _distributionAxisOrder.length - 1) const SizedBox(height: 7),
         ],
         const SizedBox(height: 10),
         Text(
@@ -204,9 +199,8 @@ class _RadarEvidenceDistributionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final active = value > 0 && maxValue > 0;
-    final fillFactor = active
-        ? (value / maxValue).clamp(0.08, 1.0).toDouble()
-        : 0.0;
+    final fillFactor =
+        active ? (value / maxValue).clamp(0.08, 1.0).toDouble() : 0.0;
 
     return Row(
       children: [
@@ -217,9 +211,10 @@ class _RadarEvidenceDistributionRow extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: active
-                  ? cs.onSurface.withValues(alpha: 0.88)
-                  : cs.onSurface.withValues(alpha: 0.48),
+              color:
+                  active
+                      ? cs.onSurface.withValues(alpha: 0.88)
+                      : cs.onSurface.withValues(alpha: 0.48),
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
@@ -305,13 +300,15 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
     final radius = math.min(size.width, size.height) * 0.34;
-    final gridPaint = Paint()
-      ..color = colorScheme.onSurface.withValues(alpha: 0.13)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    final centerPaint = Paint()
-      ..color = colorScheme.onSurface.withValues(alpha: 0.12)
-      ..style = PaintingStyle.fill;
+    final gridPaint =
+        Paint()
+          ..color = colorScheme.onSurface.withValues(alpha: 0.13)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final centerPaint =
+        Paint()
+          ..color = colorScheme.onSurface.withValues(alpha: 0.12)
+          ..style = PaintingStyle.fill;
 
     for (final factor in const [0.34, 0.67, 1.0]) {
       canvas.drawPath(_polygonPath(center, radius * factor), gridPaint);
@@ -323,20 +320,24 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     for (var i = 0; i < 4; i++) {
       final axisColor = _axisColors[i];
       final point = _point(center, radius, i);
-      final axisGlowPaint = Paint()
-        ..color = axisColor.withValues(alpha: 0.07)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 4.5;
-      final axisPaint = Paint()
-        ..color = axisColor.withValues(alpha: 0.40)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.25;
-      final nodeHaloPaint = Paint()
-        ..color = axisColor.withValues(alpha: 0.13)
-        ..style = PaintingStyle.fill;
-      final nodePaint = Paint()
-        ..color = axisColor.withValues(alpha: 0.70)
-        ..style = PaintingStyle.fill;
+      final axisGlowPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.07)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 4.5;
+      final axisPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.40)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 1.25;
+      final nodeHaloPaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.13)
+            ..style = PaintingStyle.fill;
+      final nodePaint =
+          Paint()
+            ..color = axisColor.withValues(alpha: 0.70)
+            ..style = PaintingStyle.fill;
 
       canvas.drawLine(center, point, axisGlowPaint);
       canvas.drawLine(center, point, axisPaint);
@@ -356,7 +357,8 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
 
     final path = Path();
     for (var i = 0; i < values.length; i++) {
-      final factor = values[i] == 0 ? 0.0 : 0.18 + (values[i] / maxValue) * 0.72;
+      final factor =
+          values[i] == 0 ? 0.0 : 0.18 + (values[i] / maxValue) * 0.72;
       final point = _point(center, radius * factor, i);
       if (i == 0) {
         path.moveTo(point.dx, point.dy);
@@ -366,13 +368,15 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     }
     path.close();
 
-    final fillPaint = Paint()
-      ..color = colorScheme.tertiary.withValues(alpha: 0.16)
-      ..style = PaintingStyle.fill;
-    final strokePaint = Paint()
-      ..color = colorScheme.tertiary.withValues(alpha: 0.58)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.7;
+    final fillPaint =
+        Paint()
+          ..color = colorScheme.tertiary.withValues(alpha: 0.16)
+          ..style = PaintingStyle.fill;
+    final strokePaint =
+        Paint()
+          ..color = colorScheme.tertiary.withValues(alpha: 0.58)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.7;
 
     canvas.drawPath(path, fillPaint);
     canvas.drawPath(path, strokePaint);
@@ -440,9 +444,9 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
       1 => Offset(point.dx + 9, point.dy - textPainter.height / 2),
       2 => Offset(point.dx - textPainter.width / 2, point.dy + 10),
       _ => Offset(
-          point.dx - textPainter.width - 9,
-          point.dy - textPainter.height / 2,
-        ),
+        point.dx - textPainter.width - 9,
+        point.dy - textPainter.height / 2,
+      ),
     };
     final offset = Offset(
       rawOffset.dx.clamp(0.0, size.width - textPainter.width).toDouble(),

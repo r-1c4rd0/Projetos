@@ -25,9 +25,10 @@ class AcademyMembership {
     );
 
     return AcademyMembership(
-      academyId: mappedAcademyId == null || mappedAcademyId.isEmpty
-          ? academyId
-          : mappedAcademyId,
+      academyId:
+          mappedAcademyId == null || mappedAcademyId.isEmpty
+              ? academyId
+              : mappedAcademyId,
       academyName: (map['academyName'] ?? map['name'] ?? '').toString().trim(),
       role: role,
       isActive: map['isActive'] != false,

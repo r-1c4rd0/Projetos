@@ -10,7 +10,7 @@ class UserScope extends InheritedWidget {
   final List<AcademyMembership> memberships;
   final AcademyMembership? activeMembership;
 
-  const UserScope({
+  UserScope({
     super.key,
     required this.user,
     String? activeAcademyId,

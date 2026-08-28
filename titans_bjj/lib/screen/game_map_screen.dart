@@ -96,14 +96,16 @@ class _GameMapScreenState extends State<GameMapScreen> {
               const SizedBox(height: 12),
               TitansExpandableSection(
                 title: 'Radar de Evid\u00eancias T\u00e9cnicas',
-                'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
+                subtitle:
+                    'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
                 initiallyExpanded: true,
                 child: TitansTechnicalRadar(
                   subtitle: technicalRadar.subtitle,
                   stateLabel: technicalRadar.stateLabel,
                   evidences: technicalRadar.evidences,
                   axisEvidence: technicalRadar.axisEvidence,
-                  classifiedEvidenceCount: technicalRadar.classifiedEvidenceCount,
+                  classifiedEvidenceCount:
+                      technicalRadar.classifiedEvidenceCount,
                   awaitingClassificationCount:
                       technicalRadar.awaitingClassificationCount,
                 ),
@@ -133,7 +135,10 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 title: 'Explorar técnicas',
                 subtitle: _explorerSectionSummary(entries),
                 initiallyExpanded: true,
-                child: _GameMapExplorer(entries: entries, categories: skillMatrix),
+                child: _GameMapExplorer(
+                  entries: entries,
+                  categories: skillMatrix,
+                ),
               ),
             ],
           );
@@ -1049,7 +1054,11 @@ class _ExplorerModeSelector extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 16, color: selected ? cs.primary : cs.onSurface),
+                Icon(
+                  icon,
+                  size: 16,
+                  color: selected ? cs.primary : cs.onSurface,
+                ),
                 const SizedBox(width: 6),
                 Flexible(
                   child: Text(
@@ -1075,7 +1084,11 @@ class _ExplorerModeSelector extends StatelessWidget {
       children: [
         option(_ExplorerMode.position, 'Por posição', Icons.place_outlined),
         const SizedBox(width: 8),
-        option(_ExplorerMode.category, 'Por categoria', Icons.category_outlined),
+        option(
+          _ExplorerMode.category,
+          'Por categoria',
+          Icons.category_outlined,
+        ),
       ],
     );
   }
@@ -1324,6 +1337,7 @@ class _ExplorerRowShell extends StatelessWidget {
     );
   }
 }
+
 String _skillCategorySubtitle(SkillMatrixCategoryEntry entry) {
   final techniques =
       entry.techniquesCount == 1
@@ -1911,12 +1925,14 @@ class _TechnicalRadarPreviewViewModel {
         axis: axisSessionKeys[axis]?.length ?? 0,
     };
     final topAxis = _topTechnicalRadarAxis(axisEvidence);
-    final stateLabel = classified < 3
-        ? 'Perfil t\u00e9cnico em forma\u00e7\u00e3o'
-        : 'Evid\u00eancias t\u00e9cnicas distribu\u00eddas por eixo';
-    final topAxisLabel = topAxis == null
-        ? 'Em forma\u00e7\u00e3o'
-        : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evid\u00eancias)';
+    final stateLabel =
+        classified < 3
+            ? 'Perfil t\u00e9cnico em forma\u00e7\u00e3o'
+            : 'Evid\u00eancias t\u00e9cnicas distribu\u00eddas por eixo';
+    final topAxisLabel =
+        topAxis == null
+            ? 'Em forma\u00e7\u00e3o'
+            : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evid\u00eancias)';
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
@@ -1942,7 +1958,8 @@ class _TechnicalRadarPreviewViewModel {
         TitansTechnicalRadarEvidence(
           label: 'Aguardando classifica\u00e7\u00e3o',
           value: unclassified.toString(),
-          helper: 'T\u00e9cnicas que ainda exigem revis\u00e3o antes de entrar no radar.',
+          helper:
+              'T\u00e9cnicas que ainda exigem revis\u00e3o antes de entrar no radar.',
           icon: Icons.pending_outlined,
         ),
         TitansTechnicalRadarEvidence(

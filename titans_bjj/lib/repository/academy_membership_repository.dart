@@ -17,10 +17,11 @@ class AcademyMembershipRepository {
 
   Future<List<AcademyMembership>> listMemberships(String uid) async {
     final snap = await _membershipCollection(uid).get();
-    final memberships = snap.docs
-        .map((doc) => AcademyMembership.fromMap(doc.id, doc.data()))
-        .where((membership) => membership.academyId.trim().isNotEmpty)
-        .toList();
+    final memberships =
+        snap.docs
+            .map((doc) => AcademyMembership.fromMap(doc.id, doc.data()))
+            .where((membership) => membership.academyId.trim().isNotEmpty)
+            .toList();
 
     memberships.sort((a, b) {
       final nameCompare = a.academyName.compareTo(b.academyName);

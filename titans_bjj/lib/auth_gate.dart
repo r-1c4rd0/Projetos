@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 import 'config/app_config.dart';
 import 'model/academy_membership.dart';
@@ -81,6 +80,7 @@ class _AuthenticatedApp extends StatefulWidget {
 
 class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   late Future<_ResolvedUserSession> _sessionFuture;
+  String? _selectedAcademyId;
   String _lastResolvedAcademyId = AppConfig.resolveActiveAcademyId();
 
   @override
@@ -94,13 +94,22 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.firebaseUser.uid != widget.firebaseUser.uid ||
         oldWidget.firebaseUser.email != widget.firebaseUser.email) {
+      _selectedAcademyId = null;
       _sessionFuture = _loadSession();
     }
   }
 
   Future<_ResolvedUserSession> _loadSession() async {
     final memberships = await _loadMemberships();
-    final activeMembership = _resolveActiveMembership(memberships);
+    final activeMemberships = memberships
+        .where((membership) => membership.isActive)
+        .toList(growable: false);
+
+    if (activeMemberships.length > 1 && _selectedAcademyId == null) {
+      return _ResolvedUserSession.needsSelection(activeMemberships);
+    }
+
+    final activeMembership = _resolveActiveMembership(activeMemberships);
     final activeAcademyId = activeMembership?.academyId ?? _fallbackAcademyId();
     _lastResolvedAcademyId = activeAcademyId;
 
@@ -139,24 +148,27 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   }
 
   AcademyMembership? _resolveActiveMembership(
-    List<AcademyMembership> memberships,
+    List<AcademyMembership> activeMemberships,
   ) {
-    final activeMemberships = memberships
-        .where((membership) => membership.isActive)
-        .toList(growable: false);
     if (activeMemberships.isEmpty) return null;
-
-    if (activeMemberships.length > 1) {
-      debugPrint(
-        '[MULTI_ACADEMY] usuário com ${activeMemberships.length} memberships ativas; usando ${activeMemberships.first.academyId} até existir seletor.',
-      );
+    final selectedAcademyId = _selectedAcademyId;
+    if (selectedAcademyId != null) {
+      for (final membership in activeMemberships) {
+        if (membership.academyId == selectedAcademyId) return membership;
+      }
     }
-
     return activeMemberships.first;
   }
 
   String _fallbackAcademyId() {
     return AppConfig.resolveActiveAcademyId();
+  }
+
+  void _selectAcademy(AcademyMembership membership) {
+    setState(() {
+      _selectedAcademyId = membership.academyId;
+      _sessionFuture = _loadSession();
+    });
   }
 
   Future<void> _acceptPendingInviteIfAvailable(String activeAcademyId) async {
@@ -233,8 +245,23 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
           );
         }
 
+        if (session.needsAcademySelection) {
+          return _AcademySelectorScreen(
+            memberships: session.memberships,
+            onSelected: _selectAcademy,
+          );
+        }
+
+        final appUser = session.user;
+        if (appUser == null) {
+          return const _ErrorScreen(
+            title: 'Usuario nao carregou',
+            error: 'sessao sem AppUser resolvido',
+          );
+        }
+
         return UserScope(
-          user: session.user,
+          user: appUser,
           activeAcademyId: session.activeAcademyId,
           memberships: session.memberships,
           activeMembership: session.activeMembership,
@@ -246,10 +273,16 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
 }
 
 class _ResolvedUserSession {
-  final AppUser user;
-  final String activeAcademyId;
+  final AppUser? user;
+  final String? activeAcademyId;
   final List<AcademyMembership> memberships;
   final AcademyMembership? activeMembership;
+
+  bool get needsAcademySelection =>
+      user == null &&
+      activeAcademyId == null &&
+      activeMembership == null &&
+      memberships.length > 1;
 
   const _ResolvedUserSession({
     required this.user,
@@ -257,6 +290,66 @@ class _ResolvedUserSession {
     required this.memberships,
     required this.activeMembership,
   });
+
+  const _ResolvedUserSession.needsSelection(this.memberships)
+    : user = null,
+      activeAcademyId = null,
+      activeMembership = null;
+}
+
+class _AcademySelectorScreen extends StatelessWidget {
+  final List<AcademyMembership> memberships;
+  final ValueChanged<AcademyMembership> onSelected;
+
+  const _AcademySelectorScreen({
+    required this.memberships,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Escolher academia')),
+      body: SafeArea(
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemBuilder: (context, index) {
+                final membership = memberships[index];
+                final title =
+                    membership.academyName.isEmpty
+                        ? membership.academyId
+                        : membership.academyName;
+                return Card(
+                  child: ListTile(
+                    title: Text(title),
+                    subtitle: Text(_roleLabel(membership.role)),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => onSelected(membership),
+                  ),
+                );
+              },
+              separatorBuilder: (_, __) => const SizedBox(height: 8),
+              itemCount: memberships.length,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _roleLabel(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Admin';
+      case UserRole.professor:
+        return 'Professor';
+      case UserRole.athlete:
+        return 'Atleta';
+    }
+  }
 }
 
 class _ErrorScreen extends StatelessWidget {
