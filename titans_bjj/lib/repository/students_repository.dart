@@ -104,6 +104,13 @@ abstract class IStudentRepository {
 
   Future<void> upsertStudent(StudentVm student);
 
+  Future<void> archiveStudent({
+    required String academyId,
+    required String uid,
+    required String archivedByUid,
+    required String archivedByRole,
+  });
+
   Future<void> deleteStudent({required String academyId, required String uid});
 }
 
@@ -137,6 +144,10 @@ class StudentRepository implements IStudentRepository {
     return role == null || role.isEmpty || role == 'athlete';
   }
 
+  bool _isActive(Map<String, dynamic> data) {
+    return data['isActive'] != false;
+  }
+
   bool _isPermissionDenied(Object error) {
     return error is FirebaseException && error.code == 'permission-denied';
   }
@@ -147,7 +158,7 @@ class StudentRepository implements IStudentRepository {
   ) {
     final students =
         docs
-            .where((doc) => _isAthlete(doc.data()))
+            .where((doc) => _isAthlete(doc.data()) && _isActive(doc.data()))
             .map(
               (doc) =>
                   StudentVm.fromMap(doc.id, doc.data(), academyId: academyId),
@@ -165,7 +176,12 @@ class StudentRepository implements IStudentRepository {
     try {
       final snap = await _userRef(academyId: academyId, uid: uid).get();
       final data = snap.data();
-      if (!snap.exists || data == null || !_isAthlete(data)) return null;
+      if (!snap.exists ||
+          data == null ||
+          !_isAthlete(data) ||
+          !_isActive(data)) {
+        return null;
+      }
       return StudentVm.fromMap(snap.id, data, academyId: academyId);
     } catch (error) {
       if (_isPermissionDenied(error)) {
@@ -210,11 +226,28 @@ class StudentRepository implements IStudentRepository {
   }
 
   @override
+  Future<void> archiveStudent({
+    required String academyId,
+    required String uid,
+    required String archivedByUid,
+    required String archivedByRole,
+  }) async {
+    await _userRef(academyId: academyId, uid: uid).set({
+      'academyId': academyId,
+      'isActive': false,
+      'archivedAt': FieldValue.serverTimestamp(),
+      'archivedByUid': archivedByUid,
+      'archivedByRole': archivedByRole,
+      'updatedAt': FieldValue.serverTimestamp(),
+    }, SetOptions(merge: true));
+  }
+
+  @override
   Future<void> deleteStudent({
     required String academyId,
     required String uid,
   }) async {
-    await _userRef(academyId: academyId, uid: uid).delete();
+    throw UnsupportedError('Use archiveStudent para preservar dados.');
   }
 }
 
@@ -222,6 +255,8 @@ class InMemoryStudentRepository implements IStudentRepository {
   // TODO multi-academy: substituir pelo academyId ativo quando mocks suportarem
   // selecao de academia.
   static String get _fallbackAcademyId => AppConfig.resolveActiveAcademyId();
+
+  final Set<String> _archivedStudentIds = <String>{};
 
   late final List<StudentVm> _students = [
     StudentVm(
@@ -256,7 +291,7 @@ class InMemoryStudentRepository implements IStudentRepository {
     required String uid,
   }) async {
     for (final student in _students) {
-      if (student.uid == uid) {
+      if (student.uid == uid && !_archivedStudentIds.contains(uid)) {
         return StudentVm(
           uid: student.uid,
           name: student.name,
@@ -274,6 +309,7 @@ class InMemoryStudentRepository implements IStudentRepository {
   Future<List<StudentVm>> listStudents({required String academyId}) async {
     final students =
         _students
+            .where((student) => !_archivedStudentIds.contains(student.uid))
             .map(
               (student) => StudentVm(
                 uid: student.uid,
@@ -298,8 +334,20 @@ class InMemoryStudentRepository implements IStudentRepository {
   Future<void> upsertStudent(StudentVm student) async {}
 
   @override
+  Future<void> archiveStudent({
+    required String academyId,
+    required String uid,
+    required String archivedByUid,
+    required String archivedByRole,
+  }) async {
+    _archivedStudentIds.add(uid);
+  }
+
+  @override
   Future<void> deleteStudent({
     required String academyId,
     required String uid,
-  }) async {}
+  }) async {
+    throw UnsupportedError('Use archiveStudent para preservar dados.');
+  }
 }

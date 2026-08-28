@@ -139,6 +139,11 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
                           entry: entry,
                           actor: loggedUser,
                         ),
+                    onArchive:
+                        (entry) => _confirmArchiveStudent(
+                          actor: loggedUser,
+                          entry: entry,
+                        ),
                   );
                 },
               );
@@ -241,6 +246,70 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
       if (!mounted) return;
       messenger.showSnackBar(
         SnackBar(content: Text('Nao foi possivel atualizar convite: $error')),
+      );
+    }
+  }
+
+  Future<void> _confirmArchiveStudent({
+    required AppUser actor,
+    required _StudentAccessEntry entry,
+  }) async {
+    final student = entry.displayStudent;
+    final capabilities = _TargetCapabilities.resolve(
+      actor: actor,
+      targetUid: student.uid,
+      targetAcademyId: student.academyId,
+      targetMode: TargetMode.selectedStudent,
+    );
+
+    if (!capabilities.canArchiveProfile) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Sem permissao para arquivar este perfil.'),
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Arquivar perfil?'),
+            content: const Text(
+              'Este perfil sair\u00e1 da listagem principal, mas os dados ser\u00e3o preservados.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Arquivar perfil'),
+              ),
+            ],
+          ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      await _studentRepo.archiveStudent(
+        academyId: student.academyId,
+        uid: student.uid,
+        archivedByUid: actor.uid,
+        archivedByRole: actor.role.name,
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Perfil arquivado. Os dados foram preservados.'),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nao foi possivel arquivar perfil: $error')),
       );
     }
   }
@@ -549,6 +618,7 @@ class _StudentsGrid extends StatelessWidget {
   final ValueChanged<_StudentAccessEntry> onEdit;
   final ValueChanged<_StudentAccessEntry> onEditGraduation;
   final void Function(_StudentInviteAction, _StudentAccessEntry) onInviteAction;
+  final ValueChanged<_StudentAccessEntry> onArchive;
 
   const _StudentsGrid({
     required this.actor,
@@ -559,6 +629,7 @@ class _StudentsGrid extends StatelessWidget {
     required this.onEdit,
     required this.onEditGraduation,
     required this.onInviteAction,
+    required this.onArchive,
   });
 
   @override
@@ -609,14 +680,13 @@ class _StudentsGrid extends StatelessWidget {
                 delegate: SliverChildBuilderDelegate((context, index) {
                   final entry = students[index];
                   final student = entry.displayStudent;
-                  final targetStudent = entry.targetStudent;
                   final maxDegree = rules.maxDegrees(student.belt);
                   final degree = student.degree.clamp(0, maxDegree).toInt();
 
                   final capabilities = _TargetCapabilities.resolve(
                     actor: actor,
-                    targetUid: targetStudent.uid,
-                    targetAcademyId: targetStudent.academyId,
+                    targetUid: student.uid,
+                    targetAcademyId: student.academyId,
                     targetMode: TargetMode.selectedStudent,
                   );
 
@@ -630,6 +700,7 @@ class _StudentsGrid extends StatelessWidget {
                     onEdit: () => onEdit(entry),
                     onEditGraduation: () => onEditGraduation(entry),
                     onInviteAction: (action) => onInviteAction(action, entry),
+                    onArchive: () => onArchive(entry),
                     canCopyInvite: entry.invite != null,
                   );
                 }, childCount: students.length),
@@ -716,6 +787,7 @@ class _StudentCard extends StatelessWidget {
   final VoidCallback onEditGraduation;
   final VoidCallback onOpen;
   final ValueChanged<_StudentInviteAction> onInviteAction;
+  final VoidCallback onArchive;
   final bool canCopyInvite;
 
   const _StudentCard({
@@ -728,6 +800,7 @@ class _StudentCard extends StatelessWidget {
     required this.onEditGraduation,
     required this.onOpen,
     required this.onInviteAction,
+    required this.onArchive,
     required this.canCopyInvite,
   });
   @override
@@ -791,8 +864,10 @@ class _StudentCard extends StatelessWidget {
                       _StudentActionsMenu(
                         canEditProfile: capabilities.canEditProfile,
                         canEditGraduation: capabilities.canEditGraduation,
+                        canArchiveProfile: capabilities.canArchiveProfile,
                         onEdit: onEdit,
                         onEditGraduation: onEditGraduation,
+                        onArchive: onArchive,
                         accessStatus: accessStatus,
                         onInviteAction: onInviteAction,
                         canCopyInvite: canCopyInvite,
@@ -965,13 +1040,16 @@ enum _StudentAction {
   copyInvite,
   resendInvite,
   revokeInvite,
+  archive,
 }
 
 class _StudentActionsMenu extends StatelessWidget {
   final bool canEditProfile;
   final bool canEditGraduation;
+  final bool canArchiveProfile;
   final VoidCallback onEdit;
   final VoidCallback onEditGraduation;
+  final VoidCallback onArchive;
   final _StudentAccessStatus accessStatus;
   final ValueChanged<_StudentInviteAction> onInviteAction;
   final bool canCopyInvite;
@@ -979,8 +1057,10 @@ class _StudentActionsMenu extends StatelessWidget {
   const _StudentActionsMenu({
     required this.canEditProfile,
     required this.canEditGraduation,
+    required this.canArchiveProfile,
     required this.onEdit,
     required this.onEditGraduation,
+    required this.onArchive,
     required this.accessStatus,
     required this.onInviteAction,
     required this.canCopyInvite,
@@ -1010,6 +1090,9 @@ class _StudentActionsMenu extends StatelessWidget {
             break;
           case _StudentAction.revokeInvite:
             onInviteAction(_StudentInviteAction.revoke);
+            break;
+          case _StudentAction.archive:
+            onArchive();
             break;
         }
       },
@@ -1066,6 +1149,15 @@ class _StudentActionsMenu extends StatelessWidget {
                   label: 'Revogar convite',
                 ),
               ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: _StudentAction.archive,
+              enabled: canArchiveProfile,
+              child: const _MenuItem(
+                icon: Icons.archive_outlined,
+                label: 'Arquivar perfil',
+              ),
+            ),
           ],
     );
   }
@@ -1165,11 +1257,13 @@ class _TargetCapabilities {
   final bool canEditProfile;
   final bool canEditGraduation;
   final bool canViewAdminActions;
+  final bool canArchiveProfile;
 
   const _TargetCapabilities({
     required this.canEditProfile,
     required this.canEditGraduation,
     required this.canViewAdminActions,
+    required this.canArchiveProfile,
   });
 
   factory _TargetCapabilities.resolve({
@@ -1190,6 +1284,7 @@ class _TargetCapabilities {
       canEditProfile: canManageTarget,
       canEditGraduation: canManageTarget,
       canViewAdminActions: canManageTarget,
+      canArchiveProfile: canManageTarget,
     );
   }
 }
