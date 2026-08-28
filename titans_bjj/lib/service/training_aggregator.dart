@@ -152,8 +152,40 @@ class SkillMatrixTechniqueEntry {
   });
 }
 
+class SkillEvidence {
+  static const sourceTypeTrainingSession = 'training_session';
+
+  final String skillId;
+  final String techniqueName;
+  final String normalizedTechniqueName;
+  final String sourceType;
+  final String? sourceId;
+  final DateTime practicedAt;
+  final String? position;
+  final String? context;
+  final JiuJitsuSkillCategory category;
+  final String? techniqueOutcome;
+  final int? attempts;
+  final int? successes;
+
+  const SkillEvidence({
+    required this.skillId,
+    required this.techniqueName,
+    required this.normalizedTechniqueName,
+    required this.sourceType,
+    required this.sourceId,
+    required this.practicedAt,
+    required this.position,
+    required this.context,
+    required this.category,
+    this.techniqueOutcome,
+    this.attempts,
+    this.successes,
+  });
+}
+
 class TechnicalEvidenceSummary {
-  final String? skillId;
+  final String skillId;
   final String techniqueName;
   final String normalizedTechniqueName;
   final int evidenceCount;
@@ -165,7 +197,7 @@ class TechnicalEvidenceSummary {
   final Set<String> sourceIds;
 
   const TechnicalEvidenceSummary({
-    this.skillId,
+    required this.skillId,
     required this.techniqueName,
     required this.normalizedTechniqueName,
     required this.evidenceCount,
@@ -470,46 +502,82 @@ class TrainingAggregator {
     );
   }
 
-  static List<TechnicalEvidenceSummary> buildTechnicalEvidence(
+  static List<SkillEvidence> buildSkillEvidences(
     List<TrainingSession> sessions, {
     int limit = 100,
   }) {
     final ordered = uniqueSessions(sessions).reversed.take(limit);
-    final byTechnique = <String, _TechnicalEvidenceDraft>{};
+    final evidences = <SkillEvidence>[];
 
     for (final session in ordered) {
-      final seenInSession = <String>{};
       for (final entry in session.effectiveTechniqueEntries) {
         final techniqueLabel = _cleanText(entry.technique);
         if (techniqueLabel == null) continue;
 
         final identity = JiuJitsuTaxonomy.resolveSkillIdentity(techniqueLabel);
-        final techniqueKey = JiuJitsuTaxonomy.normalizedKey(techniqueLabel);
-        final evidenceKey = identity?.skillId ?? techniqueKey;
-        if (evidenceKey.isEmpty || !seenInSession.add(evidenceKey)) {
-          continue;
-        }
+        final normalizedTechniqueName =
+            identity?.normalizedName ??
+            JiuJitsuTaxonomy.normalizedKey(techniqueLabel);
+        if (normalizedTechniqueName.isEmpty) continue;
 
-        final draft = byTechnique.putIfAbsent(
-          evidenceKey,
-          () => _TechnicalEvidenceDraft(
-            skillId: identity?.skillId,
-            normalizedTechniqueName: identity?.normalizedName ?? techniqueKey,
+        final position =
+            _cleanText(entry.position) ?? _cleanText(session.position);
+        final context =
+            _presentationKey(entry.applicationContext) ??
+            _presentationKey(session.applicationContext);
+        final techniqueOutcome =
+            _presentationKey(entry.techniqueOutcome) ??
+            _presentationKey(session.techniqueOutcome);
+        final category =
+            identity?.category ??
+            JiuJitsuTaxonomy.categoryFor(
+              position: position,
+              technique: techniqueLabel,
+            );
+
+        evidences.add(
+          SkillEvidence(
+            skillId:
+                identity?.skillId ?? _fallbackSkillId(normalizedTechniqueName),
+            techniqueName: techniqueLabel,
+            normalizedTechniqueName: normalizedTechniqueName,
+            sourceType: SkillEvidence.sourceTypeTrainingSession,
+            sourceId: _cleanText(session.id),
+            practicedAt: session.date,
+            position: position,
+            context: context,
+            category: category,
+            techniqueOutcome: techniqueOutcome,
           ),
         );
-        draft.addSession(
-          session: session,
-          techniqueLabel: techniqueLabel,
-          positionLabel:
-              _cleanText(entry.position) ?? _cleanText(session.position),
-          applicationContext:
-              _presentationKey(entry.applicationContext) ??
-              _presentationKey(session.applicationContext),
-          techniqueOutcome:
-              _presentationKey(entry.techniqueOutcome) ??
-              _presentationKey(session.techniqueOutcome),
-        );
       }
+    }
+
+    return evidences;
+  }
+
+  static List<TechnicalEvidenceSummary> buildTechnicalEvidence(
+    List<TrainingSession> sessions, {
+    int limit = 100,
+  }) {
+    final byTechnique = <String, _TechnicalEvidenceDraft>{};
+    final seenBySource = <String>{};
+
+    for (final evidence in buildSkillEvidences(sessions, limit: limit)) {
+      final sourceKey =
+          evidence.sourceId ??
+          evidence.practicedAt.microsecondsSinceEpoch.toString();
+      final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
+      if (!seenBySource.add(dedupeKey)) continue;
+
+      final draft = byTechnique.putIfAbsent(
+        evidence.skillId,
+        () => _TechnicalEvidenceDraft(
+          skillId: evidence.skillId,
+          normalizedTechniqueName: evidence.normalizedTechniqueName,
+        ),
+      );
+      draft.addEvidence(evidence);
     }
 
     final summaries =
@@ -525,6 +593,10 @@ class TrainingAggregator {
           });
 
     return summaries;
+  }
+
+  static String _fallbackSkillId(String normalizedTechniqueName) {
+    return 'custom.${normalizedTechniqueName.replaceAll(' ', '_')}';
   }
 
   static List<GameMapEntry> buildGameMap(
@@ -1256,7 +1328,7 @@ class TrainingAggregator {
 }
 
 class _TechnicalEvidenceDraft {
-  final String? skillId;
+  final String skillId;
   final String normalizedTechniqueName;
   final labels = <String, _GameMapLabelScore>{};
   final positions = <String>{};
@@ -1272,36 +1344,34 @@ class _TechnicalEvidenceDraft {
     required this.normalizedTechniqueName,
   });
 
-  void addSession({
-    required TrainingSession session,
-    required String techniqueLabel,
-    required String? positionLabel,
-    required String? applicationContext,
-    required String? techniqueOutcome,
-  }) {
+  void addEvidence(SkillEvidence evidence) {
     evidenceCount += 1;
     labels
-        .putIfAbsent(techniqueLabel, () => _GameMapLabelScore(techniqueLabel))
-        .add(session.date);
+        .putIfAbsent(
+          evidence.techniqueName,
+          () => _GameMapLabelScore(evidence.techniqueName),
+        )
+        .add(evidence.practicedAt);
 
-    if (lastPracticedAt == null || session.date.isAfter(lastPracticedAt!)) {
-      lastPracticedAt = session.date;
+    if (lastPracticedAt == null ||
+        evidence.practicedAt.isAfter(lastPracticedAt!)) {
+      lastPracticedAt = evidence.practicedAt;
     }
 
-    if (positionLabel != null) positions.add(positionLabel);
+    if (evidence.position != null) positions.add(evidence.position!);
 
     final contextLabel = TrainingAggregator.applicationContextLabel(
-      applicationContext,
+      evidence.context,
     );
     if (contextLabel != null) contexts.add(contextLabel);
 
     final outcomeLabel = TrainingAggregator.techniqueOutcomeLabel(
-      techniqueOutcome,
+      evidence.techniqueOutcome,
     );
     if (outcomeLabel != null) outcomes.add(outcomeLabel);
 
-    sourceTypes.add('training_session');
-    if (session.id.trim().isNotEmpty) sourceIds.add(session.id.trim());
+    sourceTypes.add(evidence.sourceType);
+    if (evidence.sourceId != null) sourceIds.add(evidence.sourceId!);
   }
 
   TechnicalEvidenceSummary toSummary() {
