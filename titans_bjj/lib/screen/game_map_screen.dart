@@ -3,11 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
+import '../repository/coach_evaluation_repository.dart';
 import '../repository/training_repository.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
+import '../service/user_session.dart';
 import '../widgets/charts/titans_technical_radar.dart';
 import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
@@ -35,7 +38,10 @@ class GameMapScreen extends StatefulWidget {
 
 class _GameMapScreenState extends State<GameMapScreen> {
   late final TrainingRepository _repository = TrainingRepository.instance;
+  late final CoachEvaluationRepository _coachEvaluationRepository =
+      CoachEvaluationRepository.instance;
   late final Stream<List<TrainingSession>> _sessionsStream;
+  late final Stream<List<CoachEvaluation>> _coachEvaluationsStream;
 
   @override
   void initState() {
@@ -44,11 +50,65 @@ class _GameMapScreenState extends State<GameMapScreen> {
       academyId: widget.academyId,
       uid: widget.uid,
     );
+    _coachEvaluationsStream = _coachEvaluationRepository.watchEvaluations(
+      academyId: widget.academyId,
+      athleteUid: widget.uid,
+    );
+  }
+
+  Future<void> _openCoachEvaluationSheet({
+    required AppUser actor,
+    required List<TechnicalEvidenceSummary> techniques,
+    required List<CoachEvaluation> evaluations,
+  }) async {
+    if (techniques.isEmpty) return;
+
+    final draft = await showModalBottomSheet<_CoachEvaluationDraft>(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => _CoachEvaluationSheet(
+            techniques: techniques,
+            evaluations: evaluations,
+          ),
+    );
+    if (draft == null) return;
+
+    final evaluation = CoachEvaluation(
+      skillId: draft.technique.skillId,
+      athleteUid: widget.uid,
+      academyId: widget.academyId,
+      evaluatorUid: actor.uid,
+      evaluatedAt: DateTime.now(),
+      knowledgeLevel: draft.knowledgeLevel,
+      drillLevel: draft.drillLevel,
+      applicationLevel: draft.applicationLevel,
+      consistencyLevel: draft.consistencyLevel,
+      note: draft.note,
+      recommendation: draft.recommendation,
+      needsReview: draft.needsReview,
+    );
+
+    try {
+      await _coachEvaluationRepository.upsertEvaluation(evaluation);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avaliação humana registrada.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao registrar avaliação: $error')),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final actor = UserScope.maybeOf(context);
+    final canEditCoachEvaluation =
+        actor?.role == UserRole.admin || actor?.role == UserRole.professor;
 
     return _wrapModule(
       appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
@@ -85,8 +145,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
             sessions,
           );
-          const coachEvaluations = <CoachEvaluation>[];
-
           return ListView(
             padding:
                 widget.embedded
@@ -123,11 +181,33 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 child: _TechnicalEvidencePanel(items: technicalEvidence),
               ),
               const SizedBox(height: 12),
-              TitansExpandableSection(
-                title: 'Avaliação do Professor',
-                subtitle:
-                    'A avaliação humana complementa as evidências dos treinos.',
-                child: _CoachEvaluationPanel(items: coachEvaluations),
+              StreamBuilder<List<CoachEvaluation>>(
+                stream: _coachEvaluationsStream,
+                builder: (context, evaluationSnapshot) {
+                  final coachEvaluations =
+                      evaluationSnapshot.data ?? const <CoachEvaluation>[];
+                  return TitansExpandableSection(
+                    title: 'Avaliação do Professor',
+                    subtitle:
+                        'A avaliação humana complementa as evidências dos treinos.',
+                    child: _CoachEvaluationPanel(
+                      items: coachEvaluations,
+                      techniques: technicalEvidence,
+                      canEdit: canEditCoachEvaluation,
+                      isLoading:
+                          evaluationSnapshot.connectionState ==
+                          ConnectionState.waiting,
+                      onRegister:
+                          actor == null
+                              ? null
+                              : () => _openCoachEvaluationSheet(
+                                actor: actor,
+                                techniques: technicalEvidence,
+                                evaluations: coachEvaluations,
+                              ),
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
@@ -304,31 +384,402 @@ class _GameMapSummaryCard extends StatelessWidget {
 
 class _CoachEvaluationPanel extends StatelessWidget {
   final List<CoachEvaluation> items;
+  final List<TechnicalEvidenceSummary> techniques;
+  final bool canEdit;
+  final bool isLoading;
+  final VoidCallback? onRegister;
 
-  const _CoachEvaluationPanel({required this.items});
+  const _CoachEvaluationPanel({
+    required this.items,
+    required this.techniques,
+    required this.canEdit,
+    required this.isLoading,
+    required this.onRegister,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final techniqueNames = {
+      for (final technique in techniques)
+        technique.skillId: technique.techniqueName,
+    };
 
     return _VisualCard(
       accent: cs.tertiary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CompactHeader(title: 'AVALIAÇÃO DO PROFESSOR'),
+          Row(
+            children: [
+              const Expanded(
+                child: _CompactHeader(title: 'AVALIAÇÃO DO PROFESSOR'),
+              ),
+              if (canEdit)
+                FilledButton.icon(
+                  onPressed: techniques.isEmpty ? null : onRegister,
+                  icon: const Icon(Icons.rate_review_outlined, size: 18),
+                  label: const Text('Registrar avaliação'),
+                ),
+            ],
+          ),
           const SizedBox(height: 12),
-          if (items.isEmpty)
+          Text(
+            'Esta avaliação complementa as evidências dos treinos.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (isLoading)
+            const TitansSkeletonCard(lines: 2)
+          else if (items.isEmpty)
             const TitansEmptyState(
               icon: Icons.rate_review_outlined,
               title: 'Nenhuma avaliação registrada ainda.',
               message: 'Avaliações do professor ainda não registradas.',
               compact: true,
+            )
+          else
+            Column(
+              children: [
+                for (final item in items.take(6))
+                  _CoachEvaluationCard(
+                    evaluation: item,
+                    techniqueName: techniqueNames[item.skillId] ?? item.skillId,
+                  ),
+              ],
             ),
         ],
       ),
     );
   }
+}
+
+class _CoachEvaluationCard extends StatelessWidget {
+  final CoachEvaluation evaluation;
+  final String techniqueName;
+
+  const _CoachEvaluationCard({
+    required this.evaluation,
+    required this.techniqueName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final levels = [
+      _evaluationLevelText('Conhecimento', evaluation.knowledgeLevel),
+      _evaluationLevelText('Drill', evaluation.drillLevel),
+      _evaluationLevelText('Aplicação', evaluation.applicationLevel),
+      _evaluationLevelText('Consistência', evaluation.consistencyLevel),
+    ].whereType<String>().join(' - ');
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.tertiary.withValues(alpha: 0.20)),
+        color: cs.tertiary.withValues(alpha: 0.06),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  techniqueName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              if (evaluation.needsReview)
+                _MiniBadge(label: 'Precisa revisar', color: cs.tertiary),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Avaliação humana registrada pelo professor.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (levels.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(levels, style: const TextStyle(fontSize: 12)),
+          ],
+          if ((evaluation.note ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              evaluation.note!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+          if ((evaluation.recommendation ?? '').trim().isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              evaluation.recommendation!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachEvaluationDraft {
+  final TechnicalEvidenceSummary technique;
+  final CoachEvaluationLevel? knowledgeLevel;
+  final CoachEvaluationLevel? drillLevel;
+  final CoachEvaluationLevel? applicationLevel;
+  final CoachEvaluationLevel? consistencyLevel;
+  final String? note;
+  final String? recommendation;
+  final bool needsReview;
+
+  const _CoachEvaluationDraft({
+    required this.technique,
+    required this.knowledgeLevel,
+    required this.drillLevel,
+    required this.applicationLevel,
+    required this.consistencyLevel,
+    required this.note,
+    required this.recommendation,
+    required this.needsReview,
+  });
+}
+
+class _CoachEvaluationSheet extends StatefulWidget {
+  final List<TechnicalEvidenceSummary> techniques;
+  final List<CoachEvaluation> evaluations;
+
+  const _CoachEvaluationSheet({
+    required this.techniques,
+    required this.evaluations,
+  });
+
+  @override
+  State<_CoachEvaluationSheet> createState() => _CoachEvaluationSheetState();
+}
+
+class _CoachEvaluationSheetState extends State<_CoachEvaluationSheet> {
+  late TechnicalEvidenceSummary _selectedTechnique = widget.techniques.first;
+  CoachEvaluationLevel? _knowledgeLevel;
+  CoachEvaluationLevel? _drillLevel;
+  CoachEvaluationLevel? _applicationLevel;
+  CoachEvaluationLevel? _consistencyLevel;
+  bool _needsReview = false;
+  final _noteController = TextEditingController();
+  final _recommendationController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _applyExistingEvaluation();
+  }
+
+  @override
+  void dispose() {
+    _noteController.dispose();
+    _recommendationController.dispose();
+    super.dispose();
+  }
+
+  void _applyExistingEvaluation() {
+    final existing = _evaluationFor(_selectedTechnique.skillId);
+    if (existing == null) return;
+    _knowledgeLevel = existing.knowledgeLevel;
+    _drillLevel = existing.drillLevel;
+    _applicationLevel = existing.applicationLevel;
+    _consistencyLevel = existing.consistencyLevel;
+    _needsReview = existing.needsReview;
+    _noteController.text = existing.note ?? '';
+    _recommendationController.text = existing.recommendation ?? '';
+  }
+
+  CoachEvaluation? _evaluationFor(String skillId) {
+    for (final evaluation in widget.evaluations) {
+      if (evaluation.skillId == skillId) return evaluation;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Registrar avaliação',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 6),
+              const Text('Avaliação humana registrada pelo professor.'),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<TechnicalEvidenceSummary>(
+                initialValue: _selectedTechnique,
+                decoration: const InputDecoration(labelText: 'Técnica'),
+                items: [
+                  for (final technique in widget.techniques)
+                    DropdownMenuItem(
+                      value: technique,
+                      child: Text(technique.techniqueName),
+                    ),
+                ],
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedTechnique = value;
+                    _knowledgeLevel = null;
+                    _drillLevel = null;
+                    _applicationLevel = null;
+                    _consistencyLevel = null;
+                    _needsReview = false;
+                    _noteController.clear();
+                    _recommendationController.clear();
+                    _applyExistingEvaluation();
+                  });
+                },
+              ),
+              const SizedBox(height: 12),
+              _CoachLevelDropdown(
+                label: 'Conhecimento',
+                value: _knowledgeLevel,
+                onChanged: (value) => setState(() => _knowledgeLevel = value),
+              ),
+              const SizedBox(height: 12),
+              _CoachLevelDropdown(
+                label: 'Execução em drill',
+                value: _drillLevel,
+                onChanged: (value) => setState(() => _drillLevel = value),
+              ),
+              const SizedBox(height: 12),
+              _CoachLevelDropdown(
+                label: 'Aplicação',
+                value: _applicationLevel,
+                onChanged: (value) => setState(() => _applicationLevel = value),
+              ),
+              const SizedBox(height: 12),
+              _CoachLevelDropdown(
+                label: 'Consistência',
+                value: _consistencyLevel,
+                onChanged: (value) => setState(() => _consistencyLevel = value),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _noteController,
+                decoration: const InputDecoration(labelText: 'Observação'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _recommendationController,
+                decoration: const InputDecoration(labelText: 'Recomendação'),
+                maxLines: 2,
+              ),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Precisa revisar'),
+                value: _needsReview,
+                onChanged: (value) => setState(() => _needsReview = value),
+              ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).pop(
+                      _CoachEvaluationDraft(
+                        technique: _selectedTechnique,
+                        knowledgeLevel: _knowledgeLevel,
+                        drillLevel: _drillLevel,
+                        applicationLevel: _applicationLevel,
+                        consistencyLevel: _consistencyLevel,
+                        note: _cleanSheetText(_noteController.text),
+                        recommendation: _cleanSheetText(
+                          _recommendationController.text,
+                        ),
+                        needsReview: _needsReview,
+                      ),
+                    );
+                  },
+                  icon: const Icon(Icons.save_outlined, size: 18),
+                  label: const Text('Salvar avaliação'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CoachLevelDropdown extends StatelessWidget {
+  final String label;
+  final CoachEvaluationLevel? value;
+  final ValueChanged<CoachEvaluationLevel?> onChanged;
+
+  const _CoachLevelDropdown({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<CoachEvaluationLevel>(
+      initialValue: value,
+      decoration: InputDecoration(labelText: label),
+      items: [
+        for (final level in CoachEvaluationLevel.values)
+          DropdownMenuItem(value: level, child: Text(_coachLevelLabel(level))),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+String? _evaluationLevelText(String label, CoachEvaluationLevel? level) {
+  if (level == null) return null;
+  return '$label: ${_coachLevelLabel(level)}';
+}
+
+String _coachLevelLabel(CoachEvaluationLevel level) {
+  switch (level) {
+    case CoachEvaluationLevel.observed:
+      return 'Observado';
+    case CoachEvaluationLevel.needsPractice:
+      return 'Precisa praticar';
+    case CoachEvaluationLevel.progressing:
+      return 'Em evolução';
+    case CoachEvaluationLevel.readyForReview:
+      return 'Pronto para revisão';
+  }
+}
+
+String? _cleanSheetText(String value) {
+  final text = value.trim();
+  return text.isEmpty ? null : text;
 }
 
 class _TechnicalEvidencePanel extends StatelessWidget {

@@ -83,6 +83,27 @@ service cloud.firestore {
       return !data.keys().hasAny(['role']) || data.role == 'athlete';
     }
 
+    function archiveFieldsChanged() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'isActive',
+          'archivedAt',
+          'archivedByUid',
+          'archivedByRole'
+        ]);
+    }
+
+    function hasNoArchiveMutation() {
+      return !archiveFieldsChanged();
+    }
+
+    function staffArchivePayload(academyId) {
+      return hasNoArchiveMutation()
+        || (request.resource.data.isActive == false
+          && request.resource.data.archivedAt == request.time
+          && request.resource.data.archivedByUid == request.auth.uid
+          && request.resource.data.archivedByRole == currentUserRole(academyId));
+    }
+
     function selfCreateAcademyUserPayload(academyId, uid) {
       return request.resource.data.academyId == academyId
         && (hasAthleteRole(request.resource.data)
@@ -92,7 +113,9 @@ service cloud.firestore {
     }
 
     function selfUpdateAcademyUserPayload(academyId, uid) {
-      return keepsSameAcademyId(academyId) && keepsSafeRole(uid);
+      return keepsSameAcademyId(academyId)
+        && keepsSafeRole(uid)
+        && hasNoArchiveMutation();
     }
 
     function staffCreateStudentPayload(academyId) {
@@ -100,10 +123,12 @@ service cloud.firestore {
         && hasAthleteRole(request.resource.data);
     }
 
-    function staffUpdateStudentPayload(academyId) {
-      return keepsSameAcademyId(academyId)
+    function staffUpdateStudentPayload(academyId, uid) {
+      return uid != request.auth.uid
+        && keepsSameAcademyId(academyId)
         && hasAthleteRole(resource.data)
-        && hasAthleteRole(request.resource.data);
+        && hasAthleteRole(request.resource.data)
+        && staffArchivePayload(academyId);
     }
 
     function isAttendanceSessionStatus(status) {
@@ -215,6 +240,63 @@ service cloud.firestore {
         && request.resource.data.type == resource.data.type
         && request.resource.data.normalizedKey == resource.data.normalizedKey;
     }
+    function isCoachEvaluationLevel(level) {
+      return level in ['observed', 'needsPractice', 'progressing', 'readyForReview'];
+    }
+
+    function optionalCoachEvaluationLevel(data, field) {
+      return !data.keys().hasAny([field]) || isCoachEvaluationLevel(data[field]);
+    }
+
+    function optionalString(data, field) {
+      return !data.keys().hasAny([field]) || data[field] is string;
+    }
+
+    function coachEvaluationPayload(academyId, athleteUid) {
+      return request.resource.data.keys().hasOnly([
+          'skillId',
+          'athleteUid',
+          'academyId',
+          'evaluatorUid',
+          'knowledgeLevel',
+          'drillLevel',
+          'applicationLevel',
+          'consistencyLevel',
+          'note',
+          'recommendation',
+          'needsReview',
+          'evaluatedAt'
+        ])
+        && request.resource.data.keys().hasAll([
+          'skillId',
+          'athleteUid',
+          'academyId',
+          'evaluatorUid',
+          'needsReview',
+          'evaluatedAt'
+        ])
+        && request.resource.data.skillId is string
+        && request.resource.data.skillId.size() > 0
+        && request.resource.data.athleteUid == athleteUid
+        && request.resource.data.academyId == academyId
+        && request.resource.data.evaluatorUid == request.auth.uid
+        && request.resource.data.needsReview is bool
+        && request.resource.data.evaluatedAt == request.time
+        && optionalCoachEvaluationLevel(request.resource.data, 'knowledgeLevel')
+        && optionalCoachEvaluationLevel(request.resource.data, 'drillLevel')
+        && optionalCoachEvaluationLevel(request.resource.data, 'applicationLevel')
+        && optionalCoachEvaluationLevel(request.resource.data, 'consistencyLevel')
+        && optionalString(request.resource.data, 'note')
+        && optionalString(request.resource.data, 'recommendation');
+    }
+
+    function coachEvaluationUpdatePayload(academyId, athleteUid) {
+      return coachEvaluationPayload(academyId, athleteUid)
+        && resource.data.academyId == academyId
+        && resource.data.athleteUid == athleteUid
+        && resource.data.skillId == request.resource.data.skillId;
+    }
+
     function selfCreateRootUserPayload() {
       return hasAthleteRole(request.resource.data);
     }
@@ -259,13 +341,36 @@ service cloud.firestore {
           || (isAcademyStaff(academyId) && staffCreateStudentPayload(academyId));
 
         allow update: if (isSelf(uid) && selfUpdateAcademyUserPayload(academyId, uid))
-          || (isAcademyStaff(academyId) && staffUpdateStudentPayload(academyId));
+          || (isAcademyStaff(academyId) && staffUpdateStudentPayload(academyId, uid));
 
-        allow delete: if isAcademyStaff(academyId)
-          && hasAthleteRole(resource.data);
+        allow delete: if false;
+
+        match /training_sessions/{sessionId} {
+          allow read, write: if isSelf(uid) || isAcademyStaff(academyId);
+        }
+
+        match /progress/{document=**} {
+          allow read, write: if isSelf(uid) || isAcademyStaff(academyId);
+        }
+
+        match /nutrition/{document=**} {
+          allow read, write: if isSelf(uid) || isAcademyStaff(academyId);
+        }
+
+        match /coach_evaluations/{evaluationId} {
+          allow get, list: if (isSelf(uid) && isAcademyMember(academyId))
+            || isAcademyStaff(academyId);
+          allow create: if isAcademyStaff(academyId)
+            && isAcademyUser(academyId, uid)
+            && coachEvaluationPayload(academyId, uid);
+          allow update: if isAcademyStaff(academyId)
+            && isAcademyUser(academyId, uid)
+            && coachEvaluationUpdatePayload(academyId, uid);
+          allow delete: if false;
+        }
 
         match /{document=**} {
-          allow read, write: if isSelf(uid) || isAcademyStaff(academyId);
+          allow read, write: if false;
         }
       }
 
