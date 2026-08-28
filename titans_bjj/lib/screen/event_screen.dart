@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/event_models.dart';
-import '../main.dart';
+import 'package:titans_bjj/main.dart';
 import 'package:uuid/uuid.dart';
 
 import '../repository/event_repository.dart';
@@ -145,7 +145,7 @@ class _EventScreenState extends State<EventScreen> {
           if (snap.hasError) {
             return _EventsErrorState(
               message:
-                  'N„o foi possÌvel carregar os eventos. Verifique sua permiss„o ou conex„o.',
+                  'N√£o foi poss√≠vel carregar os eventos. Verifique sua permiss√£o ou conex√£o.',
               onRetry: _reloadEvents,
             );
           }

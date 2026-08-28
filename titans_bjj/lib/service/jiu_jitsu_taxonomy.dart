@@ -10,6 +10,22 @@ enum JiuJitsuSkillCategory {
   other,
 }
 
+class TechnicalSkillIdentity {
+  final String skillId;
+  final String displayName;
+  final String normalizedName;
+  final List<String> aliases;
+  final JiuJitsuSkillCategory category;
+
+  const TechnicalSkillIdentity({
+    required this.skillId,
+    required this.displayName,
+    required this.normalizedName,
+    required this.aliases,
+    required this.category,
+  });
+}
+
 enum TechnicalRadarAxis { retention, transition, control, attack, unclassified }
 
 extension TechnicalRadarAxisLabel on TechnicalRadarAxis {
@@ -218,6 +234,9 @@ class JiuJitsuTaxonomy {
   }) {
     final positionKey = _nullableNormalizedKey(position);
     final techniqueKey = _nullableNormalizedKey(technique);
+    final skillIdentity = resolveSkillIdentity(technique);
+
+    if (skillIdentity != null) return skillIdentity.category;
 
     if (_containsAny(techniqueKey, _submissionTerms)) {
       return JiuJitsuSkillCategory.submissions;
@@ -288,15 +307,27 @@ class JiuJitsuTaxonomy {
     }
   }
 
-  static String normalizedKey(String value) {
-    final normalized =
-        _removeAccents(value)
-            .toLowerCase()
-            .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
-            .replaceAll(RegExp(r'\s+'), ' ')
-            .trim();
+  static TechnicalSkillIdentity? resolveSkillIdentity(String? value) {
+    final clean = value?.trim();
+    if (clean == null || clean.isEmpty) return null;
 
-    return _aliases[normalized] ?? normalized;
+    final rawKey = _baseNormalizedKey(clean);
+    return _skillIdentityByAlias[rawKey] ??
+        _skillIdentityByAlias[_aliases[rawKey]];
+  }
+
+  static String normalizedKey(String value) {
+    final normalized = _baseNormalizedKey(value);
+    final identity = resolveSkillIdentity(value);
+    return identity?.normalizedName ?? _aliases[normalized] ?? normalized;
+  }
+
+  static String _baseNormalizedKey(String value) {
+    return _removeAccents(value)
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9\s]+'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static String? _cleanLabel(String value) {
@@ -409,6 +440,23 @@ class JiuJitsuTaxonomy {
     return buffer.toString();
   }
 
+  static final Map<String, TechnicalSkillIdentity> _skillIdentityByAlias = {
+    for (final skill in _technicalSkillIdentities) ...{
+      _baseNormalizedKey(skill.displayName): skill,
+      _baseNormalizedKey(skill.normalizedName): skill,
+      for (final alias in skill.aliases) _baseNormalizedKey(alias): skill,
+    },
+  };
+
+  static const List<TechnicalSkillIdentity> _technicalSkillIdentities = [
+    TechnicalSkillIdentity(
+      skillId: 'submission.bow_and_arrow_choke',
+      displayName: 'Arco e Flecha',
+      normalizedName: 'bow and arrow',
+      aliases: ['Arco e Flecha', 'Bow and Arrow', 'Bow and Arrow Choke'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+  ];
   static const Map<String, String> _aliases = {
     'arm bar': 'armbar',
     'chave de braco': 'armbar',

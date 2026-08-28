@@ -11,7 +11,7 @@ import 'repository/academy_repository.dart';
 import 'screen/academy_screen.dart';
 import 'screen/athlete_dashboard_screen.dart';
 import 'screen/attendance_screen.dart';
-import 'screen/event_screen.dart';
+import 'package:titans_bjj/screen/event_screen.dart';
 // Telas
 import 'screen/master_panel_screen.dart';
 import 'screen/nutrition_screen.dart';

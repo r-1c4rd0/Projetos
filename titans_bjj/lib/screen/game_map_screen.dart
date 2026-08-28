@@ -81,6 +81,9 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final technicalRadar = _TechnicalRadarPreviewViewModel.from(
             skillMatrix,
           );
+          final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
+            sessions,
+          );
 
           return ListView(
             padding:
@@ -109,6 +112,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
                   awaitingClassificationCount:
                       technicalRadar.awaitingClassificationCount,
                 ),
+              ),
+              const SizedBox(height: 12),
+              TitansExpandableSection(
+                title: 'Evidências Técnicas',
+                subtitle:
+                    'Registros rastreáveis a partir dos treinos cadastrados.',
+                child: _TechnicalEvidencePanel(items: technicalEvidence),
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
@@ -275,6 +285,199 @@ class _GameMapSummaryCard extends StatelessWidget {
               color: cs.onSurface.withValues(alpha: 0.64),
               fontSize: 12,
               fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TechnicalEvidencePanel extends StatelessWidget {
+  final List<TechnicalEvidenceSummary> items;
+
+  const _TechnicalEvidencePanel({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.secondary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'EVIDÊNCIAS TÉCNICAS'),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            const TitansEmptyState(
+              icon: Icons.fact_check_outlined,
+              title: 'Evidências encontradas',
+              message: 'Ainda não há evidências técnicas suficientes.',
+              compact: true,
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final cardWidth =
+                    constraints.maxWidth >= 760
+                        ? (constraints.maxWidth - 12) / 2
+                        : constraints.maxWidth;
+                final visibleItems = items.take(12).toList();
+                final hiddenItems = items.length - visibleItems.length;
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final item in visibleItems)
+                          SizedBox(
+                            width: cardWidth,
+                            child: _TechnicalEvidenceCard(item: item),
+                          ),
+                      ],
+                    ),
+                    if (hiddenItems > 0) ...[
+                      const SizedBox(height: 12),
+                      _MiniBadge(
+                        label: '+$hiddenItems registros agrupados',
+                        color: cs.onSurface.withValues(alpha: 0.58),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TechnicalEvidenceCard extends StatelessWidget {
+  final TechnicalEvidenceSummary item;
+
+  const _TechnicalEvidenceCard({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final positions = item.positions.take(2).join(' - ');
+    final contexts = item.contexts.take(2).join(' - ');
+    final outcomes = item.outcomes.take(2).join(' - ');
+    final sourceIds = item.sourceIds.take(2).join(', ');
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.secondary.withValues(alpha: 0.22)),
+        color: cs.secondary.withValues(alpha: 0.07),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  item.techniqueName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _MiniBadge(
+                label: '${item.evidenceCount} evidencias',
+                color: cs.secondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _EvidenceDetailLine(
+            icon: Icons.calendar_today_outlined,
+            label: 'Última prática',
+            value: _formatShortDate(item.lastPracticedAt),
+          ),
+          if (positions.isNotEmpty)
+            _EvidenceDetailLine(
+              icon: Icons.place_outlined,
+              label: 'Posição',
+              value: positions,
+            ),
+          if (contexts.isNotEmpty)
+            _EvidenceDetailLine(
+              icon: Icons.sports_mma_outlined,
+              label: 'Contexto',
+              value: contexts,
+            ),
+          if (outcomes.isNotEmpty)
+            _EvidenceDetailLine(
+              icon: Icons.check_circle_outline,
+              label: 'Resultado registrado',
+              value: outcomes,
+            ),
+          _EvidenceDetailLine(
+            icon: Icons.source_outlined,
+            label: 'Origem',
+            value:
+                sourceIds.isEmpty
+                    ? 'Treino registrado'
+                    : 'Treino registrado: $sourceIds',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceDetailLine extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _EvidenceDetailLine({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 15, color: cs.onSurface.withValues(alpha: 0.58)),
+          const SizedBox(width: 6),
+          Expanded(
+            child: RichText(
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              text: TextSpan(
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.72),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+                children: [
+                  TextSpan(
+                    text: '$label: ',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.54),
+                    ),
+                  ),
+                  TextSpan(text: value),
+                ],
+              ),
             ),
           ),
         ],

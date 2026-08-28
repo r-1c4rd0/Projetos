@@ -152,6 +152,32 @@ class SkillMatrixTechniqueEntry {
   });
 }
 
+class TechnicalEvidenceSummary {
+  final String? skillId;
+  final String techniqueName;
+  final String normalizedTechniqueName;
+  final int evidenceCount;
+  final DateTime lastPracticedAt;
+  final Set<String> positions;
+  final Set<String> contexts;
+  final Set<String> outcomes;
+  final Set<String> sourceTypes;
+  final Set<String> sourceIds;
+
+  const TechnicalEvidenceSummary({
+    this.skillId,
+    required this.techniqueName,
+    required this.normalizedTechniqueName,
+    required this.evidenceCount,
+    required this.lastPracticedAt,
+    this.positions = const <String>{},
+    this.contexts = const <String>{},
+    this.outcomes = const <String>{},
+    this.sourceTypes = const <String>{},
+    this.sourceIds = const <String>{},
+  });
+}
+
 enum RecommendedTrainingFocusPriority { none, low, medium, high }
 
 enum RecommendedTrainingFocusType {
@@ -442,6 +468,63 @@ class TrainingAggregator {
       recent: recent,
       recentFrequency: recent / recentWindowDays,
     );
+  }
+
+  static List<TechnicalEvidenceSummary> buildTechnicalEvidence(
+    List<TrainingSession> sessions, {
+    int limit = 100,
+  }) {
+    final ordered = uniqueSessions(sessions).reversed.take(limit);
+    final byTechnique = <String, _TechnicalEvidenceDraft>{};
+
+    for (final session in ordered) {
+      final seenInSession = <String>{};
+      for (final entry in session.effectiveTechniqueEntries) {
+        final techniqueLabel = _cleanText(entry.technique);
+        if (techniqueLabel == null) continue;
+
+        final identity = JiuJitsuTaxonomy.resolveSkillIdentity(techniqueLabel);
+        final techniqueKey = JiuJitsuTaxonomy.normalizedKey(techniqueLabel);
+        final evidenceKey = identity?.skillId ?? techniqueKey;
+        if (evidenceKey.isEmpty || !seenInSession.add(evidenceKey)) {
+          continue;
+        }
+
+        final draft = byTechnique.putIfAbsent(
+          evidenceKey,
+          () => _TechnicalEvidenceDraft(
+            skillId: identity?.skillId,
+            normalizedTechniqueName: identity?.normalizedName ?? techniqueKey,
+          ),
+        );
+        draft.addSession(
+          session: session,
+          techniqueLabel: techniqueLabel,
+          positionLabel:
+              _cleanText(entry.position) ?? _cleanText(session.position),
+          applicationContext:
+              _presentationKey(entry.applicationContext) ??
+              _presentationKey(session.applicationContext),
+          techniqueOutcome:
+              _presentationKey(entry.techniqueOutcome) ??
+              _presentationKey(session.techniqueOutcome),
+        );
+      }
+    }
+
+    final summaries =
+        byTechnique.values.map((draft) => draft.toSummary()).toList()
+          ..sort((a, b) {
+            final dateCompare = b.lastPracticedAt.compareTo(a.lastPracticedAt);
+            if (dateCompare != 0) return dateCompare;
+            final countCompare = b.evidenceCount.compareTo(a.evidenceCount);
+            if (countCompare != 0) return countCompare;
+            return a.techniqueName.toLowerCase().compareTo(
+              b.techniqueName.toLowerCase(),
+            );
+          });
+
+    return summaries;
   }
 
   static List<GameMapEntry> buildGameMap(
@@ -1169,6 +1252,72 @@ class TrainingAggregator {
 
       return sessions.where((e) => e.date.year == year).length;
     });
+  }
+}
+
+class _TechnicalEvidenceDraft {
+  final String? skillId;
+  final String normalizedTechniqueName;
+  final labels = <String, _GameMapLabelScore>{};
+  final positions = <String>{};
+  final contexts = <String>{};
+  final outcomes = <String>{};
+  final sourceTypes = <String>{};
+  final sourceIds = <String>{};
+  int evidenceCount = 0;
+  DateTime? lastPracticedAt;
+
+  _TechnicalEvidenceDraft({
+    required this.skillId,
+    required this.normalizedTechniqueName,
+  });
+
+  void addSession({
+    required TrainingSession session,
+    required String techniqueLabel,
+    required String? positionLabel,
+    required String? applicationContext,
+    required String? techniqueOutcome,
+  }) {
+    evidenceCount += 1;
+    labels
+        .putIfAbsent(techniqueLabel, () => _GameMapLabelScore(techniqueLabel))
+        .add(session.date);
+
+    if (lastPracticedAt == null || session.date.isAfter(lastPracticedAt!)) {
+      lastPracticedAt = session.date;
+    }
+
+    if (positionLabel != null) positions.add(positionLabel);
+
+    final contextLabel = TrainingAggregator.applicationContextLabel(
+      applicationContext,
+    );
+    if (contextLabel != null) contexts.add(contextLabel);
+
+    final outcomeLabel = TrainingAggregator.techniqueOutcomeLabel(
+      techniqueOutcome,
+    );
+    if (outcomeLabel != null) outcomes.add(outcomeLabel);
+
+    sourceTypes.add('training_session');
+    if (session.id.trim().isNotEmpty) sourceIds.add(session.id.trim());
+  }
+
+  TechnicalEvidenceSummary toSummary() {
+    return TechnicalEvidenceSummary(
+      skillId: skillId,
+      techniqueName: _bestLabel(labels),
+      normalizedTechniqueName: normalizedTechniqueName,
+      evidenceCount: evidenceCount,
+      lastPracticedAt:
+          lastPracticedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+      positions: Set.unmodifiable(positions),
+      contexts: Set.unmodifiable(contexts),
+      outcomes: Set.unmodifiable(outcomes),
+      sourceTypes: Set.unmodifiable(sourceTypes),
+      sourceIds: Set.unmodifiable(sourceIds),
+    );
   }
 }
 
