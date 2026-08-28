@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/jiu_jitsu_taxonomy.dart';
@@ -84,6 +85,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
             sessions,
           );
+          const coachEvaluations = <CoachEvaluation>[];
 
           return ListView(
             padding:
@@ -119,6 +121,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 subtitle:
                     'Registros rastreáveis a partir dos treinos cadastrados.',
                 child: _TechnicalEvidencePanel(items: technicalEvidence),
+              ),
+              const SizedBox(height: 12),
+              TitansExpandableSection(
+                title: 'Avaliação do Professor',
+                subtitle:
+                    'A avaliação humana complementa as evidências dos treinos.',
+                child: _CoachEvaluationPanel(items: coachEvaluations),
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
@@ -287,6 +296,35 @@ class _GameMapSummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachEvaluationPanel extends StatelessWidget {
+  final List<CoachEvaluation> items;
+
+  const _CoachEvaluationPanel({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.tertiary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'AVALIAÇÃO DO PROFESSOR'),
+          const SizedBox(height: 12),
+          if (items.isEmpty)
+            const TitansEmptyState(
+              icon: Icons.rate_review_outlined,
+              title: 'Nenhuma avaliação registrada ainda.',
+              message: 'Avaliações do professor ainda não registradas.',
+              compact: true,
+            ),
         ],
       ),
     );
