@@ -143,9 +143,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
             entries: entries,
             skillMatrix: skillMatrix,
           );
-          final technicalRadar = _TechnicalRadarPreviewViewModel.from(
-            skillMatrix,
+          final skillEvidences = TrainingAggregator.buildSkillEvidences(
+            sessions,
           );
+          final technicalRadar =
+              _TechnicalRadarPreviewViewModel.fromSkillEvidences(
+                skillEvidences,
+              );
           final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
             sessions,
           );
@@ -161,21 +165,40 @@ class _GameMapScreenState extends State<GameMapScreen> {
               ],
               _GameMapSummaryCard(stats: stats),
               const SizedBox(height: 12),
-              TitansExpandableSection(
-                title: 'Radar de Evid\u00eancias T\u00e9cnicas',
-                subtitle:
-                    'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
-                initiallyExpanded: true,
-                child: TitansTechnicalRadar(
-                  subtitle: technicalRadar.subtitle,
-                  stateLabel: technicalRadar.stateLabel,
-                  evidences: technicalRadar.evidences,
-                  axisEvidence: technicalRadar.axisEvidence,
-                  classifiedEvidenceCount:
-                      technicalRadar.classifiedEvidenceCount,
-                  awaitingClassificationCount:
-                      technicalRadar.awaitingClassificationCount,
-                ),
+              StreamBuilder<List<CoachEvaluation>>(
+                stream: _coachEvaluationsStream,
+                builder: (context, evaluationSnapshot) {
+                  final coachEvaluationCount = _coachEvaluatedTechniqueCount(
+                    evaluationSnapshot.data ?? const <CoachEvaluation>[],
+                  );
+                  return TitansExpandableSection(
+                    title: 'Radar de Evidências Técnicas',
+                    subtitle:
+                        'Distribuição de evidências registradas, sem nota ou desempenho.',
+                    initiallyExpanded: true,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        TitansTechnicalRadar(
+                          subtitle: technicalRadar.subtitle,
+                          stateLabel: technicalRadar.stateLabel,
+                          evidences: technicalRadar.evidences,
+                          axisEvidence: technicalRadar.axisEvidence,
+                          classifiedEvidenceCount:
+                              technicalRadar.classifiedEvidenceCount,
+                          awaitingClassificationCount:
+                              technicalRadar.awaitingClassificationCount,
+                        ),
+                        if (coachEvaluationCount > 0) ...[
+                          const SizedBox(height: 8),
+                          _CoachEvaluationRadarCounter(
+                            evaluatedTechniqueCount: coachEvaluationCount,
+                          ),
+                        ],
+                      ],
+                    ),
+                  );
+                },
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
@@ -2592,82 +2615,137 @@ class _TechnicalRadarPreviewViewModel {
     required this.awaitingClassificationCount,
   });
 
-  factory _TechnicalRadarPreviewViewModel.from(
-    List<SkillMatrixCategoryEntry> skillMatrix,
+  factory _TechnicalRadarPreviewViewModel.fromSkillEvidences(
+    List<SkillEvidence> skillEvidences,
   ) {
-    final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
-    final axisSessionKeys = <TechnicalRadarAxis, Set<String>>{
-      for (final axis in _technicalRadarAxisOrder) axis: <String>{},
+    final axisEvidence = <TechnicalRadarAxis, int>{
+      for (final axis in _technicalRadarAxisOrder) axis: 0,
     };
+    final seenBySource = <String>{};
+    final techniqueIds = <String>{};
 
     var classified = 0;
     var unclassified = 0;
 
-    for (final technique in techniques) {
-      final axis = JiuJitsuTaxonomy.technicalRadarAxisForCategory(
-        technique.category,
-      );
+    for (final evidence in skillEvidences) {
+      final sourceKey =
+          evidence.sourceId ??
+          evidence.practicedAt.microsecondsSinceEpoch.toString();
+      final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
+      if (!seenBySource.add(dedupeKey)) continue;
+
+      techniqueIds.add(evidence.skillId);
+      final axis = _technicalRadarAxisForEvidence(evidence);
       if (axis == TechnicalRadarAxis.unclassified) {
         unclassified += 1;
         continue;
       }
 
       classified += 1;
-      axisSessionKeys[axis]?.addAll(technique.sessionKeys);
+      axisEvidence[axis] = (axisEvidence[axis] ?? 0) + 1;
     }
 
-    final axisEvidence = <TechnicalRadarAxis, int>{
-      for (final axis in _technicalRadarAxisOrder)
-        axis: axisSessionKeys[axis]?.length ?? 0,
-    };
     final topAxis = _topTechnicalRadarAxis(axisEvidence);
     final stateLabel =
         classified < 3
-            ? 'Perfil t\u00e9cnico em forma\u00e7\u00e3o'
-            : 'Evid\u00eancias t\u00e9cnicas distribu\u00eddas por eixo';
+            ? 'Perfil técnico em formação'
+            : 'Evidências técnicas distribuídas por eixo';
     final topAxisLabel =
         topAxis == null
-            ? 'Em forma\u00e7\u00e3o'
-            : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evid\u00eancias)';
+            ? 'Em formação'
+            : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evidências)';
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
-          'Distribui\u00e7\u00e3o de evid\u00eancias t\u00e9cnicas registradas, sem nota ou desempenho.',
+          'Distribuição de evidências registradas, sem nota ou desempenho.',
       stateLabel: stateLabel,
       axisEvidence: axisEvidence,
       classifiedEvidenceCount: classified,
       awaitingClassificationCount: unclassified,
       evidences: [
         TitansTechnicalRadarEvidence(
-          label: 'T\u00e9cnicas registradas',
-          value: techniques.length.toString(),
-          helper: 'Total de t\u00e9cnicas presentes na Skill Matrix.',
+          label: 'Técnicas evidenciadas',
+          value: techniqueIds.length.toString(),
+          helper: 'Técnicas agrupadas por identidade técnica local.',
           icon: Icons.sports_mma_outlined,
         ),
         TitansTechnicalRadarEvidence(
-          label: 'Com eixo seguro',
+          label: 'Evidências classificadas',
           value: classified.toString(),
           helper:
-              'T\u00e9cnicas em categorias com mapeamento sem\u00e2ntico conservador.',
+              'Registros ligados a técnicas com identidade e eixo conservador.',
           icon: Icons.verified_outlined,
         ),
         TitansTechnicalRadarEvidence(
-          label: 'Aguardando classifica\u00e7\u00e3o',
+          label: 'Aguardando classificação',
           value: unclassified.toString(),
           helper:
-              'T\u00e9cnicas que ainda exigem revis\u00e3o antes de entrar no radar.',
+              'Registros de técnicas sem identidade local ou sem eixo seguro.',
           icon: Icons.pending_outlined,
         ),
         TitansTechnicalRadarEvidence(
           label: 'Eixo mais evidenciado',
           value: topAxisLabel,
           helper:
-              'Eixo com mais sess\u00f5es \u00fanicas classificadas. N\u00e3o indica desempenho.',
+              'Eixo com mais evidências registradas. Não indica desempenho.',
           icon: Icons.radar_outlined,
         ),
       ],
     );
   }
+}
+
+class _CoachEvaluationRadarCounter extends StatelessWidget {
+  final int evaluatedTechniqueCount;
+
+  const _CoachEvaluationRadarCounter({required this.evaluatedTechniqueCount});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final label =
+        evaluatedTechniqueCount == 1
+            ? '1 técnica com avaliação do professor'
+            : '$evaluatedTechniqueCount técnicas com avaliação do professor';
+
+    return _VisualCard(
+      accent: cs.tertiary,
+      child: Row(
+        children: [
+          Icon(Icons.rate_review_outlined, color: cs.tertiary, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.72),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+int _coachEvaluatedTechniqueCount(List<CoachEvaluation> evaluations) {
+  final skillIds = <String>{};
+  for (final evaluation in evaluations) {
+    final skillId = evaluation.skillId.trim();
+    if (skillId.isNotEmpty) skillIds.add(skillId);
+  }
+  return skillIds.length;
+}
+
+TechnicalRadarAxis _technicalRadarAxisForEvidence(SkillEvidence evidence) {
+  if (evidence.skillId.startsWith('custom.')) {
+    return TechnicalRadarAxis.unclassified;
+  }
+  return JiuJitsuTaxonomy.technicalRadarAxisForCategory(evidence.category);
 }
 
 const _technicalRadarAxisOrder = <TechnicalRadarAxis>[
