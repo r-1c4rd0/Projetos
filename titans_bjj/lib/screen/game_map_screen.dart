@@ -21,6 +21,7 @@ class GameMapScreen extends StatefulWidget {
   final String uid;
   final String? title;
   final String? targetName;
+  final AppUser? loggedUser;
   final bool embedded;
 
   const GameMapScreen({
@@ -29,6 +30,7 @@ class GameMapScreen extends StatefulWidget {
     required this.uid,
     this.title,
     this.targetName,
+    this.loggedUser,
     this.embedded = false,
   });
 
@@ -106,9 +108,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final actor = UserScope.maybeOf(context);
-    final canEditCoachEvaluation =
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    final isStaffActor =
         actor?.role == UserRole.admin || actor?.role == UserRole.professor;
+    final isViewingAnotherUser = actor != null && actor.uid != widget.uid;
+    final canEditCoachEvaluation = isStaffActor && isViewingAnotherUser;
 
     return _wrapModule(
       appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
@@ -410,19 +414,7 @@ class _CoachEvaluationPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: _CompactHeader(title: 'AVALIAÇÃO DO PROFESSOR'),
-              ),
-              if (canEdit)
-                FilledButton.icon(
-                  onPressed: techniques.isEmpty ? null : onRegister,
-                  icon: const Icon(Icons.rate_review_outlined, size: 18),
-                  label: const Text('Registrar avaliação'),
-                ),
-            ],
-          ),
+          const _CompactHeader(title: 'AVALIAÇÃO DO PROFESSOR'),
           const SizedBox(height: 12),
           Text(
             'Esta avaliação complementa as evidências dos treinos.',
@@ -452,6 +444,27 @@ class _CoachEvaluationPanel extends StatelessWidget {
                   ),
               ],
             ),
+          if (canEdit) ...[
+            const SizedBox(height: 12),
+            if (techniques.isEmpty)
+              Text(
+                'Registre treinos/técnicas antes de avaliar.',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.68),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              )
+            else
+              Align(
+                alignment: Alignment.centerLeft,
+                child: FilledButton.icon(
+                  onPressed: onRegister,
+                  icon: const Icon(Icons.rate_review_outlined, size: 18),
+                  label: const Text('Registrar avaliação'),
+                ),
+              ),
+          ],
         ],
       ),
     );
@@ -857,7 +870,6 @@ class _TechnicalEvidenceCard extends StatelessWidget {
     final positions = item.positions.take(2).join(' - ');
     final contexts = item.contexts.take(2).join(' - ');
     final outcomes = item.outcomes.take(2).join(' - ');
-    final sourceIds = item.sourceIds.take(2).join(', ');
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -911,14 +923,6 @@ class _TechnicalEvidenceCard extends StatelessWidget {
               label: 'Resultado registrado',
               value: outcomes,
             ),
-          _EvidenceDetailLine(
-            icon: Icons.source_outlined,
-            label: 'Origem',
-            value:
-                sourceIds.isEmpty
-                    ? 'Treino registrado'
-                    : 'Treino registrado: $sourceIds',
-          ),
         ],
       ),
     );

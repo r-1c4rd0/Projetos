@@ -347,6 +347,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
               uid: target.uid,
               title: selectedMode ? 'Game Map do aluno' : 'Game Map',
               targetName: null,
+              loggedUser: loggedUser,
               embedded: true,
             ),
       ),
