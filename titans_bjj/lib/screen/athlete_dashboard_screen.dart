@@ -2447,17 +2447,30 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 380;
-              final radarSize =
-                  compact ? math.min(136.0, constraints.maxWidth - 32) : 148.0;
-              final radarCanvas = SizedBox(
+              final availableWidth =
+                  constraints.maxWidth.isFinite ? constraints.maxWidth : 148.0;
+              final maxRadarSize = compact ? 136.0 : 148.0;
+              final radarSize = math.min(
+                maxRadarSize,
+                math.max(0.0, availableWidth - 32),
+              );
+              final radarVisual = SizedBox(
                 width: radarSize,
-                height: radarSize,
-                child: CustomPaint(
-                  painter: _HomeTechnicalRadarPainter(
-                    cs,
-                    axisEvidence: radar.axisEvidence,
-                    compact: compact,
-                  ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RepaintBoundary(
+                      child: CustomPaint(
+                        size: Size.square(radarSize),
+                        painter: _HomeTechnicalRadarPainter(
+                          cs,
+                          axisEvidence: radar.axisEvidence,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    _HomeRadarAxisLegend(cs: cs, compact: compact),
+                  ],
                 ),
               );
               final radarDetails = Column(
@@ -2486,7 +2499,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
-                    radarCanvas,
+                    radarVisual,
                     const SizedBox(height: 12),
                     radarDetails,
                   ],
@@ -2496,7 +2509,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  radarCanvas,
+                  radarVisual,
                   const SizedBox(width: 14),
                   Expanded(child: radarDetails),
                 ],
@@ -2526,26 +2539,45 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
   }
 }
 
+class _HomeRadarAxisLegend extends StatelessWidget {
+  final ColorScheme cs;
+  final bool compact;
+
+  const _HomeRadarAxisLegend({required this.cs, required this.compact});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: compact ? 5 : 6,
+      runSpacing: 4,
+      children: [
+        for (final axis in _homeTechnicalRadarAxisOrder)
+          Text(
+            _homeAxisShortLabel(axis),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.70),
+              fontSize: compact ? 9 : 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _HomeTechnicalRadarPainter extends CustomPainter {
   final ColorScheme cs;
   final Map<TechnicalRadarAxis, int> axisEvidence;
-  final bool compact;
 
-  const _HomeTechnicalRadarPainter(
-    this.cs, {
-    required this.axisEvidence,
-    required this.compact,
-  });
+  const _HomeTechnicalRadarPainter(this.cs, {required this.axisEvidence});
 
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final labelGap = compact ? 10.0 : 14.0;
-    final edgePadding = compact ? 18.0 : 20.0;
-    final radius = math.max(
-      0.0,
-      math.min(size.width, size.height) / 2 - edgePadding,
-    );
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 12);
     final maxEvidence = axisEvidence.values.fold<int>(
       1,
       (max, value) => value > max ? value : max,
@@ -2600,15 +2632,6 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2,
     );
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final labelPoint =
-          center +
-          Offset(math.cos(_homeRadarAngle(i)), math.sin(_homeRadarAngle(i))) *
-              (radius + labelGap);
-      _paintAxisLabel(canvas, labelPoint, _homeAxisShortLabel(axis));
-    }
   }
 
   void _paintPolygon(
@@ -2632,29 +2655,9 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
     canvas.drawPath(path, paint);
   }
 
-  void _paintAxisLabel(Canvas canvas, Offset center, String label) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: label,
-        style: TextStyle(
-          color: cs.onSurface.withValues(alpha: 0.70),
-          fontSize: compact ? 9 : 10,
-          fontWeight: FontWeight.w900,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: compact ? 34 : 42);
-    painter.paint(
-      canvas,
-      center - Offset(painter.width / 2, painter.height / 2),
-    );
-  }
-
   @override
   bool shouldRepaint(covariant _HomeTechnicalRadarPainter oldDelegate) {
-    return oldDelegate.cs != cs ||
-        oldDelegate.axisEvidence != axisEvidence ||
-        oldDelegate.compact != compact;
+    return oldDelegate.cs != cs || oldDelegate.axisEvidence != axisEvidence;
   }
 }
 
