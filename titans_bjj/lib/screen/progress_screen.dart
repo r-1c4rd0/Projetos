@@ -718,8 +718,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
         countsByDay.values.where((count) => count > 0).length;
 
     return _ConsistencyHeatmapViewModel(
-      title: 'Consist\u00eancia di\u00e1ria',
-      subtitle: 'Treinos registrados nos \u00faltimos 84 dias.',
+      title: 'Consist\u00eancia di\u00e1ria (\u00faltimos 84 dias)',
+      subtitle:
+          'Cada quadrado representa treinos registrados em um dia do recorte.',
       weeks: weeks,
       weekdayLabels: weeks.first.days.map((day) => day.dayLabel).toList(),
       legendItems: const [
@@ -768,11 +769,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
   String _titleForPeriod(ProgressPeriod p) {
     switch (p) {
       case ProgressPeriod.day:
-        return 'Consist\u00eancia (14 dias)';
+        return '\u00daltimos 14 dias';
       case ProgressPeriod.month:
-        return 'Consist\u00eancia (12 meses)';
+        return '\u00daltimos 12 meses';
       case ProgressPeriod.year:
-        return 'Consist\u00eancia (5 anos)';
+        return '\u00daltimos 5 anos';
     }
   }
 }
@@ -831,7 +832,7 @@ class _TrainingMetricsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Volume mostra quantidade de treinos registrados.',
+              'Cada n\u00famero mostra um escopo temporal diferente.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -846,17 +847,17 @@ class _TrainingMetricsCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 TitansMetricCard(
-                  label: 'Total',
+                  label: 'Total da carreira',
                   value: metrics.total.toString(),
                   icon: Icons.fitness_center_outlined,
                 ),
                 TitansMetricCard(
-                  label: 'M\u00eas',
+                  label: 'Este m\u00eas',
                   value: metrics.month.toString(),
                   icon: Icons.calendar_month_outlined,
                 ),
                 TitansMetricCard(
-                  label: 'Ano',
+                  label: 'Este ano',
                   value: metrics.year.toString(),
                   icon: Icons.event_available_outlined,
                 ),
@@ -883,13 +884,13 @@ class _TrainingMetricsCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 TitansMetricCard(
-                  label: 'Regularidade',
+                  label: 'Regularidade 30 dias',
                   value: recentPercent,
                   icon: Icons.timeline_outlined,
                   color: cs.secondary,
                 ),
                 TitansMetricCard(
-                  label: 'Sess\u00f5es',
+                  label: 'Treinos nos 30 dias',
                   value: metrics.recent.toString(),
                   icon: Icons.check_circle_outline,
                   color: cs.secondary,
@@ -898,7 +899,7 @@ class _TrainingMetricsCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             Text(
-              'Frequ\u00eancia recente considera os \u00faltimos 30 dias.',
+              'Frequ\u00eancia recente \u00e9 um subconjunto dos \u00faltimos 30 dias, separado do total da carreira.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -942,7 +943,7 @@ class _ConsistencySummaryCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Consist\u00eancia mede regularidade, n\u00e3o gradua\u00e7\u00e3o.',
+              'Consist\u00eancia usa apenas o recorte selecionado no filtro.',
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
@@ -957,7 +958,7 @@ class _ConsistencySummaryCard extends StatelessWidget {
               runSpacing: 8,
               children: [
                 TitansMetricCard(
-                  label: 'Treinos',
+                  label: 'Treinos no recorte',
                   value: totalInWindow.toString(),
                   icon: Icons.insights_outlined,
                   color: cs.primary,
@@ -1016,7 +1017,7 @@ class _ConsistencyChartCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Total: $totalInWindow',
+                  'Recorte: $totalInWindow',
                   style: TextStyle(
                     color: cs.primary,
                     fontWeight: FontWeight.w800,
@@ -1086,7 +1087,7 @@ class _ConsistencyChartCard extends StatelessWidget {
     return _ProgressChartViewModel(
       title: 'Regularidade de treino',
       subtitle:
-          'Sess\u00f5es registradas por per\u00edodo. Use este gr\u00e1fico para acompanhar regularidade, n\u00e3o gradua\u00e7\u00e3o.',
+          'Sess\u00f5es registradas dentro do recorte selecionado. O gr\u00e1fico mostra regularidade, n\u00e3o gradua\u00e7\u00e3o.',
       periodLabel: title,
       points: highlightedPoints,
       averageLine: average,
@@ -1748,26 +1749,7 @@ class _ChartChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: color.withValues(alpha: 0.10),
-        border: Border.all(color: color.withValues(alpha: 0.32)),
-      ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: cs.onSurface.withValues(alpha: 0.82),
-          fontSize: 12,
-          fontWeight: FontWeight.w800,
-        ),
-      ),
-    );
+    return TitansStatusChip(label: label, color: color, compact: true);
   }
 }
 

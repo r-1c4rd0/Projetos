@@ -547,6 +547,13 @@ class JiuJitsuTaxonomy {
       category: JiuJitsuSkillCategory.submissions,
     ),
     TechnicalSkillIdentity(
+      skillId: 'submission.estima_lock',
+      displayName: 'Estima Lock',
+      normalizedName: 'estima lock',
+      aliases: ['Estima Lock'],
+      category: JiuJitsuSkillCategory.submissions,
+    ),
+    TechnicalSkillIdentity(
       skillId: 'control.side_control',
       displayName: 'Controle Lateral',
       normalizedName: 'side control',
@@ -580,6 +587,13 @@ class JiuJitsuTaxonomy {
       normalizedName: 'knee on belly',
       aliases: ['Joelho na Barriga', 'Knee on Belly'],
       category: JiuJitsuSkillCategory.mount,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'control.crucifix',
+      displayName: 'Crucifixo',
+      normalizedName: 'crucifix',
+      aliases: ['Crucifixo', 'Crucifix'],
+      category: JiuJitsuSkillCategory.back,
     ),
     TechnicalSkillIdentity(
       skillId: 'control.seatbelt',
@@ -645,6 +659,13 @@ class JiuJitsuTaxonomy {
       category: JiuJitsuSkillCategory.escapes,
     ),
     TechnicalSkillIdentity(
+      skillId: 'transition.coyote_sweep',
+      displayName: 'Raspagem Coyote',
+      normalizedName: 'coyote sweep',
+      aliases: ['Raspagem Coyote', 'Coyote Sweep'],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
       skillId: 'transition.takedown',
       displayName: 'Queda',
       normalizedName: 'takedown',
@@ -656,6 +677,17 @@ class JiuJitsuTaxonomy {
       displayName: 'Technical Stand Up',
       normalizedName: 'technical stand up',
       aliases: ['Technical Stand Up', 'Levantada técnica', 'Levantada tecnica'],
+      category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'transition.north_south_escape',
+      displayName: 'Saída do Norte-Sul',
+      normalizedName: 'north south escape',
+      aliases: [
+        'Saída do Norte-Sul',
+        'Saida do Norte-Sul',
+        'North South Escape',
+      ],
       category: JiuJitsuSkillCategory.escapes,
     ),
     TechnicalSkillIdentity(
@@ -675,6 +707,27 @@ class JiuJitsuTaxonomy {
         'Transição para Costas',
       ],
       category: JiuJitsuSkillCategory.escapes,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.closed_guard',
+      displayName: 'Guarda Fechada',
+      normalizedName: 'closed guard',
+      aliases: ['Guarda Fechada', 'Closed Guard'],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.open_guard',
+      displayName: 'Guarda Aberta',
+      normalizedName: 'open guard',
+      aliases: ['Guarda Aberta', 'Open Guard'],
+      category: JiuJitsuSkillCategory.guard,
+    ),
+    TechnicalSkillIdentity(
+      skillId: 'retention.half_guard',
+      displayName: 'Meia Guarda',
+      normalizedName: 'half guard',
+      aliases: ['Meia Guarda', 'Half Guard'],
+      category: JiuJitsuSkillCategory.guard,
     ),
     TechnicalSkillIdentity(
       skillId: 'retention.guard_retention',
@@ -769,6 +822,8 @@ class JiuJitsuTaxonomy {
     'norte sul': 'north south',
     'norte-sul': 'north south',
     'joelho na barriga': 'knee on belly',
+    'crucifixo': 'crucifix',
+    'crucifix': 'crucifix',
     'cinto de seguranca': 'seatbelt',
     'cinto de segurança': 'seatbelt',
     'underhook de controle': 'underhook control',
@@ -776,16 +831,23 @@ class JiuJitsuTaxonomy {
     'pressão': 'top pressure',
     'controle por cima': 'top pressure',
     'arco e flecha': 'bow and arrow',
+    'estima lock': 'estima lock',
     'bow and arrow': 'bow and arrow',
     'bow and arrow choke': 'bow and arrow',
     'passagem': 'guard pass',
     'passagem de guarda': 'guard pass',
     'raspagem': 'sweep',
     'raspagem tesoura': 'sweep',
+    'raspagem coyote': 'coyote sweep',
+    'coyote sweep': 'coyote sweep',
     'butterfly sweep': 'sweep',
     'queda': 'takedown',
     'levantada tecnica': 'technical stand up',
     'levantada técnica': 'technical stand up',
+    'saida do norte sul': 'north south escape',
+    'saida do norte-sul': 'north south escape',
+    'saída do norte-sul': 'north south escape',
+    'north south escape': 'north south escape',
     'entrada para costas': 'back take',
     'transicao para costas': 'back take',
     'transição para costas': 'back take',
@@ -816,6 +878,9 @@ class JiuJitsuTaxonomy {
     'inversao defensiva',
     'inversoes defensivas',
     'half guard recovery',
+    'closed guard',
+    'open guard',
+    'half guard',
     'recuperacao de meia guarda',
   ];
   static const _controlTerms = [
@@ -838,6 +903,8 @@ class JiuJitsuTaxonomy {
     'top pressure',
     'pressao',
     'controle por cima',
+    'crucifix',
+    'crucifixo',
   ];
   static const _transitionTerms = [
     'guard pass',
@@ -860,6 +927,8 @@ class JiuJitsuTaxonomy {
     'transicao para montada',
     'transicao para costas',
     'mount to back transition',
+    'coyote sweep',
+    'north south escape',
   ];
   static const _guardTerms = [
     'guarda',
@@ -914,6 +983,7 @@ class JiuJitsuTaxonomy {
     'kneebar',
     'toe hold',
     'bow and arrow',
+    'estima lock',
     'botinha',
     'chave de pe',
   ];

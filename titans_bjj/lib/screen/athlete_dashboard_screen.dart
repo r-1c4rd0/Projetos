@@ -384,7 +384,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         context,
                                         extra: TitansUI.spaceMd,
                                       )
-                                      : TitansUI.listPadding(context),
+                                      : TitansUI.listPadding(
+                                        context,
+                                        extra: 96,
+                                      ),
                               child: ConstrainedBox(
                                 constraints: BoxConstraints(
                                   minHeight: constraints.maxHeight,
@@ -411,7 +414,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       context,
                                       extra: TitansUI.spaceMd,
                                     )
-                                    : TitansUI.listPadding(context),
+                                    : TitansUI.listPadding(context, extra: 96),
                             child: ConstrainedBox(
                               constraints: BoxConstraints(
                                 minHeight: constraints.maxHeight,
@@ -562,7 +565,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       if (technicalRadar
                                           .hasClassifiedEvidence) ...[
                                         const SizedBox(height: 12),
-                                        _HomeTechnicalRadarCard(
+                                        _HomeTechnicalRadarSlot(
                                           cs: cs,
                                           radar: technicalRadar,
                                           onOpenMap: openGameMap,
@@ -601,7 +604,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         if (technicalRadar
                                             .hasClassifiedEvidence) ...[
                                           const SizedBox(height: 12),
-                                          _HomeTechnicalRadarCard(
+                                          _HomeTechnicalRadarSlot(
                                             cs: cs,
                                             radar: technicalRadar,
                                             onOpenMap: openGameMap,
@@ -648,7 +651,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         if (technicalRadar
                                             .hasClassifiedEvidence) ...[
                                           const SizedBox(height: 12),
-                                          _HomeTechnicalRadarCard(
+                                          _HomeTechnicalRadarSlot(
                                             cs: cs,
                                             radar: technicalRadar,
                                             onOpenMap: openGameMap,
@@ -2336,6 +2339,14 @@ class _HomeTechnicalRadarViewModel {
 
   bool get hasClassifiedEvidence => classifiedEvidenceCount > 0;
 
+  int get occupiedAxisCount {
+    return axisEvidence.values.where((value) => value > 0).length;
+  }
+
+  bool get hasRadarChart => occupiedAxisCount >= 2;
+
+  bool get hasEvidenceSummary => classifiedEvidenceCount > 0;
+
   String get evidenceLabel {
     final suffix = classifiedEvidenceCount == 1 ? 'evidência' : 'evidências';
     return '$classifiedEvidenceCount $suffix';
@@ -2395,6 +2406,181 @@ class _HomeTechnicalRadarViewModel {
   }
 }
 
+class _HomeTechnicalRadarSlot extends StatelessWidget {
+  final ColorScheme cs;
+  final _HomeTechnicalRadarViewModel radar;
+  final VoidCallback onOpenMap;
+
+  const _HomeTechnicalRadarSlot({
+    required this.cs,
+    required this.radar,
+    required this.onOpenMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (radar.hasRadarChart) {
+      return _HomeTechnicalRadarCard(
+        cs: cs,
+        radar: radar,
+        onOpenMap: onOpenMap,
+      );
+    }
+
+    if (radar.hasEvidenceSummary) {
+      return _HomeTechnicalRadarSummaryCard(
+        cs: cs,
+        radar: radar,
+        onOpenMap: onOpenMap,
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+}
+
+class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
+  final ColorScheme cs;
+  final _HomeTechnicalRadarViewModel radar;
+  final VoidCallback onOpenMap;
+
+  const _HomeTechnicalRadarSummaryCard({
+    required this.cs,
+    required this.radar,
+    required this.onOpenMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
+                    const SizedBox(height: 4),
+                    _HomeRadarAxisSubtitle(cs: cs),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _InsightBadge(
+                label: radar.evidenceLabel,
+                color: cs.primary,
+                icon: Icons.radar_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 380;
+              final radarSize = compact ? 136.0 : 148.0;
+              final visual = SizedBox.square(
+                dimension: radarSize,
+                child: RepaintBoundary(
+                  child: CustomPaint(
+                    size: Size.square(radarSize),
+                    painter: _HomeTechnicalRadarFormationPainter(
+                      cs,
+                      axisEvidence: radar.axisEvidence,
+                      highlightedAxis: radar.topAxis,
+                    ),
+                  ),
+                ),
+              );
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Mapa técnico em formação',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.88),
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Trilhas apagadas indicam eixos ainda sem evidência registrada.',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.66),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _InsightBadge(
+                        label:
+                            'Eixo mais presente: ${radar.topAxis?.displayLabel ?? 'em formação'}',
+                        color: cs.secondary,
+                        icon: Icons.auto_awesome_outlined,
+                      ),
+                      _InsightBadge(
+                        label: radar.sessionLabel,
+                        color: cs.primary,
+                        icon: Icons.fitness_center_outlined,
+                      ),
+                    ],
+                  ),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    visual,
+                    const SizedBox(height: 12),
+                    Align(alignment: Alignment.centerLeft, child: details),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  visual,
+                  const SizedBox(width: 14),
+                  Expanded(child: details),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Baseado em evidências dos treinos.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onOpenMap,
+              child: const Text('Explorar mapa'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HomeTechnicalRadarCard extends StatelessWidget {
   final ColorScheme cs;
   final _HomeTechnicalRadarViewModel radar;
@@ -2422,16 +2608,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                   children: [
                     const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
                     const SizedBox(height: 4),
-                    Text(
-                      'Retenção · Transição · Controle · Ataque',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.64),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
+                    _HomeRadarAxisSubtitle(cs: cs),
                   ],
                 ),
               ),
@@ -2452,7 +2629,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
               final maxRadarSize = compact ? 136.0 : 148.0;
               final radarSize = math.min(
                 maxRadarSize,
-                math.max(0.0, availableWidth - 32),
+                math.max(compact ? 136.0 : 148.0, availableWidth - 32),
               );
               final radarVisual = SizedBox(
                 width: radarSize,
@@ -2483,15 +2660,6 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                   _CoachLiteDataRow(
                     line: _CoachLiteLine('Destaque', radar.topAxisLabel),
                   ),
-                  if (radar.awaitingClassificationCount > 0) ...[
-                    const SizedBox(height: 8),
-                    _CoachLiteDataRow(
-                      line: _CoachLiteLine(
-                        'Em construção',
-                        radar.awaitingClassificationCount.toString(),
-                      ),
-                    ),
-                  ],
                 ],
               );
 
@@ -2539,6 +2707,38 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
   }
 }
 
+class _HomeRadarAxisSubtitle extends StatelessWidget {
+  final ColorScheme cs;
+
+  const _HomeRadarAxisSubtitle({required this.cs});
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 4,
+      children: [
+        for (final label in const [
+          'Retenção',
+          'Transição',
+          'Controle',
+          'Ataque',
+        ])
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.visible,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 class _HomeRadarAxisLegend extends StatelessWidget {
   final ColorScheme cs;
   final bool compact;
@@ -2565,6 +2765,101 @@ class _HomeRadarAxisLegend extends StatelessWidget {
           ),
       ],
     );
+  }
+}
+
+class _HomeTechnicalRadarFormationPainter extends CustomPainter {
+  final ColorScheme cs;
+  final Map<TechnicalRadarAxis, int> axisEvidence;
+  final TechnicalRadarAxis? highlightedAxis;
+
+  const _HomeTechnicalRadarFormationPainter(
+    this.cs, {
+    required this.axisEvidence,
+    required this.highlightedAxis,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 14);
+    final gridPaint =
+        Paint()
+          ..color = cs.onSurface.withValues(alpha: 0.10)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final mutedPaint =
+        Paint()
+          ..color = cs.onSurface.withValues(alpha: 0.18)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2;
+    final activePaint =
+        Paint()
+          ..color = cs.secondary.withValues(alpha: 0.88)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.4;
+    final activeFill = Paint()..color = cs.secondary.withValues(alpha: 0.92);
+    final lockedFill = Paint()..color = cs.onSurface.withValues(alpha: 0.16);
+
+    for (final step in const [0.35, 0.7, 1.0]) {
+      _paintPolygon(canvas, center, radius * step, gridPaint, fill: false);
+    }
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final angle = _homeRadarAngle(i);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      final end = center + direction * radius;
+      final hasEvidence = (axisEvidence[axis] ?? 0) > 0;
+      final isHighlighted = axis == highlightedAxis && hasEvidence;
+
+      canvas.drawLine(center, end, isHighlighted ? activePaint : mutedPaint);
+      canvas.drawCircle(
+        end,
+        isHighlighted ? 4.8 : 3.4,
+        isHighlighted ? activeFill : lockedFill,
+      );
+      if (!isHighlighted) {
+        final lockCenter = center + direction * (radius * 0.62);
+        canvas.drawCircle(lockCenter, 2.2, lockedFill);
+      }
+    }
+
+    canvas.drawCircle(
+      center,
+      3.8,
+      Paint()..color = cs.primary.withValues(alpha: 0.70),
+    );
+  }
+
+  void _paintPolygon(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint, {
+    required bool fill,
+  }) {
+    final path = Path();
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final angle = _homeRadarAngle(i);
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(
+    covariant _HomeTechnicalRadarFormationPainter oldDelegate,
+  ) {
+    return oldDelegate.cs != cs ||
+        oldDelegate.axisEvidence != axisEvidence ||
+        oldDelegate.highlightedAxis != highlightedAxis;
   }
 }
 

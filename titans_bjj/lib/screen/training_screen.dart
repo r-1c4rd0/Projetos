@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -240,7 +242,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           final listPadding =
               widget.embedded
                   ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
-                  : TitansUI.listPadding(context, extra: 80);
+                  : TitansUI.listPadding(context, extra: 132);
 
           return ListView(
             padding: listPadding,
@@ -352,6 +354,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   ),
                 ),
               ),
+              const SizedBox(height: 28),
             ],
           );
         },
@@ -634,15 +637,15 @@ class _TrainingSummaryCard extends StatelessWidget {
                       ? (constraints.maxWidth - 8) / 2
                       : (constraints.maxWidth - 24) / 4;
               return Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: TitansUI.spaceXs,
+                runSpacing: TitansUI.spaceXs,
                 children: [
                   SizedBox(
                     width: width,
                     child: _SummaryMetric(
                       label: 'Treinos',
                       value: summary.total.toString(),
-                      color: cs.primary,
+                      color: cs.onSurface,
                     ),
                   ),
                   SizedBox(
@@ -650,7 +653,7 @@ class _TrainingSummaryCard extends StatelessWidget {
                     child: _SummaryMetric(
                       label: 'Técnicas',
                       value: summary.techniques.toString(),
-                      color: TitansUI.info,
+                      color: cs.onSurface,
                     ),
                   ),
                   SizedBox(
@@ -661,7 +664,7 @@ class _TrainingSummaryCard extends StatelessWidget {
                           intensity == null
                               ? 'Sem dados'
                               : '${intensity.toStringAsFixed(1)}/5',
-                      color: TitansUI.warning,
+                      color: TitansUI.actionGold,
                     ),
                   ),
                   SizedBox(
@@ -669,7 +672,7 @@ class _TrainingSummaryCard extends StatelessWidget {
                     child: _SummaryMetric(
                       label: 'Aplicação',
                       value: summary.applicationCount.toString(),
-                      color: TitansUI.success,
+                      color: TitansUI.successGreen,
                     ),
                   ),
                 ],
@@ -706,9 +709,9 @@ class _SummaryMetric extends StatelessWidget {
       constraints: const BoxConstraints(minWidth: 92),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(TitansRadius.chip),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+        color: color.withValues(alpha: 0.06),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -755,33 +758,45 @@ class _PeriodFilter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
-        child: Container(
-          padding: const EdgeInsets.all(4),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(999),
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
-            border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-          ),
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final option in periods)
-                  _PeriodChip(
-                    label: option.label,
-                    selected: period == option.id,
-                    onSelected: () => onChanged(option.id),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxWidth =
+            constraints.maxWidth.isFinite ? constraints.maxWidth : 520.0;
+        final filterWidth = math.min(maxWidth, 520.0);
+
+        return Align(
+          alignment: Alignment.centerLeft,
+          child: SizedBox(
+            width: filterWidth,
+            child: Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(TitansRadius.pill),
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
+                border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+              ),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                clipBehavior: Clip.none,
+                child: Padding(
+                  padding: const EdgeInsets.only(right: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (final option in periods)
+                        _PeriodChip(
+                          label: option.label,
+                          selected: period == option.id,
+                          onSelected: () => onChanged(option.id),
+                        ),
+                    ],
                   ),
-              ],
+                ),
+              ),
             ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -800,20 +815,28 @@ class _PeriodChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return ChoiceChip(
-      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      labelStyle: TextStyle(
-        color: selected ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.72),
-        fontWeight: FontWeight.w900,
+    final isNarrow = MediaQuery.sizeOf(context).width < 380;
+    return Padding(
+      padding: const EdgeInsets.only(right: 4),
+      child: ChoiceChip(
+        label: Text(label, maxLines: 1, overflow: TextOverflow.visible),
+        selected: selected,
+        onSelected: (_) => onSelected(),
+        showCheckmark: false,
+        visualDensity: VisualDensity.compact,
+        labelPadding: EdgeInsets.symmetric(horizontal: isNarrow ? 6 : 8),
+        labelStyle: TextStyle(
+          color: selected ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.82),
+          fontSize: isNarrow ? 12 : null,
+          fontWeight: FontWeight.w900,
+        ),
+        selectedColor: cs.primary,
+        backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+        side: BorderSide(
+          color: cs.onSurface.withValues(alpha: selected ? 0.0 : 0.12),
+        ),
+        shape: const StadiumBorder(),
       ),
-      selectedColor: cs.primary,
-      backgroundColor: Colors.transparent,
-      side: BorderSide.none,
-      shape: const StadiumBorder(),
     );
   }
 }
@@ -1647,8 +1670,8 @@ class _TrainingSessionCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
               Wrap(
-                spacing: 8,
-                runSpacing: 8,
+                spacing: TitansUI.spaceXs,
+                runSpacing: TitansUI.spaceXs,
                 children: [
                   _TrainingActionChip(
                     label: item.techniqueCountLabel,
@@ -1657,7 +1680,7 @@ class _TrainingSessionCard extends StatelessWidget {
                   if (session.intensity != null)
                     _TrainingActionChip(
                       label: 'Intensidade ${session.intensity}/5',
-                      color: TitansUI.warning,
+                      color: TitansUI.actionGold,
                     ),
                   if (session.scores.isNotEmpty)
                     _TrainingActionChip(
@@ -1669,8 +1692,8 @@ class _TrainingSessionCard extends StatelessWidget {
               if (item.techniques.isNotEmpty) ...[
                 const SizedBox(height: 10),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
+                  spacing: TitansUI.spaceXs,
+                  runSpacing: TitansUI.spaceXs,
                   children: [
                     for (final entry in item.techniques.take(3))
                       _TrainingActionChip(
@@ -1824,15 +1847,18 @@ class _TrainingTechniqueDetail extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Wrap(
-            spacing: 8,
-            runSpacing: 8,
+            spacing: TitansUI.spaceXs,
+            runSpacing: TitansUI.spaceXs,
             children: [
               _TrainingActionChip(
                 label: entry.position ?? 'Posicao nao informada',
                 color: cs.primary,
               ),
               if (contextLabel != null)
-                _TrainingActionChip(label: contextLabel, color: TitansUI.info),
+                _TrainingActionChip(
+                  label: contextLabel,
+                  color: TitansUI.technicalBlue,
+                ),
               if (outcomeLabel != null)
                 _TrainingActionChip(
                   label: outcomeLabel,
@@ -2075,27 +2101,7 @@ class _TrainingActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxWidth = MediaQuery.sizeOf(context).width < 420 ? 220.0 : 320.0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-        color: color.withValues(alpha: 0.08),
-      ),
-      child: ConstrainedBox(
-        constraints: BoxConstraints(maxWidth: maxWidth),
-        child: Text(
-          label,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: color, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
+    return TitansStatusChip(label: label, color: color, compact: true);
   }
 }
 
@@ -2274,7 +2280,10 @@ class _TrainingChartCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _TrainingActionChip(label: periodLabel, color: cs.primary),
+              _TrainingActionChip(
+                label: periodLabel,
+                color: TitansUI.technicalBlue,
+              ),
             ],
           ),
           const SizedBox(height: 8),
