@@ -9,7 +9,6 @@ import '../service/target_resolver.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
-import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'add_training_session_screen.dart';
@@ -259,90 +258,98 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         : null,
               ),
               const SizedBox(height: 12),
-              TitansExpandableSection(
+              _TrainingExpandableSection(
                 title: 'Evolução dos treinos',
                 subtitle: chart.totalLabel,
                 initiallyExpanded: true,
-                child: _TrainingChartCard(viewModel: chart),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: _TrainingChartCard(viewModel: chart),
+                ),
               ),
               const SizedBox(height: 12),
-              TitansExpandableSection(
+              _TrainingExpandableSection(
                 title: 'Registros de treino',
                 subtitle:
                     '${_trainingCountLabel(sessions.length)} • $lastTrainingLabel',
-                child: _TrainingHistoryPanel(
-                  items: historyItems,
-                  searchController: _historySearchController,
-                  period: _historyPeriod,
-                  result: _historyResult,
-                  contextFilter: _historyContext,
-                  positionFilter: _historyPositionFilter,
-                  techniqueFilter: _historyTechniqueFilter,
-                  visibleCount: _visibleHistoryCount,
-                  expandedSessionId: _expandedSessionId,
-                  canEdit: canEditTarget,
-                  onOpenFilters: () => _showHistoryFilters(historyItems),
-                  onClearSearch: _historySearchController.clear,
-                  onClearPeriod: () {
-                    setState(() {
-                      _historyPeriod = _TrainingHistoryPeriodFilter.all;
-                      _resetHistoryWindow();
-                    });
-                  },
-                  onClearResult: () {
-                    setState(() {
-                      _historyResult = _TrainingHistoryResultFilter.all;
-                      _resetHistoryWindow();
-                    });
-                  },
-                  onClearContext: () {
-                    setState(() {
-                      _historyContext = _TrainingHistoryContextFilter.all;
-                      _resetHistoryWindow();
-                    });
-                  },
-                  onClearPosition: () {
-                    setState(() {
-                      _historyPositionFilter = null;
-                      _resetHistoryWindow();
-                    });
-                  },
-                  onClearTechnique: () {
-                    setState(() {
-                      _historyTechniqueFilter = null;
-                      _resetHistoryWindow();
-                    });
-                  },
-                  onLoadMore: () {
-                    setState(() => _visibleHistoryCount += 20);
-                  },
-                  onToggle: (item) {
-                    setState(() {
-                      _expandedSessionId =
-                          _expandedSessionId == item.id ? null : item.id;
-                    });
-                  },
-                  onEdit:
-                      canEditTarget
-                          ? (item) {
-                            final session = item.session;
-                            debugPrint(
-                              '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                              'target.uid=$uid canEditTarget=$canEditTarget '
-                              'academyId=$academyId session.id=${session.id}',
-                            );
-                            return _openTrainingForm(
+                child: SizedBox(
+                  width: double.infinity,
+                  child: _TrainingHistoryPanel(
+                    items: historyItems,
+                    searchController: _historySearchController,
+                    period: _historyPeriod,
+                    result: _historyResult,
+                    contextFilter: _historyContext,
+                    positionFilter: _historyPositionFilter,
+                    techniqueFilter: _historyTechniqueFilter,
+                    visibleCount: _visibleHistoryCount,
+                    expandedSessionId: _expandedSessionId,
+                    canEdit: canEditTarget,
+                    onOpenFilters: () => _showHistoryFilters(historyItems),
+                    onClearSearch: _historySearchController.clear,
+                    onClearPeriod: () {
+                      setState(() {
+                        _historyPeriod = _TrainingHistoryPeriodFilter.all;
+                        _resetHistoryWindow();
+                      });
+                    },
+                    onClearResult: () {
+                      setState(() {
+                        _historyResult = _TrainingHistoryResultFilter.all;
+                        _resetHistoryWindow();
+                      });
+                    },
+                    onClearContext: () {
+                      setState(() {
+                        _historyContext = _TrainingHistoryContextFilter.all;
+                        _resetHistoryWindow();
+                      });
+                    },
+                    onClearPosition: () {
+                      setState(() {
+                        _historyPositionFilter = null;
+                        _resetHistoryWindow();
+                      });
+                    },
+                    onClearTechnique: () {
+                      setState(() {
+                        _historyTechniqueFilter = null;
+                        _resetHistoryWindow();
+                      });
+                    },
+                    onLoadMore: () {
+                      setState(() => _visibleHistoryCount += 20);
+                    },
+                    onToggle: (item) {
+                      setState(() {
+                        _expandedSessionId =
+                            _expandedSessionId == item.id ? null : item.id;
+                      });
+                    },
+                    onEdit:
+                        canEditTarget
+                            ? (item) {
+                              final session = item.session;
+                              debugPrint(
+                                '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                                'target.uid=$uid canEditTarget=$canEditTarget '
+                                'academyId=$academyId session.id=${session.id}',
+                              );
+                              return _openTrainingForm(
+                                academyId: academyId,
+                                uid: uid,
+                                session: session,
+                              );
+                            }
+                            : null,
+                    onAddTraining:
+                        canEditTarget
+                            ? () => _openTrainingForm(
                               academyId: academyId,
                               uid: uid,
-                              session: session,
-                            );
-                          }
-                          : null,
-                  onAddTraining:
-                      canEditTarget
-                          ? () =>
-                              _openTrainingForm(academyId: academyId, uid: uid)
-                          : null,
+                            )
+                            : null,
+                  ),
                 ),
               ),
             ],
