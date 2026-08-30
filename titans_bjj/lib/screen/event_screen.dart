@@ -8,7 +8,7 @@ import 'package:uuid/uuid.dart';
 
 import '../repository/event_repository.dart';
 import '../service/user_session.dart';
-import '../widgets/titans_expandable_section.dart';
+import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
 class EventScreen extends StatefulWidget {
@@ -22,6 +22,7 @@ class _EventScreenState extends State<EventScreen> {
   late final IEventRepository repo;
   late Future<List<EventModel>> _eventsFuture;
   EventType? filterType;
+  _EventTimelineFilter timelineFilter = _EventTimelineFilter.all;
   bool _repoReady = false;
   bool _seeded = false;
   bool _canManageEvents = false;
@@ -160,83 +161,147 @@ class _EventScreenState extends State<EventScreen> {
 
   Widget _buildContent(List<EventModel> events) {
     final now = DateTime.now();
-    final filtered =
+    final typeFiltered =
         filterType == null
             ? List<EventModel>.from(events)
             : events.where((e) => e.type == filterType).toList();
 
-    final upcoming =
-        filtered.where((e) => e.start.isAfter(now)).toList()
-          ..sort((a, b) => a.start.compareTo(b.start));
-    final active =
-        filtered
-            .where((e) => !e.start.isAfter(now) && !e.end.isBefore(now))
-            .toList()
-          ..sort((a, b) => a.start.compareTo(b.start));
-    final past =
-        filtered.where((e) => e.end.isBefore(now)).toList()
-          ..sort((a, b) => b.start.compareTo(a.start));
-    final nextEvent = upcoming.isEmpty ? null : upcoming.first;
-    final scheduled = nextEvent == null ? upcoming : upcoming.skip(1).toList();
-
+    final visibleEvents = _eventsForTimelineFilter(typeFiltered, now);
+    final nextEvent = _nextUpcomingEvent(typeFiltered, now);
     final padding = TitansUI.listPadding(context, extra: 80);
+
+    if (typeFiltered.isEmpty) {
+      return ListView(
+        padding: padding,
+        children: [
+          TitansEmptyState(
+            icon: Icons.event_available_outlined,
+            title: 'Agenda em construção',
+            description:
+                filterType == null
+                    ? 'Crie o primeiro evento para organizar a agenda da academia.'
+                    : 'Não há eventos para este tipo selecionado.',
+            actionLabel:
+                _canManageEvents && filterType == null ? 'Criar evento' : null,
+            onAction:
+                _canManageEvents && filterType == null ? _openCreate : null,
+            variant: TitansEmptyStateVariant.action,
+          ),
+        ],
+      );
+    }
+
     return ListView(
       padding: padding,
       children: [
-        _EventsOverviewCard(
-          upcomingCount: upcoming.length,
-          activeCount: active.length,
-          pastCount: past.length,
+        _NextEventHighlight(
+          event: nextEvent,
+          canManageEvents: _canManageEvents,
           filterLabel: _filterLabel(filterType),
+          onCreate: _openCreate,
+          fmtDate: _fmtDate,
+          iconForType: _iconForType,
+          statusForEvent: (event) => _eventStatusLabel(event, now),
         ),
         const SizedBox(height: TitansUI.spaceMd),
-        if (nextEvent != null)
-          _NextEventCard(
-            event: nextEvent,
-            fmtDate: _fmtDate,
-            iconForType: _iconForType,
-          )
-        else
-          _EmptyNextEventCard(filterLabel: _filterLabel(filterType)),
-        const SizedBox(height: TitansUI.spaceMd),
-        TitansExpandableSection(
-          title: 'Eventos ativos',
-          subtitle: _sectionSummary(active, 'evento em andamento'),
-          initiallyExpanded: active.isNotEmpty,
-          child: _EventsList(
-            events: active,
-            emptyMessage: 'Nenhum evento ativo agora.',
-            fmtDate: _fmtDate,
-            iconForType: _iconForType,
-            onTap: _openDetails,
-          ),
+        _EventSegmentedFilter(
+          value: timelineFilter,
+          onChanged: (value) => setState(() => timelineFilter = value),
         ),
         const SizedBox(height: TitansUI.spaceSm),
-        TitansExpandableSection(
-          title: 'Eventos agendados',
-          subtitle: _sectionSummary(scheduled, 'evento agendado'),
-          initiallyExpanded: scheduled.isNotEmpty && scheduled.length <= 2,
-          child: _EventsList(
-            events: scheduled,
-            emptyMessage: 'Sem outros eventos agendados para este filtro.',
-            fmtDate: _fmtDate,
-            iconForType: _iconForType,
-            onTap: _openDetails,
-          ),
-        ),
-        const SizedBox(height: TitansUI.spaceSm),
-        TitansExpandableSection(
-          title: 'Histórico',
-          subtitle: _sectionSummary(past, 'evento passado'),
-          child: _EventsList(
-            events: past,
-            emptyMessage: 'Sem eventos passados para este filtro.',
-            fmtDate: _fmtDate,
-            iconForType: _iconForType,
-            onTap: _openDetails,
-          ),
+        _EventsUnifiedList(
+          events: visibleEvents,
+          hasAnyEvents: typeFiltered.isNotEmpty,
+          filter: timelineFilter,
+          canManageEvents: _canManageEvents,
+          onCreate: _openCreate,
+          fmtDate: _fmtDate,
+          iconForType: _iconForType,
+          statusForEvent: (event) => _eventStatusLabel(event, now),
+          onTap: _openDetails,
         ),
       ],
+    );
+  }
+
+  List<EventModel> _eventsForTimelineFilter(
+    List<EventModel> events,
+    DateTime now,
+  ) {
+    final filtered =
+        events.where((event) {
+          switch (timelineFilter) {
+            case _EventTimelineFilter.all:
+              return true;
+            case _EventTimelineFilter.active:
+              return _isActiveEvent(event, now);
+            case _EventTimelineFilter.scheduled:
+              return _isScheduledEvent(event, now);
+            case _EventTimelineFilter.history:
+              return _isHistoricalEvent(event, now);
+          }
+        }).toList();
+
+    filtered.sort((a, b) {
+      if (timelineFilter == _EventTimelineFilter.history) {
+        return b.start.compareTo(a.start);
+      }
+      return a.start.compareTo(b.start);
+    });
+    return filtered;
+  }
+
+  EventModel? _nextUpcomingEvent(List<EventModel> events, DateTime now) {
+    final upcoming =
+        events.where((event) => _isScheduledEvent(event, now)).toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
+    return upcoming.isEmpty ? null : upcoming.first;
+  }
+
+  bool _isCancelled(EventModel event) => event.status == EventStatus.cancelled;
+
+  bool _isActiveEvent(EventModel event, DateTime now) {
+    if (_isCancelled(event) || event.status == EventStatus.finished) {
+      return false;
+    }
+    return !event.start.isAfter(now) && !event.end.isBefore(now);
+  }
+
+  bool _isScheduledEvent(EventModel event, DateTime now) {
+    if (_isCancelled(event) || event.status == EventStatus.finished) {
+      return false;
+    }
+    return event.start.isAfter(now);
+  }
+
+  bool _isHistoricalEvent(EventModel event, DateTime now) {
+    return _isCancelled(event) ||
+        event.status == EventStatus.finished ||
+        event.end.isBefore(now);
+  }
+
+  _EventStatusPresentation _eventStatusLabel(EventModel event, DateTime now) {
+    if (_isCancelled(event)) {
+      return const _EventStatusPresentation(
+        label: 'Cancelado',
+        variant: TitansStatusChipVariant.alert,
+      );
+    }
+    if (_isActiveEvent(event, now)) {
+      return const _EventStatusPresentation(
+        label: 'Ativo',
+        variant: TitansStatusChipVariant.success,
+      );
+    }
+    if (_isScheduledEvent(event, now)) {
+      return const _EventStatusPresentation(
+        label: 'Agendado',
+        variant: TitansStatusChipVariant.action,
+      );
+    }
+    return const _EventStatusPresentation(
+      label: 'Histórico',
+      variant: TitansStatusChipVariant.muted,
     );
   }
 
@@ -338,141 +403,57 @@ class _EventsErrorState extends StatelessWidget {
     );
   }
 }
-class _EventsOverviewCard extends StatelessWidget {
-  final int upcomingCount;
-  final int activeCount;
-  final int pastCount;
-  final String filterLabel;
 
-  const _EventsOverviewCard({
-    required this.upcomingCount,
-    required this.activeCount,
-    required this.pastCount,
-    required this.filterLabel,
-  });
+enum _EventTimelineFilter { all, active, scheduled, history }
 
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return TitansCard(
-      radius: TitansUI.radiusSmall,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Agenda da academia',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Filtro: $filterLabel',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: TitansUI.spaceSm),
-          Wrap(
-            spacing: TitansUI.spaceSm,
-            runSpacing: TitansUI.spaceSm,
-            children: [
-              _EventMetric(
-                label: 'Próximos',
-                value: upcomingCount.toString(),
-                color: cs.primary,
-              ),
-              _EventMetric(
-                label: 'Ativos',
-                value: activeCount.toString(),
-                color: TitansUI.success,
-              ),
-              _EventMetric(
-                label: 'Histórico',
-                value: pastCount.toString(),
-                color: TitansUI.info,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EventMetric extends StatelessWidget {
+class _EventStatusPresentation {
   final String label;
-  final String value;
-  final Color color;
+  final TitansStatusChipVariant variant;
 
-  const _EventMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minWidth: 92),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-        color: color.withValues(alpha: 0.08),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  const _EventStatusPresentation({required this.label, required this.variant});
 }
 
-class _NextEventCard extends StatelessWidget {
-  final EventModel event;
+class _NextEventHighlight extends StatelessWidget {
+  final EventModel? event;
+  final bool canManageEvents;
+  final String filterLabel;
+  final VoidCallback onCreate;
   final String Function(DateTime) fmtDate;
   final IconData Function(EventType) iconForType;
+  final _EventStatusPresentation Function(EventModel) statusForEvent;
 
-  const _NextEventCard({
+  const _NextEventHighlight({
     required this.event,
+    required this.canManageEvents,
+    required this.filterLabel,
+    required this.onCreate,
     required this.fmtDate,
     required this.iconForType,
+    required this.statusForEvent,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final next = event;
+    if (next == null) {
+      return TitansEmptyState(
+        icon: Icons.event_available_outlined,
+        title: 'Nenhum próximo evento',
+        description:
+            filterLabel == 'Todos os tipos'
+                ? 'A agenda ainda não tem compromissos futuros.'
+                : 'Não há compromissos futuros para este filtro.',
+        actionLabel: canManageEvents ? 'Criar evento' : null,
+        onAction: canManageEvents ? onCreate : null,
+        variant: TitansEmptyStateVariant.action,
+        compact: true,
+      );
+    }
+
+    final status = statusForEvent(next);
     return TitansCard(
-      accent: cs.primary,
+      accent: TitansUI.actionGold,
       radius: TitansUI.radiusSmall,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -482,10 +463,12 @@ class _NextEventCard extends StatelessWidget {
             height: 44,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: cs.primary.withValues(alpha: 0.12),
-              border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
+              color: TitansUI.actionGold.withValues(alpha: 0.12),
+              border: Border.all(
+                color: TitansUI.actionGold.withValues(alpha: 0.28),
+              ),
             ),
-            child: Icon(iconForType(event.type), color: cs.primary),
+            child: Icon(iconForType(next.type), color: TitansUI.actionGold),
           ),
           const SizedBox(width: TitansUI.spaceSm),
           Expanded(
@@ -493,18 +476,14 @@ class _NextEventCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Próximo compromisso',
+                  'Próximo evento',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.62),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: TitansTypography.sectionEyebrow(context),
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  event.title,
+                  next.title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -512,159 +491,241 @@ class _NextEventCard extends StatelessWidget {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 7),
+                const SizedBox(height: TitansUI.spaceSm),
                 Wrap(
-                  spacing: 8,
-                  runSpacing: 4,
+                  spacing: TitansUI.spaceXs,
+                  runSpacing: TitansUI.spaceXs,
                   children: [
-                    _EventInfoPill(
+                    TitansStatusChip(
+                      label: status.label,
+                      variant: status.variant,
+                      compact: true,
+                    ),
+                    TitansStatusChip(
+                      label: fmtDate(next.start),
+                      variant: TitansStatusChipVariant.technical,
                       icon: Icons.schedule_outlined,
-                      label: fmtDate(event.start),
+                      compact: true,
                     ),
-                    _EventInfoPill(
-                      icon: Icons.place_outlined,
-                      label: event.location.trim().isEmpty
-                          ? 'Local a definir'
-                          : event.location,
-                    ),
+                    if (next.location.trim().isNotEmpty)
+                      TitansStatusChip(
+                        label: next.location.trim(),
+                        variant: TitansStatusChipVariant.neutral,
+                        icon: Icons.place_outlined,
+                        compact: true,
+                      ),
                   ],
                 ),
               ],
             ),
           ),
+          const SizedBox(width: TitansUI.spaceXs),
+          Icon(Icons.star_rounded, color: cs.primary, size: 20),
         ],
       ),
     );
   }
 }
 
-class _EmptyNextEventCard extends StatelessWidget {
-  final String filterLabel;
+class _EventSegmentedFilter extends StatelessWidget {
+  final _EventTimelineFilter value;
+  final ValueChanged<_EventTimelineFilter> onChanged;
 
-  const _EmptyNextEventCard({required this.filterLabel});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return TitansCard(
-      accent: cs.secondary,
-      radius: TitansUI.radiusSmall,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(Icons.event_available_outlined, color: cs.secondary),
-          const SizedBox(width: TitansUI.spaceSm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Sem próximo compromisso',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Filtro atual: $filterLabel.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.66),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EventInfoPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _EventInfoPill({required this.icon, required this.label});
+  const _EventSegmentedFilter({required this.value, required this.onChanged});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(maxWidth: 210),
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        color: cs.primary.withValues(alpha: 0.08),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: cs.primary),
-          const SizedBox(width: 5),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.72),
-                fontSize: 11,
-                fontWeight: FontWeight.w800,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth <= 390;
+        if (isNarrow) {
+          return Wrap(
+            spacing: TitansUI.spaceXs,
+            runSpacing: TitansUI.spaceXs,
+            children: [
+              for (final option in _EventTimelineFilter.values)
+                _EventFilterChip(
+                  label: _timelineFilterLabel(option),
+                  selected: value == option,
+                  onTap: () => onChanged(option),
+                ),
+            ],
+          );
+        }
+
+        return SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<_EventTimelineFilter>(
+            showSelectedIcon: false,
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              padding: WidgetStateProperty.all(
+                const EdgeInsets.symmetric(horizontal: 10),
               ),
             ),
+            segments: const [
+              ButtonSegment(
+                value: _EventTimelineFilter.all,
+                label: Text('Todos'),
+              ),
+              ButtonSegment(
+                value: _EventTimelineFilter.active,
+                label: Text('Ativos'),
+              ),
+              ButtonSegment(
+                value: _EventTimelineFilter.scheduled,
+                label: Text('Agendados'),
+              ),
+              ButtonSegment(
+                value: _EventTimelineFilter.history,
+                label: Text('Histórico'),
+              ),
+            ],
+            selected: {value},
+            onSelectionChanged: (selected) => onChanged(selected.first),
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
 
-class _EventsList extends StatelessWidget {
-  final List<EventModel> events;
-  final String emptyMessage;
-  final String Function(DateTime) fmtDate;
-  final IconData Function(EventType) iconForType;
-  final ValueChanged<EventModel> onTap;
+class _EventFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
 
-  const _EventsList({
-    required this.events,
-    required this.emptyMessage,
-    required this.fmtDate,
-    required this.iconForType,
+  const _EventFilterChip({
+    required this.label,
+    required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    if (events.isEmpty) {
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: TitansUI.spaceSm),
-        child: Text(
-          emptyMessage,
-          style: TextStyle(color: cs.onSurface.withValues(alpha: 0.70)),
+    final accent = selected ? TitansUI.actionGold : cs.onSurface;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(TitansRadius.chip),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TitansRadius.chip),
+            color: accent.withValues(alpha: selected ? 0.14 : 0.06),
+            border: Border.all(
+              color: accent.withValues(alpha: selected ? 0.34 : 0.14),
+            ),
+          ),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: selected ? 0.92 : 0.70),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
         ),
+      ),
+    );
+  }
+}
+
+String _timelineFilterLabel(_EventTimelineFilter filter) {
+  switch (filter) {
+    case _EventTimelineFilter.all:
+      return 'Todos';
+    case _EventTimelineFilter.active:
+      return 'Ativos';
+    case _EventTimelineFilter.scheduled:
+      return 'Agendados';
+    case _EventTimelineFilter.history:
+      return 'Histórico';
+  }
+}
+
+class _EventsUnifiedList extends StatelessWidget {
+  final List<EventModel> events;
+  final bool hasAnyEvents;
+  final _EventTimelineFilter filter;
+  final bool canManageEvents;
+  final VoidCallback onCreate;
+  final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
+  final _EventStatusPresentation Function(EventModel) statusForEvent;
+  final ValueChanged<EventModel> onTap;
+
+  const _EventsUnifiedList({
+    required this.events,
+    required this.hasAnyEvents,
+    required this.filter,
+    required this.canManageEvents,
+    required this.onCreate,
+    required this.fmtDate,
+    required this.iconForType,
+    required this.statusForEvent,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (events.isEmpty) {
+      final isAllEmpty = !hasAnyEvents && filter == _EventTimelineFilter.all;
+      return TitansEmptyState(
+        icon: Icons.event_note_outlined,
+        title: isAllEmpty ? 'Agenda em construção' : _emptyTitle(filter),
+        description:
+            isAllEmpty
+                ? 'Crie o primeiro evento para organizar a agenda da academia.'
+                : 'Não há eventos para o filtro selecionado.',
+        actionLabel: isAllEmpty && canManageEvents ? 'Criar evento' : null,
+        onAction: isAllEmpty && canManageEvents ? onCreate : null,
+        variant:
+            isAllEmpty
+                ? TitansEmptyStateVariant.action
+                : TitansEmptyStateVariant.neutral,
+        compact: true,
       );
     }
 
-    return Column(
-      children: [
-        for (var i = 0; i < events.length; i++) ...[
-          _EventListCard(
-            event: events[i],
-            fmtDate: fmtDate,
-            iconForType: iconForType,
-            onTap: () => onTap(events[i]),
-          ),
-          if (i != events.length - 1) const SizedBox(height: TitansUI.spaceSm),
+    return TitansCard(
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Eventos', style: TitansTypography.cardTitle(context)),
+          const SizedBox(height: TitansUI.spaceSm),
+          for (var i = 0; i < events.length; i++) ...[
+            _EventListCard(
+              event: events[i],
+              fmtDate: fmtDate,
+              iconForType: iconForType,
+              status: statusForEvent(events[i]),
+              onTap: () => onTap(events[i]),
+            ),
+            if (i != events.length - 1)
+              const SizedBox(height: TitansUI.spaceSm),
+          ],
         ],
-      ],
+      ),
     );
+  }
+
+  String _emptyTitle(_EventTimelineFilter filter) {
+    switch (filter) {
+      case _EventTimelineFilter.all:
+        return 'Nenhum evento encontrado';
+      case _EventTimelineFilter.active:
+        return 'Nenhum evento ativo';
+      case _EventTimelineFilter.scheduled:
+        return 'Nenhum evento agendado';
+      case _EventTimelineFilter.history:
+        return 'Histórico vazio';
+    }
   }
 }
 
@@ -672,18 +733,21 @@ class _EventListCard extends StatelessWidget {
   final EventModel event;
   final String Function(DateTime) fmtDate;
   final IconData Function(EventType) iconForType;
+  final _EventStatusPresentation status;
   final VoidCallback onTap;
 
   const _EventListCard({
     required this.event,
     required this.fmtDate,
     required this.iconForType,
+    required this.status,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final location = event.location.trim();
     return Material(
       color: cs.surfaceContainerHighest.withValues(alpha: 0.28),
       borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
@@ -693,29 +757,54 @@ class _EventListCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(TitansUI.spaceSm),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(iconForType(event.type), color: cs.primary),
+              Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Icon(iconForType(event.type), color: cs.primary),
+              ),
               const SizedBox(width: TitansUI.spaceSm),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      event.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            event.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.w900),
+                          ),
+                        ),
+                        const SizedBox(width: TitansUI.spaceXs),
+                        TitansStatusChip(
+                          label: status.label,
+                          variant: status.variant,
+                          compact: true,
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      '${fmtDate(event.start)} • ${event.location}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.66),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    const SizedBox(height: TitansUI.spaceXs),
+                    Wrap(
+                      spacing: TitansUI.spaceXs,
+                      runSpacing: TitansUI.spaceXs,
+                      children: [
+                        TitansStatusChip(
+                          label: fmtDate(event.start),
+                          variant: TitansStatusChipVariant.technical,
+                          icon: Icons.schedule_outlined,
+                          compact: true,
+                        ),
+                        if (location.isNotEmpty)
+                          TitansStatusChip(
+                            label: location,
+                            variant: TitansStatusChipVariant.neutral,
+                            icon: Icons.place_outlined,
+                            compact: true,
+                          ),
+                      ],
                     ),
                   ],
                 ),
@@ -746,13 +835,6 @@ String _filterLabel(EventType? type) {
     case EventType.other:
       return 'Outros';
   }
-}
-
-String _sectionSummary(List<EventModel> events, String singular) {
-  final count = events.length;
-  if (count == 0) return 'Nenhum registro neste filtro';
-  if (count == 1) return '1 $singular nesta seção';
-  return '$count registros nesta seção';
 }
 
 class _EventForm extends StatefulWidget {

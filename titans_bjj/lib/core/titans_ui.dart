@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 class TitansUI {
   static const radius = 18.0;
   static const radiusSmall = 12.0;
+  static const radiusMedium = 14.0;
+  static const radiusPill = 999.0;
+  static const radiusCircular = 999.0;
 
   static const spaceXs = 6.0;
   static const spaceSm = 10.0;
@@ -16,20 +19,37 @@ class TitansUI {
   static const cardGap = SizedBox(height: 12);
 
   static const bg = Color(0xFF070A0F);
-  static const card = Color(0xFF0B111A);
+  static const surface = Color(0xFF0B111A);
+  static const elevatedSurface = Color(0xFF101826);
+  static const card = surface;
   static const card2 = Color(0xFF080D14);
 
   static const stroke = Color(0x24FFFFFF);
+  static const subtleBorder = stroke;
+
+  static const technicalBlue = Color(0xFF2D6BFF);
+  static const actionGold = Color(0xFFE9C46A);
+  static const successGreen = Color(0xFF70E000);
+  static const alertRed = Color(0xFFFF5C5C);
+  static const textPrimary = Color(0xFFF6F7FA);
+  static const textSecondary = Color(0xC9D7DCE8);
+  static const textFaint = Color(0x80D7DCE8);
 
   static const neonRed = Color(0xFFFF2D2D);
   static const neonPurple = Color(0xFFB026FF);
-  static const neonBlue = Color(0xFF2D6BFF);
-  static const neonGold = Color(0xFFE9C46A);
+  static const neonBlue = technicalBlue;
+  static const neonGold = actionGold;
 
-  static const success = Color(0xFF70E000);
+  static const success = successGreen;
   static const warning = Color(0xFFFFC857);
-  static const danger = Color(0xFFFF5C5C);
+  static const danger = alertRed;
   static const info = Color(0xFF4CC9F0);
+
+  static const beltWhite = Color(0xE6FFFFFF);
+  static const beltBlue = technicalBlue;
+  static const beltPurple = neonPurple;
+  static const beltBrown = Color(0xFF8D6E63);
+  static const beltBlack = Color(0xFFE6E6E6);
 
   static Color beltColor(String belt) {
     switch (belt) {
@@ -103,7 +123,6 @@ class TitansUI {
   }
 }
 
-
 class TitansSpacing {
   static const xs = TitansUI.spaceXs;
   static const sm = TitansUI.spaceSm;
@@ -114,21 +133,74 @@ class TitansSpacing {
 
 class TitansRadius {
   static const sm = TitansUI.radiusSmall;
-  static const md = 14.0;
+  static const md = TitansUI.radiusMedium;
   static const lg = TitansUI.radius;
-  static const pill = 999.0;
+  static const card = TitansUI.radius;
+  static const chip = TitansUI.radiusMedium;
+  static const ring = TitansUI.radiusCircular;
+  static const pill = TitansUI.radiusPill;
+}
+
+enum TitansStatusChipVariant {
+  neutral,
+  technical,
+  action,
+  attention,
+  success,
+  alert,
+  error,
+  muted,
 }
 
 class TitansTypography {
-  static TextStyle? title(BuildContext context) =>
-      Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w900,
-          );
+  static TextStyle? title(BuildContext context) => cardTitle(context);
 
-  static TextStyle? label(BuildContext context) =>
-      Theme.of(context).textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w800,
-          );
+  static TextStyle? label(BuildContext context) => chipLabel(context);
+
+  static TextStyle? pageTitle(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900);
+
+  static TextStyle? cardTitle(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900);
+
+  static TextStyle sectionEyebrow(BuildContext context) {
+    return TextStyle(
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.58),
+      fontSize: 11,
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0,
+    );
+  }
+
+  static TextStyle body(BuildContext context) {
+    return TextStyle(
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.72),
+      fontSize: 14,
+      fontWeight: FontWeight.w700,
+    );
+  }
+
+  static TextStyle caption(BuildContext context) {
+    return TextStyle(
+      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62),
+      fontSize: 12,
+      fontWeight: FontWeight.w700,
+    );
+  }
+
+  static TextStyle metricNumber(BuildContext context, {Color? color}) {
+    return TextStyle(
+      color: color ?? Theme.of(context).colorScheme.primary,
+      fontSize: 24,
+      fontWeight: FontWeight.w900,
+    );
+  }
+
+  static TextStyle? chipLabel(BuildContext context) => Theme.of(
+    context,
+  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800);
 
   static TextStyle muted(BuildContext context, {double alpha = 0.68}) {
     return TextStyle(
@@ -145,6 +217,7 @@ class TitansBreakpoint {
   static bool isTablet(double width) => width >= mobile && width < desktop;
   static bool isDesktop(double width) => width >= desktop;
 }
+
 class TitansStateView extends StatelessWidget {
   final IconData icon;
   final String title;
@@ -188,7 +261,8 @@ class TitansStateView extends StatelessWidget {
   const TitansStateView.noStudent({
     super.key,
     this.title = 'Nenhum aluno selecionado',
-    this.message = 'Selecione um aluno no Painel do Mestre para abrir esta area.',
+    this.message =
+        'Selecione um aluno no Painel do Mestre para abrir esta area.',
     this.action,
     this.compact = false,
   }) : icon = Icons.person_search_outlined;
@@ -220,9 +294,9 @@ class TitansStateView extends StatelessWidget {
           Text(
             title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
           if (message != null && message!.trim().isNotEmpty) ...[
             const SizedBox(height: TitansUI.spaceSm),
@@ -273,9 +347,9 @@ class TitansSectionHeader extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
                 const SizedBox(height: 3),
@@ -295,6 +369,7 @@ class TitansSectionHeader extends StatelessWidget {
     );
   }
 }
+
 class TitansCard extends StatelessWidget {
   final Widget child;
   final Color? accent;
@@ -409,37 +484,73 @@ class TitansMetricCard extends StatelessWidget {
 }
 
 class TitansStatusChip extends StatelessWidget {
-  final String label;
-  final Color? color;
+  final String? label;
+  final String? text;
+  final TitansStatusChipVariant variant;
+  final TitansStatusChipVariant? type;
   final IconData? icon;
+  final bool compact;
+  final VoidCallback? onTap;
+  final Color? color;
 
   const TitansStatusChip({
     super.key,
-    required this.label,
-    this.color,
+    this.label,
+    this.text,
+    this.variant = TitansStatusChipVariant.neutral,
+    this.type,
     this.icon,
-  });
+    this.compact = false,
+    this.onTap,
+    this.color,
+  }) : assert(label != null || text != null, 'label or text is required');
+
+  Color _accentFor(BuildContext context) {
+    if (color != null) return color!;
+
+    final cs = Theme.of(context).colorScheme;
+    switch (type ?? variant) {
+      case TitansStatusChipVariant.technical:
+      case TitansStatusChipVariant.neutral:
+        return TitansUI.technicalBlue;
+      case TitansStatusChipVariant.action:
+      case TitansStatusChipVariant.attention:
+        return TitansUI.actionGold;
+      case TitansStatusChipVariant.success:
+        return TitansUI.successGreen;
+      case TitansStatusChipVariant.alert:
+      case TitansStatusChipVariant.error:
+        return TitansUI.alertRed;
+      case TitansStatusChipVariant.muted:
+        return cs.onSurface.withValues(alpha: 0.58);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final accent = color ?? cs.primary;
+    final accent = _accentFor(context);
+    final displayLabel = label ?? text!;
+    final verticalPadding = compact ? 4.0 : TitansUI.spaceXs;
+    final horizontalPadding = compact ? TitansUI.spaceSm : TitansUI.spaceMd;
+    final iconSize = compact ? 13.0 : 14.0;
+    final fontSize = compact ? 11.0 : 12.0;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: TitansUI.spaceSm,
-        vertical: TitansUI.spaceXs,
+    final chip = Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
       ),
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansRadius.pill),
+        borderRadius: BorderRadius.circular(TitansRadius.chip),
         color: accent.withValues(alpha: 0.10),
-        border: Border.all(color: accent.withValues(alpha: 0.32)),
+        border: Border.all(color: accent.withValues(alpha: 0.30)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: 14, color: accent),
+            Icon(icon, size: iconSize, color: accent),
             const SizedBox(width: TitansUI.spaceXs),
           ],
           ConstrainedBox(
@@ -447,17 +558,28 @@ class TitansStatusChip extends StatelessWidget {
               maxWidth: MediaQuery.sizeOf(context).width - 64,
             ),
             child: Text(
-              label,
+              displayLabel,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: cs.onSurface.withValues(alpha: 0.86),
-                fontSize: 12,
+                fontSize: fontSize,
                 fontWeight: FontWeight.w800,
               ),
             ),
           ),
         ],
+      ),
+    );
+
+    if (onTap == null) return chip;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(TitansRadius.chip),
+        onTap: onTap,
+        child: chip,
       ),
     );
   }
@@ -513,10 +635,8 @@ class TitansResponsiveGrid extends StatelessWidget {
         if (children.isEmpty) return const SizedBox.shrink();
 
         final width = constraints.maxWidth;
-        final columns = (width / minItemWidth)
-            .floor()
-            .clamp(1, children.length)
-            .toInt();
+        final columns =
+            (width / minItemWidth).floor().clamp(1, children.length).toInt();
         final itemWidth = (width - spacing * (columns - 1)) / columns;
 
         return Wrap(
@@ -549,10 +669,7 @@ class TitansBottomSheet {
         return SafeArea(
           child: Padding(
             padding: EdgeInsets.only(bottom: bottom),
-            child: TitansCard(
-              radius: TitansUI.radius,
-              child: builder(context),
-            ),
+            child: TitansCard(radius: TitansUI.radius, child: builder(context)),
           ),
         );
       },

@@ -5,39 +5,83 @@ class TitansColors extends ThemeExtension<TitansColors> {
   final Color background;
   final Color overlay;
   final Color card;
+  final Color elevatedSurface;
   final Color cardBorder;
   final Color textPrimary;
   final Color textSecondary;
+  final Color textFaint;
   final Color accent; // dourado / destaque
+  final Color technical;
+  final Color success;
+  final Color alert;
+  final Color beltWhite;
+  final Color beltBlue;
+  final Color beltPurple;
+  final Color beltBrown;
+  final Color beltBlack;
 
   const TitansColors({
     required this.background,
     required this.overlay,
     required this.card,
+    required this.elevatedSurface,
     required this.cardBorder,
     required this.textPrimary,
     required this.textSecondary,
+    required this.textFaint,
     required this.accent,
+    required this.technical,
+    required this.success,
+    required this.alert,
+    required this.beltWhite,
+    required this.beltBlue,
+    required this.beltPurple,
+    required this.beltBrown,
+    required this.beltBlack,
   });
+
+  Color get surface => card;
+  Color get subtleBorder => cardBorder;
+  Color get action => accent;
 
   @override
   TitansColors copyWith({
     Color? background,
     Color? overlay,
     Color? card,
+    Color? elevatedSurface,
     Color? cardBorder,
     Color? textPrimary,
     Color? textSecondary,
+    Color? textFaint,
     Color? accent,
+    Color? technical,
+    Color? success,
+    Color? alert,
+    Color? beltWhite,
+    Color? beltBlue,
+    Color? beltPurple,
+    Color? beltBrown,
+    Color? beltBlack,
   }) {
     return TitansColors(
       background: background ?? this.background,
       overlay: overlay ?? this.overlay,
       card: card ?? this.card,
+      elevatedSurface: elevatedSurface ?? this.elevatedSurface,
       cardBorder: cardBorder ?? this.cardBorder,
       textPrimary: textPrimary ?? this.textPrimary,
       textSecondary: textSecondary ?? this.textSecondary,
+      textFaint: textFaint ?? this.textFaint,
       accent: accent ?? this.accent,
+      technical: technical ?? this.technical,
+      success: success ?? this.success,
+      alert: alert ?? this.alert,
+      beltWhite: beltWhite ?? this.beltWhite,
+      beltBlue: beltBlue ?? this.beltBlue,
+      beltPurple: beltPurple ?? this.beltPurple,
+      beltBrown: beltBrown ?? this.beltBrown,
+      beltBlack: beltBlack ?? this.beltBlack,
     );
   }
 
@@ -48,10 +92,20 @@ class TitansColors extends ThemeExtension<TitansColors> {
       background: Color.lerp(background, other.background, t)!,
       overlay: Color.lerp(overlay, other.overlay, t)!,
       card: Color.lerp(card, other.card, t)!,
+      elevatedSurface: Color.lerp(elevatedSurface, other.elevatedSurface, t)!,
       cardBorder: Color.lerp(cardBorder, other.cardBorder, t)!,
       textPrimary: Color.lerp(textPrimary, other.textPrimary, t)!,
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
+      textFaint: Color.lerp(textFaint, other.textFaint, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
+      technical: Color.lerp(technical, other.technical, t)!,
+      success: Color.lerp(success, other.success, t)!,
+      alert: Color.lerp(alert, other.alert, t)!,
+      beltWhite: Color.lerp(beltWhite, other.beltWhite, t)!,
+      beltBlue: Color.lerp(beltBlue, other.beltBlue, t)!,
+      beltPurple: Color.lerp(beltPurple, other.beltPurple, t)!,
+      beltBrown: Color.lerp(beltBrown, other.beltBrown, t)!,
+      beltBlack: Color.lerp(beltBlack, other.beltBlack, t)!,
     );
   }
 }
@@ -65,10 +119,20 @@ ThemeData buildTitansDarkTheme() {
     background: Color(0xFF070A0F),
     overlay: Color(0xD9000000),
     card: Color(0xE60B111A),
+    elevatedSurface: Color(0xFF101826),
     cardBorder: Color(0x38FFFFFF),
     textPrimary: Color(0xFFF6F7FA),
     textSecondary: Color(0xC9D7DCE8),
+    textFaint: Color(0x80D7DCE8),
     accent: Color(0xFFE9C46A),
+    technical: Color(0xFF2D6BFF),
+    success: Color(0xFF70E000),
+    alert: Color(0xFFFF5C5C),
+    beltWhite: Color(0xE6FFFFFF),
+    beltBlue: Color(0xFF2D6BFF),
+    beltPurple: Color(0xFFB026FF),
+    beltBrown: Color(0xFF8D6E63),
+    beltBlack: Color(0xFFE6E6E6),
   );
 
   final baseScheme = ColorScheme.fromSeed(
@@ -78,8 +142,8 @@ ThemeData buildTitansDarkTheme() {
 
   final scheme = baseScheme.copyWith(
     primary: ext.accent,
-    secondary: const Color(0xFF2D6BFF),
-    tertiary: const Color(0xFFB026FF),
+    secondary: ext.technical,
+    tertiary: ext.beltPurple,
     surface: ext.background,
     surfaceContainerHighest: ext.card,
     onSurface: ext.textPrimary,
@@ -135,10 +199,7 @@ ThemeData buildTitansDarkTheme() {
         fontWeight: FontWeight.w800,
         fontSize: 15,
       ),
-      subtitleTextStyle: TextStyle(
-        color: ext.textSecondary,
-        fontSize: 13,
-      ),
+      subtitleTextStyle: TextStyle(color: ext.textSecondary, fontSize: 13),
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 72,
@@ -189,10 +250,20 @@ ThemeData buildTitansLightTheme() {
     background: Color(0xFFF5F6F8),
     overlay: Color(0x66FFFFFF),
     card: Color(0xEFFFFFFF),
+    elevatedSurface: Color(0xFFFFFFFF),
     cardBorder: Color(0x1A0B0D10),
     textPrimary: Color(0xFF0B0D10),
     textSecondary: Color(0xB30B0D10),
-    accent: Color(0xFFB8860B), // dourado mais “sóbrio” no claro
+    textFaint: Color(0x660B0D10),
+    accent: Color(0xFFB8860B),
+    technical: Color(0xFF2D6BFF),
+    success: Color(0xFF2E7D32),
+    alert: Color(0xFFC62828),
+    beltWhite: Color(0xFFFFFFFF),
+    beltBlue: Color(0xFF2D6BFF),
+    beltPurple: Color(0xFF7B1FA2),
+    beltBrown: Color(0xFF795548),
+    beltBlack: Color(0xFF1F232B),
   );
 
   final baseScheme = ColorScheme.fromSeed(
@@ -202,6 +273,8 @@ ThemeData buildTitansLightTheme() {
 
   final scheme = baseScheme.copyWith(
     primary: ext.accent,
+    secondary: ext.technical,
+    tertiary: ext.beltPurple,
     surface: ext.background,
     surfaceContainerHighest: ext.card,
     onSurface: ext.textPrimary,
@@ -257,10 +330,7 @@ ThemeData buildTitansLightTheme() {
         fontWeight: FontWeight.w800,
         fontSize: 15,
       ),
-      subtitleTextStyle: TextStyle(
-        color: ext.textSecondary,
-        fontSize: 13,
-      ),
+      subtitleTextStyle: TextStyle(color: ext.textSecondary, fontSize: 13),
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 72,
