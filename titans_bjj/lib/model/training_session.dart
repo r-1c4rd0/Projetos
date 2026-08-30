@@ -262,7 +262,12 @@ class TrainingSession {
     ];
   }
 
-  Map<String, dynamic> toMap({bool includeApplicationDeletes = false}) {
+  Map<String, dynamic> toMap({
+    bool includeApplicationDeletes = false,
+    bool includeTechnicalDeletes = false,
+  }) {
+    final includeDeletes = includeApplicationDeletes || includeTechnicalDeletes;
+
     return {
       'date': Timestamp.fromDate(date),
       'place': place.name,
@@ -278,21 +283,29 @@ class TrainingSession {
       if (classType != null) 'classType': classType,
       if (instructorUid != null) 'instructorUid': instructorUid,
       if (instructorName != null) 'instructorName': instructorName,
-      if (position != null) 'position': position,
-      if (technique != null) 'technique': technique,
+      if (position != null)
+        'position': position
+      else if (includeTechnicalDeletes)
+        'position': FieldValue.delete(),
+      if (technique != null)
+        'technique': technique
+      else if (includeTechnicalDeletes)
+        'technique': FieldValue.delete(),
       if (techniques.isNotEmpty)
-        'techniques': techniques.map((entry) => entry.toMap()).toList(),
+        'techniques': techniques.map((entry) => entry.toMap()).toList()
+      else if (includeTechnicalDeletes)
+        'techniques': FieldValue.delete(),
       if (successes != null) 'successes': successes,
       if (difficulties != null) 'difficulties': difficulties,
       if (intensity != null) 'intensity': intensity,
       if (debriefNotes != null) 'debriefNotes': debriefNotes,
       if (applicationContext != null)
         'applicationContext': applicationContext
-      else if (includeApplicationDeletes)
+      else if (includeDeletes)
         'applicationContext': FieldValue.delete(),
       if (techniqueOutcome != null)
         'techniqueOutcome': techniqueOutcome
-      else if (includeApplicationDeletes)
+      else if (includeDeletes)
         'techniqueOutcome': FieldValue.delete(),
       'updatedAt': FieldValue.serverTimestamp(),
     };

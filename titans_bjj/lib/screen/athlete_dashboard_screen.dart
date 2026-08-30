@@ -24,6 +24,7 @@ import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
+import 'skills_screen.dart';
 import 'training_screen.dart';
 
 class AthleteDashboardScreen extends StatefulWidget {
@@ -344,6 +345,21 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   academyId: academyId,
                                   uid: uid,
                                   targetName: headerName,
+                                  loggedUser: actor,
+                                ),
+                          ),
+                        );
+                      }
+
+                      void openSkills() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => SkillsScreen(
+                                  academyId: academyId,
+                                  uid: uid,
+                                  targetName: headerName,
+                                  loggedUser: actor,
                                 ),
                           ),
                         );
@@ -440,6 +456,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   _DashboardQuickActionsCard(
                                     cs: cs,
                                     onOpenGameMap: openGameMap,
+                                    onOpenSkills: openSkills,
                                   ),
                                   const SizedBox(height: 12),
                                   LayoutBuilder(
@@ -1299,10 +1316,12 @@ class _DashboardPrimaryActionCard extends StatelessWidget {
 class _DashboardQuickActionsCard extends StatelessWidget {
   final ColorScheme cs;
   final VoidCallback onOpenGameMap;
+  final VoidCallback onOpenSkills;
 
   const _DashboardQuickActionsCard({
     required this.cs,
     required this.onOpenGameMap,
+    required this.onOpenSkills,
   });
 
   @override
@@ -1319,7 +1338,7 @@ class _DashboardQuickActionsCard extends StatelessWidget {
                 _SectionHeaderCompact(title: 'ATALHO ÚTIL'),
                 const SizedBox(height: 5),
                 Text(
-                  'Mapa técnico e Skill Matrix em uma tela.',
+                  'Game Map e repertório técnico em atalhos internos.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1332,10 +1351,27 @@ class _DashboardQuickActionsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 10),
-          _QuickActionButton(
-            icon: Icons.map_outlined,
-            label: 'Game Map',
-            onPressed: onOpenGameMap,
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                alignment: WrapAlignment.end,
+                children: [
+                  _QuickActionButton(
+                    icon: Icons.map_outlined,
+                    label: 'Game Map',
+                    onPressed: onOpenGameMap,
+                  ),
+                  _QuickActionButton(
+                    icon: Icons.psychology_alt_outlined,
+                    label: 'Skills',
+                    onPressed: onOpenSkills,
+                  ),
+                ],
+              ),
+            ),
           ),
         ],
       ),

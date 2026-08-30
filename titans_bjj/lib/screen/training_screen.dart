@@ -36,12 +36,101 @@ class TrainingScreen extends StatefulWidget {
 
 class _TrainingScreenState extends State<TrainingScreen> {
   _TrainingChartPeriod _period = _TrainingChartPeriod.thirtyDays;
+  String? _expandedSessionId;
+  final _historySearchController = TextEditingController();
+  _TrainingHistoryPeriodFilter _historyPeriod =
+      _TrainingHistoryPeriodFilter.all;
+  _TrainingHistoryResultFilter _historyResult =
+      _TrainingHistoryResultFilter.all;
+  _TrainingHistoryContextFilter _historyContext =
+      _TrainingHistoryContextFilter.all;
+  String? _historyPositionFilter;
+  String? _historyTechniqueFilter;
+  int _visibleHistoryCount = 20;
+  List<TrainingSession>? _historySessionsSource;
+  List<_TrainingSessionViewModel> _historyItemsCache = const [];
 
   late final TrainingRepository _repo = TrainingRepository.instance;
 
   String? _streamAcademyId;
   String? _streamUid;
   Stream<List<TrainingSession>>? _sessionsStream;
+
+  @override
+  void initState() {
+    super.initState();
+    _historySearchController.addListener(_onHistorySearchChanged);
+  }
+
+  @override
+  void dispose() {
+    _historySearchController.dispose();
+    super.dispose();
+  }
+
+  void _onHistorySearchChanged() {
+    setState(_resetHistoryWindow);
+  }
+
+  void _resetHistoryWindow() {
+    _visibleHistoryCount = 20;
+    _expandedSessionId = null;
+  }
+
+  void _applyHistoryFilters(_TrainingHistoryFilters filters) {
+    setState(() {
+      _historyPeriod = filters.period;
+      _historyResult = filters.result;
+      _historyContext = filters.context;
+      _historyPositionFilter = filters.position;
+      _historyTechniqueFilter = filters.technique;
+      _resetHistoryWindow();
+    });
+  }
+
+  Future<void> _showHistoryFilters(
+    List<_TrainingSessionViewModel> items,
+  ) async {
+    final filters = await showModalBottomSheet<_TrainingHistoryFilters>(
+      context: context,
+      isScrollControlled: true,
+      builder:
+          (context) => _TrainingHistoryFilterSheet(
+            initial: _TrainingHistoryFilters(
+              period: _historyPeriod,
+              result: _historyResult,
+              context: _historyContext,
+              position: _historyPositionFilter,
+              technique: _historyTechniqueFilter,
+            ),
+            positions: _historyFilterValues(
+              items.expand((item) => item.positions),
+            ),
+            techniques: _historyFilterValues(
+              items.expand((item) => item.techniqueNames),
+            ),
+          ),
+    );
+
+    if (filters == null || !mounted) return;
+    _applyHistoryFilters(filters);
+  }
+
+  List<_TrainingSessionViewModel> _historyItemsFor(
+    List<TrainingSession> sessions,
+  ) {
+    if (identical(_historySessionsSource, sessions)) {
+      return _historyItemsCache;
+    }
+
+    final sorted = List<TrainingSession>.from(sessions)
+      ..sort((a, b) => b.date.compareTo(a.date));
+    _historySessionsSource = sessions;
+    _historyItemsCache = List<_TrainingSessionViewModel>.unmodifiable(
+      sorted.map(_TrainingSessionViewModel.fromSession),
+    );
+    return _historyItemsCache;
+  }
 
   void _syncStream({required String academyId, required String uid}) {
     if (_streamAcademyId == academyId && _streamUid == uid) return;
@@ -133,9 +222,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
             );
           }
 
-          final sessions = List<TrainingSession>.from(
-            snap.data ?? const <TrainingSession>[],
-          )..sort((a, b) => a.date.compareTo(b.date));
+          final rawSessions = snap.data ?? const <TrainingSession>[];
+          final sessions = List<TrainingSession>.from(rawSessions)
+            ..sort((a, b) => a.date.compareTo(b.date));
+          final historyItems = _historyItemsFor(rawSessions);
 
           final chart = _TrainingChartViewModel.from(
             sessions: sessions,
@@ -180,54 +270,80 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 title: 'Registros de treino',
                 subtitle:
                     '${_trainingCountLabel(sessions.length)} • $lastTrainingLabel',
-                child:
-                    sessions.isEmpty
-                        ? TitansEmptyState(
-                          icon: Icons.fitness_center_outlined,
-                          title: 'Sem treinos registrados',
-                          message:
-                              'Adicione uma sessão para iniciar o histórico.',
-                          compact: true,
-                          action:
-                              canEditTarget
-                                  ? FilledButton.icon(
-                                    onPressed:
-                                        () => _openTrainingForm(
-                                          academyId: academyId,
-                                          uid: uid,
-                                        ),
-                                    icon: const Icon(Icons.add),
-                                    label: const Text('Adicionar treino'),
-                                  )
-                                  : null,
-                        )
-                        : Column(
-                          children: [
-                            for (final s in sessions.reversed)
-                              Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: _TrainingSessionCard(
-                                  session: s,
-                                  canEdit: canEditTarget,
-                                  onEdit:
-                                      canEditTarget
-                                          ? () {
-                                            debugPrint(
-                                              '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                                              'target.uid=$uid canEditTarget=$canEditTarget '
-                                              'academyId=$academyId session.id=${s.id}',
-                                            );
-                                            return _openTrainingForm(
-                                              academyId: academyId,
-                                              uid: uid,
-                                              session: s,
-                                            );
-                                          }
-                                          : null,
-                                ),
-                              ),
-                          ],
-                        ),
+                child: _TrainingHistoryPanel(
+                  items: historyItems,
+                  searchController: _historySearchController,
+                  period: _historyPeriod,
+                  result: _historyResult,
+                  contextFilter: _historyContext,
+                  positionFilter: _historyPositionFilter,
+                  techniqueFilter: _historyTechniqueFilter,
+                  visibleCount: _visibleHistoryCount,
+                  expandedSessionId: _expandedSessionId,
+                  canEdit: canEditTarget,
+                  onOpenFilters: () => _showHistoryFilters(historyItems),
+                  onClearSearch: _historySearchController.clear,
+                  onClearPeriod: () {
+                    setState(() {
+                      _historyPeriod = _TrainingHistoryPeriodFilter.all;
+                      _resetHistoryWindow();
+                    });
+                  },
+                  onClearResult: () {
+                    setState(() {
+                      _historyResult = _TrainingHistoryResultFilter.all;
+                      _resetHistoryWindow();
+                    });
+                  },
+                  onClearContext: () {
+                    setState(() {
+                      _historyContext = _TrainingHistoryContextFilter.all;
+                      _resetHistoryWindow();
+                    });
+                  },
+                  onClearPosition: () {
+                    setState(() {
+                      _historyPositionFilter = null;
+                      _resetHistoryWindow();
+                    });
+                  },
+                  onClearTechnique: () {
+                    setState(() {
+                      _historyTechniqueFilter = null;
+                      _resetHistoryWindow();
+                    });
+                  },
+                  onLoadMore: () {
+                    setState(() => _visibleHistoryCount += 20);
+                  },
+                  onToggle: (item) {
+                    setState(() {
+                      _expandedSessionId =
+                          _expandedSessionId == item.id ? null : item.id;
+                    });
+                  },
+                  onEdit:
+                      canEditTarget
+                          ? (item) {
+                            final session = item.session;
+                            debugPrint(
+                              '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                              'target.uid=$uid canEditTarget=$canEditTarget '
+                              'academyId=$academyId session.id=${session.id}',
+                            );
+                            return _openTrainingForm(
+                              academyId: academyId,
+                              uid: uid,
+                              session: session,
+                            );
+                          }
+                          : null,
+                  onAddTraining:
+                      canEditTarget
+                          ? () =>
+                              _openTrainingForm(academyId: academyId, uid: uid)
+                          : null,
+                ),
               ),
             ],
           );
@@ -299,8 +415,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
     var applicationCount = 0;
 
     for (final session in sessions) {
-      final technique = _cleanDisplayText(session.technique);
-      if (technique != null) techniqueKeys.add(technique.toLowerCase());
+      for (final entry in session.effectiveTechniqueEntries) {
+        final technique = _cleanDisplayText(entry.technique);
+        if (technique != null) techniqueKeys.add(technique.toLowerCase());
+      }
 
       final intensity = session.intensity;
       if (intensity != null && intensity >= 1 && intensity <= 5) {
@@ -308,10 +426,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
         intensityCount++;
       }
 
-      if (TrainingSession.isApplicationContextMeasured(
-            session.applicationContext,
-          ) ||
-          TrainingSession.isTechniqueOutcomeUseful(session.techniqueOutcome)) {
+      if (_sessionHasMeasuredApplication(session)) {
         applicationCount++;
       }
     }
@@ -598,13 +713,916 @@ class _PeriodChip extends StatelessWidget {
   }
 }
 
-class _TrainingSessionCard extends StatelessWidget {
+bool _sessionHasMeasuredApplication(TrainingSession session) {
+  for (final entry in session.effectiveTechniqueEntries) {
+    final applicationContext =
+        _cleanDisplayText(entry.applicationContext) ??
+        _cleanDisplayText(session.applicationContext);
+    final techniqueOutcome =
+        _cleanDisplayText(entry.techniqueOutcome) ??
+        _cleanDisplayText(session.techniqueOutcome);
+
+    if (TrainingSession.isApplicationContextMeasured(applicationContext) ||
+        TrainingSession.isTechniqueOutcomeUseful(techniqueOutcome)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+List<_TrainingTechniqueDisplayEntry> _trainingTechniqueDisplayEntries(
+  TrainingSession session,
+) {
+  return session.effectiveTechniqueEntries
+      .map((entry) {
+        final technique = _cleanDisplayText(entry.technique);
+        if (technique == null) return null;
+
+        final position =
+            _cleanDisplayText(entry.position) ??
+            _cleanDisplayText(session.position);
+        final applicationContext =
+            _cleanDisplayText(entry.applicationContext) ??
+            _cleanDisplayText(session.applicationContext);
+        final techniqueOutcome =
+            _cleanDisplayText(entry.techniqueOutcome) ??
+            _cleanDisplayText(session.techniqueOutcome);
+        final notes = _cleanDisplayText(entry.notes);
+
+        return _TrainingTechniqueDisplayEntry(
+          technique: technique,
+          position: position,
+          applicationContext: applicationContext,
+          techniqueOutcome: techniqueOutcome,
+          notes: notes,
+        );
+      })
+      .whereType<_TrainingTechniqueDisplayEntry>()
+      .toList();
+}
+
+class _TrainingTechniqueDisplayEntry {
+  final String technique;
+  final String? position;
+  final String? applicationContext;
+  final String? techniqueOutcome;
+  final String? notes;
+
+  const _TrainingTechniqueDisplayEntry({
+    required this.technique,
+    required this.position,
+    required this.applicationContext,
+    required this.techniqueOutcome,
+    required this.notes,
+  });
+
+  String get label {
+    final positionLabel = position;
+    if (positionLabel == null) return technique;
+    return '$technique em $positionLabel';
+  }
+}
+
+class _TrainingSessionViewModel {
   final TrainingSession session;
+  final String id;
+  final DateTime date;
+  final String dateLabel;
+  final String contextLabel;
+  final String summary;
+  final List<_TrainingTechniqueDisplayEntry> techniques;
+  final List<String> positions;
+  final List<String> techniqueNames;
+  final Set<String> positionKeys;
+  final Set<String> techniqueKeys;
+  final Set<_TrainingHistoryContextFilter> contextBuckets;
+  final _TrainingHistoryResultFilter resultBucket;
+  final String searchText;
+
+  const _TrainingSessionViewModel({
+    required this.session,
+    required this.id,
+    required this.date,
+    required this.dateLabel,
+    required this.contextLabel,
+    required this.summary,
+    required this.techniques,
+    required this.positions,
+    required this.techniqueNames,
+    required this.positionKeys,
+    required this.techniqueKeys,
+    required this.contextBuckets,
+    required this.resultBucket,
+    required this.searchText,
+  });
+
+  factory _TrainingSessionViewModel.fromSession(TrainingSession session) {
+    final techniques = List<_TrainingTechniqueDisplayEntry>.unmodifiable(
+      _trainingTechniqueDisplayEntries(session),
+    );
+    final dateLabel = _smartDateLabel(session.date);
+    final primaryNote = _primarySessionNote(session);
+    final summary =
+        primaryNote?.text ??
+        _cleanDisplayText(session.notes) ??
+        'Sem resumo informado';
+    final contextLabel = _sessionContextLabel(session, techniques);
+    final positions = _dedupeDisplayValues(
+      techniques.map((entry) => entry.position).whereType<String>(),
+    );
+    final techniqueNames = _dedupeDisplayValues(
+      techniques.map((entry) => entry.technique),
+    );
+    final searchParts = <String>[
+      dateLabel,
+      _placeLabel(session.place),
+      contextLabel,
+      summary,
+      if (session.notes != null) session.notes!,
+      if (session.successes != null) session.successes!,
+      if (session.difficulties != null) session.difficulties!,
+      if (session.debriefNotes != null) session.debriefNotes!,
+      for (final entry in techniques) ...[
+        entry.technique,
+        if (entry.position != null) entry.position!,
+        if (entry.applicationContext != null)
+          TrainingAggregator.applicationContextLabel(
+                entry.applicationContext,
+              ) ??
+              entry.applicationContext!,
+        if (entry.techniqueOutcome != null)
+          TrainingAggregator.techniqueOutcomeLabel(entry.techniqueOutcome) ??
+              entry.techniqueOutcome!,
+        if (entry.notes != null) entry.notes!,
+      ],
+    ];
+
+    return _TrainingSessionViewModel(
+      session: session,
+      id: session.id,
+      date: session.date,
+      dateLabel: dateLabel,
+      contextLabel: contextLabel,
+      summary: summary,
+      techniques: techniques,
+      positions: positions,
+      techniqueNames: techniqueNames,
+      positionKeys: positions.map(_historyKey).toSet(),
+      techniqueKeys: techniqueNames.map(_historyKey).toSet(),
+      contextBuckets: _contextBucketsFor(session, techniques),
+      resultBucket: _resultBucketFor(techniques),
+      searchText: searchParts.map(_historyKey).join(' '),
+    );
+  }
+
+  int get techniqueCount => techniques.length;
+
+  String get techniqueCountLabel {
+    if (techniqueCount == 0) return 'Sem tecnica';
+    return TrainingAggregator.techniqueCountLabel(techniqueCount);
+  }
+}
+
+class _TrainingHistoryPanel extends StatelessWidget {
+  final List<_TrainingSessionViewModel> items;
+  final TextEditingController searchController;
+  final _TrainingHistoryPeriodFilter period;
+  final _TrainingHistoryResultFilter result;
+  final _TrainingHistoryContextFilter contextFilter;
+  final String? positionFilter;
+  final String? techniqueFilter;
+  final int visibleCount;
+  final String? expandedSessionId;
   final bool canEdit;
+  final VoidCallback onOpenFilters;
+  final VoidCallback onClearSearch;
+  final VoidCallback onClearPeriod;
+  final VoidCallback onClearResult;
+  final VoidCallback onClearContext;
+  final VoidCallback onClearPosition;
+  final VoidCallback onClearTechnique;
+  final VoidCallback onLoadMore;
+  final ValueChanged<_TrainingSessionViewModel> onToggle;
+  final Future<void> Function(_TrainingSessionViewModel item)? onEdit;
+  final Future<void> Function()? onAddTraining;
+
+  const _TrainingHistoryPanel({
+    required this.items,
+    required this.searchController,
+    required this.period,
+    required this.result,
+    required this.contextFilter,
+    required this.positionFilter,
+    required this.techniqueFilter,
+    required this.visibleCount,
+    required this.expandedSessionId,
+    required this.canEdit,
+    required this.onOpenFilters,
+    required this.onClearSearch,
+    required this.onClearPeriod,
+    required this.onClearResult,
+    required this.onClearContext,
+    required this.onClearPosition,
+    required this.onClearTechnique,
+    required this.onLoadMore,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onAddTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final filtered = _filteredItems();
+    final visible = filtered.take(visibleCount).toList(growable: false);
+    final query = searchController.text.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  labelText: 'Buscar treino',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon:
+                      query.isEmpty
+                          ? null
+                          : IconButton(
+                            tooltip: 'Limpar busca',
+                            onPressed: onClearSearch,
+                            icon: const Icon(Icons.close),
+                          ),
+                  isDense: true,
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              tooltip: 'Filtros',
+              onPressed: onOpenFilters,
+              icon: const Icon(Icons.tune),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        _TrainingHistoryActiveFilters(
+          query: query,
+          period: period,
+          result: result,
+          contextFilter: contextFilter,
+          positionFilter: positionFilter,
+          techniqueFilter: techniqueFilter,
+          onClearSearch: onClearSearch,
+          onClearPeriod: onClearPeriod,
+          onClearResult: onClearResult,
+          onClearContext: onClearContext,
+          onClearPosition: onClearPosition,
+          onClearTechnique: onClearTechnique,
+        ),
+        const SizedBox(height: 10),
+        Text(
+          '${filtered.length} treinos encontrados',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.68),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 12),
+        if (items.isEmpty)
+          TitansEmptyState(
+            icon: Icons.fitness_center_outlined,
+            title: 'Sem treinos registrados',
+            message: 'Adicione uma sessao para iniciar o historico.',
+            compact: true,
+            action:
+                canEdit
+                    ? FilledButton.icon(
+                      onPressed: onAddTraining,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Adicionar treino'),
+                    )
+                    : null,
+          )
+        else if (filtered.isEmpty)
+          const TitansEmptyState(
+            icon: Icons.filter_alt_off_outlined,
+            title: 'Nenhum treino encontrado com esses filtros.',
+            message: 'Ajuste a busca ou remova algum filtro ativo.',
+            compact: true,
+          )
+        else ...[
+          for (final item in visible)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _TrainingSessionCard(
+                item: item,
+                expanded: expandedSessionId == item.id,
+                canEdit: canEdit,
+                onToggle: () => onToggle(item),
+                onEdit: onEdit == null ? null : () => onEdit!(item),
+              ),
+            ),
+          if (filtered.length > visible.length)
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: onLoadMore,
+                icon: const Icon(Icons.expand_more),
+                label: Text(
+                  'Carregar mais (${filtered.length - visible.length})',
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  List<_TrainingSessionViewModel> _filteredItems() {
+    final query = _historyKey(searchController.text);
+    final now = DateTime.now();
+    return items
+        .where((item) {
+          if (query.isNotEmpty && !item.searchText.contains(query)) {
+            return false;
+          }
+          if (!_matchesPeriod(item.date, period, now)) return false;
+          if (result != _TrainingHistoryResultFilter.all &&
+              item.resultBucket != result) {
+            return false;
+          }
+          if (contextFilter != _TrainingHistoryContextFilter.all &&
+              !item.contextBuckets.contains(contextFilter)) {
+            return false;
+          }
+          final position = positionFilter;
+          if (position != null &&
+              !item.positionKeys.contains(_historyKey(position))) {
+            return false;
+          }
+          final technique = techniqueFilter;
+          if (technique != null &&
+              !item.techniqueKeys.contains(_historyKey(technique))) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
+  }
+}
+
+class _TrainingHistoryActiveFilters extends StatelessWidget {
+  final String query;
+  final _TrainingHistoryPeriodFilter period;
+  final _TrainingHistoryResultFilter result;
+  final _TrainingHistoryContextFilter contextFilter;
+  final String? positionFilter;
+  final String? techniqueFilter;
+  final VoidCallback onClearSearch;
+  final VoidCallback onClearPeriod;
+  final VoidCallback onClearResult;
+  final VoidCallback onClearContext;
+  final VoidCallback onClearPosition;
+  final VoidCallback onClearTechnique;
+
+  const _TrainingHistoryActiveFilters({
+    required this.query,
+    required this.period,
+    required this.result,
+    required this.contextFilter,
+    required this.positionFilter,
+    required this.techniqueFilter,
+    required this.onClearSearch,
+    required this.onClearPeriod,
+    required this.onClearResult,
+    required this.onClearContext,
+    required this.onClearPosition,
+    required this.onClearTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final chips = <Widget>[
+      if (query.isNotEmpty)
+        _ActiveHistoryChip(label: 'Busca: $query', onDeleted: onClearSearch),
+      if (period != _TrainingHistoryPeriodFilter.all)
+        _ActiveHistoryChip(label: period.label, onDeleted: onClearPeriod),
+      if (result != _TrainingHistoryResultFilter.all)
+        _ActiveHistoryChip(label: result.label, onDeleted: onClearResult),
+      if (contextFilter != _TrainingHistoryContextFilter.all)
+        _ActiveHistoryChip(
+          label: contextFilter.label,
+          onDeleted: onClearContext,
+        ),
+      if (positionFilter != null)
+        _ActiveHistoryChip(label: positionFilter!, onDeleted: onClearPosition),
+      if (techniqueFilter != null)
+        _ActiveHistoryChip(
+          label: techniqueFilter!,
+          onDeleted: onClearTechnique,
+        ),
+    ];
+
+    if (chips.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+    );
+  }
+}
+
+class _ActiveHistoryChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onDeleted;
+
+  const _ActiveHistoryChip({required this.label, required this.onDeleted});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return InputChip(
+      label: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+      onDeleted: onDeleted,
+      deleteIcon: const Icon(Icons.close, size: 16),
+      visualDensity: VisualDensity.compact,
+      backgroundColor: cs.primary.withValues(alpha: 0.10),
+      side: BorderSide(color: cs.primary.withValues(alpha: 0.22)),
+      labelStyle: TextStyle(color: cs.primary, fontWeight: FontWeight.w800),
+    );
+  }
+}
+
+class _TrainingHistoryFilterSheet extends StatefulWidget {
+  final _TrainingHistoryFilters initial;
+  final List<String> positions;
+  final List<String> techniques;
+
+  const _TrainingHistoryFilterSheet({
+    required this.initial,
+    required this.positions,
+    required this.techniques,
+  });
+
+  @override
+  State<_TrainingHistoryFilterSheet> createState() =>
+      _TrainingHistoryFilterSheetState();
+}
+
+class _TrainingHistoryFilterSheetState
+    extends State<_TrainingHistoryFilterSheet> {
+  late _TrainingHistoryPeriodFilter _period = widget.initial.period;
+  late _TrainingHistoryResultFilter _result = widget.initial.result;
+  late _TrainingHistoryContextFilter _contextFilter = widget.initial.context;
+  late String? _positionFilter = widget.initial.position;
+  late String? _techniqueFilter = widget.initial.technique;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.only(
+          left: 16,
+          right: 16,
+          top: 14,
+          bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Filtros',
+                      style: TextStyle(
+                        color: cs.onSurface,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Fechar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _FilterGroup(
+                title: 'Periodo',
+                children: [
+                  for (final option in _TrainingHistoryPeriodFilter.values)
+                    _filterChoice(
+                      label: option.label,
+                      selected: _period == option,
+                      onSelected: () => setState(() => _period = option),
+                    ),
+                ],
+              ),
+              _FilterGroup(
+                title: 'Resultado',
+                children: [
+                  for (final option in _TrainingHistoryResultFilter.values)
+                    _filterChoice(
+                      label: option.label,
+                      selected: _result == option,
+                      onSelected: () => setState(() => _result = option),
+                    ),
+                ],
+              ),
+              _FilterGroup(
+                title: 'Tipo/contexto',
+                children: [
+                  for (final option in _TrainingHistoryContextFilter.values)
+                    _filterChoice(
+                      label: option.label,
+                      selected: _contextFilter == option,
+                      onSelected: () => setState(() => _contextFilter = option),
+                    ),
+                ],
+              ),
+              _filterDropdown(
+                label: 'Posicao',
+                value: _positionFilter,
+                values: widget.positions,
+                onChanged: (value) => setState(() => _positionFilter = value),
+              ),
+              const SizedBox(height: 10),
+              _filterDropdown(
+                label: 'Tecnica',
+                value: _techniqueFilter,
+                values: widget.techniques,
+                onChanged: (value) => setState(() => _techniqueFilter = value),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _period = _TrainingHistoryPeriodFilter.all;
+                        _result = _TrainingHistoryResultFilter.all;
+                        _contextFilter = _TrainingHistoryContextFilter.all;
+                        _positionFilter = null;
+                        _techniqueFilter = null;
+                      });
+                    },
+                    child: const Text('Limpar filtros'),
+                  ),
+                  const Spacer(),
+                  FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _TrainingHistoryFilters(
+                          period: _period,
+                          result: _result,
+                          context: _contextFilter,
+                          position: _positionFilter,
+                          technique: _techniqueFilter,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.check),
+                    label: const Text('Aplicar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChoice({
+    required String label,
+    required bool selected,
+    required VoidCallback onSelected,
+  }) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      showCheckmark: false,
+    );
+  }
+
+  Widget _filterDropdown({
+    required String label,
+    required String? value,
+    required List<String> values,
+    required ValueChanged<String?> onChanged,
+  }) {
+    return DropdownButtonFormField<String?>(
+      initialValue: value,
+      isExpanded: true,
+      decoration: InputDecoration(
+        labelText: label,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      items: [
+        const DropdownMenuItem<String?>(value: null, child: Text('Todos')),
+        for (final item in values)
+          DropdownMenuItem<String?>(value: item, child: Text(item)),
+      ],
+      onChanged: onChanged,
+    );
+  }
+}
+
+class _FilterGroup extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
+
+  const _FilterGroup({required this.title, required this.children});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(spacing: 8, runSpacing: 8, children: children),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrainingHistoryFilters {
+  final _TrainingHistoryPeriodFilter period;
+  final _TrainingHistoryResultFilter result;
+  final _TrainingHistoryContextFilter context;
+  final String? position;
+  final String? technique;
+
+  const _TrainingHistoryFilters({
+    required this.period,
+    required this.result,
+    required this.context,
+    required this.position,
+    required this.technique,
+  });
+}
+
+enum _TrainingHistoryPeriodFilter { sevenDays, thirtyDays, threeMonths, all }
+
+enum _TrainingHistoryResultFilter { all, worked, partial, review, none }
+
+enum _TrainingHistoryContextFilter {
+  all,
+  academy,
+  home,
+  sparring,
+  drill,
+  competition,
+}
+
+extension _TrainingHistoryPeriodFilterLabel on _TrainingHistoryPeriodFilter {
+  String get label {
+    switch (this) {
+      case _TrainingHistoryPeriodFilter.sevenDays:
+        return '7 dias';
+      case _TrainingHistoryPeriodFilter.thirtyDays:
+        return '30 dias';
+      case _TrainingHistoryPeriodFilter.threeMonths:
+        return '3 meses';
+      case _TrainingHistoryPeriodFilter.all:
+        return 'Todos';
+    }
+  }
+}
+
+extension _TrainingHistoryResultFilterLabel on _TrainingHistoryResultFilter {
+  String get label {
+    switch (this) {
+      case _TrainingHistoryResultFilter.all:
+        return 'Todos';
+      case _TrainingHistoryResultFilter.worked:
+        return 'Funcionou';
+      case _TrainingHistoryResultFilter.partial:
+        return 'Parcial';
+      case _TrainingHistoryResultFilter.review:
+        return 'Revisar';
+      case _TrainingHistoryResultFilter.none:
+        return 'Sem resultado';
+    }
+  }
+}
+
+extension _TrainingHistoryContextFilterLabel on _TrainingHistoryContextFilter {
+  String get label {
+    switch (this) {
+      case _TrainingHistoryContextFilter.all:
+        return 'Todos';
+      case _TrainingHistoryContextFilter.academy:
+        return 'Academia';
+      case _TrainingHistoryContextFilter.home:
+        return 'Casa';
+      case _TrainingHistoryContextFilter.sparring:
+        return 'Rola';
+      case _TrainingHistoryContextFilter.drill:
+        return 'Drill';
+      case _TrainingHistoryContextFilter.competition:
+        return 'Competicao';
+    }
+  }
+}
+
+class _TrainingSessionCard extends StatelessWidget {
+  final _TrainingSessionViewModel item;
+  final bool expanded;
+  final bool canEdit;
+  final VoidCallback onToggle;
   final Future<void> Function()? onEdit;
 
   const _TrainingSessionCard({
+    required this.item,
+    required this.expanded,
+    required this.canEdit,
+    required this.onToggle,
+    required this.onEdit,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final session = item.session;
+
+    return glassCard(
+      context,
+      InkWell(
+        borderRadius: BorderRadius.circular(TitansUI.radius),
+        onTap: onToggle,
+        child: Padding(
+          padding: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          item.dateLabel.toUpperCase(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.62),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          item.contextLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: expanded ? 'Ocultar detalhes' : 'Ver detalhes',
+                    onPressed: onToggle,
+                    icon: AnimatedRotation(
+                      turns: expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      child: const Icon(Icons.keyboard_arrow_down),
+                    ),
+                  ),
+                  if (canEdit)
+                    PopupMenuButton<String>(
+                      tooltip: 'Opcoes do treino',
+                      padding: EdgeInsets.zero,
+                      onSelected: (_) => onEdit?.call(),
+                      itemBuilder:
+                          (_) => const [
+                            PopupMenuItem(
+                              value: 'edit',
+                              child: Text('Editar treino'),
+                            ),
+                          ],
+                      icon: const Icon(Icons.more_vert, size: 20),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _TrainingActionChip(
+                    label: item.techniqueCountLabel,
+                    color: cs.secondary,
+                  ),
+                  if (session.intensity != null)
+                    _TrainingActionChip(
+                      label: 'Intensidade ${session.intensity}/5',
+                      color: TitansUI.warning,
+                    ),
+                  if (session.scores.isNotEmpty)
+                    _TrainingActionChip(
+                      label: 'Notas: ${session.scores.length}',
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                    ),
+                ],
+              ),
+              if (item.techniques.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final entry in item.techniques.take(3))
+                      _TrainingActionChip(
+                        label: entry.technique,
+                        color: cs.primary,
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 10),
+              Text(
+                item.summary,
+                maxLines: expanded ? 3 : 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.78),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: onToggle,
+                  icon: Icon(
+                    expanded ? Icons.keyboard_arrow_up : Icons.article_outlined,
+                    size: 18,
+                  ),
+                  label: Text(expanded ? 'Ocultar detalhes' : 'Ver detalhes'),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                  ),
+                ),
+              ),
+              if (expanded)
+                _TrainingSessionDetails(
+                  session: session,
+                  techniques: item.techniques,
+                  canEdit: canEdit,
+                  onEdit: onEdit,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingSessionDetails extends StatelessWidget {
+  final TrainingSession session;
+  final List<_TrainingTechniqueDisplayEntry> techniques;
+  final bool canEdit;
+  final Future<void> Function()? onEdit;
+
+  const _TrainingSessionDetails({
     required this.session,
+    required this.techniques,
     required this.canEdit,
     required this.onEdit,
   });
@@ -612,142 +1630,245 @@ class _TrainingSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final technique =
-        _cleanDisplayText(session.technique) ?? 'Treino registrado';
-    final position = _cleanDisplayText(session.position);
-    final application = TrainingAggregator.applicationContextLabel(
-      session.applicationContext,
-    );
-    final outcome = TrainingAggregator.techniqueOutcomeLabel(
-      session.techniqueOutcome,
-    );
     final primaryNote = _primarySessionNote(session);
 
-    return glassCard(
-      context,
-      InkWell(
-        borderRadius: BorderRadius.circular(TitansUI.radius),
-        onTap: canEdit && onEdit != null ? () => onEdit!.call() : null,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    _smartDateLabel(session.date).toUpperCase(),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.62),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-                if (canEdit)
-                  PopupMenuButton<String>(
-                    tooltip: 'Op\u00e7\u00f5es do treino',
-                    padding: EdgeInsets.zero,
-                    onSelected: (_) => onEdit?.call(),
-                    itemBuilder:
-                        (_) => const [
-                          PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Editar treino'),
-                          ),
-                        ],
-                    icon: const Icon(Icons.more_vert, size: 20),
-                  ),
-              ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Divider(color: cs.onSurface.withValues(alpha: 0.10)),
+        if (techniques.isEmpty)
+          Text(
+            'Nenhuma tecnica informada.',
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.68)),
+          )
+        else
+          for (var i = 0; i < techniques.length; i++) ...[
+            _TrainingTechniqueDetail(entry: techniques[i]),
+            if (i != techniques.length - 1) const SizedBox(height: 10),
+          ],
+        if (primaryNote != null) ...[
+          const SizedBox(height: 12),
+          Text(
+            primaryNote.label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
             ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            primaryNote.text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.82)),
+          ),
+        ],
+        if (canEdit) ...[
+          const SizedBox(height: 8),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onEdit == null ? null : () => onEdit!.call(),
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              label: const Text('Editar treino'),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _TrainingTechniqueDetail extends StatelessWidget {
+  final _TrainingTechniqueDisplayEntry entry;
+
+  const _TrainingTechniqueDetail({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final contextLabel = TrainingAggregator.applicationContextLabel(
+      entry.applicationContext,
+    );
+    final outcomeLabel = TrainingAggregator.techniqueOutcomeLabel(
+      entry.techniqueOutcome,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.20),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            entry.technique,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _TrainingActionChip(
+                label: entry.position ?? 'Posicao nao informada',
+                color: cs.primary,
+              ),
+              if (contextLabel != null)
+                _TrainingActionChip(label: contextLabel, color: TitansUI.info),
+              if (outcomeLabel != null)
+                _TrainingActionChip(
+                  label: outcomeLabel,
+                  color: _outcomeColor(outcomeLabel),
+                ),
+            ],
+          ),
+          if (entry.notes != null) ...[
             const SizedBox(height: 8),
             Text(
-              technique,
-              maxLines: 1,
+              entry.notes!,
+              maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.78)),
             ),
-            if (position != null) ...[
-              const SizedBox(height: 3),
-              Text(
-                position,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.72),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _TrainingActionChip(
-                  label: _placeLabel(session.place),
-                  color: cs.primary,
-                ),
-                if (session.intensity != null)
-                  _TrainingActionChip(
-                    label: 'Intensidade ${session.intensity}/5',
-                    color: TitansUI.warning,
-                  ),
-                if (application != null)
-                  _TrainingActionChip(label: application, color: TitansUI.info),
-                if (outcome != null)
-                  _TrainingActionChip(
-                    label: outcome,
-                    color: _outcomeColor(outcome),
-                  ),
-                if (session.scores.isNotEmpty)
-                  _TrainingActionChip(
-                    label: 'Notas: ${session.scores.length}',
-                    color: cs.onSurface.withValues(alpha: 0.62),
-                  ),
-              ],
-            ),
-            if (primaryNote != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                primaryNote.label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.58),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                primaryNote.text,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: cs.onSurface.withValues(alpha: 0.82)),
-              ),
-            ],
-            if (canEdit) ...[
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: onEdit == null ? null : () => onEdit!.call(),
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: const Text('Detalhes'),
-                  style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                  ),
-                ),
-              ),
-            ],
           ],
-        ),
+        ],
       ),
     );
   }
+}
+
+List<String> _historyFilterValues(Iterable<String> values) {
+  final deduped = _dedupeDisplayValues(values);
+  return List<String>.from(deduped)
+    ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+}
+
+List<String> _dedupeDisplayValues(Iterable<String> values) {
+  final byKey = <String, String>{};
+  for (final value in values) {
+    final clean = _cleanDisplayText(value);
+    if (clean == null) continue;
+    byKey.putIfAbsent(_historyKey(clean), () => clean);
+  }
+  return List<String>.unmodifiable(byKey.values);
+}
+
+String _historyKey(String value) {
+  return value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
+}
+
+Set<_TrainingHistoryContextFilter> _contextBucketsFor(
+  TrainingSession session,
+  List<_TrainingTechniqueDisplayEntry> techniques,
+) {
+  final buckets = <_TrainingHistoryContextFilter>{};
+  switch (session.place) {
+    case TrainingPlace.academy:
+      buckets.add(_TrainingHistoryContextFilter.academy);
+      break;
+    case TrainingPlace.home:
+      buckets.add(_TrainingHistoryContextFilter.home);
+      break;
+    case TrainingPlace.other:
+      break;
+  }
+
+  for (final entry in techniques) {
+    switch (entry.applicationContext) {
+      case TrainingSession.applicationContextDrill:
+        buckets.add(_TrainingHistoryContextFilter.drill);
+        break;
+      case TrainingSession.applicationContextPositionalSparring:
+      case TrainingSession.applicationContextSparring:
+        buckets.add(_TrainingHistoryContextFilter.sparring);
+        break;
+      case TrainingSession.applicationContextCompetition:
+        buckets.add(_TrainingHistoryContextFilter.competition);
+        break;
+    }
+  }
+
+  return buckets;
+}
+
+_TrainingHistoryResultFilter _resultBucketFor(
+  List<_TrainingTechniqueDisplayEntry> techniques,
+) {
+  var hasPartial = false;
+  var hasReview = false;
+
+  for (final entry in techniques) {
+    switch (entry.techniqueOutcome) {
+      case TrainingSession.techniqueOutcomeWorked:
+        return _TrainingHistoryResultFilter.worked;
+      case TrainingSession.techniqueOutcomeAlmost:
+        hasPartial = true;
+        break;
+      case TrainingSession.techniqueOutcomeFailed:
+      case TrainingSession.techniqueOutcomeDefended:
+        hasReview = true;
+        break;
+    }
+  }
+
+  if (hasPartial) return _TrainingHistoryResultFilter.partial;
+  if (hasReview) return _TrainingHistoryResultFilter.review;
+  return _TrainingHistoryResultFilter.none;
+}
+
+bool _matchesPeriod(
+  DateTime date,
+  _TrainingHistoryPeriodFilter period,
+  DateTime now,
+) {
+  final day = _dateOnly(date);
+  final today = _dateOnly(now);
+  final start = switch (period) {
+    _TrainingHistoryPeriodFilter.sevenDays => today.subtract(
+      const Duration(days: 6),
+    ),
+    _TrainingHistoryPeriodFilter.thirtyDays => today.subtract(
+      const Duration(days: 29),
+    ),
+    _TrainingHistoryPeriodFilter.threeMonths => DateTime(
+      today.year,
+      today.month - 2,
+      1,
+    ),
+    _TrainingHistoryPeriodFilter.all => null,
+  };
+
+  if (start == null) return true;
+  return !day.isBefore(start) && !day.isAfter(today);
+}
+
+String _sessionContextLabel(
+  TrainingSession session,
+  List<_TrainingTechniqueDisplayEntry> techniques,
+) {
+  final place = _placeLabel(session.place);
+
+  for (final entry in techniques) {
+    final context = TrainingAggregator.applicationContextLabel(
+      entry.applicationContext,
+    );
+    if (context != null) return '$place - $context';
+  }
+
+  return place;
 }
 
 class _PrimarySessionNote {
@@ -849,6 +1970,8 @@ class _TrainingActionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxWidth = MediaQuery.sizeOf(context).width < 420 ? 220.0 : 320.0;
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
@@ -858,11 +1981,14 @@ class _TrainingActionChip extends StatelessWidget {
         border: Border.all(color: color.withValues(alpha: 0.22)),
         color: color.withValues(alpha: 0.08),
       ),
-      child: Text(
-        label,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: color, fontWeight: FontWeight.w700),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: maxWidth),
+        child: Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: color, fontWeight: FontWeight.w700),
+        ),
       ),
     );
   }

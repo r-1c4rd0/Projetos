@@ -195,10 +195,9 @@ class _HomeShellState extends State<HomeShell> {
     if (_isMaster(user)) {
       return <Widget>[
         const MasterPanelScreen(),
-       
+        const EventScreen(),
         const AttendanceScreen(),
         const AcademyScreen(),
-         const EventScreen(),
         // (Opcional)
         // ShoppingScreen(),
       ];
@@ -207,11 +206,10 @@ class _HomeShellState extends State<HomeShell> {
     // ✅ Aluno: fluxo completo com 5 tabs
     return const <Widget>[
       AthleteDashboardScreen(),
-      
+      EventScreen(),
       TrainingScreen(),
       ProgressScreen(),
       NutritionScreen(),
-      EventScreen(),
     ];
   }
 

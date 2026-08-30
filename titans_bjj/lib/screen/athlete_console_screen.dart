@@ -15,6 +15,7 @@ import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
 import 'progress_screen.dart';
+import 'skills_screen.dart';
 import 'training_screen.dart';
 
 class AthleteConsoleScreen extends StatelessWidget {
@@ -346,6 +347,22 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
               academyId: target.academyId,
               uid: target.uid,
               title: selectedMode ? 'Game Map do aluno' : 'Game Map',
+              targetName: null,
+              loggedUser: loggedUser,
+              embedded: true,
+            ),
+      ),
+      _ConsoleModule(
+        id: 'skills',
+        label: 'Skills',
+        shortLabel: 'Skills',
+        icon: Icons.psychology_alt_outlined,
+        description: 'Repertório técnico',
+        builder:
+            (context) => SkillsScreen(
+              academyId: target.academyId,
+              uid: target.uid,
+              title: selectedMode ? 'Skills do aluno' : 'Skills',
               targetName: null,
               loggedUser: loggedUser,
               embedded: true,

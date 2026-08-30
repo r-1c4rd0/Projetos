@@ -16,6 +16,8 @@ import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
+import 'skills_screen.dart';
+
 class GameMapScreen extends StatefulWidget {
   final String academyId;
   final String uid;
@@ -136,7 +138,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
           );
           final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
-          final skillSummary = _SkillMatrixSummaryViewModel.from(skillMatrix);
           final visualMap = _GameMapVisualViewModel.from(entries, skillMatrix);
           final rtcaEvidence = _RtcaEvidenceViewModel.from(
             sessions: sessions,
@@ -160,6 +161,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 const SizedBox(height: 12),
               ],
               _GameMapSummaryCard(stats: stats),
+              const SizedBox(height: 12),
+              _SkillsCtaCard(onPressed: () => _openSkillsScreen(actor)),
               const SizedBox(height: 12),
               StreamBuilder<List<CoachEvaluation>>(
                 stream: _coachEvaluationsStream,
@@ -244,26 +247,24 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 subtitle: rtcaEvidence.subtitle,
                 child: _RtcaEvidencePanel(viewModel: rtcaEvidence),
               ),
-              const SizedBox(height: 12),
-              TitansExpandableSection(
-                title: 'Resumo da Skill Matrix',
-                subtitle: skillSummary.subtitle,
-                initiallyExpanded: true,
-                child: _SkillMatrixVisualSummaryCard(viewModel: skillSummary),
-              ),
-              const SizedBox(height: 12),
-              TitansExpandableSection(
-                title: 'Explorar técnicas',
-                subtitle: _explorerSectionSummary(entries),
-                initiallyExpanded: true,
-                child: _GameMapExplorer(
-                  entries: entries,
-                  categories: skillMatrix,
-                ),
-              ),
             ],
           );
         },
+      ),
+    );
+  }
+
+  void _openSkillsScreen(AppUser? actor) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (context) => SkillsScreen(
+              academyId: widget.academyId,
+              uid: widget.uid,
+              title: 'Skills',
+              targetName: widget.targetName,
+              loggedUser: actor,
+            ),
       ),
     );
   }
@@ -357,30 +358,30 @@ class _GameMapSummaryCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CompactHeader(title: 'RESUMO T\u00c9CNICO'),
+          const _CompactHeader(title: 'RESUMO DO GAME MAP'),
           const SizedBox(height: 12),
           Wrap(
             spacing: 10,
             runSpacing: 10,
             children: [
               _MetricPill(
-                label: 'TÉCNICAS',
-                value: stats.techniques.toString(),
+                label: 'POSIÇÕES',
+                value: stats.positions.toString(),
                 color: cs.primary,
               ),
               _MetricPill(
-                label: 'RECORRENTES',
-                value: stats.recurring.toString(),
+                label: 'RELAÇÕES',
+                value: stats.techniques.toString(),
                 color: Colors.lightGreenAccent,
               ),
               _MetricPill(
-                label: 'APLICAÇÕES +',
-                value: stats.positiveApplications.toString(),
+                label: 'EIXO BASE',
+                value: stats.dominantCategory ?? '-',
                 color: Colors.amber,
               ),
               _MetricPill(
-                label: 'SEM MEDIÇÃO',
-                value: stats.unmeasured.toString(),
+                label: 'CLASSIFICADAS',
+                value: stats.classifiedEvidence.toString(),
                 color: cs.onSurface.withValues(alpha: 0.58),
               ),
             ],
@@ -388,8 +389,8 @@ class _GameMapSummaryCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             stats.dominantCategory == null
-                ? 'Aguardando registros técnicos para montar o mapa.'
-                : 'Categoria mais recorrente: ${stats.dominantCategory}. ${stats.positions} posições mapeadas nos debriefs registrados.',
+                ? 'Aguardando registros técnicos para montar a visão do jogo.'
+                : 'Eixo predominante: ${stats.dominantCategory}. ${stats.techniques} relações técnicas em ${stats.positions} posições mapeadas.',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -398,6 +399,158 @@ class _GameMapSummaryCard extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _VisualCard extends StatelessWidget {
+  final Widget child;
+  final Color? accent;
+
+  const _VisualCard({required this.child, this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final glow = accent ?? cs.primary;
+
+    return TitansAnimatedSection(
+      child: TitansPressableCard(accent: glow, child: child),
+    );
+  }
+}
+
+class _CompactHeader extends StatelessWidget {
+  final String title;
+
+  const _CompactHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Text(
+      title,
+      style: TextStyle(
+        color: cs.onSurface.withValues(alpha: 0.75),
+        fontSize: 12,
+        fontWeight: FontWeight.w900,
+      ),
+    );
+  }
+}
+
+class _MetricPill extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+
+  const _MetricPill({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      curve: Curves.easeOutCubic,
+      constraints: const BoxConstraints(minWidth: 118, maxWidth: 156),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+        color: color.withValues(alpha: 0.08),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 10,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 18,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+class _SkillsCtaCard extends StatelessWidget {
+  final VoidCallback onPressed;
+
+  const _SkillsCtaCard({required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansCard(
+      accent: cs.primary,
+      padding: const EdgeInsets.all(14),
+      onTap: onPressed,
+      child: Row(
+        children: [
+          Container(
+            width: 38,
+            height: 38,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: cs.primary.withValues(alpha: 0.12),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
+            ),
+            child: Icon(Icons.psychology_alt_outlined, color: cs.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Ver repertório técnico',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  'Skills, posições e categorias em uma tela dedicada.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Icon(Icons.arrow_forward_rounded, color: cs.primary),
         ],
       ),
     );
@@ -1404,1026 +1557,6 @@ class _RtcaEvidenceCard extends StatelessWidget {
   }
 }
 
-class _SkillMatrixVisualSummaryCard extends StatelessWidget {
-  final _SkillMatrixSummaryViewModel viewModel;
-
-  const _SkillMatrixVisualSummaryCard({required this.viewModel});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return _VisualCard(
-      accent: cs.primary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CompactHeader(title: 'RESUMO DA SKILL MATRIX'),
-          const SizedBox(height: 8),
-          Text(
-            viewModel.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            viewModel.subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (viewModel.stats.isEmpty)
-            TitansEmptyState(
-              icon: Icons.grid_view_outlined,
-              title: 'Resumo t\u00e9cnico vazio',
-              message: viewModel.emptyStateLabel,
-              compact: true,
-            )
-          else ...[
-            Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final stat in viewModel.stats)
-                  _SkillMatrixSummaryStatPill(stat: stat),
-              ],
-            ),
-            if (viewModel.highlights.isNotEmpty) ...[
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  for (final highlight in viewModel.highlights)
-                    _SkillMatrixSummaryHighlightChip(highlight: highlight),
-                ],
-              ),
-            ],
-            if (viewModel.bars.isNotEmpty) ...[
-              const SizedBox(height: 14),
-              for (final bar in viewModel.bars) ...[
-                _SkillMatrixSummaryBarRow(bar: bar),
-                if (bar != viewModel.bars.last) const SizedBox(height: 10),
-              ],
-            ],
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SkillMatrixSummaryStatPill extends StatelessWidget {
-  final _SkillMatrixSummaryStat stat;
-
-  const _SkillMatrixSummaryStatPill({required this.stat});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = _skillSummaryColor(cs, stat.helper);
-
-    return Tooltip(
-      message: stat.helper,
-      child: Container(
-        constraints: const BoxConstraints(minWidth: 112, maxWidth: 168),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: color.withValues(alpha: 0.28)),
-          color: color.withValues(alpha: 0.08),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              stat.label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.62),
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              stat.value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: color,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SkillMatrixSummaryHighlightChip extends StatelessWidget {
-  final _SkillMatrixSummaryHighlight highlight;
-
-  const _SkillMatrixSummaryHighlightChip({required this.highlight});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Tooltip(
-      message: highlight.helper,
-      child: _MiniBadge(
-        label: '${highlight.label}: ${highlight.value}',
-        color: cs.secondary,
-      ),
-    );
-  }
-}
-
-class _SkillMatrixSummaryBarRow extends StatelessWidget {
-  final _SkillMatrixSummaryBar bar;
-
-  const _SkillMatrixSummaryBarRow({required this.bar});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = _skillSummaryBarColor(cs, bar.kind);
-
-    return Tooltip(
-      message: bar.helper,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  bar.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.86),
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Text(
-                bar.valueLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: Container(
-              height: 8,
-              width: double.infinity,
-              color: cs.onSurface.withValues(alpha: 0.08),
-              alignment: Alignment.centerLeft,
-              child: FractionallySizedBox(
-                widthFactor: bar.normalizedValue.clamp(0.0, 1.0),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.74),
-                    borderRadius: BorderRadius.circular(999),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-Color _skillSummaryColor(ColorScheme cs, String helper) {
-  if (helper.contains('recorr')) return Colors.lightGreenAccent;
-  if (helper.contains('Aplica')) return cs.secondary;
-  return cs.primary;
-}
-
-Color _skillSummaryBarColor(ColorScheme cs, String kind) {
-  switch (kind) {
-    case 'category':
-      return cs.primary;
-    case 'technique':
-      return cs.secondary;
-    default:
-      return Colors.lightGreenAccent;
-  }
-}
-
-String _explorerSectionSummary(List<GameMapEntry> entries) {
-  final techniquesCount = entries.fold<int>(
-    0,
-    (sum, entry) => sum + entry.techniques.length,
-  );
-  final positionsLabel = entries.length == 1 ? 'posição' : 'posições';
-  final techniquesLabel = techniquesCount == 1 ? 'técnica' : 'técnicas';
-  return '${entries.length} $positionsLabel • $techniquesCount $techniquesLabel';
-}
-
-enum _ExplorerMode { position, category }
-
-class _GameMapExplorer extends StatefulWidget {
-  final List<GameMapEntry> entries;
-  final List<SkillMatrixCategoryEntry> categories;
-
-  const _GameMapExplorer({required this.entries, required this.categories});
-
-  @override
-  State<_GameMapExplorer> createState() => _GameMapExplorerState();
-}
-
-class _GameMapExplorerState extends State<_GameMapExplorer> {
-  _ExplorerMode _mode = _ExplorerMode.position;
-  int? _openPositionIndex;
-  int? _openCategoryIndex;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final techniquesCount = widget.entries.fold<int>(
-      0,
-      (sum, entry) => sum + entry.techniques.length,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _MiniBadge(
-              label: '${widget.entries.length} posições',
-              color: cs.primary,
-            ),
-            _MiniBadge(label: '$techniquesCount técnicas', color: cs.secondary),
-          ],
-        ),
-        const SizedBox(height: 12),
-        _ExplorerModeSelector(
-          mode: _mode,
-          onChanged: (mode) {
-            setState(() {
-              _mode = mode;
-              _openPositionIndex = null;
-              _openCategoryIndex = null;
-            });
-          },
-        ),
-        const SizedBox(height: 12),
-        AnimatedSwitcher(
-          duration: const Duration(milliseconds: 180),
-          switchInCurve: Curves.easeOutCubic,
-          switchOutCurve: Curves.easeOutCubic,
-          child:
-              _mode == _ExplorerMode.position
-                  ? _PositionExplorerList(
-                    key: const ValueKey('position-explorer'),
-                    entries: widget.entries,
-                    openIndex: _openPositionIndex,
-                    onToggle: (index) {
-                      setState(() {
-                        _openPositionIndex =
-                            _openPositionIndex == index ? null : index;
-                      });
-                    },
-                  )
-                  : _CategoryExplorerList(
-                    key: const ValueKey('category-explorer'),
-                    categories: widget.categories,
-                    openIndex: _openCategoryIndex,
-                    onToggle: (index) {
-                      setState(() {
-                        _openCategoryIndex =
-                            _openCategoryIndex == index ? null : index;
-                      });
-                    },
-                  ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ExplorerModeSelector extends StatelessWidget {
-  final _ExplorerMode mode;
-  final ValueChanged<_ExplorerMode> onChanged;
-
-  const _ExplorerModeSelector({required this.mode, required this.onChanged});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    Widget option(_ExplorerMode value, String label, IconData icon) {
-      final selected = mode == value;
-      return Expanded(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: () => onChanged(value),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
-            curve: Curves.easeOutCubic,
-            constraints: const BoxConstraints(minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(
-                color:
-                    selected
-                        ? cs.primary.withValues(alpha: 0.42)
-                        : cs.onSurface.withValues(alpha: 0.1),
-              ),
-              color:
-                  selected
-                      ? cs.primary.withValues(alpha: 0.12)
-                      : cs.surfaceContainerHighest.withValues(alpha: 0.18),
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 16,
-                  color: selected ? cs.primary : cs.onSurface,
-                ),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    label,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: selected ? cs.primary : cs.onSurface,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        option(_ExplorerMode.position, 'Por posição', Icons.place_outlined),
-        const SizedBox(width: 8),
-        option(
-          _ExplorerMode.category,
-          'Por categoria',
-          Icons.category_outlined,
-        ),
-      ],
-    );
-  }
-}
-
-class _PositionExplorerList extends StatelessWidget {
-  final List<GameMapEntry> entries;
-  final int? openIndex;
-  final ValueChanged<int> onToggle;
-
-  const _PositionExplorerList({
-    super.key,
-    required this.entries,
-    required this.openIndex,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (entries.isEmpty) return const _EmptyGameMapCard();
-
-    return Column(
-      children: [
-        for (var i = 0; i < entries.length; i++) ...[
-          _ExplorerPositionRow(
-            entry: entries[i],
-            expanded: openIndex == i,
-            onTap: () => onToggle(i),
-          ),
-          if (i != entries.length - 1) const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _CategoryExplorerList extends StatelessWidget {
-  final List<SkillMatrixCategoryEntry> categories;
-  final int? openIndex;
-  final ValueChanged<int> onToggle;
-
-  const _CategoryExplorerList({
-    super.key,
-    required this.categories,
-    required this.openIndex,
-    required this.onToggle,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (categories.isEmpty) {
-      return const TitansEmptyState(
-        icon: Icons.grid_view_outlined,
-        title: 'Categorias vazias',
-        message: 'Registre técnicas nos debriefs para explorar por categoria.',
-        compact: true,
-      );
-    }
-
-    return Column(
-      children: [
-        for (var i = 0; i < categories.length; i++) ...[
-          _ExplorerCategoryRow(
-            entry: categories[i],
-            expanded: openIndex == i,
-            onTap: () => onToggle(i),
-          ),
-          if (i != categories.length - 1) const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _ExplorerPositionRow extends StatelessWidget {
-  final GameMapEntry entry;
-  final bool expanded;
-  final VoidCallback onTap;
-
-  const _ExplorerPositionRow({
-    required this.entry,
-    required this.expanded,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final preview = entry.techniques
-        .take(3)
-        .map((technique) => technique.technique)
-        .join(' • ');
-    final metadata = <String>[
-      '${entry.techniques.length} técnicas',
-      TrainingAggregator.sessionCountLabel(entry.sessionsCount),
-      'última ${_formatShortDate(entry.lastTrainedAt)}',
-    ].join(' • ');
-
-    return _ExplorerRowShell(
-      title: entry.position,
-      metadata: metadata,
-      preview: preview.isEmpty ? 'Sem técnicas registradas' : preview,
-      expanded: expanded,
-      onTap: onTap,
-      accent: cs.secondary,
-      child: _GameMapPositionCard(entry: entry),
-    );
-  }
-}
-
-class _ExplorerCategoryRow extends StatelessWidget {
-  final SkillMatrixCategoryEntry entry;
-  final bool expanded;
-  final VoidCallback onTap;
-
-  const _ExplorerCategoryRow({
-    required this.entry,
-    required this.expanded,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final intensity = entry.averageIntensity;
-    final metadata = <String>[
-      _skillCategorySubtitle(entry),
-      if (intensity != null) 'intensidade ${intensity.toStringAsFixed(1)}/5',
-    ].join(' • ');
-    final preview = entry.techniques
-        .take(3)
-        .map((technique) => technique.technique)
-        .join(' • ');
-
-    return _ExplorerRowShell(
-      title: entry.category.displayLabel,
-      metadata: metadata,
-      preview: preview.isEmpty ? 'Sem técnicas registradas' : preview,
-      expanded: expanded,
-      onTap: onTap,
-      accent: cs.primary,
-      child: _SkillMatrixCategoryBlock(entry: entry),
-    );
-  }
-}
-
-class _ExplorerRowShell extends StatelessWidget {
-  final String title;
-  final String metadata;
-  final String preview;
-  final bool expanded;
-  final VoidCallback onTap;
-  final Color accent;
-  final Widget child;
-
-  const _ExplorerRowShell({
-    required this.title,
-    required this.metadata,
-    required this.preview,
-    required this.expanded,
-    required this.onTap,
-    required this.accent,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: accent.withValues(alpha: 0.16)),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(14),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          metadata,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.62),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          preview,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.78),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Icon(
-                    expanded
-                        ? Icons.keyboard_arrow_up_rounded
-                        : Icons.keyboard_arrow_down_rounded,
-                    color: accent,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 180),
-            crossFadeState:
-                expanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: child,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-String _skillCategorySubtitle(SkillMatrixCategoryEntry entry) {
-  final techniques =
-      entry.techniquesCount == 1
-          ? '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registrada'
-          : '${TrainingAggregator.techniqueCountLabel(entry.techniquesCount)} registradas';
-  return '$techniques • ${entry.consistencyCount} recorrentes';
-}
-
-class _SkillMatrixCategoryBlock extends StatelessWidget {
-  final SkillMatrixCategoryEntry entry;
-
-  const _SkillMatrixCategoryBlock({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final visibleTechniques = entry.techniques.take(5).toList();
-    final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 2),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final technique in visibleTechniques) ...[
-            _SkillMatrixTechniqueRow(entry: technique),
-            if (technique != visibleTechniques.last) const SizedBox(height: 8),
-          ],
-          if (hiddenTechniques > 0) ...[
-            const SizedBox(height: 8),
-            _MiniBadge(
-              label: '+$hiddenTechniques técnicas nesta categoria',
-              color: cs.onSurface.withValues(alpha: 0.58),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _SkillMatrixTechniqueRow extends StatelessWidget {
-  final SkillMatrixTechniqueEntry entry;
-
-  const _SkillMatrixTechniqueRow({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final positive = _hasPositiveApplicationEvidence(entry);
-    final unmeasured = entry.application != true;
-    final accent = entry.consistent ? cs.secondary : cs.primary;
-    final metadata = <String>[
-      if ((entry.position ?? '').trim().isNotEmpty) entry.position!.trim(),
-      TrainingAggregator.sessionCountLabel(entry.sessionsCount),
-      'última ${_formatShortDate(entry.lastTrainedAt)}',
-      if (entry.averageIntensity != null)
-        'intensidade ${entry.averageIntensity!.toStringAsFixed(1)}/5',
-    ].join(' • ');
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: accent.withValues(alpha: 0.16)),
-        color: accent.withValues(alpha: 0.05),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          final details = Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                entry.technique,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                metadata,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 7),
-              Wrap(
-                spacing: 6,
-                runSpacing: 6,
-                children: [
-                  if (entry.consistent)
-                    _MiniBadge(label: 'recorrente', color: cs.secondary),
-                  if (positive)
-                    const _MiniBadge(
-                      label: 'resultado positivo',
-                      color: Colors.lightGreenAccent,
-                    ),
-                  if (unmeasured)
-                    _MiniBadge(
-                      label: 'sem medição',
-                      color: cs.onSurface.withValues(alpha: 0.52),
-                    ),
-                ],
-              ),
-            ],
-          );
-          final levels = SkillLevelDots(
-            registered: entry.knowledge,
-            trained: entry.drill,
-            consistent: entry.consistent,
-            applicationMeasured: entry.application == true,
-            applicationContext: entry.applicationContext,
-            techniqueOutcome: entry.techniqueOutcome,
-          );
-
-          if (constraints.maxWidth < 520) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [details, const SizedBox(height: 8), levels],
-            );
-          }
-
-          return Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(child: details),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Align(alignment: Alignment.topRight, child: levels),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EmptyGameMapCard extends StatelessWidget {
-  const _EmptyGameMapCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return const TitansEmptyState(
-      icon: Icons.account_tree_outlined,
-      title: 'Game Map vazio',
-      message:
-          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para montar o mapa.',
-      compact: true,
-    );
-  }
-}
-
-class _GameMapPositionCard extends StatelessWidget {
-  final GameMapEntry entry;
-
-  const _GameMapPositionCard({required this.entry});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final intensity = _averageEntryIntensity(entry);
-    final success = _firstShortText(
-      entry.techniques.map((technique) => technique.recentSuccess),
-      maxLength: 44,
-    );
-    final difficulty = _firstShortText(
-      entry.techniques.map((technique) => technique.recentDifficulty),
-      maxLength: 44,
-    );
-    final visibleTechniques = entry.techniques.take(6).toList();
-    final hiddenTechniques = entry.techniques.length - visibleTechniques.length;
-    final metadata = <String>[
-      TrainingAggregator.sessionCountLabel(entry.sessionsCount),
-      'última ${_formatShortDate(entry.lastTrainedAt)}',
-      if (intensity != null) 'intensidade ${intensity.toStringAsFixed(1)}/5',
-    ].join(' • ');
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          metadata,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: cs.onSurface.withValues(alpha: 0.64),
-            fontSize: 12,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 7,
-          runSpacing: 7,
-          children: [
-            for (final technique in visibleTechniques)
-              _TechniqueChip(
-                label: technique.technique,
-                count: technique.sessionsCount,
-              ),
-            if (hiddenTechniques > 0)
-              _MiniBadge(
-                label: '+$hiddenTechniques técnicas',
-                color: cs.onSurface.withValues(alpha: 0.58),
-              ),
-          ],
-        ),
-        if (success != null || difficulty != null) ...[
-          const SizedBox(height: 10),
-          Wrap(
-            spacing: 7,
-            runSpacing: 7,
-            children: [
-              if (success != null)
-                _MiniBadge(
-                  label: 'resultado positivo: $success',
-                  color: Colors.lightGreenAccent,
-                ),
-              if (difficulty != null)
-                _MiniBadge(label: 'atenção: $difficulty', color: cs.error),
-            ],
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _VisualCard extends StatelessWidget {
-  final Widget child;
-  final Color? accent;
-
-  const _VisualCard({required this.child, this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final glow = accent ?? cs.primary;
-
-    return TitansAnimatedSection(
-      child: TitansPressableCard(accent: glow, child: child),
-    );
-  }
-}
-
-class _CompactHeader extends StatelessWidget {
-  final String title;
-
-  const _CompactHeader({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Text(
-      title,
-      style: TextStyle(
-        color: cs.onSurface.withValues(alpha: 0.75),
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-      ),
-    );
-  }
-}
-
-class _MetricPill extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _MetricPill({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
-      constraints: const BoxConstraints(minWidth: 118, maxWidth: 156),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-        color: color.withValues(alpha: 0.08),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.62),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TechniqueChip extends StatelessWidget {
-  final String label;
-  final int count;
-
-  const _TechniqueChip({required this.label, required this.count});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final maxLabelWidth =
-        MediaQuery.sizeOf(context).width < 420 ? 150.0 : 220.0;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 160),
-      curve: Curves.easeOutCubic,
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.28)),
-        color: cs.primary.withValues(alpha: 0.08),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxLabelWidth),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.86)),
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            '$count',
-            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _MiniBadge extends StatelessWidget {
   final String label;
   final Color color;
@@ -2454,138 +1587,6 @@ class _MiniBadge extends StatelessWidget {
             color: cs.onSurface.withValues(alpha: 0.82),
             fontSize: 12,
             fontWeight: FontWeight.w800,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class SkillLevelDots extends StatelessWidget {
-  final bool registered;
-  final bool trained;
-  final bool consistent;
-  final bool applicationMeasured;
-  final String? applicationContext;
-  final String? techniqueOutcome;
-
-  const SkillLevelDots({
-    super.key,
-    required this.registered,
-    required this.trained,
-    required this.consistent,
-    required this.applicationMeasured,
-    required this.applicationContext,
-    required this.techniqueOutcome,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 6,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        _SkillStagePill(
-          label: 'Registrada',
-          description: 'T\u00e9cnica registrada em pelo menos um debrief.',
-          active: registered,
-          color: cs.primary,
-        ),
-        _SkillStagePill(
-          label: 'Treinada',
-          description:
-              'T\u00e9cnica apareceu em sess\u00e3o registrada; no MVP acompanha o registro.',
-          active: trained,
-          color: cs.secondary,
-        ),
-        _SkillStagePill(
-          label: 'Recorrente',
-          description: 'Aparece em 3 ou mais sess\u00f5es registradas.',
-          active: consistent,
-          color: Colors.lightGreenAccent,
-        ),
-        _SkillStagePill(
-          label: _applicationStageLabel(),
-          description:
-              applicationMeasured
-                  ? 'Aplica\u00e7\u00e3o registrada como evid\u00eancia auxiliar.'
-                  : 'Sem dados de rola/competi\u00e7\u00e3o nesta vers\u00e3o.',
-          active: applicationMeasured,
-          color: applicationMeasured ? Colors.lightGreenAccent : cs.onSurface,
-          neutral: !applicationMeasured,
-        ),
-      ],
-    );
-  }
-
-  String _applicationStageLabel() {
-    if (!applicationMeasured) {
-      return 'Aplica\u00e7\u00e3o ainda n\u00e3o medida';
-    }
-    final outcome =
-        TrainingAggregator.techniqueOutcomeLabel(techniqueOutcome) ??
-        'Aplica\u00e7\u00e3o medida';
-    final context = TrainingAggregator.applicationContextLabel(
-      applicationContext,
-    );
-    if (context == null) return outcome;
-    return '$outcome em $context';
-  }
-}
-
-class _SkillStagePill extends StatelessWidget {
-  final String label;
-  final String description;
-  final bool active;
-  final Color color;
-  final bool neutral;
-
-  const _SkillStagePill({
-    required this.label,
-    required this.description,
-    required this.active,
-    required this.color,
-    this.neutral = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final resolved = active ? color : cs.onSurface;
-    final alpha =
-        neutral
-            ? 0.42
-            : active
-            ? 0.9
-            : 0.56;
-
-    return Tooltip(
-      message: description,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 160),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          border: Border.all(
-            color: resolved.withValues(alpha: active ? 0.35 : 0.16),
-          ),
-          color: resolved.withValues(alpha: active ? 0.1 : 0.06),
-        ),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 180),
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: resolved.withValues(alpha: alpha),
-              fontSize: 12,
-              fontWeight: FontWeight.w900,
-            ),
           ),
         ),
       ),
@@ -2763,15 +1764,7 @@ class _RtcaEvidenceViewModel {
             .where((technique) => technique.sessionsCount >= 3)
             .length;
     final trainingDays = _recentTrainingDays(sessions, days: 84);
-    final applications =
-        sessions.where((session) {
-          return TrainingSession.isApplicationContextMeasured(
-                session.applicationContext,
-              ) &&
-              TrainingSession.isTechniqueOutcomeUseful(
-                session.techniqueOutcome,
-              );
-        }).length;
+    final applications = sessions.where(_hasMeasuredTechniqueApplication).length;
 
     return _RtcaEvidenceViewModel(
       title: 'Painel R/T/C/A',
@@ -2817,6 +1810,21 @@ class _RtcaEvidenceViewModel {
     );
   }
 
+  static bool _hasMeasuredTechniqueApplication(TrainingSession session) {
+    for (final entry in session.effectiveTechniqueEntries) {
+      final applicationContext =
+          entry.applicationContext ?? session.applicationContext;
+      final techniqueOutcome =
+          entry.techniqueOutcome ?? session.techniqueOutcome;
+
+      if (TrainingSession.isApplicationContextMeasured(applicationContext) &&
+          TrainingSession.isTechniqueOutcomeUseful(techniqueOutcome)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
   static int _recentTrainingDays(
     List<TrainingSession> sessions, {
     required int days,
@@ -3121,20 +2129,14 @@ SkillMatrixTechniqueEntry? _findSkillEntry(
 class _GameMapStats {
   final int positions;
   final int techniques;
-  final int recurring;
-  final int positiveApplications;
-  final int unmeasured;
   final String? dominantCategory;
-  final double? averageIntensity;
+  final int classifiedEvidence;
 
   const _GameMapStats({
     required this.positions,
     required this.techniques,
-    required this.recurring,
-    required this.positiveApplications,
-    required this.unmeasured,
     required this.dominantCategory,
-    required this.averageIntensity,
+    required this.classifiedEvidence,
   });
 
   factory _GameMapStats.from(
@@ -3152,264 +2154,28 @@ class _GameMapStats {
     return _GameMapStats(
       positions: entries.length,
       techniques: techniques.length,
-      recurring: techniques.where((entry) => entry.consistent).length,
-      positiveApplications:
-          techniques.where(_hasPositiveApplicationEvidence).length,
-      unmeasured: techniques.where((entry) => entry.application != true).length,
-      dominantCategory:
-          activeCategories.isEmpty
-              ? null
-              : activeCategories.first.category.label,
-      averageIntensity: _weightedGameMapIntensity(entries),
+      dominantCategory: _dominantTechnicalRadarAxisLabel(activeCategories),
+      classifiedEvidence: techniques
+          .where((entry) => entry.category != JiuJitsuSkillCategory.other)
+          .fold<int>(0, (sum, entry) => sum + entry.sessionsCount),
     );
   }
 }
 
-double? _weightedGameMapIntensity(List<GameMapEntry> entries) {
-  var weighted = 0.0;
-  var sessions = 0;
-
-  for (final entry in entries) {
-    for (final technique in entry.techniques) {
-      final intensity = technique.averageIntensity;
-      if (intensity == null) continue;
-      weighted += intensity * technique.sessionsCount;
-      sessions += technique.sessionsCount;
-    }
-  }
-
-  if (sessions == 0) return null;
-  return weighted / sessions;
-}
-
-bool _hasPositiveApplicationEvidence(SkillMatrixTechniqueEntry entry) {
-  final outcome = TrainingAggregator.techniqueOutcomeLabel(
-    entry.techniqueOutcome,
-  );
-  return entry.application == true &&
-      (outcome == 'Funcionou' || outcome == 'Quase funcionou');
-}
-
-double? _averageEntryIntensity(GameMapEntry entry) {
-  var weighted = 0.0;
-  var sessions = 0;
-
-  for (final technique in entry.techniques) {
-    final intensity = technique.averageIntensity;
-    if (intensity == null) continue;
-    weighted += intensity * technique.sessionsCount;
-    sessions += technique.sessionsCount;
-  }
-
-  if (sessions == 0) return null;
-  return weighted / sessions;
-}
-
-String? _cleanText(String? value) {
-  final text = value?.trim();
-  if (text == null || text.isEmpty) return null;
-  return text;
-}
-
-String? _firstShortText(Iterable<String?> values, {int maxLength = 96}) {
-  for (final value in values) {
-    final text = _shortText(value, maxLength: maxLength);
-    if (text != null) return text;
+String? _dominantTechnicalRadarAxisLabel(
+  List<SkillMatrixCategoryEntry> activeCategories,
+) {
+  for (final category in activeCategories) {
+    final axis = JiuJitsuTaxonomy.technicalRadarAxisForCategory(
+      category.category,
+    );
+    if (axis != TechnicalRadarAxis.unclassified) return axis.displayLabel;
   }
   return null;
-}
-
-String? _shortText(String? value, {int maxLength = 96}) {
-  final text = _cleanText(value);
-  if (text == null) return null;
-  if (text.length <= maxLength) return text;
-  return '${text.substring(0, maxLength - 3).trimRight()}...';
 }
 
 String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
-}
-
-class _SkillMatrixSummaryViewModel {
-  final String title;
-  final String subtitle;
-  final List<_SkillMatrixSummaryStat> stats;
-  final List<_SkillMatrixSummaryHighlight> highlights;
-  final List<_SkillMatrixSummaryBar> bars;
-  final String emptyStateLabel;
-
-  const _SkillMatrixSummaryViewModel({
-    required this.title,
-    required this.subtitle,
-    required this.stats,
-    required this.highlights,
-    required this.bars,
-    required this.emptyStateLabel,
-  });
-
-  factory _SkillMatrixSummaryViewModel.from(
-    List<SkillMatrixCategoryEntry> entries,
-  ) {
-    final techniques = entries.expand((entry) => entry.techniques).toList();
-    if (techniques.isEmpty) {
-      return const _SkillMatrixSummaryViewModel(
-        title: 'Resumo t\u00e9cnico',
-        subtitle: 'Baseado nas t\u00e9cnicas registradas nos debriefs.',
-        stats: [],
-        highlights: [],
-        bars: [],
-        emptyStateLabel:
-            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um resumo seguro.',
-      );
-    }
-
-    final recurringCount = techniques.where((entry) => entry.consistent).length;
-    final measuredApplications =
-        techniques.where((entry) => entry.application == true).length;
-    final topCategories = List<SkillMatrixCategoryEntry>.from(entries)
-      ..sort((a, b) {
-        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
-        if (sessionsCompare != 0) return sessionsCompare;
-        return b.techniquesCount.compareTo(a.techniquesCount);
-      });
-    final topTechniques = List<SkillMatrixTechniqueEntry>.from(techniques)
-      ..sort((a, b) {
-        final sessionsCompare = b.sessionsCount.compareTo(a.sessionsCount);
-        if (sessionsCompare != 0) return sessionsCompare;
-        return b.lastTrainedAt.compareTo(a.lastTrainedAt);
-      });
-
-    final bars = <_SkillMatrixSummaryBar>[
-      ..._categoryBars(topCategories.take(3).toList()),
-      ..._techniqueBars(topTechniques.take(3).toList()),
-    ];
-    final highlights = <_SkillMatrixSummaryHighlight>[
-      if (topCategories.isNotEmpty)
-        _SkillMatrixSummaryHighlight(
-          label: 'Categoria mais recorrente',
-          value: topCategories.first.category.displayLabel,
-          helper: 'Categoria com mais sess\u00f5es registradas na matriz.',
-        ),
-      if (topTechniques.isNotEmpty)
-        _SkillMatrixSummaryHighlight(
-          label: 'T\u00e9cnica mais recorrente',
-          value: topTechniques.first.technique,
-          helper: 'T\u00e9cnica com mais registros na Skill Matrix.',
-        ),
-    ];
-
-    return _SkillMatrixSummaryViewModel(
-      title: 'Resumo t\u00e9cnico',
-      subtitle:
-          'Baseado nas t\u00e9cnicas registradas e na recorr\u00eancia dos debriefs.',
-      stats: [
-        _SkillMatrixSummaryStat(
-          label: 'T\u00c9CNICAS',
-          value: techniques.length.toString(),
-          helper: 'T\u00e9cnicas registradas na Skill Matrix.',
-        ),
-        _SkillMatrixSummaryStat(
-          label: 'RECORRENTES',
-          value: recurringCount.toString(),
-          helper: 'T\u00e9cnicas com 3 ou mais sess\u00f5es registradas.',
-        ),
-        _SkillMatrixSummaryStat(
-          label: 'APLICA\u00c7\u00c3O',
-          value: measuredApplications.toString(),
-          helper:
-              'T\u00e9cnicas com aplica\u00e7\u00e3o medida em treino posicional, rola ou competi\u00e7\u00e3o.',
-        ),
-      ],
-      highlights: highlights,
-      bars: bars,
-      emptyStateLabel:
-          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um resumo seguro.',
-    );
-  }
-
-  static List<_SkillMatrixSummaryBar> _categoryBars(
-    List<SkillMatrixCategoryEntry> entries,
-  ) {
-    final maxSessions = entries.fold<int>(
-      0,
-      (max, entry) => entry.sessionsCount > max ? entry.sessionsCount : max,
-    );
-    if (maxSessions == 0) return const [];
-
-    return [
-      for (final entry in entries)
-        _SkillMatrixSummaryBar(
-          label: entry.category.displayLabel,
-          valueLabel: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
-          normalizedValue: entry.sessionsCount / maxSessions,
-          helper:
-              'Barra relativa \u00e0 categoria mais recorrente neste conjunto.',
-          kind: 'category',
-        ),
-    ];
-  }
-
-  static List<_SkillMatrixSummaryBar> _techniqueBars(
-    List<SkillMatrixTechniqueEntry> entries,
-  ) {
-    final maxSessions = entries.fold<int>(
-      0,
-      (max, entry) => entry.sessionsCount > max ? entry.sessionsCount : max,
-    );
-    if (maxSessions == 0) return const [];
-
-    return [
-      for (final entry in entries)
-        _SkillMatrixSummaryBar(
-          label: entry.technique,
-          valueLabel: TrainingAggregator.sessionCountLabel(entry.sessionsCount),
-          normalizedValue: entry.sessionsCount / maxSessions,
-          helper:
-              'Barra relativa \u00e0 t\u00e9cnica mais recorrente neste conjunto.',
-          kind: 'technique',
-        ),
-    ];
-  }
-}
-
-class _SkillMatrixSummaryStat {
-  final String label;
-  final String value;
-  final String helper;
-
-  const _SkillMatrixSummaryStat({
-    required this.label,
-    required this.value,
-    required this.helper,
-  });
-}
-
-class _SkillMatrixSummaryBar {
-  final String label;
-  final String valueLabel;
-  final double normalizedValue;
-  final String helper;
-  final String kind;
-
-  const _SkillMatrixSummaryBar({
-    required this.label,
-    required this.valueLabel,
-    required this.normalizedValue,
-    required this.helper,
-    required this.kind,
-  });
-}
-
-class _SkillMatrixSummaryHighlight {
-  final String label;
-  final String value;
-  final String helper;
-
-  const _SkillMatrixSummaryHighlight({
-    required this.label,
-    required this.value,
-    required this.helper,
-  });
 }
