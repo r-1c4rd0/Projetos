@@ -285,12 +285,12 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                             filtered,
                             recentLimit: 20,
                           );
-                      final isNutritionStudentView = _isStaffViewingStudent(
+                      final isStaffViewingStudent = _isStaffViewingStudent(
                         actor: actor,
                         target: target,
                       );
                       final coachHomeState =
-                          isNutritionStudentView
+                          isStaffViewingStudent
                               ? _coachStudentHomeStateFor(filtered.length)
                               : null;
 
@@ -330,7 +330,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                             builder:
                                 (_) => NutritionScreen(
                                   titleOverride:
-                                      isNutritionStudentView
+                                      isStaffViewingStudent
                                           ? 'Nutri\u00e7\u00e3o do aluno'
                                           : 'Nutri\u00e7\u00e3o',
                                   targetMode: widget.targetMode,
@@ -497,13 +497,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       ),
                                     ],
                                     const SizedBox(height: 12),
-                                    _CoachRecentActivityTimelineCard(
+                                    _RecentActivityTimelineCard(
                                       cs: cs,
                                       items: lastSessions,
                                       onOpenTraining: openTraining,
                                     ),
                                   ] else ...[
-                                    if (isNutritionStudentView) ...[
+                                    if (isStaffViewingStudent) ...[
                                       _CoachStudentActiveSummaryCard(
                                         cs: cs,
                                         studentName: headerName,
@@ -546,7 +546,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenNutrition: openNutrition,
                                       ),
                                       const SizedBox(height: 12),
-                                      _CoachRecentActivityTimelineCard(
+                                      _RecentActivityTimelineCard(
                                         cs: cs,
                                         items: lastSessions,
                                         onOpenTraining: openTraining,
@@ -615,11 +615,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         cs: cs,
                                         profileStream: _nutritionProfileStream,
                                         mealsStream: _nutritionMealsStream,
-                                        isStudentView: isNutritionStudentView,
+                                        isStudentView: isStaffViewingStudent,
                                         isFallback: _nutritionFallbackToMock,
                                         hasLoadError:
                                             _nutritionLoadError != null,
-                                        hideWhenEmpty: isNutritionStudentView,
+                                        hideWhenEmpty: isStaffViewingStudent,
                                         onOpenNutrition: openNutrition,
                                       ),
                                       const SizedBox(height: 12),
@@ -635,9 +635,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenFullMap: openGameMap,
                                       ),
                                       const SizedBox(height: 12),
-                                      _RecentActivityCard(
+                                      _RecentActivityTimelineCard(
                                         cs: cs,
                                         items: lastSessions,
+                                        onOpenTraining: openTraining,
                                       ),
                                     ],
                                   ],
@@ -3601,12 +3602,12 @@ _GameMapInsightSignalViewModel? _firstGameMapSignal(
   return null;
 }
 
-class _CoachRecentActivityTimelineCard extends StatelessWidget {
+class _RecentActivityTimelineCard extends StatelessWidget {
   final ColorScheme cs;
   final List<TrainingSession> items;
   final VoidCallback onOpenTraining;
 
-  const _CoachRecentActivityTimelineCard({
+  const _RecentActivityTimelineCard({
     required this.cs,
     required this.items,
     required this.onOpenTraining,
@@ -3653,7 +3654,7 @@ class _CoachRecentActivityTimelineCard extends StatelessWidget {
             Column(
               children: [
                 for (var i = 0; i < visibleItems.length; i++) ...[
-                  _CoachRecentActivityTimelineRow(
+                  _RecentActivityTimelineRow(
                     session: visibleItems[i],
                     showPlace: showPlace,
                   ),
@@ -3668,11 +3669,11 @@ class _CoachRecentActivityTimelineCard extends StatelessWidget {
   }
 }
 
-class _CoachRecentActivityTimelineRow extends StatelessWidget {
+class _RecentActivityTimelineRow extends StatelessWidget {
   final TrainingSession session;
   final bool showPlace;
 
-  const _CoachRecentActivityTimelineRow({
+  const _RecentActivityTimelineRow({
     required this.session,
     required this.showPlace,
   });
@@ -3680,7 +3681,7 @@ class _CoachRecentActivityTimelineRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final item = _CoachRecentActivityItem.fromSession(session);
+    final item = _RecentActivityItem.fromSession(session);
     final detailParts = <String>[
       if (item.context != null) item.context!,
       if (item.outcome != null) item.outcome!,
@@ -3738,14 +3739,14 @@ class _CoachRecentActivityTimelineRow extends StatelessWidget {
   }
 }
 
-class _CoachRecentActivityItem {
+class _RecentActivityItem {
   final String title;
   final String? context;
   final String? outcome;
   final bool applicationFallback;
   final int? intensity;
 
-  const _CoachRecentActivityItem({
+  const _RecentActivityItem({
     required this.title,
     required this.context,
     required this.outcome,
@@ -3753,7 +3754,7 @@ class _CoachRecentActivityItem {
     required this.intensity,
   });
 
-  factory _CoachRecentActivityItem.fromSession(TrainingSession session) {
+  factory _RecentActivityItem.fromSession(TrainingSession session) {
     final entries = session.effectiveTechniqueEntries;
     TrainingTechniqueEntry? primaryEntry;
     for (final entry in entries) {
@@ -3786,7 +3787,7 @@ class _CoachRecentActivityItem {
       _ => 'Treino registrado',
     };
 
-    return _CoachRecentActivityItem(
+    return _RecentActivityItem(
       title: title,
       context: context,
       outcome: outcome,
@@ -3824,148 +3825,6 @@ String _formatTimelineDate(DateTime date) {
   ];
   final day = date.day.toString().padLeft(2, '0');
   return '$day ${months[date.month - 1]}';
-}
-
-class _RecentActivityCard extends StatelessWidget {
-  final ColorScheme cs;
-  final List<TrainingSession> items;
-
-  const _RecentActivityCard({required this.cs, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ULTIMOS TREINOS',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.75),
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 10),
-          if (items.isEmpty)
-            Text(
-              'Sem treinos registrados.',
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.65)),
-            )
-          else
-            Column(
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  _TrainingActivityRow(session: items[i]),
-                  if (i != items.length - 1)
-                    Divider(color: cs.onSurface.withValues(alpha: 0.08)),
-                ],
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TrainingActivityRow extends StatelessWidget {
-  final TrainingSession session;
-
-  const _TrainingActivityRow({required this.session});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final details = <String>[
-      _placeLabel(session.place),
-      if ((session.classType ?? '').trim().isNotEmpty)
-        session.classType!.trim(),
-      if ((session.instructorName ?? '').trim().isNotEmpty)
-        session.instructorName!.trim(),
-    ];
-    final debrief = <String>[
-      ..._techniqueDebriefs(session),
-      if (session.intensity != null) 'Intensidade: ${session.intensity}/5',
-      if (_shortDebriefText(session.difficulties) != null)
-        'Dificuldade: ${_shortDebriefText(session.difficulties)}',
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  _formatDate(session.date),
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(width: 10),
-              Flexible(
-                child: Text(
-                  details.join(' - '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.62),
-                    fontSize: 12,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (debrief.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            Text(
-              debrief.join(' - '),
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  List<String> _techniqueDebriefs(TrainingSession session) {
-    final labels = <String>[];
-    for (final entry in session.effectiveTechniqueEntries) {
-      final technique = _cleanDebriefText(entry.technique);
-      if (technique == null) {
-        continue;
-      }
-      final position =
-          _cleanDebriefText(entry.position) ??
-          _cleanDebriefText(session.position);
-      labels.add(
-        position == null ? 'Técnica: $technique' : '$technique em $position',
-      );
-    }
-
-    if (labels.length <= 3) {
-      return labels;
-    }
-    return [...labels.take(3), '+${labels.length - 3} técnicas'];
-  }
-
-  String _formatDate(DateTime date) {
-    final day = date.day.toString().padLeft(2, '0');
-    final month = date.month.toString().padLeft(2, '0');
-    return '$day/$month/${date.year}';
-  }
-
-  String _placeLabel(TrainingPlace place) {
-    switch (place) {
-      case TrainingPlace.academy:
-        return 'Academia';
-      case TrainingPlace.home:
-        return 'Casa';
-      case TrainingPlace.other:
-        return 'Outro';
-    }
-  }
 }
 
 class _GlassCard extends StatelessWidget {

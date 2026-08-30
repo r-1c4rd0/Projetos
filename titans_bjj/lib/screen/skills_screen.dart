@@ -11,6 +11,7 @@ import '../service/training_aggregator.dart';
 import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
+import 'skill_detail_screen.dart';
 
 class SkillsScreen extends StatefulWidget {
   final String academyId;
@@ -89,6 +90,25 @@ class _SkillsScreenState extends State<SkillsScreen> {
                 evaluations: evaluations,
               );
 
+              void openSkillDetail(_SkillNavigationTarget skill) {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => SkillDetailScreen(
+                          academyId: widget.academyId,
+                          uid: widget.uid,
+                          loggedUser: widget.loggedUser,
+                          skillId: skill.skillId,
+                          displayName: skill.displayName,
+                          category: skill.category,
+                          preferredPosition: skill.position,
+                          sessions: sessions,
+                          evaluations: evaluations,
+                        ),
+                  ),
+                );
+              }
+
               return ListView(
                 padding:
                     widget.embedded
@@ -115,6 +135,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
                     child: _SkillsExplorer(
                       entries: entries,
                       categories: skillMatrix,
+                      onOpenTechnique: openSkillDetail,
                     ),
                   ),
                 ],
@@ -355,13 +376,65 @@ class _OverviewLine extends StatelessWidget {
   }
 }
 
+class _SkillNavigationTarget {
+  final String skillId;
+  final String displayName;
+  final JiuJitsuSkillCategory category;
+  final String? position;
+
+  const _SkillNavigationTarget({
+    required this.skillId,
+    required this.displayName,
+    required this.category,
+    required this.position,
+  });
+
+  factory _SkillNavigationTarget.fromGameMap({
+    required GameMapTechniqueSummary technique,
+    required String position,
+  }) {
+    return _SkillNavigationTarget(
+      skillId: _skillIdForTechnique(technique.technique),
+      displayName: technique.technique,
+      category: JiuJitsuTaxonomy.categoryFor(
+        position: position,
+        technique: technique.technique,
+      ),
+      position: position,
+    );
+  }
+
+  factory _SkillNavigationTarget.fromSkillMatrix(
+    SkillMatrixTechniqueEntry technique,
+  ) {
+    return _SkillNavigationTarget(
+      skillId: _skillIdForTechnique(technique.technique),
+      displayName: technique.technique,
+      category: technique.category,
+      position: technique.position,
+    );
+  }
+}
+
+String _skillIdForTechnique(String technique) {
+  final identity = JiuJitsuTaxonomy.resolveSkillIdentity(technique);
+  final normalizedName =
+      identity?.normalizedName ?? JiuJitsuTaxonomy.normalizedKey(technique);
+  return identity?.skillId ?? 'custom.${normalizedName.replaceAll(' ', '_')}';
+}
+
 enum _ExplorerMode { position, category }
 
 class _SkillsExplorer extends StatefulWidget {
   final List<GameMapEntry> entries;
   final List<SkillMatrixCategoryEntry> categories;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
-  const _SkillsExplorer({required this.entries, required this.categories});
+  const _SkillsExplorer({
+    required this.entries,
+    required this.categories,
+    required this.onOpenTechnique,
+  });
 
   @override
   State<_SkillsExplorer> createState() => _SkillsExplorerState();
@@ -384,8 +457,14 @@ class _SkillsExplorerState extends State<_SkillsExplorer> {
           duration: const Duration(milliseconds: 180),
           child:
               _mode == _ExplorerMode.position
-                  ? _PositionExplorerList(entries: widget.entries)
-                  : _CategoryExplorerList(categories: widget.categories),
+                  ? _PositionExplorerList(
+                    entries: widget.entries,
+                    onOpenTechnique: widget.onOpenTechnique,
+                  )
+                  : _CategoryExplorerList(
+                    categories: widget.categories,
+                    onOpenTechnique: widget.onOpenTechnique,
+                  ),
         ),
       ],
     );
@@ -480,8 +559,12 @@ class _ModeButton extends StatelessWidget {
 
 class _PositionExplorerList extends StatelessWidget {
   final List<GameMapEntry> entries;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
-  const _PositionExplorerList({required this.entries});
+  const _PositionExplorerList({
+    required this.entries,
+    required this.onOpenTechnique,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -497,7 +580,7 @@ class _PositionExplorerList extends StatelessWidget {
     return Column(
       children: [
         for (final entry in entries) ...[
-          _ExplorerPositionTile(entry: entry),
+          _ExplorerPositionTile(entry: entry, onOpenTechnique: onOpenTechnique),
           if (entry != entries.last) const SizedBox(height: 10),
         ],
       ],
@@ -507,8 +590,12 @@ class _PositionExplorerList extends StatelessWidget {
 
 class _CategoryExplorerList extends StatelessWidget {
   final List<SkillMatrixCategoryEntry> categories;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
-  const _CategoryExplorerList({required this.categories});
+  const _CategoryExplorerList({
+    required this.categories,
+    required this.onOpenTechnique,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -523,7 +610,10 @@ class _CategoryExplorerList extends StatelessWidget {
     return Column(
       children: [
         for (final category in categories) ...[
-          _ExplorerCategoryTile(category: category),
+          _ExplorerCategoryTile(
+            category: category,
+            onOpenTechnique: onOpenTechnique,
+          ),
           if (category != categories.last) const SizedBox(height: 10),
         ],
       ],
@@ -533,8 +623,12 @@ class _CategoryExplorerList extends StatelessWidget {
 
 class _ExplorerPositionTile extends StatelessWidget {
   final GameMapEntry entry;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
-  const _ExplorerPositionTile({required this.entry});
+  const _ExplorerPositionTile({
+    required this.entry,
+    required this.onOpenTechnique,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -551,6 +645,13 @@ class _ExplorerPositionTile extends StatelessWidget {
             name: technique.technique,
             count: technique.sessionsCount,
             detail: _formatShortDate(technique.lastTrainedAt),
+            onTap:
+                () => onOpenTechnique(
+                  _SkillNavigationTarget.fromGameMap(
+                    technique: technique,
+                    position: entry.position,
+                  ),
+                ),
           ),
       ],
     );
@@ -559,8 +660,12 @@ class _ExplorerPositionTile extends StatelessWidget {
 
 class _ExplorerCategoryTile extends StatelessWidget {
   final SkillMatrixCategoryEntry category;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
-  const _ExplorerCategoryTile({required this.category});
+  const _ExplorerCategoryTile({
+    required this.category,
+    required this.onOpenTechnique,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -578,6 +683,10 @@ class _ExplorerCategoryTile extends StatelessWidget {
             name: technique.technique,
             count: technique.sessionsCount,
             detail: technique.position ?? 'Posição não informada',
+            onTap:
+                () => onOpenTechnique(
+                  _SkillNavigationTarget.fromSkillMatrix(technique),
+                ),
           ),
       ],
     );
@@ -686,54 +795,66 @@ class _TechniqueMiniRow extends StatelessWidget {
   final String name;
   final int count;
   final String detail;
+  final VoidCallback onTap;
 
   const _TechniqueMiniRow({
     required this.name,
     required this.count,
     required this.detail,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.07)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  detail,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.58),
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
+    return InkWell(
+      borderRadius: BorderRadius.circular(12),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(12),
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
+          border: Border.all(color: cs.onSurface.withValues(alpha: 0.07)),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w900),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    detail,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          _TechniqueChip(label: '${count}x'),
-        ],
+            const SizedBox(width: 8),
+            _TechniqueChip(label: '${count}x'),
+            const SizedBox(width: 6),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: cs.onSurface.withValues(alpha: 0.58),
+              size: 18,
+            ),
+          ],
+        ),
       ),
     );
   }
