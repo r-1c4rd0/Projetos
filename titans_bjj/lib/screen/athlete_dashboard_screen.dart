@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -275,6 +276,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         filtered,
                         limit: 50,
                       );
+                      final technicalRadar =
+                          _HomeTechnicalRadarViewModel.fromSessions(filtered);
                       final recommendedFocus =
                           TrainingAggregator.buildRecommendedFocus(
                             filtered,
@@ -293,6 +296,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                           isStaffViewingStudent
                               ? _coachStudentHomeStateFor(filtered.length)
                               : null;
+                      final isAthleteSelfView =
+                          actor?.role == UserRole.athlete && actor?.uid == uid;
 
                       void openTraining() {
                         Navigator.of(context).push(
@@ -414,61 +419,88 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  LayoutBuilder(
-                                    builder: (context, _) {
-                                      debugPrint(
-                                        '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
-                                        'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
-                                        'actor.role=${actor?.role} target.uid=$uid '
-                                        'target.academyId=$academyId',
-                                      );
-                                      final athleteCard = _AthleteCard(
-                                        name: headerName,
-                                        email: headerEmail,
-                                        uid: uid,
-                                        belt: beltProgress.belt,
-                                        degree: beltProgress.degree,
-                                        maxDegree: beltProgress.maxDegree,
-                                        percentToNext:
-                                            beltProgress.percentToNextBelt,
-                                        sessionsInBelt:
-                                            beltProgress.sessionsInBelt,
-                                        sessionsRequired:
-                                            beltProgress.sessionsRequired,
-                                        onEditProfile:
-                                            canEditTarget
-                                                ? () {
-                                                  debugPrint(
-                                                    '[DASHBOARD_EDIT_CLICK] clicked=true '
-                                                    'athleteUid=$uid academyId=$academyId',
-                                                  );
-                                                  Navigator.of(context).push(
-                                                    MaterialPageRoute(
-                                                      builder:
-                                                          (_) =>
-                                                              AthleteRegistrationScreen(
-                                                                academyId:
-                                                                    academyId,
-                                                                athleteUid: uid,
-                                                              ),
-                                                    ),
-                                                  );
-                                                }
-                                                : null,
-                                        onEditGraduation:
-                                            canEditTarget
-                                                ? () => _showGraduationDialog(
-                                                  academyId: academyId,
-                                                  uid: uid,
-                                                  athlete: athlete,
-                                                  rules: rules,
-                                                )
-                                                : null,
-                                      );
+                                  if (isAthleteSelfView) ...[
+                                    const _AthleteMinimalHeader(),
+                                    const SizedBox(height: 12),
+                                    _AthleteMinimalIdentityCard(
+                                      cs: cs,
+                                      name: headerName,
+                                      email: headerEmail,
+                                      uid: uid,
+                                      belt: beltProgress.belt,
+                                      degree: beltProgress.degree,
+                                      maxDegree: beltProgress.maxDegree,
+                                      percentToNext:
+                                          beltProgress.percentToNextBelt,
+                                      sessionsInBelt:
+                                          beltProgress.sessionsInBelt,
+                                      sessionsRequired:
+                                          beltProgress.sessionsRequired,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _AthleteMinimalActionsCard(
+                                      cs: cs,
+                                      onRegisterTraining: openRegisterTraining,
+                                      onOpenTraining: openTraining,
+                                    ),
+                                  ] else ...[
+                                    LayoutBuilder(
+                                      builder: (context, _) {
+                                        debugPrint(
+                                          '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
+                                          'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
+                                          'actor.role=${actor?.role} target.uid=$uid '
+                                          'target.academyId=$academyId',
+                                        );
+                                        final athleteCard = _AthleteCard(
+                                          name: headerName,
+                                          email: headerEmail,
+                                          uid: uid,
+                                          belt: beltProgress.belt,
+                                          degree: beltProgress.degree,
+                                          maxDegree: beltProgress.maxDegree,
+                                          percentToNext:
+                                              beltProgress.percentToNextBelt,
+                                          sessionsInBelt:
+                                              beltProgress.sessionsInBelt,
+                                          sessionsRequired:
+                                              beltProgress.sessionsRequired,
+                                          onEditProfile:
+                                              canEditTarget
+                                                  ? () {
+                                                    debugPrint(
+                                                      '[DASHBOARD_EDIT_CLICK] clicked=true '
+                                                      'athleteUid=$uid academyId=$academyId',
+                                                    );
+                                                    Navigator.of(context).push(
+                                                      MaterialPageRoute(
+                                                        builder:
+                                                            (_) =>
+                                                                AthleteRegistrationScreen(
+                                                                  academyId:
+                                                                      academyId,
+                                                                  athleteUid:
+                                                                      uid,
+                                                                ),
+                                                      ),
+                                                    );
+                                                  }
+                                                  : null,
+                                          onEditGraduation:
+                                              canEditTarget
+                                                  ? () => _showGraduationDialog(
+                                                    academyId: academyId,
+                                                    uid: uid,
+                                                    athlete: athlete,
+                                                    rules: rules,
+                                                  )
+                                                  : null,
+                                        );
 
-                                      return athleteCard;
-                                    },
-                                  ),
+                                        return athleteCard;
+                                      },
+                                    ),
+                                  ],
                                   const SizedBox(height: 12),
                                   if (coachHomeState ==
                                       _CoachStudentHomeState.foundation) ...[
@@ -527,6 +559,15 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenEvidence: openTraining,
                                         onOpenSkills: openSkills,
                                       ),
+                                      if (technicalRadar
+                                          .hasClassifiedEvidence) ...[
+                                        const SizedBox(height: 12),
+                                        _HomeTechnicalRadarCard(
+                                          cs: cs,
+                                          radar: technicalRadar,
+                                          onOpenMap: openGameMap,
+                                        ),
+                                      ],
                                       const SizedBox(height: 12),
                                       _CoachActiveLiteModules(
                                         cs: cs,
@@ -552,94 +593,142 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenTraining: openTraining,
                                       ),
                                     ] else ...[
-                                      _NextTrainingCard(
-                                        cs: cs,
-                                        recommendation: nextTraining,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _DashboardPrimaryActionCard(
-                                        cs: cs,
-                                        nextTraining: nextTraining,
-                                        onRegisterTraining:
-                                            openRegisterTraining,
-                                        onOpenTraining: openTraining,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _RecommendedFocusCard(
-                                        cs: cs,
-                                        focus: recommendedFocus,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _DashboardQuickActionsCard(
-                                        cs: cs,
-                                        onOpenGameMap: openGameMap,
-                                        onOpenSkills: openSkills,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      LayoutBuilder(
-                                        builder: (context, c) {
-                                          final isWide = c.maxWidth >= 980;
-                                          final left = _StatsCard(
+                                      if (isAthleteSelfView) ...[
+                                        _AthleteMinimalNextTrainingCard(
+                                          cs: cs,
+                                          recommendation: nextTraining,
+                                        ),
+                                        if (technicalRadar
+                                            .hasClassifiedEvidence) ...[
+                                          const SizedBox(height: 12),
+                                          _HomeTechnicalRadarCard(
                                             cs: cs,
-                                            frequency: _calcFrequency(filtered),
-                                            metrics: metrics,
-                                          );
-                                          final right = _DebriefInsightsCard(
+                                            radar: technicalRadar,
+                                            onOpenMap: openGameMap,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+                                        _AthleteMinimalMetricsCard(
+                                          cs: cs,
+                                          frequency: _calcFrequency(filtered),
+                                          metrics: metrics,
+                                        ),
+                                        if (lastSessions.isNotEmpty) ...[
+                                          const SizedBox(height: 12),
+                                          _RecentActivityTimelineCard(
                                             cs: cs,
-                                            insights: debriefInsights,
-                                          );
+                                            items: lastSessions,
+                                            onOpenTraining: openTraining,
+                                          ),
+                                        ],
+                                      ] else ...[
+                                        _NextTrainingCard(
+                                          cs: cs,
+                                          recommendation: nextTraining,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _DashboardPrimaryActionCard(
+                                          cs: cs,
+                                          nextTraining: nextTraining,
+                                          onRegisterTraining:
+                                              openRegisterTraining,
+                                          onOpenTraining: openTraining,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _RecommendedFocusCard(
+                                          cs: cs,
+                                          focus: recommendedFocus,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _DashboardQuickActionsCard(
+                                          cs: cs,
+                                          onOpenGameMap: openGameMap,
+                                          onOpenSkills: openSkills,
+                                        ),
+                                        if (technicalRadar
+                                            .hasClassifiedEvidence) ...[
+                                          const SizedBox(height: 12),
+                                          _HomeTechnicalRadarCard(
+                                            cs: cs,
+                                            radar: technicalRadar,
+                                            onOpenMap: openGameMap,
+                                          ),
+                                        ],
+                                        const SizedBox(height: 12),
+                                        LayoutBuilder(
+                                          builder: (context, c) {
+                                            final isWide = c.maxWidth >= 980;
+                                            final left = _StatsCard(
+                                              cs: cs,
+                                              frequency: _calcFrequency(
+                                                filtered,
+                                              ),
+                                              metrics: metrics,
+                                            );
+                                            final right = _DebriefInsightsCard(
+                                              cs: cs,
+                                              insights: debriefInsights,
+                                            );
 
-                                          if (isWide) {
-                                            return Row(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
+                                            if (isWide) {
+                                              return Row(
+                                                crossAxisAlignment:
+                                                    CrossAxisAlignment.start,
+                                                children: [
+                                                  Expanded(
+                                                    flex: 4,
+                                                    child: left,
+                                                  ),
+                                                  const SizedBox(width: 12),
+                                                  Expanded(
+                                                    flex: 6,
+                                                    child: right,
+                                                  ),
+                                                ],
+                                              );
+                                            }
+
+                                            return Column(
                                               children: [
-                                                Expanded(flex: 4, child: left),
-                                                const SizedBox(width: 12),
-                                                Expanded(flex: 6, child: right),
+                                                left,
+                                                const SizedBox(height: 12),
+                                                right,
                                               ],
                                             );
-                                          }
-
-                                          return Column(
-                                            children: [
-                                              left,
-                                              const SizedBox(height: 12),
-                                              right,
-                                            ],
-                                          );
-                                        },
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _NutritionDashboardLiteCard(
-                                        cs: cs,
-                                        profileStream: _nutritionProfileStream,
-                                        mealsStream: _nutritionMealsStream,
-                                        isStudentView: isStaffViewingStudent,
-                                        isFallback: _nutritionFallbackToMock,
-                                        hasLoadError:
-                                            _nutritionLoadError != null,
-                                        hideWhenEmpty: isStaffViewingStudent,
-                                        onOpenNutrition: openNutrition,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _SkillMatrixSummaryCard(
-                                        cs: cs,
-                                        entries: skillMatrix,
-                                        onOpenSkillMatrix: openGameMap,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _GameMapLiteCard(
-                                        cs: cs,
-                                        entries: gameMapLite,
-                                        onOpenFullMap: openGameMap,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      _RecentActivityTimelineCard(
-                                        cs: cs,
-                                        items: lastSessions,
-                                        onOpenTraining: openTraining,
-                                      ),
+                                          },
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _NutritionDashboardLiteCard(
+                                          cs: cs,
+                                          profileStream:
+                                              _nutritionProfileStream,
+                                          mealsStream: _nutritionMealsStream,
+                                          isStudentView: isStaffViewingStudent,
+                                          isFallback: _nutritionFallbackToMock,
+                                          hasLoadError:
+                                              _nutritionLoadError != null,
+                                          hideWhenEmpty: isStaffViewingStudent,
+                                          onOpenNutrition: openNutrition,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _SkillMatrixSummaryCard(
+                                          cs: cs,
+                                          entries: skillMatrix,
+                                          onOpenSkillMatrix: openGameMap,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _GameMapLiteCard(
+                                          cs: cs,
+                                          entries: gameMapLite,
+                                          onOpenFullMap: openGameMap,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        _RecentActivityTimelineCard(
+                                          cs: cs,
+                                          items: lastSessions,
+                                          onOpenTraining: openTraining,
+                                        ),
+                                      ],
                                     ],
                                   ],
                                 ],
@@ -1065,6 +1154,21 @@ String _beltLabel(BeltColor belt) {
   return TitansUI.beltLabel(belt.name);
 }
 
+Color _beltProgressRingColor(BeltColor belt) {
+  switch (belt) {
+    case BeltColor.white:
+      return Colors.white.withValues(alpha: 0.92);
+    case BeltColor.blue:
+      return TitansUI.neonBlue;
+    case BeltColor.purple:
+      return TitansUI.neonPurple;
+    case BeltColor.brown:
+      return const Color(0xFF8D6E63);
+    case BeltColor.black:
+      return const Color(0xFF2B2F38);
+  }
+}
+
 class _AthleteCard extends StatelessWidget {
   final String name;
   final String email;
@@ -1163,6 +1267,385 @@ class _AthleteCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class _AthleteMinimalHeader extends StatelessWidget {
+  const _AthleteMinimalHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TITANS BJJ',
+          style: TextStyle(
+            color: cs.primary,
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Início',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+        ),
+      ],
+    );
+  }
+}
+
+class _AthleteMinimalIdentityCard extends StatelessWidget {
+  final ColorScheme cs;
+  final String name;
+  final String email;
+  final String uid;
+  final BeltColor belt;
+  final int degree;
+  final int maxDegree;
+  final double percentToNext;
+  final int sessionsInBelt;
+  final int sessionsRequired;
+
+  const _AthleteMinimalIdentityCard({
+    required this.cs,
+    required this.name,
+    required this.email,
+    required this.uid,
+    required this.belt,
+    required this.degree,
+    required this.maxDegree,
+    required this.percentToNext,
+    required this.sessionsInBelt,
+    required this.sessionsRequired,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final identity = email.isEmpty ? 'ID ${_shortUid(uid)}' : email;
+    final ringColor = _beltProgressRingColor(belt);
+
+    return _GlassCard(
+      accent: ringColor.withValues(alpha: 0.30),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 82,
+            height: 82,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 76,
+                  height: 76,
+                  child: CircularProgressIndicator(
+                    value: percentToNext.clamp(0.0, 1.0).toDouble(),
+                    strokeWidth: 6,
+                    backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                    valueColor: AlwaysStoppedAnimation<Color>(ringColor),
+                  ),
+                ),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '${(percentToNext * 100).round()}%',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'faixa',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.58),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  identity,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    _InsightBadge(
+                      label: '${_beltLabel(belt)} · $degreeº grau',
+                      color: TitansUI.beltColor(belt.name),
+                      icon: Icons.military_tech_outlined,
+                    ),
+                    _DegreeDots(degree: degree, maxDegree: maxDegree, cs: cs),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '$sessionsInBelt/$sessionsRequired treinos na faixa atual',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DegreeDots extends StatelessWidget {
+  final int degree;
+  final int maxDegree;
+  final ColorScheme cs;
+
+  const _DegreeDots({
+    required this.degree,
+    required this.maxDegree,
+    required this.cs,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dots = maxDegree <= 0 ? 4 : maxDegree;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < dots; i++) ...[
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color:
+                  i < degree
+                      ? Colors.amber
+                      : cs.onSurface.withValues(alpha: 0.18),
+            ),
+          ),
+          if (i != dots - 1) const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+}
+
+class _AthleteMinimalActionsCard extends StatelessWidget {
+  final ColorScheme cs;
+  final VoidCallback onRegisterTraining;
+  final VoidCallback onOpenTraining;
+
+  const _AthleteMinimalActionsCard({
+    required this.cs,
+    required this.onRegisterTraining,
+    required this.onOpenTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: Colors.amber.withValues(alpha: 0.25),
+      child: Row(
+        children: [
+          Expanded(
+            child: FilledButton.icon(
+              onPressed: onRegisterTraining,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Registrar treino'),
+              style: FilledButton.styleFrom(
+                backgroundColor: Colors.amber,
+                foregroundColor: Colors.black,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          OutlinedButton.icon(
+            onPressed: onOpenTraining,
+            icon: const Icon(Icons.list_alt_outlined, size: 18),
+            label: const Text('Treinos'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AthleteMinimalNextTrainingCard extends StatelessWidget {
+  final ColorScheme cs;
+  final NextTrainingRecommendation recommendation;
+
+  const _AthleteMinimalNextTrainingCard({
+    required this.cs,
+    required this.recommendation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final priorityColor = _priorityColor(cs, recommendation.priority);
+    final tags = recommendation.tags.take(3).toList();
+
+    return _GlassCard(
+      accent: priorityColor.withValues(alpha: 0.24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeaderCompact(title: 'PRÓXIMO TREINO'),
+          const SizedBox(height: 10),
+          Text(
+            recommendation.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            recommendation.hasRecommendation
+                ? recommendation.subtitle
+                : (recommendation.emptyMessage ?? recommendation.subtitle),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.70),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (recommendation.hasRecommendation) ...[
+            const SizedBox(height: 8),
+            Text(
+              recommendation.objective,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
+            ),
+          ],
+          if (tags.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final tag in tags)
+                  _InsightBadge(label: tag, color: priorityColor),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Color _priorityColor(
+    ColorScheme cs,
+    RecommendedTrainingFocusPriority priority,
+  ) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return cs.error;
+      case RecommendedTrainingFocusPriority.medium:
+        return Colors.amber;
+      case RecommendedTrainingFocusPriority.low:
+        return Colors.lightGreenAccent;
+      case RecommendedTrainingFocusPriority.none:
+        return cs.primary;
+    }
+  }
+}
+
+class _AthleteMinimalMetricsCard extends StatelessWidget {
+  final ColorScheme cs;
+  final int frequency;
+  final TrainingMetrics metrics;
+
+  const _AthleteMinimalMetricsCard({
+    required this.cs,
+    required this.frequency,
+    required this.metrics,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _SectionHeaderCompact(title: 'MÉTRICAS RÁPIDAS'),
+          const SizedBox(height: 10),
+          GridView.count(
+            crossAxisCount: 2,
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 1.55,
+            children: [
+              _StatMini(
+                title: '8 SEMANAS',
+                value: '$frequency%',
+                highlight: cs.primary,
+              ),
+              _StatMini(
+                title: '30 DIAS',
+                value: metrics.recent.toString(),
+                highlight: Colors.lightGreenAccent,
+              ),
+              _StatMini(
+                title: 'ANO',
+                value: metrics.year.toString(),
+                highlight: Colors.amber,
+              ),
+              _StatMini(
+                title: 'TOTAL',
+                value: metrics.total.toString(),
+                highlight: cs.secondary,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String _shortUid(String uid) {
+  if (uid.length <= 6) return uid.toUpperCase();
+  return uid.substring(0, 6).toUpperCase();
 }
 
 class _StatMini extends StatelessWidget {
@@ -1835,6 +2318,394 @@ class _CoachTechnicalFocusCard extends StatelessWidget {
     return '${text.substring(0, maxLength - 3).trimRight()}...';
   }
 }
+
+class _HomeTechnicalRadarViewModel {
+  final Map<TechnicalRadarAxis, int> axisEvidence;
+  final int classifiedEvidenceCount;
+  final int awaitingClassificationCount;
+  final int sessionsCount;
+  final TechnicalRadarAxis? topAxis;
+
+  const _HomeTechnicalRadarViewModel({
+    required this.axisEvidence,
+    required this.classifiedEvidenceCount,
+    required this.awaitingClassificationCount,
+    required this.sessionsCount,
+    required this.topAxis,
+  });
+
+  bool get hasClassifiedEvidence => classifiedEvidenceCount > 0;
+
+  String get evidenceLabel {
+    final suffix = classifiedEvidenceCount == 1 ? 'evidência' : 'evidências';
+    return '$classifiedEvidenceCount $suffix';
+  }
+
+  String get sessionLabel {
+    final suffix = sessionsCount == 1 ? 'sessão' : 'sessões';
+    return '$sessionsCount $suffix';
+  }
+
+  String get topAxisLabel {
+    final axis = topAxis;
+    if (axis == null) return 'Evidências em construção';
+    return '${axis.displayLabel} mais presente';
+  }
+
+  factory _HomeTechnicalRadarViewModel.fromSessions(
+    List<TrainingSession> sessions,
+  ) {
+    final axisEvidence = <TechnicalRadarAxis, int>{
+      for (final axis in _homeTechnicalRadarAxisOrder) axis: 0,
+    };
+    final seenEvidence = <String>{};
+    final sourceKeys = <String>{};
+    var classified = 0;
+    var unclassified = 0;
+
+    final evidences = TrainingAggregator.buildSkillEvidences(
+      sessions,
+      limit: sessions.length,
+    );
+
+    for (final evidence in evidences) {
+      final sourceKey =
+          evidence.sourceId ?? evidence.practicedAt.toIso8601String();
+      final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
+      if (!seenEvidence.add(dedupeKey)) continue;
+
+      final axis = _homeTechnicalRadarAxisForEvidence(evidence);
+      if (axis == TechnicalRadarAxis.unclassified) {
+        unclassified += 1;
+        continue;
+      }
+
+      classified += 1;
+      sourceKeys.add(sourceKey);
+      axisEvidence[axis] = (axisEvidence[axis] ?? 0) + 1;
+    }
+
+    return _HomeTechnicalRadarViewModel(
+      axisEvidence: axisEvidence,
+      classifiedEvidenceCount: classified,
+      awaitingClassificationCount: unclassified,
+      sessionsCount: sourceKeys.length,
+      topAxis: _homeTopTechnicalRadarAxis(axisEvidence),
+    );
+  }
+}
+
+class _HomeTechnicalRadarCard extends StatelessWidget {
+  final ColorScheme cs;
+  final _HomeTechnicalRadarViewModel radar;
+  final VoidCallback onOpenMap;
+
+  const _HomeTechnicalRadarCard({
+    required this.cs,
+    required this.radar,
+    required this.onOpenMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Retenção · Transição · Controle · Ataque',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.64),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              _InsightBadge(
+                label: radar.evidenceLabel,
+                color: cs.primary,
+                icon: Icons.radar_outlined,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 380;
+              final radarSize =
+                  compact ? math.min(136.0, constraints.maxWidth - 32) : 148.0;
+              final radarCanvas = SizedBox(
+                width: radarSize,
+                height: radarSize,
+                child: CustomPaint(
+                  painter: _HomeTechnicalRadarPainter(
+                    cs,
+                    axisEvidence: radar.axisEvidence,
+                    compact: compact,
+                  ),
+                ),
+              );
+              final radarDetails = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _CoachLiteDataRow(
+                    line: _CoachLiteLine('Base', radar.sessionLabel),
+                  ),
+                  const SizedBox(height: 8),
+                  _CoachLiteDataRow(
+                    line: _CoachLiteLine('Destaque', radar.topAxisLabel),
+                  ),
+                  if (radar.awaitingClassificationCount > 0) ...[
+                    const SizedBox(height: 8),
+                    _CoachLiteDataRow(
+                      line: _CoachLiteLine(
+                        'Em construção',
+                        radar.awaitingClassificationCount.toString(),
+                      ),
+                    ),
+                  ],
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    radarCanvas,
+                    const SizedBox(height: 12),
+                    radarDetails,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  radarCanvas,
+                  const SizedBox(width: 14),
+                  Expanded(child: radarDetails),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Baseado em evidências dos treinos.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: onOpenMap,
+              child: const Text('Explorar mapa →'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeTechnicalRadarPainter extends CustomPainter {
+  final ColorScheme cs;
+  final Map<TechnicalRadarAxis, int> axisEvidence;
+  final bool compact;
+
+  const _HomeTechnicalRadarPainter(
+    this.cs, {
+    required this.axisEvidence,
+    required this.compact,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final labelGap = compact ? 10.0 : 14.0;
+    final edgePadding = compact ? 18.0 : 20.0;
+    final radius = math.max(
+      0.0,
+      math.min(size.width, size.height) / 2 - edgePadding,
+    );
+    final maxEvidence = axisEvidence.values.fold<int>(
+      1,
+      (max, value) => value > max ? value : max,
+    );
+    final gridPaint =
+        Paint()
+          ..color = cs.onSurface.withValues(alpha: 0.12)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final axisPaint =
+        Paint()
+          ..color = cs.primary.withValues(alpha: 0.28)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+
+    for (final step in const [0.33, 0.66, 1.0]) {
+      _paintPolygon(canvas, center, radius * step, gridPaint, fill: false);
+    }
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final angle = _homeRadarAngle(i);
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      canvas.drawLine(center, point, axisPaint);
+    }
+
+    final path = Path();
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final value = axisEvidence[axis] ?? 0;
+      final fraction = value <= 0 ? 0.0 : value / maxEvidence;
+      final angle = _homeRadarAngle(i);
+      final point =
+          center + Offset(math.cos(angle), math.sin(angle)) * radius * fraction;
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = cs.primary.withValues(alpha: 0.18)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = cs.primary.withValues(alpha: 0.86)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2,
+    );
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final labelPoint =
+          center +
+          Offset(math.cos(_homeRadarAngle(i)), math.sin(_homeRadarAngle(i))) *
+              (radius + labelGap);
+      _paintAxisLabel(canvas, labelPoint, _homeAxisShortLabel(axis));
+    }
+  }
+
+  void _paintPolygon(
+    Canvas canvas,
+    Offset center,
+    double radius,
+    Paint paint, {
+    required bool fill,
+  }) {
+    final path = Path();
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final angle = _homeRadarAngle(i);
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  void _paintAxisLabel(Canvas canvas, Offset center, String label) {
+    final painter = TextPainter(
+      text: TextSpan(
+        text: label,
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.70),
+          fontSize: compact ? 9 : 10,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: compact ? 34 : 42);
+    painter.paint(
+      canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _HomeTechnicalRadarPainter oldDelegate) {
+    return oldDelegate.cs != cs ||
+        oldDelegate.axisEvidence != axisEvidence ||
+        oldDelegate.compact != compact;
+  }
+}
+
+TechnicalRadarAxis _homeTechnicalRadarAxisForEvidence(SkillEvidence evidence) {
+  if (evidence.skillId.startsWith('custom.')) {
+    return TechnicalRadarAxis.unclassified;
+  }
+  return JiuJitsuTaxonomy.technicalRadarAxisForCategory(evidence.category);
+}
+
+TechnicalRadarAxis? _homeTopTechnicalRadarAxis(
+  Map<TechnicalRadarAxis, int> axisEvidence,
+) {
+  TechnicalRadarAxis? selected;
+  var selectedValue = 0;
+  for (final axis in _homeTechnicalRadarAxisOrder) {
+    final value = axisEvidence[axis] ?? 0;
+    if (value > selectedValue) {
+      selected = axis;
+      selectedValue = value;
+    }
+  }
+  return selected;
+}
+
+String _homeAxisShortLabel(TechnicalRadarAxis axis) {
+  switch (axis) {
+    case TechnicalRadarAxis.retention:
+      return 'RET';
+    case TechnicalRadarAxis.transition:
+      return 'TRA';
+    case TechnicalRadarAxis.control:
+      return 'CON';
+    case TechnicalRadarAxis.attack:
+      return 'ATQ';
+    case TechnicalRadarAxis.unclassified:
+      return '—';
+  }
+}
+
+double _homeRadarAngle(int index) {
+  return -math.pi / 2 +
+      index * (math.pi * 2 / _homeTechnicalRadarAxisOrder.length);
+}
+
+const _homeTechnicalRadarAxisOrder = <TechnicalRadarAxis>[
+  TechnicalRadarAxis.retention,
+  TechnicalRadarAxis.transition,
+  TechnicalRadarAxis.control,
+  TechnicalRadarAxis.attack,
+];
 
 class _CoachActiveLiteModules extends StatelessWidget {
   final ColorScheme cs;
