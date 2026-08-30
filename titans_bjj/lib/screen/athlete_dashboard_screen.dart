@@ -289,6 +289,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         actor: actor,
                         target: target,
                       );
+                      final coachHomeState =
+                          isNutritionStudentView
+                              ? _coachStudentHomeStateFor(filtered.length)
+                              : null;
 
                       void openTraining() {
                         Navigator.of(context).push(
@@ -365,6 +369,34 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
+                      if (coachHomeState == _CoachStudentHomeState.empty) {
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            final content = SingleChildScrollView(
+                              padding:
+                                  widget.embedded
+                                      ? TitansUI.listPadding(
+                                        context,
+                                        extra: TitansUI.spaceMd,
+                                      )
+                                      : TitansUI.listPadding(context),
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                ),
+                                child: _CoachStudentEmptyCard(
+                                  cs: cs,
+                                  studentName: headerName,
+                                  onRegisterTraining: openRegisterTraining,
+                                ),
+                              ),
+                            );
+                            return widget.embedded
+                                ? content
+                                : SafeArea(bottom: false, child: content);
+                          },
+                        );
+                      }
                       return LayoutBuilder(
                         builder: (context, constraints) {
                           final content = SingleChildScrollView(
@@ -399,8 +431,10 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         maxDegree: beltProgress.maxDegree,
                                         percentToNext:
                                             beltProgress.percentToNextBelt,
-                                        sessionsInBelt: beltProgress.sessionsInBelt,
-                                        sessionsRequired: beltProgress.sessionsRequired,
+                                        sessionsInBelt:
+                                            beltProgress.sessionsInBelt,
+                                        sessionsRequired:
+                                            beltProgress.sessionsRequired,
                                         onEditProfile:
                                             canEditTarget
                                                 ? () {
@@ -436,90 +470,170 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                     },
                                   ),
                                   const SizedBox(height: 12),
-                                  _NextTrainingCard(
-                                    cs: cs,
-                                    recommendation: nextTraining,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _DashboardPrimaryActionCard(
-                                    cs: cs,
-                                    nextTraining: nextTraining,
-                                    onRegisterTraining: openRegisterTraining,
-                                    onOpenTraining: openTraining,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _RecommendedFocusCard(
-                                    cs: cs,
-                                    focus: recommendedFocus,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _DashboardQuickActionsCard(
-                                    cs: cs,
-                                    onOpenGameMap: openGameMap,
-                                    onOpenSkills: openSkills,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  LayoutBuilder(
-                                    builder: (context, c) {
-                                      final isWide = c.maxWidth >= 980;
-                                      final left = _StatsCard(
+                                  if (coachHomeState ==
+                                      _CoachStudentHomeState.foundation) ...[
+                                    _CoachStudentFoundationCard(
+                                      cs: cs,
+                                      studentName: headerName,
+                                      belt: beltProgress.belt,
+                                      degree: beltProgress.degree,
+                                      metrics: metrics,
+                                      lastSession:
+                                          lastSessions.isEmpty
+                                              ? null
+                                              : lastSessions.first,
+                                      onRegisterTraining: openRegisterTraining,
+                                    ),
+                                    if (recommendedFocus.hasRecommendation ||
+                                        nextTraining.hasRecommendation) ...[
+                                      const SizedBox(height: 12),
+                                      _CoachTechnicalFocusCard(
                                         cs: cs,
-                                        frequency: _calcFrequency(filtered),
+                                        focus: recommendedFocus,
+                                        nextTraining: nextTraining,
+                                        compact: true,
+                                        onOpenEvidence: openTraining,
+                                        onOpenSkills: openSkills,
+                                      ),
+                                    ],
+                                    const SizedBox(height: 12),
+                                    _RecentActivityCard(
+                                      cs: cs,
+                                      items: lastSessions.take(3).toList(),
+                                    ),
+                                  ] else ...[
+                                    if (isNutritionStudentView) ...[
+                                      _CoachStudentActiveSummaryCard(
+                                        cs: cs,
+                                        studentName: headerName,
+                                        belt: beltProgress.belt,
+                                        degree: beltProgress.degree,
                                         metrics: metrics,
-                                      );
-                                      final right = _DebriefInsightsCard(
+                                        frequency: _calcFrequency(filtered),
+                                        lastSession:
+                                            lastSessions.isEmpty
+                                                ? null
+                                                : lastSessions.first,
+                                        focus: recommendedFocus,
+                                        onOpenEvidence: openTraining,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _CoachTechnicalFocusCard(
                                         cs: cs,
+                                        focus: recommendedFocus,
+                                        nextTraining: nextTraining,
+                                        compact: false,
+                                        onOpenEvidence: openTraining,
+                                        onOpenSkills: openSkills,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _CoachActiveLiteModules(
+                                        cs: cs,
+                                        metrics: metrics,
+                                        frequency: _calcFrequency(filtered),
                                         insights: debriefInsights,
-                                      );
+                                        skillMatrix: skillMatrix,
+                                        gameMap: gameMapLite,
+                                        profileStream: _nutritionProfileStream,
+                                        mealsStream: _nutritionMealsStream,
+                                        isNutritionFallback:
+                                            _nutritionFallbackToMock,
+                                        hasNutritionLoadError:
+                                            _nutritionLoadError != null,
+                                        onOpenSkills: openSkills,
+                                        onOpenGameMap: openGameMap,
+                                        onOpenNutrition: openNutrition,
+                                      ),
+                                    ] else ...[
+                                      _NextTrainingCard(
+                                        cs: cs,
+                                        recommendation: nextTraining,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _DashboardPrimaryActionCard(
+                                        cs: cs,
+                                        nextTraining: nextTraining,
+                                        onRegisterTraining:
+                                            openRegisterTraining,
+                                        onOpenTraining: openTraining,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _RecommendedFocusCard(
+                                        cs: cs,
+                                        focus: recommendedFocus,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _DashboardQuickActionsCard(
+                                        cs: cs,
+                                        onOpenGameMap: openGameMap,
+                                        onOpenSkills: openSkills,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      LayoutBuilder(
+                                        builder: (context, c) {
+                                          final isWide = c.maxWidth >= 980;
+                                          final left = _StatsCard(
+                                            cs: cs,
+                                            frequency:
+                                                _calcFrequency(filtered),
+                                            metrics: metrics,
+                                          );
+                                          final right = _DebriefInsightsCard(
+                                            cs: cs,
+                                            insights: debriefInsights,
+                                          );
 
-                                      if (isWide) {
-                                        return Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Expanded(flex: 4, child: left),
-                                            const SizedBox(width: 12),
-                                            Expanded(flex: 6, child: right),
-                                          ],
-                                        );
-                                      }
+                                          if (isWide) {
+                                            return Row(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Expanded(flex: 4, child: left),
+                                                const SizedBox(width: 12),
+                                                Expanded(flex: 6, child: right),
+                                              ],
+                                            );
+                                          }
 
-                                      return Column(
-                                        children: [
-                                          left,
-                                          const SizedBox(height: 12),
-                                          right,
-                                        ],
-                                      );
-                                    },
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _NutritionDashboardLiteCard(
-                                    cs: cs,
-                                    profileStream: _nutritionProfileStream,
-                                    mealsStream: _nutritionMealsStream,
-                                    isStudentView: isNutritionStudentView,
-                                    isFallback: _nutritionFallbackToMock,
-                                    hasLoadError: _nutritionLoadError != null,
-                                    onOpenNutrition: openNutrition,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _SkillMatrixSummaryCard(
-                                    cs: cs,
-                                    entries: skillMatrix,
-                                    onOpenSkillMatrix: openGameMap,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _GameMapLiteCard(
-                                    cs: cs,
-                                    entries: gameMapLite,
-                                    onOpenFullMap: openGameMap,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _RecentActivityCard(
-                                    cs: cs,
-                                    items: lastSessions,
-                                  ),
+                                          return Column(
+                                            children: [
+                                              left,
+                                              const SizedBox(height: 12),
+                                              right,
+                                            ],
+                                          );
+                                        },
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _NutritionDashboardLiteCard(
+                                        cs: cs,
+                                        profileStream: _nutritionProfileStream,
+                                        mealsStream: _nutritionMealsStream,
+                                        isStudentView: isNutritionStudentView,
+                                        isFallback: _nutritionFallbackToMock,
+                                        hasLoadError:
+                                            _nutritionLoadError != null,
+                                        hideWhenEmpty: isNutritionStudentView,
+                                        onOpenNutrition: openNutrition,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _SkillMatrixSummaryCard(
+                                        cs: cs,
+                                        entries: skillMatrix,
+                                        onOpenSkillMatrix: openGameMap,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _GameMapLiteCard(
+                                        cs: cs,
+                                        entries: gameMapLite,
+                                        onOpenFullMap: openGameMap,
+                                      ),
+                                      const SizedBox(height: 12),
+                                      _RecentActivityCard(
+                                        cs: cs,
+                                        items: lastSessions,
+                                      ),
+                                    ],
                                 ],
                               ),
                             ),
@@ -790,12 +904,16 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     final intensities = <int>[];
 
     for (final session in sessions) {
-      final technique = _cleanDebriefText(session.technique);
-      final position = _cleanDebriefText(session.position);
-      final focusParts = <String>[];
-      if (technique != null) focusParts.add('T\u00e9cnica: $technique');
-      if (position != null) focusParts.add('Posi\u00e7\u00e3o: $position');
-      if (focusParts.isNotEmpty) focus.add(focusParts.join(' - '));
+      for (final entry in session.effectiveTechniqueEntries) {
+        final technique = _cleanDebriefText(entry.technique);
+        if (technique == null) {
+          continue;
+        }
+        final position =
+            _cleanDebriefText(entry.position) ??
+            _cleanDebriefText(session.position);
+        focus.add(position == null ? technique : '$technique em $position');
+      }
 
       final difficulties = _cleanDebriefText(session.difficulties);
       if (difficulties != null) attention.add(difficulties);
@@ -856,6 +974,18 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     final week = (diff / 7).floor();
     return '${d.year}-$week';
   }
+}
+
+enum _CoachStudentHomeState { empty, foundation, active }
+
+_CoachStudentHomeState _coachStudentHomeStateFor(int trainingCount) {
+  if (trainingCount <= 0) {
+    return _CoachStudentHomeState.empty;
+  }
+  if (trainingCount <= 4) {
+    return _CoachStudentHomeState.foundation;
+  }
+  return _CoachStudentHomeState.active;
 }
 
 // ---------------- UI ----------------
@@ -1001,7 +1131,8 @@ class _AthleteCard extends StatelessWidget {
             title: 'Gradua\u00e7\u00e3o atual',
             progressPercent: percentToNext,
             progressLabel: 'Progresso da faixa',
-            subtitle: '$sessionsInBelt/$sessionsRequired sess\u00f5es na faixa atual',
+            subtitle:
+                '$sessionsInBelt/$sessionsRequired sess\u00f5es na faixa atual',
             compact: true,
             framed: false,
             onEdit: onEditGraduation,
@@ -1250,6 +1381,453 @@ class _InsightBlock extends StatelessWidget {
   }
 }
 
+class _CoachStudentEmptyCard extends StatelessWidget {
+  final ColorScheme cs;
+  final String studentName;
+  final VoidCallback onRegisterTraining;
+
+  const _CoachStudentEmptyCard({
+    required this.cs,
+    required this.studentName,
+    required this.onRegisterTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final firstName = studentName.trim().split(RegExp(r'\s+')).first;
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.35),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'COME\u00c7AR A ACOMPANHAR'),
+          const SizedBox(height: 12),
+          Text(
+            "$firstName ainda n\u00e3o tem treinos registrados.",
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Registre o primeiro treino para iniciar o acompanhamento.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.72),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: onRegisterTraining,
+            icon: const Icon(Icons.add_task_outlined),
+            label: const Text('Registrar primeiro treino'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachStudentFoundationCard extends StatelessWidget {
+  final ColorScheme cs;
+  final String studentName;
+  final BeltColor belt;
+  final int degree;
+  final TrainingMetrics metrics;
+  final TrainingSession? lastSession;
+  final VoidCallback onRegisterTraining;
+
+  const _CoachStudentFoundationCard({
+    required this.cs,
+    required this.studentName,
+    required this.belt,
+    required this.degree,
+    required this.metrics,
+    required this.lastSession,
+    required this.onRegisterTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lastTrainingLabel =
+        lastSession == null
+            ? 'Sem treino recente'
+            : _formatShortDate(lastSession!.date);
+    return _GlassCard(
+      accent: cs.secondary.withValues(alpha: 0.28),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'VISÃO DO ALUNO'),
+          const SizedBox(height: 12),
+          Text(
+            studentName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${_beltLabel(belt)} - $degreeº grau',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricPill(
+                label: 'TREINOS',
+                value: metrics.total.toString(),
+                color: cs.primary,
+              ),
+              _MetricPill(
+                label: '30 DIAS',
+                value: metrics.recent.toString(),
+                color: Colors.amber,
+              ),
+              _MetricPill(
+                label: 'ÚLTIMO',
+                value: lastTrainingLabel,
+                color: cs.secondary,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Perfil técnico ainda em formação. Continue registrando treinos para ampliar as evidências.',
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.72)),
+          ),
+          const SizedBox(height: 14),
+          OverflowBar(
+            spacing: 8,
+            overflowSpacing: 8,
+            children: [
+              FilledButton.icon(
+                onPressed: onRegisterTraining,
+                icon: const Icon(Icons.add_task_outlined),
+                label: const Text('Registrar treino'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CoachStudentActiveSummaryCard extends StatelessWidget {
+  final ColorScheme cs;
+  final String studentName;
+  final BeltColor belt;
+  final int degree;
+  final TrainingMetrics metrics;
+  final int frequency;
+  final TrainingSession? lastSession;
+  final RecommendedTrainingFocus focus;
+  final VoidCallback onOpenEvidence;
+
+  const _CoachStudentActiveSummaryCard({
+    required this.cs,
+    required this.studentName,
+    required this.belt,
+    required this.degree,
+    required this.metrics,
+    required this.frequency,
+    required this.lastSession,
+    required this.focus,
+    required this.onOpenEvidence,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lastTrainingLabel =
+        lastSession == null
+            ? 'Sem treino recente'
+            : _formatShortDate(lastSession!.date);
+    final attentionLabel = _activeAttentionLabel(focus);
+
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(
+            title: 'VISÃO DO ALUNO',
+            action: TextButton.icon(
+              onPressed: onOpenEvidence,
+              icon: const Icon(Icons.fact_check_outlined, size: 18),
+              label: const Text('Ver evidências'),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            studentName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${_beltLabel(belt)} - $degreeº grau',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.68),
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              _MetricPill(
+                label: 'TREINOS',
+                value: metrics.total.toString(),
+                color: cs.primary,
+              ),
+              _MetricPill(
+                label: '30 DIAS',
+                value: metrics.recent.toString(),
+                color: Colors.amber,
+              ),
+              _MetricPill(
+                label: '8 SEMANAS',
+                value: '$frequency%',
+                color: cs.secondary,
+              ),
+              _MetricPill(
+                label: 'ÚLTIMO',
+                value: lastTrainingLabel,
+                color: Colors.lightGreenAccent,
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _InsightBlock(
+            title: 'ATENÇÃO TÉCNICA PRINCIPAL',
+            value: attentionLabel,
+            empty: 'Atenção técnica ainda não definida.',
+          ),
+        ],
+      ),
+    );
+  }
+
+  String? _activeAttentionLabel(RecommendedTrainingFocus focus) {
+    if (!focus.hasRecommendation) return null;
+    final technique = focus.technique?.trim();
+    if (technique == null || technique.isEmpty) return null;
+    final position = focus.position?.trim();
+    if (position == null || position.isEmpty) return technique;
+    return '$technique em $position';
+  }
+}
+
+class _CoachTechnicalFocusCard extends StatelessWidget {
+  final ColorScheme cs;
+  final RecommendedTrainingFocus focus;
+  final NextTrainingRecommendation nextTraining;
+  final bool compact;
+  final VoidCallback onOpenEvidence;
+  final VoidCallback onOpenSkills;
+
+  const _CoachTechnicalFocusCard({
+    required this.cs,
+    required this.focus,
+    required this.nextTraining,
+    required this.compact,
+    required this.onOpenEvidence,
+    required this.onOpenSkills,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final technique = _technicalFocusTechnique();
+    final position = _technicalFocusPosition();
+    final hasFocus = technique != null || position != null;
+    final status = _technicalFocusStatus();
+    final reason = _shortFocusText(
+      focus.hasRecommendation ? focus.reason : nextTraining.subtitle,
+      fallback: 'Foco técnico ainda em construção.',
+      maxLength: compact ? 96 : 132,
+    );
+    final action = _shortFocusText(
+      focus.hasRecommendation
+          ? focus.suggestedAction
+          : nextTraining.technicalDrill,
+      fallback: 'Registrar debrief completo no próximo treino.',
+      maxLength: compact ? 80 : 112,
+    );
+    final accent = _technicalFocusColor(cs, focus.priority);
+
+    if (compact && !hasFocus) {
+      return const SizedBox.shrink();
+    }
+
+    return _GlassCard(
+      accent: accent.withValues(alpha: 0.30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SectionHeaderCompact(title: 'FOCO PARA O PRÓXIMO TREINO'),
+          const SizedBox(height: 10),
+          Text(
+            technique ?? 'Foco técnico em formação',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          if (position != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              position,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.70),
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+          const SizedBox(height: 10),
+          Text(
+            status,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: accent,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            reason,
+            maxLines: compact ? 2 : 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'Recomendação:',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            action,
+            maxLines: compact ? 1 : 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.84),
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          if (!compact) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onOpenEvidence,
+                  icon: const Icon(Icons.fact_check_outlined, size: 18),
+                  label: const Text('Ver evidências'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onOpenSkills,
+                  icon: const Icon(Icons.psychology_alt_outlined, size: 18),
+                  label: const Text('Abrir Skills'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String? _technicalFocusTechnique() {
+    final focusTechnique = focus.technique?.trim();
+    if (focusTechnique != null && focusTechnique.isNotEmpty) {
+      return focusTechnique;
+    }
+    final nextTechnique = nextTraining.focusTechnique?.trim();
+    if (nextTechnique != null && nextTechnique.isNotEmpty) {
+      return nextTechnique;
+    }
+    return null;
+  }
+
+  String? _technicalFocusPosition() {
+    final focusPosition = focus.position?.trim();
+    if (focusPosition != null && focusPosition.isNotEmpty) {
+      return focusPosition;
+    }
+    final nextPosition = nextTraining.focusPosition?.trim();
+    if (nextPosition != null && nextPosition.isNotEmpty) {
+      return nextPosition;
+    }
+    return null;
+  }
+
+  String _technicalFocusStatus() {
+    if (!focus.hasRecommendation && !nextTraining.hasRecommendation) {
+      return focus.confidenceLabel;
+    }
+    switch (focus.priority) {
+      case RecommendedTrainingFocusPriority.high:
+      case RecommendedTrainingFocusPriority.medium:
+        return 'Precisa de ajuste';
+      case RecommendedTrainingFocusPriority.low:
+        return 'Repetir para ganhar recorrência';
+      case RecommendedTrainingFocusPriority.none:
+        return focus.confidenceLabel;
+    }
+  }
+
+  Color _technicalFocusColor(
+    ColorScheme cs,
+    RecommendedTrainingFocusPriority priority,
+  ) {
+    switch (priority) {
+      case RecommendedTrainingFocusPriority.high:
+        return cs.error;
+      case RecommendedTrainingFocusPriority.medium:
+        return Colors.amber;
+      case RecommendedTrainingFocusPriority.low:
+        return Colors.lightGreenAccent;
+      case RecommendedTrainingFocusPriority.none:
+        return cs.primary;
+    }
+  }
+
+  String _shortFocusText(
+    String? value, {
+    required String fallback,
+    required int maxLength,
+  }) {
+    final text = value?.trim();
+    if (text == null || text.isEmpty) return fallback;
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength - 3).trimRight()}...';
+  }
+}
+
 class _DashboardPrimaryActionCard extends StatelessWidget {
   final ColorScheme cs;
   final NextTrainingRecommendation nextTraining;
@@ -1407,6 +1985,7 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
   final bool isStudentView;
   final bool isFallback;
   final bool hasLoadError;
+  final bool hideWhenEmpty;
   final VoidCallback onOpenNutrition;
 
   const _NutritionDashboardLiteCard({
@@ -1416,6 +1995,7 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
     required this.isStudentView,
     required this.isFallback,
     required this.hasLoadError,
+    this.hideWhenEmpty = false,
     required this.onOpenNutrition,
   });
 
@@ -1440,6 +2020,14 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
                 0,
                 (sum, meal) => sum + meal.totalKcal(),
               );
+              if (hideWhenEmpty &&
+                  !isLoading &&
+                  !hasLoadError &&
+                  !isFallback &&
+                  profile == null &&
+                  meals.isEmpty) {
+                return const SizedBox.shrink();
+              }
 
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2688,10 +3276,7 @@ class _TrainingActivityRow extends StatelessWidget {
         session.instructorName!.trim(),
     ];
     final debrief = <String>[
-      if ((session.position ?? '').trim().isNotEmpty)
-        'Posi\u00e7\u00e3o: ${session.position!.trim()}',
-      if ((session.technique ?? '').trim().isNotEmpty)
-        'T\u00e9cnica: ${session.technique!.trim()}',
+      ..._techniqueDebriefs(session),
       if (session.intensity != null) 'Intensidade: ${session.intensity}/5',
       if (_shortDebriefText(session.difficulties) != null)
         'Dificuldade: ${_shortDebriefText(session.difficulties)}',
@@ -2735,6 +3320,27 @@ class _TrainingActivityRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  List<String> _techniqueDebriefs(TrainingSession session) {
+    final labels = <String>[];
+    for (final entry in session.effectiveTechniqueEntries) {
+      final technique = _cleanDebriefText(entry.technique);
+      if (technique == null) {
+        continue;
+      }
+      final position =
+          _cleanDebriefText(entry.position) ??
+          _cleanDebriefText(session.position);
+      labels.add(
+        position == null ? 'Técnica: $technique' : '$technique em $position',
+      );
+    }
+
+    if (labels.length <= 3) {
+      return labels;
+    }
+    return [...labels.take(3), '+${labels.length - 3} técnicas'];
   }
 
   String _formatDate(DateTime date) {
