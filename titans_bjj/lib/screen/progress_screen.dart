@@ -362,35 +362,40 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                         ),
                                       ),
                                     ),
-                                  _BeltProgressCard(
-                                    progress: beltProgress,
-                                    onEditGraduation:
-                                        canEditTarget
-                                            ? () => _showGraduationDialog(
-                                              academyId: academyId,
-                                              uid: uid,
-                                              athlete: athlete,
-                                              rules: rules,
-                                            )
-                                            : null,
+                                  _ProgressOverviewSection(
+                                    beltCard: _BeltProgressCard(
+                                      progress: beltProgress,
+                                      onEditGraduation:
+                                          canEditTarget
+                                              ? () => _showGraduationDialog(
+                                                academyId: academyId,
+                                                uid: uid,
+                                                athlete: athlete,
+                                                rules: rules,
+                                              )
+                                              : null,
+                                    ),
+                                    heatmapCard: _ConsistencyHeatmapCard(
+                                      viewModel: heatmap,
+                                    ),
                                   ),
                                   const SizedBox(height: 12),
-                                  _TrainingMetricsCard(metrics: metrics),
-                                  const SizedBox(height: 12),
-                                  _ConsistencySummaryCard(
-                                    title: _titleForPeriod(_period),
-                                    totalInWindow: totalInWindow,
+                                  _ProgressSupportSection(
+                                    chartCard: _ConsistencyChartCard(
+                                      title: _titleForPeriod(_period),
+                                      totalInWindow: totalInWindow,
+                                      labels: series.labels,
+                                      values: series.values,
+                                      period: _period,
+                                    ),
+                                    consistencyCard: _ConsistencySummaryCard(
+                                      title: _titleForPeriod(_period),
+                                      totalInWindow: totalInWindow,
+                                    ),
+                                    metricsCard: _TrainingMetricsCard(
+                                      metrics: metrics,
+                                    ),
                                   ),
-                                  const SizedBox(height: 12),
-                                  _ConsistencyChartCard(
-                                    title: _titleForPeriod(_period),
-                                    totalInWindow: totalInWindow,
-                                    labels: series.labels,
-                                    values: series.values,
-                                    period: _period,
-                                  ),
-                                  const SizedBox(height: 12),
-                                  _ConsistencyHeatmapCard(viewModel: heatmap),
                                 ],
                               );
                             },
@@ -591,6 +596,181 @@ class _ProgressScreenState extends State<ProgressScreen> {
       case ProgressPeriod.year:
         return '\u00daltimos 5 anos';
     }
+  }
+}
+
+class _ProgressOverviewSection extends StatelessWidget {
+  final Widget beltCard;
+  final Widget heatmapCard;
+
+  const _ProgressOverviewSection({
+    required this.beltCard,
+    required this.heatmapCard,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProgressSectionIntro(
+          title: 'Como sua consist\u00eancia evolui',
+          subtitle:
+              'Faixa, grau e rotina recente aparecem juntos para separar carreira, recorte e regularidade.',
+          icon: Icons.auto_graph_outlined,
+          color: cs.primary,
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 760) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: beltCard),
+                  const SizedBox(width: 12),
+                  Expanded(child: heatmapCard),
+                ],
+              );
+            }
+
+            return Column(
+              children: [beltCard, const SizedBox(height: 12), heatmapCard],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressSupportSection extends StatelessWidget {
+  final Widget chartCard;
+  final Widget consistencyCard;
+  final Widget metricsCard;
+
+  const _ProgressSupportSection({
+    required this.chartCard,
+    required this.consistencyCard,
+    required this.metricsCard,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ProgressSectionIntro(
+          title: 'Leituras de apoio',
+          subtitle:
+              'Recortes temporais e volume continuam dispon\u00edveis sem competir com a leitura central.',
+          icon: Icons.query_stats_outlined,
+          color: cs.secondary,
+        ),
+        const SizedBox(height: 10),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 820) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 3, child: chartCard),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: Column(
+                      children: [
+                        consistencyCard,
+                        const SizedBox(height: 12),
+                        metricsCard,
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }
+
+            return Column(
+              children: [
+                chartCard,
+                const SizedBox(height: 12),
+                consistencyCard,
+                const SizedBox(height: 12),
+                metricsCard,
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _ProgressSectionIntro extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+
+  const _ProgressSectionIntro({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 34,
+          height: 34,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(color: color.withValues(alpha: 0.24)),
+            color: color.withValues(alpha: 0.10),
+          ),
+          child: Icon(icon, size: 18, color: color),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
+                  height: 1.25,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
   }
 }
 
