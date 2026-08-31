@@ -8,7 +8,6 @@ import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../repository/training_repository.dart';
-import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/charts/titans_technical_radar.dart';
@@ -117,7 +116,12 @@ class _GameMapScreenState extends State<GameMapScreen> {
     final canEditCoachEvaluation = isStaffActor && isViewingAnotherUser;
 
     return _wrapModule(
-      appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
+      appBar: AppBar(
+        title: Text(widget.title ?? 'Game Map'),
+        backgroundColor: Colors.transparent,
+        foregroundColor: cs.onSurface,
+        surfaceTintColor: Colors.transparent,
+      ),
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
         builder: (context, snapshot) {
@@ -243,7 +247,7 @@ class _GameMapScreenState extends State<GameMapScreen> {
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
-                title: 'Evidências R/T/C/A',
+                title: 'Cobertura de Repertório',
                 subtitle: rtcaEvidence.subtitle,
                 child: _RtcaEvidencePanel(viewModel: rtcaEvidence),
               ),
@@ -372,12 +376,12 @@ class _GameMapSummaryCard extends StatelessWidget {
               _MetricPill(
                 label: 'RELAÇÕES',
                 value: stats.techniques.toString(),
-                color: Colors.lightGreenAccent,
+                color: TitansUI.successGreen,
               ),
               _MetricPill(
                 label: 'EIXO BASE',
                 value: stats.dominantCategory ?? '-',
-                color: Colors.amber,
+                color: cs.primary,
               ),
               _MetricPill(
                 label: 'CLASSIFICADAS',
@@ -497,6 +501,7 @@ class _MetricPill extends StatelessWidget {
     );
   }
 }
+
 class _SkillsCtaCard extends StatelessWidget {
   final VoidCallback onPressed;
 
@@ -581,7 +586,7 @@ class _CoachEvaluationPanel extends StatelessWidget {
     };
 
     return _VisualCard(
-      accent: cs.tertiary,
+      accent: cs.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -667,8 +672,8 @@ class _CoachEvaluationCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.tertiary.withValues(alpha: 0.20)),
-        color: cs.tertiary.withValues(alpha: 0.06),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.20)),
+        color: cs.primary.withValues(alpha: 0.06),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -684,7 +689,7 @@ class _CoachEvaluationCard extends StatelessWidget {
                 ),
               ),
               if (evaluation.needsReview)
-                _MiniBadge(label: 'Precisa revisar', color: cs.tertiary),
+                _MiniBadge(label: 'Precisa revisar', color: TitansUI.alertRed),
             ],
           ),
           const SizedBox(height: 6),
@@ -1160,7 +1165,7 @@ class _GameMapVisualClusterCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return _VisualCard(
-      accent: cs.tertiary,
+      accent: cs.secondary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1174,17 +1179,7 @@ class _GameMapVisualClusterCard extends StatelessWidget {
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 4),
-          Text(
-            viewModel.subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+
           const SizedBox(height: 12),
           if (viewModel.nodes.isEmpty)
             TitansEmptyState(
@@ -1243,7 +1238,7 @@ class _GameMapHighlightChip extends StatelessWidget {
       message: highlight.helper,
       child: _MiniBadge(
         label: '${highlight.label}: ${highlight.value}',
-        color: cs.tertiary,
+        color: cs.secondary,
       ),
     );
   }
@@ -1268,8 +1263,8 @@ class _GameMapPositionCluster extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cs.tertiary.withValues(alpha: 0.24)),
-          color: cs.tertiary.withValues(alpha: 0.07 + (weight * 0.05)),
+          border: Border.all(color: cs.secondary.withValues(alpha: 0.22)),
+          color: cs.secondary.withValues(alpha: 0.06 + (weight * 0.04)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1289,7 +1284,7 @@ class _GameMapPositionCluster extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                _MiniBadge(label: node.countLabel, color: cs.tertiary),
+                _MiniBadge(label: node.countLabel, color: cs.secondary),
               ],
             ),
             const SizedBox(height: 8),
@@ -1314,7 +1309,7 @@ class _GameMapPositionCluster extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: FractionallySizedBox(
                   widthFactor: weight,
-                  child: Container(color: cs.tertiary.withValues(alpha: 0.78)),
+                  child: Container(color: cs.secondary.withValues(alpha: 0.72)),
                 ),
               ),
             ),
@@ -1403,7 +1398,7 @@ class _RtcaEvidencePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CompactHeader(title: 'EVID\u00caNCIAS R/T/C/A'),
+          const _CompactHeader(title: 'COBERTURA DE REPERTÓRIO'),
           const SizedBox(height: 8),
           Text(
             viewModel.title,
@@ -1413,17 +1408,7 @@ class _RtcaEvidencePanel extends StatelessWidget {
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
-          const SizedBox(height: 4),
-          Text(
-            viewModel.subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+
           const SizedBox(height: 12),
           if (viewModel.items.isEmpty)
             TitansEmptyState(
@@ -1764,15 +1749,16 @@ class _RtcaEvidenceViewModel {
             .where((technique) => technique.sessionsCount >= 3)
             .length;
     final trainingDays = _recentTrainingDays(sessions, days: 84);
-    final applications = sessions.where(_hasMeasuredTechniqueApplication).length;
+    final applications =
+        sessions.where(_hasMeasuredTechniqueApplication).length;
 
     return _RtcaEvidenceViewModel(
-      title: 'Painel R/T/C/A',
+      title: 'Cobertura de Repertório',
       subtitle:
-          'Evid\u00eancias dos treinos registrados, sem compara\u00e7\u00e3o entre atletas.',
+          'Distribuição de recorrência, técnicas, consistência e aplicação.',
       items: [
         _RtcaEvidenceItem(
-          code: 'R',
+          code: '1',
           label: 'Recorr\u00eancia',
           value: _techniquePlural(recurring, 'recorrente'),
           helper: 'T\u00e9cnicas com registros repetidos na Skill Matrix.',
@@ -1780,7 +1766,7 @@ class _RtcaEvidenceViewModel {
           statusLabel: _statusForCount(recurring),
         ),
         _RtcaEvidenceItem(
-          code: 'T',
+          code: '2',
           label: 'T\u00e9cnicas registradas',
           value: TrainingAggregator.techniqueCountLabel(techniques.length),
           helper: 'T\u00e9cnicas presentes nos treinos registrados.',
@@ -1788,7 +1774,7 @@ class _RtcaEvidenceViewModel {
           statusLabel: _statusForCount(techniques.length),
         ),
         _RtcaEvidenceItem(
-          code: 'C',
+          code: '3',
           label: 'Consist\u00eancia',
           value: _dayPlural(trainingDays),
           helper: 'Dias com treino registrado nos \u00faltimos 84 dias.',
@@ -1796,7 +1782,7 @@ class _RtcaEvidenceViewModel {
           statusLabel: _statusForCount(trainingDays),
         ),
         _RtcaEvidenceItem(
-          code: 'A',
+          code: '4',
           label: 'Aplica\u00e7\u00e3o registrada',
           value: _applicationPlural(applications),
           helper:
@@ -1806,7 +1792,7 @@ class _RtcaEvidenceViewModel {
         ),
       ],
       emptyStateLabel:
-          'Registre treinos para preencher evid\u00eancias R/T/C/A com dados reais.',
+          'Registre treinos para formar a cobertura de repertório com dados reais.',
     );
   }
 
@@ -1825,6 +1811,7 @@ class _RtcaEvidenceViewModel {
 
     return false;
   }
+
   static int _recentTrainingDays(
     List<TrainingSession> sessions, {
     required int days,

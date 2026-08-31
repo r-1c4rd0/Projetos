@@ -3038,6 +3038,15 @@ class _HomeRadarVisualShell extends StatelessWidget {
           alignment: Alignment.center,
           clipBehavior: Clip.none,
           children: [
+            Positioned.fill(
+              child: CustomPaint(
+                painter: _HomeRadarOrbitPainter(
+                  cs: cs,
+                  radarSize: size,
+                  highlightedAxis: highlightedAxis,
+                ),
+              ),
+            ),
             Center(
               child: DecoratedBox(
                 decoration: BoxDecoration(
@@ -3114,6 +3123,69 @@ class _HomeRadarVisualShell extends StatelessWidget {
   }
 }
 
+class _HomeRadarOrbitPainter extends CustomPainter {
+  final ColorScheme cs;
+  final double radarSize;
+  final TechnicalRadarAxis? highlightedAxis;
+
+  const _HomeRadarOrbitPainter({
+    required this.cs,
+    required this.radarSize,
+    required this.highlightedAxis,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final orbitRadius = radarSize / 2 + 20;
+    final orbitPaint =
+        Paint()
+          ..color = cs.primary.withValues(alpha: 0.08)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1;
+    final orbitGlowPaint =
+        Paint()
+          ..color = cs.primary.withValues(alpha: 0.06)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 7;
+
+    _paintHomeRadarPolygon(canvas, center, orbitRadius, orbitGlowPaint);
+    _paintHomeRadarPolygon(canvas, center, orbitRadius, orbitPaint);
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final axisColor =
+          axis == highlightedAxis
+              ? cs.secondary
+              : _homeRadarAxisColor(axis, cs);
+      final start = _homeRadarPoint(center, radarSize / 2 + 6, i);
+      final end = _homeRadarPoint(center, orbitRadius - 8, i);
+      final selected = axis == highlightedAxis;
+
+      canvas.drawLine(
+        start,
+        end,
+        Paint()
+          ..color = axisColor.withValues(alpha: selected ? 0.34 : 0.14)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = selected ? 2.0 : 1.0,
+      );
+      canvas.drawCircle(
+        end,
+        selected ? 4.6 : 3.2,
+        Paint()..color = axisColor.withValues(alpha: selected ? 0.70 : 0.32),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _HomeRadarOrbitPainter oldDelegate) {
+    return oldDelegate.cs != cs ||
+        oldDelegate.radarSize != radarSize ||
+        oldDelegate.highlightedAxis != highlightedAxis;
+  }
+}
+
 class _HomeRadarAxisEndpointLabel extends StatelessWidget {
   final ColorScheme cs;
   final TechnicalRadarAxis axis;
@@ -3129,39 +3201,48 @@ class _HomeRadarAxisEndpointLabel extends StatelessWidget {
   Widget build(BuildContext context) {
     final accent = selected ? cs.secondary : _homeRadarAxisColor(axis, cs);
     return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 62, maxWidth: 72),
+      constraints: const BoxConstraints(minWidth: 62, maxWidth: 74),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(999),
-          color: accent.withValues(alpha: selected ? 0.18 : 0.08),
+          borderRadius: BorderRadius.circular(10),
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: selected ? 0.20 : 0.09),
+              accent.withValues(alpha: selected ? 0.07 : 0.025),
+            ],
+          ),
           border: Border.all(
-            color: accent.withValues(alpha: selected ? 0.54 : 0.24),
+            color: accent.withValues(alpha: selected ? 0.62 : 0.26),
           ),
           boxShadow:
               selected
                   ? [
                     BoxShadow(
-                      color: accent.withValues(alpha: 0.18),
-                      blurRadius: 14,
-                      spreadRadius: -6,
+                      color: accent.withValues(alpha: 0.20),
+                      blurRadius: 16,
+                      spreadRadius: -7,
                     ),
                   ]
                   : const [],
         ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
-          child: Text(
-            axis.displayLabel,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color:
-                  selected
-                      ? cs.secondary
-                      : cs.onSurface.withValues(alpha: 0.76),
-              fontSize: 10.5,
-              fontWeight: FontWeight.w900,
+        child: SizedBox(
+          height: 26,
+          child: Center(
+            child: Text(
+              axis.displayLabel,
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color:
+                    selected
+                        ? cs.secondary
+                        : cs.onSurface.withValues(alpha: 0.78),
+                fontSize: 10.3,
+                fontWeight: FontWeight.w900,
+              ),
             ),
           ),
         ),
@@ -3258,9 +3339,9 @@ class _HomeTechnicalRadarInitialPainter extends CustomPainter {
           ..strokeWidth = 1;
     final softGridPaint =
         Paint()
-          ..color = cs.primary.withValues(alpha: 0.07)
+          ..color = cs.primary.withValues(alpha: 0.11)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5;
+          ..strokeWidth = 4.2;
     final axisPaint =
         Paint()
           ..color = cs.onSurface.withValues(alpha: 0.18)
@@ -3268,7 +3349,7 @@ class _HomeTechnicalRadarInitialPainter extends CustomPainter {
           ..strokeWidth = 1.2;
 
     canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
       _paintHomeRadarPolygon(
         canvas,
         center,
@@ -3344,12 +3425,12 @@ class _HomeTechnicalRadarFormationPainter extends CustomPainter {
           ..strokeWidth = 1;
     final outerGridPaint =
         Paint()
-          ..color = cs.primary.withValues(alpha: 0.08)
+          ..color = cs.primary.withValues(alpha: 0.12)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5;
+          ..strokeWidth = 4.2;
 
     canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
       _paintHomeRadarPolygon(
         canvas,
         center,
@@ -3462,12 +3543,12 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
           ..strokeWidth = 1;
     final outerGridPaint =
         Paint()
-          ..color = cs.primary.withValues(alpha: 0.08)
+          ..color = cs.primary.withValues(alpha: 0.12)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 5;
+          ..strokeWidth = 4.2;
 
     canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
       _paintHomeRadarPolygon(
         canvas,
         center,
