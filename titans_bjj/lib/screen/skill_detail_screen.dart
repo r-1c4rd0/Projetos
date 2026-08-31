@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../features/technical_domain/application/technical_domain_use_cases.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
-import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../widgets/titans_scaffold.dart';
 
@@ -938,10 +938,9 @@ class _SkillDetailViewModel {
     required List<CoachEvaluation> evaluations,
   }) {
     final evidences =
-        TrainingAggregator.buildSkillEvidences(
-          sessions,
-          limit: sessions.length,
-        ).where((evidence) => evidence.skillId == skillId).toList();
+        const GetSkillEvidences()(sessions, limit: sessions.length)
+            .where((evidence) => evidence.skillId == skillId)
+            .toList();
     final history = _buildHistory(sessions, skillId);
     final positionCounts = <String, int>{};
     final contexts = <String>{};

@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../features/technical_domain/application/technical_domain_use_cases.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../repository/training_repository.dart';
-import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
@@ -41,6 +41,10 @@ class _SkillsScreenState extends State<SkillsScreen> {
       CoachEvaluationRepository.instance;
   late final Stream<List<TrainingSession>> _sessionsStream;
   late final Stream<List<CoachEvaluation>> _coachEvaluationsStream;
+  late final GetSkillMatrixSummary _getSkillMatrixSummary =
+      const GetSkillMatrixSummary();
+  late final GetGameMapEvidenceSummary _getGameMapEvidenceSummary =
+      const GetGameMapEvidenceSummary();
 
   @override
   void initState() {
@@ -73,11 +77,8 @@ class _SkillsScreenState extends State<SkillsScreen> {
           }
 
           final sessions = snapshot.data ?? const <TrainingSession>[];
-          final skillMatrix = TrainingAggregator.buildSkillMatrix(
-            sessions,
-            limit: 50,
-          );
-          final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
+          final skillMatrix = _getSkillMatrixSummary(sessions, limit: 50);
+          final entries = _getGameMapEvidenceSummary(sessions, limit: 20);
 
           return StreamBuilder<List<CoachEvaluation>>(
             stream: _coachEvaluationsStream,

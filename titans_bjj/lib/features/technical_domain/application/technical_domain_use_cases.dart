@@ -125,6 +125,14 @@ class GetGameMapEvidenceSummary {
   }
 }
 
+class GetSkillEvidences {
+  const GetSkillEvidences();
+
+  List<SkillEvidence> call(List<TrainingSession> sessions, {int limit = 100}) {
+    return TrainingAggregator.buildSkillEvidences(sessions, limit: limit);
+  }
+}
+
 class GetTechnicalEvidenceSummary {
   const GetTechnicalEvidenceSummary();
 
