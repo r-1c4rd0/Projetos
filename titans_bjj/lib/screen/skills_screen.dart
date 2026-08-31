@@ -130,7 +130,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
                   ),
                   const SizedBox(height: 12),
                   TitansExpandableSection(
-                    title: 'Explorar',
+                    title: 'Matriz de repertorio',
                     subtitle: _explorerSectionSummary(entries),
                     initiallyExpanded: true,
                     child: _SkillsExplorer(
@@ -443,33 +443,487 @@ class _SkillsExplorer extends StatefulWidget {
 
 class _SkillsExplorerState extends State<_SkillsExplorer> {
   _ExplorerMode _mode = _ExplorerMode.position;
+  String? _selectedNodeKey;
 
   @override
   Widget build(BuildContext context) {
+    final nodes =
+        _mode == _ExplorerMode.position
+            ? _positionMatrixNodes(widget.entries)
+            : _categoryMatrixNodes(widget.categories);
+    final selectedNode = _selectedMatrixNode(nodes, _selectedNodeKey);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _ExplorerModeSelector(
           selected: _mode,
-          onChanged: (mode) => setState(() => _mode = mode),
+          onChanged:
+              (mode) => setState(() {
+                _mode = mode;
+                _selectedNodeKey = null;
+              }),
         ),
         const SizedBox(height: 12),
         AnimatedSwitcher(
           duration: const Duration(milliseconds: 180),
           child:
-              _mode == _ExplorerMode.position
-                  ? _PositionExplorerList(
-                    entries: widget.entries,
-                    onOpenTechnique: widget.onOpenTechnique,
-                  )
-                  : _CategoryExplorerList(
-                    categories: widget.categories,
+              nodes.isEmpty
+                  ? _SkillsMatrixEmptyState(mode: _mode)
+                  : _SkillsMatrixExplorer(
+                    key: ValueKey(_mode),
+                    mode: _mode,
+                    nodes: nodes,
+                    selectedNode: selectedNode,
+                    onSelectNode:
+                        (node) => setState(() => _selectedNodeKey = node.key),
                     onOpenTechnique: widget.onOpenTechnique,
                   ),
         ),
       ],
     );
   }
+}
+
+class _SkillsMatrixExplorer extends StatelessWidget {
+  final _ExplorerMode mode;
+  final List<_SkillsMatrixNode> nodes;
+  final _SkillsMatrixNode? selectedNode;
+  final ValueChanged<_SkillsMatrixNode> onSelectNode;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
+
+  const _SkillsMatrixExplorer({
+    super.key,
+    required this.mode,
+    required this.nodes,
+    required this.selectedNode,
+    required this.onSelectNode,
+    required this.onOpenTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = selectedNode;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SkillsMatrixGrid(
+          nodes: nodes,
+          selectedKey: selected?.key,
+          onSelectNode: onSelectNode,
+        ),
+        const SizedBox(height: 12),
+        if (selected == null)
+          _SkillsMatrixHint(mode: mode)
+        else
+          _SkillsMatrixDetailPanel(
+            node: selected,
+            onOpenTechnique: onOpenTechnique,
+          ),
+      ],
+    );
+  }
+}
+
+class _SkillsMatrixGrid extends StatelessWidget {
+  final List<_SkillsMatrixNode> nodes;
+  final String? selectedKey;
+  final ValueChanged<_SkillsMatrixNode> onSelectNode;
+
+  const _SkillsMatrixGrid({
+    required this.nodes,
+    required this.selectedKey,
+    required this.onSelectNode,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final columns = width < 300 ? 1 : (width >= 720 ? 3 : 2);
+        final gap = TitansUI.spaceSm;
+        final itemWidth = (width - gap * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final node in nodes)
+              SizedBox(
+                width: itemWidth.clamp(132.0, width).toDouble(),
+                child: _SkillsMatrixNodeCard(
+                  node: node,
+                  selected: selectedKey == node.key,
+                  onTap: () => onSelectNode(node),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SkillsMatrixNodeCard extends StatelessWidget {
+  final _SkillsMatrixNode node;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _SkillsMatrixNodeCard({
+    required this.node,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = selected ? TitansUI.actionGold : node.accent;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(18),
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+            border: Border.all(
+              color: accent.withValues(alpha: selected ? 0.52 : 0.22),
+            ),
+            boxShadow: [
+              if (selected)
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.16),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: accent.withValues(alpha: 0.13),
+                      border: Border.all(color: accent.withValues(alpha: 0.28)),
+                    ),
+                    child: Icon(node.icon, size: 16, color: accent),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      node.primaryValue,
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Text(
+                node.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                node.subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 11,
+                  height: 1.15,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 5,
+                runSpacing: 5,
+                children: [
+                  _TechniqueChip(label: node.statusLabel),
+                  if (node.preview.isNotEmpty)
+                    _TechniqueChip(label: node.preview.first),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SkillsMatrixHint extends StatelessWidget {
+  final _ExplorerMode mode;
+
+  const _SkillsMatrixHint({required this.mode});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final label = mode == _ExplorerMode.position ? 'posicao' : 'categoria';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.14),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Text(
+        'Toque em uma $label para ver tecnicas e evidencias registradas.',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.66),
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+    );
+  }
+}
+
+class _SkillsMatrixDetailPanel extends StatelessWidget {
+  final _SkillsMatrixNode node;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
+
+  const _SkillsMatrixDetailPanel({
+    required this.node,
+    required this.onOpenTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansCard(
+      accent: TitansUI.actionGold,
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      node.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      node.subtitle,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.62),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              _TechniqueChip(label: node.statusLabel),
+            ],
+          ),
+          if (node.preview.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final name in node.preview.take(4))
+                  _TechniqueChip(label: name),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+          for (final technique in node.techniques)
+            _TechniqueMiniRow(
+              name: technique.name,
+              count: technique.count,
+              detail: technique.detail,
+              onTap: () => onOpenTechnique(technique.target),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SkillsMatrixEmptyState extends StatelessWidget {
+  final _ExplorerMode mode;
+
+  const _SkillsMatrixEmptyState({required this.mode});
+
+  @override
+  Widget build(BuildContext context) {
+    if (mode == _ExplorerMode.position) {
+      return const TitansStateView.empty(
+        title: 'Sem posicoes mapeadas',
+        message:
+            'Registre treinos com posicao e tecnica para montar o repertorio.',
+        compact: true,
+      );
+    }
+
+    return const TitansStateView.empty(
+      title: 'Sem categorias mapeadas',
+      message: 'As categorias aparecem conforme os treinos ganham tecnicas.',
+      compact: true,
+    );
+  }
+}
+
+class _SkillsMatrixNode {
+  final String key;
+  final String title;
+  final String subtitle;
+  final String primaryValue;
+  final String statusLabel;
+  final IconData icon;
+  final Color accent;
+  final List<String> preview;
+  final List<_SkillsMatrixTechnique> techniques;
+
+  const _SkillsMatrixNode({
+    required this.key,
+    required this.title,
+    required this.subtitle,
+    required this.primaryValue,
+    required this.statusLabel,
+    required this.icon,
+    required this.accent,
+    required this.preview,
+    required this.techniques,
+  });
+}
+
+class _SkillsMatrixTechnique {
+  final String name;
+  final int count;
+  final String detail;
+  final _SkillNavigationTarget target;
+
+  const _SkillsMatrixTechnique({
+    required this.name,
+    required this.count,
+    required this.detail,
+    required this.target,
+  });
+}
+
+List<_SkillsMatrixNode> _positionMatrixNodes(List<GameMapEntry> entries) {
+  return [
+    for (final entry in entries)
+      _SkillsMatrixNode(
+        key: 'position:${entry.position}',
+        title: entry.position,
+        subtitle:
+            '${TrainingAggregator.techniqueCountLabel(entry.techniques.length)} · ${TrainingAggregator.sessionCountLabel(entry.sessionsCount)}',
+        primaryValue: entry.techniques.length.toString(),
+        statusLabel: _matrixStatusLabel(entry.sessionsCount),
+        icon: Icons.account_tree_outlined,
+        accent: TitansUI.technicalBlue,
+        preview: [
+          for (final technique in entry.techniques.take(3)) technique.technique,
+        ],
+        techniques: [
+          for (final technique in entry.techniques)
+            _SkillsMatrixTechnique(
+              name: technique.technique,
+              count: technique.sessionsCount,
+              detail: _formatShortDate(technique.lastTrainedAt),
+              target: _SkillNavigationTarget.fromGameMap(
+                technique: technique,
+                position: entry.position,
+              ),
+            ),
+        ],
+      ),
+  ];
+}
+
+List<_SkillsMatrixNode> _categoryMatrixNodes(
+  List<SkillMatrixCategoryEntry> categories,
+) {
+  return [
+    for (final category in categories)
+      _SkillsMatrixNode(
+        key: 'category:${category.category.name}',
+        title: category.category.label,
+        subtitle:
+            '${TrainingAggregator.techniqueCountLabel(category.techniquesCount)} · ${TrainingAggregator.sessionCountLabel(category.sessionsCount)}',
+        primaryValue: category.techniquesCount.toString(),
+        statusLabel: _matrixStatusLabel(category.sessionsCount),
+        icon: Icons.grid_view_rounded,
+        accent: TitansUI.success,
+        preview: [
+          for (final technique in category.techniques.take(3))
+            technique.technique,
+        ],
+        techniques: [
+          for (final technique in category.techniques)
+            _SkillsMatrixTechnique(
+              name: technique.technique,
+              count: technique.sessionsCount,
+              detail: technique.position ?? 'Posicao nao informada',
+              target: _SkillNavigationTarget.fromSkillMatrix(technique),
+            ),
+        ],
+      ),
+  ];
+}
+
+_SkillsMatrixNode? _selectedMatrixNode(
+  List<_SkillsMatrixNode> nodes,
+  String? selectedKey,
+) {
+  if (selectedKey == null) return null;
+  for (final node in nodes) {
+    if (node.key == selectedKey) return node;
+  }
+  return null;
+}
+
+String _matrixStatusLabel(int sessionsCount) {
+  if (sessionsCount <= 0) return 'Sem evidencia';
+  if (sessionsCount == 1) return '1 sessao';
+  return '$sessionsCount sessoes';
 }
 
 class _ExplorerModeSelector extends StatelessWidget {
@@ -553,240 +1007,6 @@ class _ModeButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _PositionExplorerList extends StatelessWidget {
-  final List<GameMapEntry> entries;
-  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
-
-  const _PositionExplorerList({
-    required this.entries,
-    required this.onOpenTechnique,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (entries.isEmpty) {
-      return const TitansStateView.empty(
-        title: 'Sem posições mapeadas',
-        message:
-            'Registre treinos com posição e técnica para montar o repertório.',
-        compact: true,
-      );
-    }
-
-    return Column(
-      children: [
-        for (final entry in entries) ...[
-          _ExplorerPositionTile(entry: entry, onOpenTechnique: onOpenTechnique),
-          if (entry != entries.last) const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
-}
-
-class _CategoryExplorerList extends StatelessWidget {
-  final List<SkillMatrixCategoryEntry> categories;
-  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
-
-  const _CategoryExplorerList({
-    required this.categories,
-    required this.onOpenTechnique,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    if (categories.isEmpty) {
-      return const TitansStateView.empty(
-        title: 'Sem categorias mapeadas',
-        message: 'As categorias aparecem conforme os treinos ganham técnicas.',
-        compact: true,
-      );
-    }
-
-    return Column(
-      children: [
-        for (final category in categories) ...[
-          _ExplorerCategoryTile(
-            category: category,
-            onOpenTechnique: onOpenTechnique,
-          ),
-          if (category != categories.last) const SizedBox(height: 10),
-        ],
-      ],
-    );
-  }
-}
-
-class _ExplorerPositionTile extends StatelessWidget {
-  final GameMapEntry entry;
-  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
-
-  const _ExplorerPositionTile({
-    required this.entry,
-    required this.onOpenTechnique,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _ExplorerTileShell(
-      title: entry.position,
-      subtitle:
-          '${TrainingAggregator.techniqueCountLabel(entry.techniques.length)} · ${TrainingAggregator.sessionCountLabel(entry.sessionsCount)}',
-      preview: [
-        for (final technique in entry.techniques.take(3)) technique.technique,
-      ],
-      children: [
-        for (final technique in entry.techniques)
-          _TechniqueMiniRow(
-            name: technique.technique,
-            count: technique.sessionsCount,
-            detail: _formatShortDate(technique.lastTrainedAt),
-            onTap:
-                () => onOpenTechnique(
-                  _SkillNavigationTarget.fromGameMap(
-                    technique: technique,
-                    position: entry.position,
-                  ),
-                ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ExplorerCategoryTile extends StatelessWidget {
-  final SkillMatrixCategoryEntry category;
-  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
-
-  const _ExplorerCategoryTile({
-    required this.category,
-    required this.onOpenTechnique,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _ExplorerTileShell(
-      title: category.category.label,
-      subtitle:
-          '${TrainingAggregator.techniqueCountLabel(category.techniquesCount)} · ${TrainingAggregator.sessionCountLabel(category.sessionsCount)}',
-      preview: [
-        for (final technique in category.techniques.take(3))
-          technique.technique,
-      ],
-      children: [
-        for (final technique in category.techniques)
-          _TechniqueMiniRow(
-            name: technique.technique,
-            count: technique.sessionsCount,
-            detail: technique.position ?? 'Posição não informada',
-            onTap:
-                () => onOpenTechnique(
-                  _SkillNavigationTarget.fromSkillMatrix(technique),
-                ),
-          ),
-      ],
-    );
-  }
-}
-
-class _ExplorerTileShell extends StatefulWidget {
-  final String title;
-  final String subtitle;
-  final List<String> preview;
-  final List<Widget> children;
-
-  const _ExplorerTileShell({
-    required this.title,
-    required this.subtitle,
-    required this.preview,
-    required this.children,
-  });
-
-  @override
-  State<_ExplorerTileShell> createState() => _ExplorerTileShellState();
-}
-
-class _ExplorerTileShellState extends State<_ExplorerTileShell> {
-  bool _expanded = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return TitansCard(
-      accent: _expanded ? cs.secondary : cs.primary,
-      padding: const EdgeInsets.all(12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(12),
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        widget.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        widget.subtitle,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.62),
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(
-                  _expanded
-                      ? Icons.keyboard_arrow_up_rounded
-                      : Icons.keyboard_arrow_down_rounded,
-                  color: cs.onSurface.withValues(alpha: 0.72),
-                ),
-              ],
-            ),
-          ),
-          if (widget.preview.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final name in widget.preview) _TechniqueChip(label: name),
-              ],
-            ),
-          ],
-          AnimatedCrossFade(
-            duration: const Duration(milliseconds: 180),
-            crossFadeState:
-                _expanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Column(children: widget.children),
-            ),
-          ),
-        ],
       ),
     );
   }
