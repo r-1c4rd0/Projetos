@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../features/technical_domain/application/technical_domain_use_cases.dart';
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
 import '../model/nutrition_models.dart';
@@ -15,7 +16,6 @@ import '../repository/training_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
-import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_belt_status_card.dart';
@@ -2543,42 +2543,17 @@ class _HomeTechnicalRadarViewModel {
   factory _HomeTechnicalRadarViewModel.fromSessions(
     List<TrainingSession> sessions,
   ) {
-    final axisEvidence = <TechnicalRadarAxis, int>{
-      for (final axis in _homeTechnicalRadarAxisOrder) axis: 0,
-    };
-    final seenEvidence = <String>{};
-    final sourceKeys = <String>{};
-    var classified = 0;
-    var unclassified = 0;
-
-    final evidences = TrainingAggregator.buildSkillEvidences(
+    final summary = const GetTechnicalRadarSummary()(
       sessions,
       limit: sessions.length,
     );
 
-    for (final evidence in evidences) {
-      final sourceKey =
-          evidence.sourceId ?? evidence.practicedAt.toIso8601String();
-      final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
-      if (!seenEvidence.add(dedupeKey)) continue;
-
-      final axis = _homeTechnicalRadarAxisForEvidence(evidence);
-      if (axis == TechnicalRadarAxis.unclassified) {
-        unclassified += 1;
-        continue;
-      }
-
-      classified += 1;
-      sourceKeys.add(sourceKey);
-      axisEvidence[axis] = (axisEvidence[axis] ?? 0) + 1;
-    }
-
     return _HomeTechnicalRadarViewModel(
-      axisEvidence: axisEvidence,
-      classifiedEvidenceCount: classified,
-      awaitingClassificationCount: unclassified,
-      sessionsCount: sourceKeys.length,
-      topAxis: _homeTopTechnicalRadarAxis(axisEvidence),
+      axisEvidence: summary.axisEvidence,
+      classifiedEvidenceCount: summary.classifiedEvidences,
+      awaitingClassificationCount: summary.unclassifiedEvidences,
+      sessionsCount: summary.sessionsCount,
+      topAxis: summary.topAxis,
     );
   }
 }
@@ -2916,30 +2891,25 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
               final radarDetails = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'Leitura técnica por evidências',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.90),
-                      fontSize: 15,
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  _CoachLiteDataRow(
-                    line: _CoachLiteLine('Destaque', radar.topAxisLabel),
-                  ),
-                  const SizedBox(height: 8),
-                  _CoachLiteDataRow(
-                    line: _CoachLiteLine(
-                      'Evidências',
-                      radar.classifiedEvidenceLabel,
-                    ),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _InsightBadge(
+                        label: 'Destaque: ${radar.topAxisLabel}',
+                        color: cs.secondary,
+                        icon: Icons.auto_awesome_outlined,
+                      ),
+                      _InsightBadge(
+                        label: radar.classifiedEvidenceLabel,
+                        color: cs.primary,
+                        icon: Icons.radar_outlined,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 10),
                   Text(
-                    'Baseado em evidências dos treinos.',
+                    'Baseado em evid\u00eancias dos treinos.',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -3157,15 +3127,15 @@ class _HomeRadarAxisEndpointLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = selected ? cs.secondary : cs.primary;
+    final accent = selected ? cs.secondary : _homeRadarAxisColor(axis, cs);
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 62, maxWidth: 72),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(999),
-          color: accent.withValues(alpha: selected ? 0.14 : 0.08),
+          color: accent.withValues(alpha: selected ? 0.18 : 0.08),
           border: Border.all(
-            color: accent.withValues(alpha: selected ? 0.42 : 0.22),
+            color: accent.withValues(alpha: selected ? 0.54 : 0.24),
           ),
           boxShadow:
               selected
@@ -3186,7 +3156,10 @@ class _HomeRadarAxisEndpointLabel extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: selected ? 0.92 : 0.74),
+              color:
+                  selected
+                      ? cs.secondary
+                      : cs.onSurface.withValues(alpha: 0.76),
               fontSize: 10.5,
               fontWeight: FontWeight.w900,
             ),
@@ -3225,11 +3198,37 @@ class _HomeRadarCta extends StatelessWidget {
       ],
     );
 
+    final cs = Theme.of(context).colorScheme;
+    final minimumSize = const Size.fromHeight(44);
+
     if (filled) {
-      return FilledButton(onPressed: onPressed, child: child);
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: minimumSize,
+            backgroundColor: cs.secondary,
+            foregroundColor: Colors.black,
+          ),
+          child: child,
+        ),
+      );
     }
 
-    return OutlinedButton(onPressed: onPressed, child: child);
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: minimumSize,
+          foregroundColor: cs.onSurface,
+          side: BorderSide(color: cs.secondary.withValues(alpha: 0.38)),
+          backgroundColor: cs.secondary.withValues(alpha: 0.07),
+        ),
+        child: child,
+      ),
+    );
   }
 }
 
@@ -3241,51 +3240,70 @@ class _HomeTechnicalRadarInitialPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 14);
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
+    final glowPaint =
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              cs.primary.withValues(alpha: 0.18),
+              cs.primary.withValues(alpha: 0),
+            ],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: radius * 1.16),
+          );
     final gridPaint =
         Paint()
-          ..color = cs.primary.withValues(alpha: 0.14)
+          ..color = cs.onSurface.withValues(alpha: 0.12)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
+    final softGridPaint =
+        Paint()
+          ..color = cs.primary.withValues(alpha: 0.07)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 5;
     final axisPaint =
         Paint()
           ..color = cs.onSurface.withValues(alpha: 0.18)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.2;
-    final nodePaint = Paint()..color = cs.primary.withValues(alpha: 0.34);
 
-    for (final step in const [0.35, 0.7, 1.0]) {
-      _paintPolygon(canvas, center, radius * step, gridPaint);
+    canvas.drawCircle(center, radius * 1.12, glowPaint);
+    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+      _paintHomeRadarPolygon(
+        canvas,
+        center,
+        radius * step,
+        step == 1.0 ? softGridPaint : gridPaint,
+      );
     }
 
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final angle = _homeRadarAngle(i);
-      final direction = Offset(math.cos(angle), math.sin(angle));
-      final end = center + direction * radius;
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final axisColor = _homeRadarAxisColor(axis, cs);
+      final end = _homeRadarPoint(center, radius, i);
       canvas.drawLine(center, end, axisPaint);
-      canvas.drawCircle(end, 3.6, nodePaint);
+      canvas.drawCircle(
+        end,
+        7.2,
+        Paint()..color = axisColor.withValues(alpha: 0.10),
+      );
+      canvas.drawCircle(
+        end,
+        3.9,
+        Paint()..color = axisColor.withValues(alpha: 0.50),
+      );
     }
 
     canvas.drawCircle(
       center,
-      4.2,
+      5.8,
+      Paint()..color = cs.primary.withValues(alpha: 0.16),
+    );
+    canvas.drawCircle(
+      center,
+      3.2,
       Paint()..color = cs.primary.withValues(alpha: 0.72),
     );
-  }
-
-  void _paintPolygon(Canvas canvas, Offset center, double radius, Paint paint) {
-    final path = Path();
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final angle = _homeRadarAngle(i);
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
   }
 
   @override
@@ -3308,75 +3326,97 @@ class _HomeTechnicalRadarFormationPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 14);
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
+    final glowPaint =
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              cs.primary.withValues(alpha: 0.16),
+              cs.secondary.withValues(alpha: 0.05),
+              cs.primary.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.58, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2));
     final gridPaint =
         Paint()
           ..color = cs.onSurface.withValues(alpha: 0.10)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
-    final mutedPaint =
+    final outerGridPaint =
         Paint()
-          ..color = cs.onSurface.withValues(alpha: 0.18)
+          ..color = cs.primary.withValues(alpha: 0.08)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2;
-    final activePaint =
-        Paint()
-          ..color = cs.secondary.withValues(alpha: 0.88)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 2.4;
-    final activeFill = Paint()..color = cs.secondary.withValues(alpha: 0.92);
-    final lockedFill = Paint()..color = cs.onSurface.withValues(alpha: 0.16);
+          ..strokeWidth = 5;
 
-    for (final step in const [0.35, 0.7, 1.0]) {
-      _paintPolygon(canvas, center, radius * step, gridPaint, fill: false);
+    canvas.drawCircle(center, radius * 1.12, glowPaint);
+    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+      _paintHomeRadarPolygon(
+        canvas,
+        center,
+        radius * step,
+        step == 1.0 ? outerGridPaint : gridPaint,
+      );
     }
 
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
       final axis = _homeTechnicalRadarAxisOrder[i];
-      final angle = _homeRadarAngle(i);
-      final direction = Offset(math.cos(angle), math.sin(angle));
-      final end = center + direction * radius;
+      final axisColor = _homeRadarAxisColor(axis, cs);
+      final end = _homeRadarPoint(center, radius, i);
       final hasEvidence = (axisEvidence[axis] ?? 0) > 0;
       final isHighlighted = axis == highlightedAxis && hasEvidence;
+      final lineColor = isHighlighted ? cs.secondary : axisColor;
+      final lineAlpha = isHighlighted ? 0.72 : (hasEvidence ? 0.34 : 0.16);
 
-      canvas.drawLine(center, end, isHighlighted ? activePaint : mutedPaint);
+      canvas.drawLine(
+        center,
+        end,
+        Paint()
+          ..color = lineColor.withValues(alpha: lineAlpha)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = isHighlighted ? 2.2 : 1.2,
+      );
+      if (isHighlighted) {
+        canvas.drawLine(
+          center,
+          end,
+          Paint()
+            ..color = cs.secondary.withValues(alpha: 0.12)
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = 7,
+        );
+      }
       canvas.drawCircle(
         end,
-        isHighlighted ? 4.8 : 3.4,
-        isHighlighted ? activeFill : lockedFill,
+        isHighlighted ? 8.6 : 6.4,
+        Paint()
+          ..color = lineColor.withValues(alpha: isHighlighted ? 0.18 : 0.08),
       );
-      if (!isHighlighted) {
-        final lockCenter = center + direction * (radius * 0.62);
-        canvas.drawCircle(lockCenter, 2.2, lockedFill);
+      canvas.drawCircle(
+        end,
+        isHighlighted ? 4.8 : 3.2,
+        Paint()
+          ..color = lineColor.withValues(alpha: isHighlighted ? 0.94 : 0.36),
+      );
+      if (!hasEvidence) {
+        final lockedPoint = _homeRadarPoint(center, radius * 0.58, i);
+        canvas.drawCircle(
+          lockedPoint,
+          2.1,
+          Paint()..color = cs.onSurface.withValues(alpha: 0.16),
+        );
       }
     }
 
     canvas.drawCircle(
       center,
-      3.8,
+      5.4,
+      Paint()..color = cs.primary.withValues(alpha: 0.14),
+    );
+    canvas.drawCircle(
+      center,
+      3.2,
       Paint()..color = cs.primary.withValues(alpha: 0.70),
     );
-  }
-
-  void _paintPolygon(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    Paint paint, {
-    required bool fill,
-  }) {
-    final path = Path();
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final angle = _homeRadarAngle(i);
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
   }
 
   @override
@@ -3403,40 +3443,53 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 12);
-    final maxEvidence = axisEvidence.values.fold<int>(
-      1,
-      (max, value) => value > max ? value : max,
-    );
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
+    final maxEvidence = _homeRadarMaxEvidence(axisEvidence);
+    final glowPaint =
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              cs.primary.withValues(alpha: 0.18),
+              cs.secondary.withValues(alpha: 0.06),
+              cs.primary.withValues(alpha: 0),
+            ],
+            stops: const [0, 0.56, 1],
+          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2));
     final gridPaint =
         Paint()
           ..color = cs.onSurface.withValues(alpha: 0.12)
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1;
-    final axisPaint =
+    final outerGridPaint =
         Paint()
-          ..color = cs.primary.withValues(alpha: 0.28)
+          ..color = cs.primary.withValues(alpha: 0.08)
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
+          ..strokeWidth = 5;
 
-    for (final step in const [0.33, 0.66, 1.0]) {
-      _paintPolygon(canvas, center, radius * step, gridPaint, fill: false);
+    canvas.drawCircle(center, radius * 1.12, glowPaint);
+    for (final step in const [0.25, 0.5, 0.75, 1.0]) {
+      _paintHomeRadarPolygon(
+        canvas,
+        center,
+        radius * step,
+        step == 1.0 ? outerGridPaint : gridPaint,
+      );
     }
 
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
       final axis = _homeTechnicalRadarAxisOrder[i];
-      final angle = _homeRadarAngle(i);
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      final axisColor = _homeRadarAxisColor(axis, cs);
+      final point = _homeRadarPoint(center, radius, i);
       final isHighlighted = axis == highlightedAxis;
       canvas.drawLine(
         center,
         point,
-        isHighlighted
-            ? (Paint()
-              ..color = cs.secondary.withValues(alpha: 0.58)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 1.8)
-            : axisPaint,
+        Paint()
+          ..color = (isHighlighted ? cs.secondary : axisColor).withValues(
+            alpha: isHighlighted ? 0.58 : 0.32,
+          )
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = isHighlighted ? 1.8 : 1.15,
       );
     }
 
@@ -3444,10 +3497,8 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
       final axis = _homeTechnicalRadarAxisOrder[i];
       final value = axisEvidence[axis] ?? 0;
-      final fraction = value <= 0 ? 0.0 : value / maxEvidence;
-      final angle = _homeRadarAngle(i);
-      final point =
-          center + Offset(math.cos(angle), math.sin(angle)) * radius * fraction;
+      final factor = value <= 0 ? 0.0 : 0.16 + (value / maxEvidence) * 0.78;
+      final point = _homeRadarPoint(center, radius * factor, i);
       if (i == 0) {
         path.moveTo(point.dx, point.dy);
       } else {
@@ -3459,77 +3510,62 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = cs.primary.withValues(alpha: 0.18)
+        ..color = cs.primary.withValues(alpha: 0.16)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 6,
+    );
+    canvas.drawPath(
+      path,
+      Paint()
+        ..shader = RadialGradient(
+          colors: [
+            cs.primary.withValues(alpha: 0.26),
+            cs.secondary.withValues(alpha: 0.10),
+          ],
+        ).createShader(Rect.fromCircle(center: center, radius: radius))
         ..style = PaintingStyle.fill,
     );
     canvas.drawPath(
       path,
       Paint()
-        ..color = cs.primary.withValues(alpha: 0.90)
+        ..color = cs.primary.withValues(alpha: 0.86)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4,
+        ..strokeWidth = 2.2,
     );
 
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
       final axis = _homeTechnicalRadarAxisOrder[i];
       final value = axisEvidence[axis] ?? 0;
-      final fraction = value <= 0 ? 0.0 : value / maxEvidence;
-      final angle = _homeRadarAngle(i);
-      final point =
-          center + Offset(math.cos(angle), math.sin(angle)) * radius * fraction;
       final hasEvidence = value > 0;
+      final factor = hasEvidence ? 0.16 + (value / maxEvidence) * 0.78 : 0.0;
+      final point = _homeRadarPoint(center, radius * factor, i);
+      final axisColor = _homeRadarAxisColor(axis, cs);
       final isHighlighted = axis == highlightedAxis && hasEvidence;
-      if (isHighlighted) {
-        canvas.drawCircle(
-          point,
-          9.0,
-          Paint()
-            ..color = cs.secondary.withValues(alpha: 0.18)
-            ..style = PaintingStyle.fill,
-        );
-      }
+      final nodeColor = isHighlighted ? cs.secondary : axisColor;
+
       canvas.drawCircle(
         point,
-        isHighlighted ? 5.2 : (hasEvidence ? 4.2 : 2.6),
+        isHighlighted ? 9.4 : (hasEvidence ? 7.2 : 3.0),
         Paint()
-          ..color =
-              isHighlighted
-                  ? cs.secondary.withValues(alpha: 0.98)
-                  : hasEvidence
-                  ? cs.primary.withValues(alpha: 0.96)
-                  : cs.onSurface.withValues(alpha: 0.16),
+          ..color = nodeColor.withValues(alpha: isHighlighted ? 0.20 : 0.12),
       );
-      if (hasEvidence && !isHighlighted) {
-        canvas.drawCircle(
-          point,
-          6.2,
-          Paint()
-            ..color = cs.primary.withValues(alpha: 0.16)
-            ..style = PaintingStyle.fill,
-        );
-      }
+      canvas.drawCircle(
+        point,
+        isHighlighted ? 5.2 : (hasEvidence ? 4.2 : 2.4),
+        Paint()..color = nodeColor.withValues(alpha: hasEvidence ? 0.92 : 0.18),
+      );
     }
-  }
 
-  void _paintPolygon(
-    Canvas canvas,
-    Offset center,
-    double radius,
-    Paint paint, {
-    required bool fill,
-  }) {
-    final path = Path();
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final angle = _homeRadarAngle(i);
-      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    path.close();
-    canvas.drawPath(path, paint);
+    canvas.drawCircle(
+      center,
+      5.8,
+      Paint()..color = cs.primary.withValues(alpha: 0.14),
+    );
+    canvas.drawCircle(
+      center,
+      3.2,
+      Paint()..color = cs.primary.withValues(alpha: 0.74),
+    );
   }
 
   @override
@@ -3540,28 +3576,48 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
   }
 }
 
-TechnicalRadarAxis _homeTechnicalRadarAxisForEvidence(SkillEvidence evidence) {
-  if (evidence.skillId.startsWith('custom.')) {
-    return TechnicalRadarAxis.unclassified;
-  }
-  return JiuJitsuTaxonomy.technicalRadarAxisForCategory(evidence.category);
-}
-
-TechnicalRadarAxis? _homeTopTechnicalRadarAxis(
-  Map<TechnicalRadarAxis, int> axisEvidence,
+void _paintHomeRadarPolygon(
+  Canvas canvas,
+  Offset center,
+  double radius,
+  Paint paint,
 ) {
-  TechnicalRadarAxis? selected;
-  var selectedValue = 0;
-  for (final axis in _homeTechnicalRadarAxisOrder) {
-    final value = axisEvidence[axis] ?? 0;
-    if (value > selectedValue) {
-      selected = axis;
-      selectedValue = value;
+  final path = Path();
+  for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+    final point = _homeRadarPoint(center, radius, i);
+    if (i == 0) {
+      path.moveTo(point.dx, point.dy);
+    } else {
+      path.lineTo(point.dx, point.dy);
     }
   }
-  return selected;
+  canvas.drawPath(path..close(), paint);
 }
 
+Offset _homeRadarPoint(Offset center, double radius, int index) {
+  final angle = _homeRadarAngle(index);
+  return center + Offset(math.cos(angle), math.sin(angle)) * radius;
+}
+
+Color _homeRadarAxisColor(TechnicalRadarAxis axis, ColorScheme cs) {
+  final index = _homeTechnicalRadarAxisOrder.indexOf(axis);
+  if (index < 0) return cs.primary;
+  return _homeTechnicalRadarAxisColors[index];
+}
+
+int _homeRadarMaxEvidence(Map<TechnicalRadarAxis, int> axisEvidence) {
+  return axisEvidence.values.fold<int>(
+    1,
+    (max, value) => value > max ? value : max,
+  );
+}
+
+const _homeTechnicalRadarAxisColors = <Color>[
+  Color(0xFF4CC9F0),
+  Color(0xFFE9C46A),
+  Color(0xFFB026FF),
+  Color(0xFF2D6BFF),
+];
 double _homeRadarSizeForWidth(double maxWidth, {required double desired}) {
   if (!maxWidth.isFinite) return desired;
   const horizontalLabelReserve = 132.0;
