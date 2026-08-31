@@ -149,6 +149,9 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final entries = _getGameMapEvidenceSummary(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
           final visualMap = _GameMapVisualViewModel.from(entries, skillMatrix);
+          final positionAxisMatrix = _PositionAxisMatrixViewModel.from(
+            sessions,
+          );
           final rtcaEvidence = _RtcaEvidenceViewModel.from(
             sessions: sessions,
             entries: entries,
@@ -246,6 +249,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
                 subtitle: visualMap.subtitle,
                 initiallyExpanded: true,
                 child: _GameMapVisualClusterCard(viewModel: visualMap),
+              ),
+              const SizedBox(height: 12),
+              TitansExpandableSection(
+                title: 'Posição x eixo técnico',
+                subtitle: positionAxisMatrix.subtitle,
+                initiallyExpanded: true,
+                child: _PositionAxisMatrixCard(viewModel: positionAxisMatrix),
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
@@ -1669,6 +1679,586 @@ class _GameMapTechniqueLinkChip extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _PositionAxisMatrixCard extends StatelessWidget {
+  final _PositionAxisMatrixViewModel viewModel;
+
+  const _PositionAxisMatrixCard({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: cs.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(title: 'EVID\u00caNCIAS POR POSI\u00c7\u00c3O'),
+          const SizedBox(height: 8),
+          Text(
+            'Registros por eixo t\u00e9cnico inferido',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.rows.isEmpty)
+            TitansEmptyState(
+              icon: Icons.grid_on_outlined,
+              title: 'Sem matriz por posi\u00e7\u00e3o',
+              message:
+                  'Registre posi\u00e7\u00e3o e t\u00e9cnica nos treinos para inferir eixos t\u00e9cnicos com seguran\u00e7a.',
+              compact: true,
+            )
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 520;
+                if (compact) {
+                  return Column(
+                    children: [
+                      for (final row in viewModel.rows) ...[
+                        _PositionAxisStackedRow(row: row),
+                        if (row != viewModel.rows.last)
+                          const SizedBox(height: 10),
+                      ],
+                    ],
+                  );
+                }
+
+                return _PositionAxisWideMatrix(viewModel: viewModel);
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PositionAxisStackedRow extends StatelessWidget {
+  final _PositionAxisMatrixRow row;
+
+  const _PositionAxisStackedRow({required this.row});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.16)),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  row.position,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 8),
+              _MiniBadge(label: row.countLabel, color: cs.primary),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              const gap = 8.0;
+              final cellWidth = ((constraints.maxWidth - gap) / 2).clamp(
+                120.0,
+                constraints.maxWidth,
+              );
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final cell in row.cells)
+                    SizedBox(
+                      width: cellWidth.toDouble(),
+                      child: _PositionAxisCell(row: row, cell: cell),
+                    ),
+                ],
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PositionAxisWideMatrix extends StatelessWidget {
+  final _PositionAxisMatrixViewModel viewModel;
+
+  const _PositionAxisWideMatrix({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      children: [
+        Row(
+          children: [
+            const SizedBox(width: 150),
+            for (final axis in _PositionAxisMatrixViewModel.axes)
+              Expanded(
+                child: Text(
+                  axis.displayLabel,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        for (final row in viewModel.rows) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 150,
+                child: Text(
+                  row.position,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              for (final cell in row.cells)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: _PositionAxisCell(row: row, cell: cell),
+                  ),
+                ),
+            ],
+          ),
+          if (row != viewModel.rows.last) const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _PositionAxisCell extends StatelessWidget {
+  final _PositionAxisMatrixRow row;
+  final _PositionAxisMatrixCell cell;
+
+  const _PositionAxisCell({required this.row, required this.cell});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _axisColor(context, cell.axis);
+    final active = cell.sessionCount > 0;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap:
+            active ? () => _showPositionAxisDetail(context, row, cell) : null,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 68),
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color:
+                  active
+                      ? color.withValues(alpha: 0.28)
+                      : cs.onSurface.withValues(alpha: 0.07),
+            ),
+            color:
+                active
+                    ? color.withValues(alpha: 0.10)
+                    : cs.surfaceContainerHighest.withValues(alpha: 0.12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                cell.axis.displayLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: active ? color : cs.onSurface.withValues(alpha: 0.42),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                cell.countLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color:
+                      active
+                          ? cs.onSurface
+                          : cs.onSurface.withValues(alpha: 0.46),
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+void _showPositionAxisDetail(
+  BuildContext context,
+  _PositionAxisMatrixRow row,
+  _PositionAxisMatrixCell cell,
+) {
+  if (cell.sessionCount <= 0) return;
+  final cs = Theme.of(context).colorScheme;
+  final axisColor = _axisColor(context, cell.axis);
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: cs.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (context) {
+      return SafeArea(
+        top: false,
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            16 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 42,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: cs.onSurface.withValues(alpha: 0.18),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                row.position,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MiniBadge(
+                    label:
+                        'Eixo t\u00e9cnico inferido: ${cell.axis.displayLabel}',
+                    color: axisColor,
+                  ),
+                  _MiniBadge(label: cell.countLabel, color: cs.primary),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Inferido por posi\u00e7\u00e3o e t\u00e9cnica registradas nos treinos. Leitura visual baseada apenas em registros reais.',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final detail in cell.details) ...[
+                        _PositionAxisTechniqueDetail(detail: detail),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
+class _PositionAxisTechniqueDetail extends StatelessWidget {
+  final _PositionAxisTechniqueDetailItem detail;
+
+  const _PositionAxisTechniqueDetail({required this.detail});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.16),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              detail.technique,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
+          ),
+          const SizedBox(width: 10),
+          _MiniBadge(label: detail.countLabel, color: cs.primary),
+        ],
+      ),
+    );
+  }
+}
+
+class _PositionAxisMatrixViewModel {
+  static const axes = <TechnicalRadarAxis>[
+    TechnicalRadarAxis.retention,
+    TechnicalRadarAxis.transition,
+    TechnicalRadarAxis.control,
+    TechnicalRadarAxis.attack,
+  ];
+
+  final String subtitle;
+  final List<_PositionAxisMatrixRow> rows;
+
+  const _PositionAxisMatrixViewModel({
+    required this.subtitle,
+    required this.rows,
+  });
+
+  factory _PositionAxisMatrixViewModel.from(List<TrainingSession> sessions) {
+    final accumulators = <String, _PositionAxisRowAccumulator>{};
+
+    for (final session in sessions) {
+      for (final entry in session.effectiveTechniqueEntries) {
+        final position = _cleanTechnicalLabel(
+          entry.position ?? session.position,
+        );
+        final technique = _cleanTechnicalLabel(entry.technique);
+        if (position == null || technique == null) continue;
+
+        final category = JiuJitsuTaxonomy.categoryFor(
+          position: position,
+          technique: technique,
+        );
+        final axis = JiuJitsuTaxonomy.technicalRadarAxisForCategory(category);
+        if (axis == TechnicalRadarAxis.unclassified) continue;
+
+        final key = JiuJitsuTaxonomy.normalizedKey(position);
+        final accumulator = accumulators.putIfAbsent(
+          key,
+          () => _PositionAxisRowAccumulator(position),
+        );
+        accumulator.add(axis: axis, session: session, technique: technique);
+      }
+    }
+
+    final rows =
+        accumulators.values.map((accumulator) => accumulator.build()).toList()
+          ..sort((a, b) {
+            final countCompare = b.sessionCount.compareTo(a.sessionCount);
+            if (countCompare != 0) return countCompare;
+            return a.position.compareTo(b.position);
+          });
+
+    return _PositionAxisMatrixViewModel(
+      subtitle:
+          rows.isEmpty
+              ? 'A matriz aparece quando h\u00e1 posi\u00e7\u00e3o e t\u00e9cnica classific\u00e1vel nos treinos.'
+              : 'Eixo t\u00e9cnico inferido pelos registros de treino; sem percentual ou nota.',
+      rows: rows,
+    );
+  }
+}
+
+class _PositionAxisMatrixRow {
+  final String position;
+  final int sessionCount;
+  final String countLabel;
+  final List<_PositionAxisMatrixCell> cells;
+
+  const _PositionAxisMatrixRow({
+    required this.position,
+    required this.sessionCount,
+    required this.countLabel,
+    required this.cells,
+  });
+}
+
+class _PositionAxisMatrixCell {
+  final TechnicalRadarAxis axis;
+  final int sessionCount;
+  final String countLabel;
+  final List<_PositionAxisTechniqueDetailItem> details;
+
+  const _PositionAxisMatrixCell({
+    required this.axis,
+    required this.sessionCount,
+    required this.countLabel,
+    required this.details,
+  });
+}
+
+class _PositionAxisTechniqueDetailItem {
+  final String technique;
+  final String countLabel;
+
+  const _PositionAxisTechniqueDetailItem({
+    required this.technique,
+    required this.countLabel,
+  });
+}
+
+class _PositionAxisRowAccumulator {
+  final String position;
+  final Map<TechnicalRadarAxis, _PositionAxisCellAccumulator> _cells = {
+    for (final axis in _PositionAxisMatrixViewModel.axes)
+      axis: _PositionAxisCellAccumulator(),
+  };
+
+  _PositionAxisRowAccumulator(this.position);
+
+  void add({
+    required TechnicalRadarAxis axis,
+    required TrainingSession session,
+    required String technique,
+  }) {
+    _cells[axis]?.add(session: session, technique: technique);
+  }
+
+  _PositionAxisMatrixRow build() {
+    final cells = [
+      for (final axis in _PositionAxisMatrixViewModel.axes)
+        _cells[axis]!.build(axis),
+    ];
+    final sessionKeys = <String>{};
+    for (final cell in _cells.values) {
+      sessionKeys.addAll(cell.sessionKeys);
+    }
+
+    return _PositionAxisMatrixRow(
+      position: position,
+      sessionCount: sessionKeys.length,
+      countLabel: TrainingAggregator.sessionCountLabel(sessionKeys.length),
+      cells: cells,
+    );
+  }
+}
+
+class _PositionAxisCellAccumulator {
+  final Set<String> sessionKeys = <String>{};
+  final Map<String, int> techniqueCounts = <String, int>{};
+
+  void add({required TrainingSession session, required String technique}) {
+    final sessionKey =
+        session.id.trim().isEmpty
+            ? '${session.date.toIso8601String()}:$technique'
+            : session.id;
+    sessionKeys.add(sessionKey);
+    techniqueCounts[technique] = (techniqueCounts[technique] ?? 0) + 1;
+  }
+
+  _PositionAxisMatrixCell build(TechnicalRadarAxis axis) {
+    final details =
+        techniqueCounts.entries.toList()..sort((a, b) {
+          final countCompare = b.value.compareTo(a.value);
+          if (countCompare != 0) return countCompare;
+          return a.key.compareTo(b.key);
+        });
+
+    return _PositionAxisMatrixCell(
+      axis: axis,
+      sessionCount: sessionKeys.length,
+      countLabel: TrainingAggregator.sessionCountLabel(sessionKeys.length),
+      details: [
+        for (final detail in details.take(6))
+          _PositionAxisTechniqueDetailItem(
+            technique: detail.key,
+            countLabel: '${detail.value} registros',
+          ),
+      ],
+    );
+  }
+}
+
+String? _cleanTechnicalLabel(String? value) {
+  final clean = value?.trim();
+  if (clean == null || clean.isEmpty) return null;
+  return clean;
+}
+
+Color _axisColor(BuildContext context, TechnicalRadarAxis axis) {
+  final cs = Theme.of(context).colorScheme;
+  switch (axis) {
+    case TechnicalRadarAxis.retention:
+      return cs.primary;
+    case TechnicalRadarAxis.transition:
+      return TitansUI.technicalBlue;
+    case TechnicalRadarAxis.control:
+      return TitansUI.successGreen;
+    case TechnicalRadarAxis.attack:
+      return TitansUI.actionGold;
+    case TechnicalRadarAxis.unclassified:
+      return cs.onSurface.withValues(alpha: 0.46);
   }
 }
 
