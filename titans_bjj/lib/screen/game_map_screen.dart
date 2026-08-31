@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../features/technical_domain/application/technical_domain_use_cases.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
@@ -45,6 +46,14 @@ class _GameMapScreenState extends State<GameMapScreen> {
       CoachEvaluationRepository.instance;
   late final Stream<List<TrainingSession>> _sessionsStream;
   late final Stream<List<CoachEvaluation>> _coachEvaluationsStream;
+  late final GetTechnicalRadarSummary _getTechnicalRadarSummary =
+      const GetTechnicalRadarSummary();
+  late final GetSkillMatrixSummary _getSkillMatrixSummary =
+      const GetSkillMatrixSummary();
+  late final GetGameMapEvidenceSummary _getGameMapEvidenceSummary =
+      const GetGameMapEvidenceSummary();
+  late final GetTechnicalEvidenceSummary _getTechnicalEvidenceSummary =
+      const GetTechnicalEvidenceSummary();
 
   @override
   void initState() {
@@ -136,11 +145,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
           }
 
           final sessions = snapshot.data ?? const <TrainingSession>[];
-          final skillMatrix = TrainingAggregator.buildSkillMatrix(
-            sessions,
-            limit: 50,
-          );
-          final entries = TrainingAggregator.buildGameMap(sessions, limit: 20);
+          final skillMatrix = _getSkillMatrixSummary(sessions, limit: 50);
+          final entries = _getGameMapEvidenceSummary(sessions, limit: 20);
           final stats = _GameMapStats.from(entries, skillMatrix);
           final visualMap = _GameMapVisualViewModel.from(entries, skillMatrix);
           final rtcaEvidence = _RtcaEvidenceViewModel.from(
@@ -148,12 +154,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
             entries: entries,
             skillMatrix: skillMatrix,
           );
-          final skillEvidences = TrainingAggregator.buildSkillEvidences(
-            sessions,
-          );
-          final technicalEvidence = TrainingAggregator.buildTechnicalEvidence(
-            sessions,
-          );
+          final radarSummary = _getTechnicalRadarSummary(sessions);
+          final technicalEvidence = _getTechnicalEvidenceSummary(sessions);
           return ListView(
             padding:
                 widget.embedded
@@ -175,8 +177,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
                     evaluationSnapshot.data ?? const <CoachEvaluation>[],
                   );
                   final technicalRadar =
-                      _TechnicalRadarPreviewViewModel.fromSkillEvidences(
-                        skillEvidences,
+                      _TechnicalRadarPreviewViewModel.fromSummary(
+                        radarSummary,
                         coachEvaluationCount: coachEvaluationCount,
                       );
                   return TitansExpandableSection(
@@ -1596,46 +1598,22 @@ class _TechnicalRadarPreviewViewModel {
     required this.awaitingClassificationCount,
   });
 
-  factory _TechnicalRadarPreviewViewModel.fromSkillEvidences(
-    List<SkillEvidence> skillEvidences, {
+  factory _TechnicalRadarPreviewViewModel.fromSummary(
+    TechnicalRadarSummary summary, {
     int coachEvaluationCount = 0,
   }) {
-    final axisEvidence = <TechnicalRadarAxis, int>{
-      for (final axis in _technicalRadarAxisOrder) axis: 0,
-    };
-    final seenBySource = <String>{};
-    final techniqueIds = <String>{};
-
-    var classified = 0;
-    var unclassified = 0;
-
-    for (final evidence in skillEvidences) {
-      final sourceKey =
-          evidence.sourceId ??
-          evidence.practicedAt.microsecondsSinceEpoch.toString();
-      final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
-      if (!seenBySource.add(dedupeKey)) continue;
-
-      techniqueIds.add(evidence.skillId);
-      final axis = _technicalRadarAxisForEvidence(evidence);
-      if (axis == TechnicalRadarAxis.unclassified) {
-        unclassified += 1;
-        continue;
-      }
-
-      classified += 1;
-      axisEvidence[axis] = (axisEvidence[axis] ?? 0) + 1;
-    }
-
-    final topAxis = _topTechnicalRadarAxis(axisEvidence);
-    final stateLabel =
-        classified < 3
-            ? 'Perfil técnico em formação'
-            : 'Evidências técnicas distribuídas por eixo';
+    final axisEvidence = summary.axisEvidence;
+    final classified = summary.classifiedEvidences;
+    final unclassified = summary.unclassifiedEvidences;
+    final topAxis = summary.topAxis;
     final topAxisLabel =
         topAxis == null
             ? 'Em formação'
             : '${topAxis.displayLabel} (${axisEvidence[topAxis]} evidências)';
+    final stateLabel =
+        classified < 3
+            ? 'Perfil técnico em formação'
+            : 'Evidências técnicas distribuídas por eixo';
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
@@ -1647,7 +1625,7 @@ class _TechnicalRadarPreviewViewModel {
       evidences: [
         TitansTechnicalRadarEvidence(
           label: 'Técnicas evidenciadas',
-          value: techniqueIds.length.toString(),
+          value: summary.techniqueCount.toString(),
           helper: 'Técnicas agrupadas por identidade técnica local.',
           icon: Icons.sports_mma_outlined,
         ),
@@ -1691,37 +1669,6 @@ int _coachEvaluatedTechniqueCount(List<CoachEvaluation> evaluations) {
     if (skillId.isNotEmpty) skillIds.add(skillId);
   }
   return skillIds.length;
-}
-
-TechnicalRadarAxis _technicalRadarAxisForEvidence(SkillEvidence evidence) {
-  if (evidence.skillId.startsWith('custom.')) {
-    return TechnicalRadarAxis.unclassified;
-  }
-  return JiuJitsuTaxonomy.technicalRadarAxisForCategory(evidence.category);
-}
-
-const _technicalRadarAxisOrder = <TechnicalRadarAxis>[
-  TechnicalRadarAxis.retention,
-  TechnicalRadarAxis.transition,
-  TechnicalRadarAxis.control,
-  TechnicalRadarAxis.attack,
-];
-
-TechnicalRadarAxis? _topTechnicalRadarAxis(
-  Map<TechnicalRadarAxis, int> axisEvidence,
-) {
-  TechnicalRadarAxis? selected;
-  var selectedValue = 0;
-
-  for (final axis in _technicalRadarAxisOrder) {
-    final value = axisEvidence[axis] ?? 0;
-    if (value > selectedValue) {
-      selected = axis;
-      selectedValue = value;
-    }
-  }
-
-  return selectedValue > 0 ? selected : null;
 }
 
 class _RtcaEvidenceViewModel {

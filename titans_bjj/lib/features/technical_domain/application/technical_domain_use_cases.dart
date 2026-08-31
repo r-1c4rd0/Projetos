@@ -7,6 +7,7 @@ class TechnicalRadarSummary {
   final Map<TechnicalRadarAxis, int> axisEvidence;
   final int totalEvidences;
   final int classifiedEvidences;
+  final int techniqueCount;
   final int sessionsCount;
   final int unclassifiedEvidences;
   final TechnicalRadarAxis? topAxis;
@@ -15,6 +16,7 @@ class TechnicalRadarSummary {
     required this.axisEvidence,
     required this.totalEvidences,
     required this.classifiedEvidences,
+    this.techniqueCount = 0,
     required this.sessionsCount,
     required this.unclassifiedEvidences,
     required this.topAxis,
@@ -43,6 +45,7 @@ class GetTechnicalRadarSummary {
     };
     final seenEvidence = <String>{};
     final sourceKeys = <String>{};
+    final techniqueIds = <String>{};
     var classifiedEvidences = 0;
     var unclassifiedEvidences = 0;
 
@@ -57,6 +60,7 @@ class GetTechnicalRadarSummary {
       final dedupeKey = '${evidence.sourceType}:$sourceKey:${evidence.skillId}';
       if (!seenEvidence.add(dedupeKey)) continue;
 
+      techniqueIds.add(evidence.skillId);
       final axis = _axisForEvidence(evidence);
       if (axis == TechnicalRadarAxis.unclassified) {
         unclassifiedEvidences += 1;
@@ -72,6 +76,7 @@ class GetTechnicalRadarSummary {
       axisEvidence: Map.unmodifiable(axisEvidence),
       totalEvidences: classifiedEvidences + unclassifiedEvidences,
       classifiedEvidences: classifiedEvidences,
+      techniqueCount: techniqueIds.length,
       sessionsCount: sourceKeys.length,
       unclassifiedEvidences: unclassifiedEvidences,
       topAxis: _topAxis(axisEvidence),
@@ -117,5 +122,16 @@ class GetGameMapEvidenceSummary {
 
   List<GameMapEntry> call(List<TrainingSession> sessions, {int limit = 20}) {
     return TrainingAggregator.buildGameMap(sessions, limit: limit);
+  }
+}
+
+class GetTechnicalEvidenceSummary {
+  const GetTechnicalEvidenceSummary();
+
+  List<TechnicalEvidenceSummary> call(
+    List<TrainingSession> sessions, {
+    int limit = 100,
+  }) {
+    return TrainingAggregator.buildTechnicalEvidence(sessions, limit: limit);
   }
 }
