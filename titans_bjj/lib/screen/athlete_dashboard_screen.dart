@@ -19,7 +19,6 @@ import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
-import '../widgets/titans_belt_status_card.dart';
 import '../widgets/charts/titans_technical_radar.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
@@ -1231,72 +1230,163 @@ class _AthleteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final ringColor = _beltProgressRingColor(belt);
+    final identity = email.isEmpty ? 'ID ${_shortUid(uid)}' : email;
+    final sessionLabel =
+        '$sessionsInBelt/$sessionsRequired treinos na faixa atual';
+    final hasActions = onEditProfile != null || onEditGraduation != null;
 
     return _GlassCard(
+      accent: ringColor.withValues(alpha: 0.30),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const CircleAvatar(child: Icon(Icons.person)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
+          _SectionHeaderCompact(title: 'ALUNO EM ACOMPANHAMENTO'),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final info = _StudentSnapshotInfo(
+                cs: cs,
+                name: name,
+                identity: identity,
+                belt: belt,
+                degree: degree,
+                maxDegree: maxDegree,
+                sessionsRequired: sessionsRequired,
+              );
+
+              if (constraints.maxWidth < 420) {
+                return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      email.isEmpty
-                          ? 'ID: ${uid.substring(0, 6).toUpperCase()}'
-                          : '$email - ID: ${uid.substring(0, 6).toUpperCase()}',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.65),
-                        fontSize: 12,
+                    Center(
+                      child: _BeltProgressRing(
+                        colorScheme: cs,
+                        value: percentToNext,
+                        color: ringColor,
                       ),
                     ),
+                    const SizedBox(height: 12),
+                    info,
                   ],
-                ),
-              ),
-            ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _BeltProgressRing(
+                    colorScheme: cs,
+                    value: percentToNext,
+                    color: ringColor,
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(child: info),
+                ],
+              );
+            },
           ),
-          const SizedBox(height: 12),
-          TitansBeltStatusCard(
-            belt: belt,
-            degree: degree,
-            maxDegree: maxDegree,
-            title: 'Gradua\u00e7\u00e3o atual',
-            progressPercent: percentToNext,
-            progressLabel: 'Progresso da faixa',
-            subtitle:
-                '$sessionsInBelt/$sessionsRequired sess\u00f5es na faixa atual',
-            compact: true,
-            framed: false,
-            onEdit: onEditGraduation,
+          const SizedBox(height: 10),
+          Text(
+            sessionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
           ),
-          if (onEditProfile != null) ...[
-            const SizedBox(height: 10),
+          if (hasActions) ...[
+            const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                OutlinedButton.icon(
-                  onPressed: onEditProfile,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Editar perfil'),
-                ),
+                if (onEditProfile != null)
+                  OutlinedButton.icon(
+                    onPressed: onEditProfile,
+                    icon: const Icon(Icons.edit_outlined),
+                    label: const Text('Editar perfil'),
+                  ),
+                if (onEditGraduation != null)
+                  OutlinedButton.icon(
+                    onPressed: onEditGraduation,
+                    icon: const Icon(Icons.military_tech_outlined),
+                    label: const Text('Editar gradua\u00e7\u00e3o'),
+                  ),
               ],
             ),
           ],
         ],
       ),
+    );
+  }
+}
+
+class _StudentSnapshotInfo extends StatelessWidget {
+  final ColorScheme cs;
+  final String name;
+  final String identity;
+  final BeltColor belt;
+  final int degree;
+  final int maxDegree;
+  final int sessionsRequired;
+
+  const _StudentSnapshotInfo({
+    required this.cs,
+    required this.name,
+    required this.identity,
+    required this.belt,
+    required this.degree,
+    required this.maxDegree,
+    required this.sessionsRequired,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          identity,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.62),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _InsightBadge(
+              label: '${_beltLabel(belt)} \u00b7 $degree\u00ba grau',
+              color: TitansUI.beltColor(belt.name),
+              icon: Icons.military_tech_outlined,
+            ),
+            _InsightBadge(
+              label: 'Ref. $sessionsRequired treinos',
+              color: TitansUI.technicalBlue,
+              icon: Icons.flag_outlined,
+            ),
+            _DegreeDots(degree: degree, maxDegree: maxDegree, cs: cs),
+          ],
+        ),
+      ],
     );
   }
 }
