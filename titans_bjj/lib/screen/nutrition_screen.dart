@@ -2,6 +2,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
+import '../features/nutrition/application/nutrition_use_cases.dart';
+import '../features/nutrition/domain/nutrition_models.dart';
 import '../main.dart';
 import '../model/app_user.dart';
 import '../model/nutrition_models.dart';
@@ -49,6 +51,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
   String? _targetUid;
   bool _fallbackToMock = false;
   Object? _repoError;
+  late final GetNutritionDashboardSummary _getNutritionDashboardSummary =
+      const GetNutritionDashboardSummary();
 
   TargetProfile? _resolveTarget(BuildContext context) {
     return widget.explicitTarget ??
@@ -231,6 +235,10 @@ class _NutritionScreenState extends State<NutritionScreen> {
           }
 
           final meals = snap.data!;
+          final mealSummary = _getNutritionDashboardSummary(
+            profile: null,
+            meals: meals,
+          );
           final listPadding =
               widget.embedded
                   ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
@@ -268,12 +276,17 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   }
 
                   final profile = profSnap.data;
+                  final dashboard = _getNutritionDashboardSummary(
+                    profile: profile,
+                    meals: meals,
+                  );
 
                   if (profile == null) {
                     return Column(
                       children: [
                         _NutritionProfilePlaceholder(
                           canEditNutrition: canEditNutrition,
+                          status: dashboard.profileStatus,
                           onComplete: canEditNutrition ? _editProfile : null,
                         ),
                         const SizedBox(height: 12),
@@ -290,19 +303,25 @@ class _NutritionScreenState extends State<NutritionScreen> {
                         onEdit: _editProfile,
                       ),
                       const SizedBox(height: 12),
-                      _NutritionEnergyCard(profile: profile),
+                      _NutritionEnergyCard(
+                        profile: profile,
+                        status: dashboard.profileStatus,
+                      ),
                     ],
                   );
                 },
               ),
               const SizedBox(height: 12),
               _NutritionMealsSection(
-                meals: meals,
+                mealLog: mealSummary.mealLog,
                 canEditNutrition: canEditNutrition,
                 onAddMeal: _addMeal,
               ),
               const SizedBox(height: 12),
-              _DailyCaloriesChart(meals: meals),
+              _DailyCaloriesChart(
+                meals: meals,
+                points: mealSummary.weeklyCalories,
+              ),
             ],
           );
         },
@@ -539,10 +558,12 @@ class _NutritionInfoCard extends StatelessWidget {
 
 class _NutritionProfilePlaceholder extends StatelessWidget {
   final bool canEditNutrition;
+  final NutritionProfileStatus status;
   final VoidCallback? onComplete;
 
   const _NutritionProfilePlaceholder({
     required this.canEditNutrition,
+    required this.status,
     this.onComplete,
   });
 
@@ -554,7 +575,7 @@ class _NutritionProfilePlaceholder extends StatelessWidget {
       message:
           canEditNutrition
               ? 'Preencha o perfil para estimar energia de rotina.'
-              : 'Perfil nutricional ainda n\u00e3o preenchido.',
+              : status.profileEmptyMessage,
       actionLabel:
           canEditNutrition && onComplete != null ? 'Completar perfil' : null,
       onAction: canEditNutrition ? onComplete : null,
@@ -682,15 +703,16 @@ class _NutritionEnergyPendingCard extends StatelessWidget {
 
 class _NutritionEnergyCard extends StatelessWidget {
   final UserProfile profile;
+  final NutritionProfileStatus status;
 
-  const _NutritionEnergyCard({required this.profile});
+  const _NutritionEnergyCard({required this.profile, required this.status});
 
   @override
   Widget build(BuildContext context) {
     final muted = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: 0.68);
-    final tdee = profile.tdee();
+    final tdee = status.estimatedDailyKcal ?? profile.tdee();
 
     return TitansCard(
       accent: TitansUI.technicalBlue,
@@ -727,12 +749,12 @@ class _NutritionEnergyCard extends StatelessWidget {
 }
 
 class _NutritionMealsSection extends StatelessWidget {
-  final List<MealEntry> meals;
+  final MealLogSummary mealLog;
   final bool canEditNutrition;
   final VoidCallback onAddMeal;
 
   const _NutritionMealsSection({
-    required this.meals,
+    required this.mealLog,
     required this.canEditNutrition,
     required this.onAddMeal,
   });
@@ -740,7 +762,7 @@ class _NutritionMealsSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TitansCard(
-      accent: meals.isEmpty ? TitansUI.actionGold : TitansUI.technicalBlue,
+      accent: mealLog.isEmpty ? TitansUI.actionGold : TitansUI.technicalBlue,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -753,7 +775,7 @@ class _NutritionMealsSection extends StatelessWidget {
                 title: 'Refei\u00e7\u00f5es',
                 subtitle: 'Registros alimentares informados pelo usu\u00e1rio.',
               ),
-              if (canEditNutrition && meals.isNotEmpty)
+              if (canEditNutrition && !mealLog.isEmpty)
                 FilledButton.icon(
                   onPressed: onAddMeal,
                   icon: const Icon(Icons.add),
@@ -762,7 +784,7 @@ class _NutritionMealsSection extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          if (meals.isEmpty)
+          if (mealLog.isEmpty)
             TitansEmptyState(
               icon: Icons.restaurant_outlined,
               title: 'Sem refei\u00e7\u00f5es registradas',
@@ -788,11 +810,11 @@ class _NutritionMealsSection extends StatelessWidget {
   }
 
   List<Widget> _mealTiles(BuildContext context) {
-    final orderedMeals = meals.reversed.toList();
+    final orderedMeals = mealLog.items;
     final tiles = <Widget>[];
 
     for (var i = 0; i < orderedMeals.length; i++) {
-      tiles.add(_MealLogTile(meal: orderedMeals[i]));
+      tiles.add(_MealLogTile(item: orderedMeals[i]));
       if (i != orderedMeals.length - 1) {
         tiles.add(const SizedBox(height: TitansUI.spaceSm));
       }
@@ -803,28 +825,28 @@ class _NutritionMealsSection extends StatelessWidget {
 }
 
 class _MealLogTile extends StatelessWidget {
-  final MealEntry meal;
+  final NutritionMealLogItem item;
 
-  const _MealLogTile({required this.meal});
+  const _MealLogTile({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final items = meal.items.map((item) => item.name).join(', ');
-    final time = TimeOfDay.fromDateTime(meal.date).format(context);
+    final items = item.itemsLabel;
+    final time = TimeOfDay.fromDateTime(item.date).format(context);
     final mealChip = TitansStatusChip(
-      label: meal.mealType,
+      label: item.mealType,
       variant: TitansStatusChipVariant.technical,
       icon: Icons.restaurant_menu_outlined,
       compact: true,
     );
     final metaChip = TitansStatusChip(
-      label: '${_NutritionScreenState._fmtDate(meal.date)} - $time',
+      label: '${_NutritionScreenState._fmtDate(item.date)} - $time',
       variant: TitansStatusChipVariant.muted,
       icon: Icons.schedule_outlined,
       compact: true,
     );
-    final kcalBlock = _MealEnergyBadge(kcal: meal.totalKcal());
+    final kcalBlock = _MealEnergyBadge(kcal: item.totalKcal);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1018,45 +1040,20 @@ class _SectionTitle extends StatelessWidget {
 
 class _DailyCaloriesChart extends StatelessWidget {
   final List<MealEntry> meals;
-  const _DailyCaloriesChart({required this.meals});
+  final List<NutritionChartPoint> points;
+
+  const _DailyCaloriesChart({required this.meals, required this.points});
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
-    final start = DateTime(
-      now.year,
-      now.month,
-      now.day,
-    ).subtract(const Duration(days: 6));
-    final map = <DateTime, int>{};
-
-    for (int i = 0; i < 7; i++) {
-      final date = start.add(Duration(days: i));
-      map[date] = 0;
-    }
-
-    for (final meal in meals) {
-      final day = DateTime(meal.date.year, meal.date.month, meal.date.day);
-      if (day.isBefore(start) ||
-          day.isAfter(start.add(const Duration(days: 6)))) {
-        continue;
-      }
-      map.update(
-        day,
-        (value) => value + meal.totalKcal(),
-        ifAbsent: meal.totalKcal,
-      );
-    }
-
-    final keys = map.keys.toList()..sort();
     final groups = <BarChartGroupData>[];
 
-    for (int i = 0; i < keys.length; i++) {
+    for (int i = 0; i < points.length; i++) {
       groups.add(
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(toY: (map[keys[i]] ?? 0).toDouble(), width: 12),
+            BarChartRodData(toY: points[i].totalKcal.toDouble(), width: 12),
           ],
         ),
       );
@@ -1097,10 +1094,10 @@ class _DailyCaloriesChart extends StatelessWidget {
                         showTitles: true,
                         getTitlesWidget: (value, meta) {
                           final index = value.toInt();
-                          if (index < 0 || index >= keys.length) {
+                          if (index < 0 || index >= points.length) {
                             return const SizedBox.shrink();
                           }
-                          final date = keys[index];
+                          final date = points[index].date;
                           return Text(
                             '${date.day}/${date.month}',
                             style: const TextStyle(fontSize: 10),
@@ -1130,7 +1127,6 @@ class _DailyCaloriesChart extends StatelessWidget {
     );
   }
 }
-
 // --- abaixo mantido do seu original ---
 
 class _MealSheet extends StatefulWidget {
