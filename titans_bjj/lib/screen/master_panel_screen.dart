@@ -495,6 +495,8 @@ class _MasterPanelScreenState extends State<MasterPanelScreen> {
 
 enum _StudentAccessStatus { active, pending, noAccess, expired, revoked }
 
+enum _RosterStatusFilter { all, needsAttention, active }
+
 class _StudentAccessEntry {
   final StudentVm displayStudent;
   final StudentVm targetStudent;
@@ -609,7 +611,7 @@ class _StudentAccessEntry {
   }
 }
 
-class _StudentsGrid extends StatelessWidget {
+class _StudentsGrid extends StatefulWidget {
   final AppUser actor;
   final List<_StudentAccessEntry> students;
   final GradingRules rules;
@@ -633,9 +635,20 @@ class _StudentsGrid extends StatelessWidget {
   });
 
   @override
+  State<_StudentsGrid> createState() => _StudentsGridState();
+}
+
+class _StudentsGridState extends State<_StudentsGrid> {
+  String _query = '';
+  _RosterStatusFilter _statusFilter = _RosterStatusFilter.all;
+  BeltColor? _beltFilter;
+
+  @override
   Widget build(BuildContext context) {
     final bottomInset =
         TitansUI.listPadding(context, extra: TitansUI.spaceLg).bottom;
+    final summary = _RosterSummary.from(widget.students);
+    final filteredStudents = _filteredStudents(widget.students);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -657,67 +670,177 @@ class _StudentsGrid extends StatelessWidget {
                 TitansUI.spaceSm,
               ),
               sliver: SliverToBoxAdapter(
-                child: _MasterListHeader(
-                  total: students.length,
-                  onCreate: onCreate,
+                child: _RosterCockpitCard(
+                  summary: summary,
+                  statusFilter: _statusFilter,
+                  beltFilter: _beltFilter,
+                  onCreate: widget.onCreate,
+                  onQueryChanged: (value) => setState(() => _query = value),
+                  onStatusChanged:
+                      (value) => setState(() => _statusFilter = value),
+                  onBeltChanged: (value) => setState(() => _beltFilter = value),
                 ),
               ),
             ),
-            SliverPadding(
-              padding: EdgeInsets.fromLTRB(
-                TitansUI.spaceMd,
-                0,
-                TitansUI.spaceMd,
-                bottomInset,
-              ),
-              sliver: SliverGrid(
-                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: 520,
-                  mainAxisSpacing: TitansUI.spaceSm,
-                  crossAxisSpacing: TitansUI.spaceSm,
-                  childAspectRatio: ratio,
+            if (summary.attentionEntries.isNotEmpty)
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  TitansUI.spaceMd,
+                  0,
+                  TitansUI.spaceMd,
+                  TitansUI.spaceSm,
                 ),
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final entry = students[index];
-                  final student = entry.displayStudent;
-                  final maxDegree = rules.maxDegrees(student.belt);
-                  final degree = student.degree.clamp(0, maxDegree).toInt();
-
-                  final capabilities = _TargetCapabilities.resolve(
-                    actor: actor,
-                    targetUid: student.uid,
-                    targetAcademyId: student.academyId,
-                    targetMode: TargetMode.selectedStudent,
-                  );
-
-                  return _StudentCard(
-                    student: student,
-                    degree: degree,
-                    maxDegree: maxDegree,
-                    capabilities: capabilities,
-                    accessStatus: entry.status,
-                    onOpen: () => onOpen(entry),
-                    onEdit: () => onEdit(entry),
-                    onEditGraduation: () => onEditGraduation(entry),
-                    onInviteAction: (action) => onInviteAction(action, entry),
-                    onArchive: () => onArchive(entry),
-                    canCopyInvite: entry.invite != null,
-                  );
-                }, childCount: students.length),
+                sliver: SliverToBoxAdapter(
+                  child: _TeacherAttentionCard(
+                    entries: summary.attentionEntries,
+                    onOpen: widget.onOpen,
+                  ),
+                ),
               ),
-            ),
+            if (filteredStudents.isEmpty)
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  TitansUI.spaceMd,
+                  0,
+                  TitansUI.spaceMd,
+                  bottomInset,
+                ),
+                sliver: const SliverToBoxAdapter(
+                  child: _RosterEmptyFilterCard(),
+                ),
+              )
+            else
+              SliverPadding(
+                padding: EdgeInsets.fromLTRB(
+                  TitansUI.spaceMd,
+                  0,
+                  TitansUI.spaceMd,
+                  bottomInset,
+                ),
+                sliver: SliverGrid(
+                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 520,
+                    mainAxisSpacing: TitansUI.spaceSm,
+                    crossAxisSpacing: TitansUI.spaceSm,
+                    childAspectRatio: ratio,
+                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final entry = filteredStudents[index];
+                    final student = entry.displayStudent;
+                    final maxDegree = widget.rules.maxDegrees(student.belt);
+                    final degree = student.degree.clamp(0, maxDegree).toInt();
+
+                    final capabilities = _TargetCapabilities.resolve(
+                      actor: widget.actor,
+                      targetUid: student.uid,
+                      targetAcademyId: student.academyId,
+                      targetMode: TargetMode.selectedStudent,
+                    );
+
+                    return _StudentCard(
+                      student: student,
+                      degree: degree,
+                      maxDegree: maxDegree,
+                      capabilities: capabilities,
+                      accessStatus: entry.status,
+                      onOpen: () => widget.onOpen(entry),
+                      onEdit: () => widget.onEdit(entry),
+                      onEditGraduation: () => widget.onEditGraduation(entry),
+                      onInviteAction:
+                          (action) => widget.onInviteAction(action, entry),
+                      onArchive: () => widget.onArchive(entry),
+                      canCopyInvite: entry.invite != null,
+                    );
+                  }, childCount: filteredStudents.length),
+                ),
+              ),
           ],
         );
       },
     );
   }
+
+  List<_StudentAccessEntry> _filteredStudents(
+    List<_StudentAccessEntry> students,
+  ) {
+    final normalizedQuery = _query.trim().toLowerCase();
+    return students.where((entry) {
+      final student = entry.displayStudent;
+      if (normalizedQuery.isNotEmpty &&
+          !student.name.toLowerCase().contains(normalizedQuery)) {
+        return false;
+      }
+      if (_beltFilter != null && student.belt != _beltFilter) return false;
+      switch (_statusFilter) {
+        case _RosterStatusFilter.all:
+          return true;
+        case _RosterStatusFilter.needsAttention:
+          return entry.status != _StudentAccessStatus.active;
+        case _RosterStatusFilter.active:
+          return entry.status == _StudentAccessStatus.active;
+      }
+    }).toList();
+  }
 }
 
-class _MasterListHeader extends StatelessWidget {
+class _RosterSummary {
   final int total;
-  final VoidCallback onCreate;
+  final int active;
+  final int needsAttention;
+  final Map<BeltColor, int> beltCounts;
+  final List<_StudentAccessEntry> attentionEntries;
 
-  const _MasterListHeader({required this.total, required this.onCreate});
+  const _RosterSummary({
+    required this.total,
+    required this.active,
+    required this.needsAttention,
+    required this.beltCounts,
+    required this.attentionEntries,
+  });
+
+  factory _RosterSummary.from(List<_StudentAccessEntry> students) {
+    final beltCounts = <BeltColor, int>{};
+    final attentionEntries = <_StudentAccessEntry>[];
+    var active = 0;
+
+    for (final entry in students) {
+      final student = entry.displayStudent;
+      beltCounts[student.belt] = (beltCounts[student.belt] ?? 0) + 1;
+      if (entry.status == _StudentAccessStatus.active) {
+        active += 1;
+      } else if (attentionEntries.length < 3) {
+        attentionEntries.add(entry);
+      }
+    }
+
+    return _RosterSummary(
+      total: students.length,
+      active: active,
+      needsAttention: students.length - active,
+      beltCounts: beltCounts,
+      attentionEntries: attentionEntries,
+    );
+  }
+}
+
+class _RosterCockpitCard extends StatelessWidget {
+  final _RosterSummary summary;
+  final _RosterStatusFilter statusFilter;
+  final BeltColor? beltFilter;
+  final VoidCallback onCreate;
+  final ValueChanged<String> onQueryChanged;
+  final ValueChanged<_RosterStatusFilter> onStatusChanged;
+  final ValueChanged<BeltColor?> onBeltChanged;
+
+  const _RosterCockpitCard({
+    required this.summary,
+    required this.statusFilter,
+    required this.beltFilter,
+    required this.onCreate,
+    required this.onQueryChanged,
+    required this.onStatusChanged,
+    required this.onBeltChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -728,18 +851,18 @@ class _MasterListHeader extends StatelessWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 420;
-          final title = Column(
+          final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Atletas',
+                'Cockpit da turma',
                 style: Theme.of(
                   context,
                 ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
-                '$total aluno${total == 1 ? '' : 's'} vinculado${total == 1 ? '' : 's'} a esta academia',
+                'Leitura rápida dos alunos vinculados a esta academia.',
                 style: TextStyle(
                   color: cs.onSurface.withValues(alpha: 0.68),
                   fontWeight: FontWeight.w600,
@@ -753,25 +876,381 @@ class _MasterListHeader extends StatelessWidget {
             label: const Text('Cadastrar atleta'),
           );
 
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                title,
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (compact) ...[
+                titleBlock,
                 const SizedBox(height: TitansUI.spaceMd),
                 action,
+              ] else
+                Row(
+                  children: [
+                    Expanded(child: titleBlock),
+                    const SizedBox(width: TitansUI.spaceMd),
+                    action,
+                  ],
+                ),
+              const SizedBox(height: TitansUI.spaceMd),
+              Wrap(
+                spacing: TitansUI.spaceSm,
+                runSpacing: TitansUI.spaceSm,
+                children: [
+                  _RosterMetric(
+                    icon: Icons.groups_2_outlined,
+                    label: 'Alunos',
+                    value: summary.total.toString(),
+                    color: cs.primary,
+                  ),
+                  _RosterMetric(
+                    icon: Icons.verified_user_outlined,
+                    label: 'Ativos',
+                    value: summary.active.toString(),
+                    color: TitansUI.successGreen,
+                  ),
+                  _RosterMetric(
+                    icon: Icons.report_gmailerrorred_outlined,
+                    label: 'Atenção',
+                    value: summary.needsAttention.toString(),
+                    color:
+                        summary.needsAttention == 0
+                            ? cs.onSurface.withValues(alpha: 0.62)
+                            : TitansUI.actionGold,
+                  ),
+                ],
+              ),
+              const SizedBox(height: TitansUI.spaceMd),
+              TextField(
+                onChanged: onQueryChanged,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.search),
+                  hintText: 'Buscar aluno por nome',
+                  isDense: true,
+                  filled: true,
+                  fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(TitansRadius.lg),
+                    borderSide: BorderSide(
+                      color: cs.onSurface.withValues(alpha: 0.10),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: TitansUI.spaceSm),
+              Wrap(
+                spacing: TitansUI.spaceXs,
+                runSpacing: TitansUI.spaceXs,
+                children: [
+                  _RosterFilterChip(
+                    label: 'Todos',
+                    selected: statusFilter == _RosterStatusFilter.all,
+                    onTap: () => onStatusChanged(_RosterStatusFilter.all),
+                  ),
+                  _RosterFilterChip(
+                    label: 'Atenção',
+                    selected:
+                        statusFilter == _RosterStatusFilter.needsAttention,
+                    onTap:
+                        () =>
+                            onStatusChanged(_RosterStatusFilter.needsAttention),
+                  ),
+                  _RosterFilterChip(
+                    label: 'Ativos',
+                    selected: statusFilter == _RosterStatusFilter.active,
+                    onTap: () => onStatusChanged(_RosterStatusFilter.active),
+                  ),
+                ],
+              ),
+              if (summary.beltCounts.isNotEmpty) ...[
+                const SizedBox(height: TitansUI.spaceXs),
+                Wrap(
+                  spacing: TitansUI.spaceXs,
+                  runSpacing: TitansUI.spaceXs,
+                  children: [
+                    _RosterBeltFilterChip(
+                      label: 'Todas as faixas',
+                      selected: beltFilter == null,
+                      color: cs.primary,
+                      onTap: () => onBeltChanged(null),
+                    ),
+                    for (final entry in summary.beltCounts.entries)
+                      _RosterBeltFilterChip(
+                        label:
+                            '${_StudentCard.beltName(entry.key)} (${entry.value})',
+                        selected: beltFilter == entry.key,
+                        color: _StudentCard.beltUiColor(entry.key),
+                        onTap: () => onBeltChanged(entry.key),
+                      ),
+                  ],
+                ),
               ],
-            );
-          }
-
-          return Row(
-            children: [
-              Expanded(child: title),
-              const SizedBox(width: TitansUI.spaceMd),
-              action,
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _RosterMetric extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _RosterMetric({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(minWidth: 96, minHeight: 54),
+      padding: const EdgeInsets.symmetric(
+        horizontal: TitansUI.spaceSm,
+        vertical: TitansUI.spaceXs,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.md),
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.24)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 18),
+          const SizedBox(width: TitansUI.spaceXs),
+          Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 18,
+                ),
+              ),
+              Text(
+                label,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.64),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RosterFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RosterFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = selected ? TitansUI.actionGold : cs.onSurface;
+
+    return ActionChip(
+      onPressed: onTap,
+      label: Text(label),
+      labelStyle: TextStyle(
+        color: selected ? Colors.black : cs.onSurface.withValues(alpha: 0.76),
+        fontWeight: FontWeight.w900,
+        fontSize: 12,
+      ),
+      backgroundColor:
+          selected ? TitansUI.actionGold : cs.surfaceContainerHighest,
+      side: BorderSide(color: color.withValues(alpha: selected ? 0.70 : 0.14)),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _RosterBeltFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _RosterBeltFilterChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textColor = color.computeLuminance() > 0.82 ? cs.onSurface : color;
+
+    return ActionChip(
+      onPressed: onTap,
+      label: Text(label),
+      labelStyle: TextStyle(
+        color: selected ? textColor : cs.onSurface.withValues(alpha: 0.72),
+        fontWeight: FontWeight.w800,
+        fontSize: 11,
+      ),
+      backgroundColor:
+          selected
+              ? color.withValues(alpha: 0.14)
+              : cs.surfaceContainerHighest.withValues(alpha: 0.22),
+      side: BorderSide(
+        color:
+            selected
+                ? color.withValues(alpha: 0.46)
+                : cs.onSurface.withValues(alpha: 0.10),
+      ),
+      visualDensity: VisualDensity.compact,
+    );
+  }
+}
+
+class _TeacherAttentionCard extends StatelessWidget {
+  final List<_StudentAccessEntry> entries;
+  final ValueChanged<_StudentAccessEntry> onOpen;
+
+  const _TeacherAttentionCard({required this.entries, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansCard(
+      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.priority_high_rounded, color: TitansUI.actionGold),
+              const SizedBox(width: TitansUI.spaceXs),
+              Expanded(
+                child: Text(
+                  'Atenção do professor',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Cadastros que ainda precisam de ação de acesso ou convite.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: TitansUI.spaceSm),
+          Wrap(
+            spacing: TitansUI.spaceXs,
+            runSpacing: TitansUI.spaceXs,
+            children: [
+              for (final entry in entries)
+                _AttentionStudentChip(entry: entry, onTap: () => onOpen(entry)),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttentionStudentChip extends StatelessWidget {
+  final _StudentAccessEntry entry;
+  final VoidCallback onTap;
+
+  const _AttentionStudentChip({required this.entry, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(TitansRadius.pill),
+      onTap: onTap,
+      child: Container(
+        constraints: const BoxConstraints(minHeight: 34, maxWidth: 220),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(TitansRadius.pill),
+          color: TitansUI.actionGold.withValues(alpha: 0.10),
+          border: Border.all(
+            color: TitansUI.actionGold.withValues(alpha: 0.28),
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.person_outline, size: 16, color: TitansUI.actionGold),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                entry.displayStudent.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.86),
+                  fontWeight: FontWeight.w900,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(Icons.arrow_forward, size: 14, color: TitansUI.actionGold),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RosterEmptyFilterCard extends StatelessWidget {
+  const _RosterEmptyFilterCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansCard(
+      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      child: Row(
+        children: [
+          Icon(Icons.filter_alt_off_outlined, color: cs.onSurfaceVariant),
+          const SizedBox(width: TitansUI.spaceSm),
+          Expanded(
+            child: Text(
+              'Nenhum aluno encontrado com os filtros atuais.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.72),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
