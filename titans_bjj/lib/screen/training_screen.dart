@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -48,7 +46,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String? _historyPositionFilter;
   String? _historyTechniqueFilter;
   int _visibleHistoryCount = 20;
-  List<TrainingSession>? _historySessionsSource;
+  String? _historyItemsCacheKey;
   List<_TrainingSessionViewModel> _historyItemsCache = const [];
 
   late final TrainingRepository _repo = TrainingRepository.instance;
@@ -117,20 +115,125 @@ class _TrainingScreenState extends State<TrainingScreen> {
     _applyHistoryFilters(filters);
   }
 
-  List<_TrainingSessionViewModel> _historyItemsFor(
-    List<TrainingSession> sessions,
-  ) {
-    if (identical(_historySessionsSource, sessions)) {
+  List<_TrainingSessionViewModel> _historyItemsFor({
+    required String academyId,
+    required String uid,
+    required List<TrainingSession> sessions,
+  }) {
+    final cacheKey = _historySessionsSignature(
+      academyId: academyId,
+      uid: uid,
+      sessions: sessions,
+    );
+    if (_historyItemsCacheKey == cacheKey) {
       return _historyItemsCache;
     }
 
     final sorted = List<TrainingSession>.from(sessions)
       ..sort((a, b) => b.date.compareTo(a.date));
-    _historySessionsSource = sessions;
+    _historyItemsCacheKey = cacheKey;
     _historyItemsCache = List<_TrainingSessionViewModel>.unmodifiable(
       sorted.map(_TrainingSessionViewModel.fromSession),
     );
     return _historyItemsCache;
+  }
+
+  String _historySessionsSignature({
+    required String academyId,
+    required String uid,
+    required List<TrainingSession> sessions,
+  }) {
+    final sessionParts = <String>[];
+
+    for (final session in sessions) {
+      final scoreKeys = session.scores.keys.toList()..sort();
+      final part =
+          StringBuffer()
+            ..write(session.id)
+            ..write('@')
+            ..write(session.date.microsecondsSinceEpoch)
+            ..write('|place:')
+            ..write(session.place.name)
+            ..write('|academy:')
+            ..write(session.academyId ?? '')
+            ..write('|uid:')
+            ..write(session.uid ?? '')
+            ..write('|source:')
+            ..write(session.source ?? '')
+            ..write('|attendance:')
+            ..write(session.attendanceSessionId ?? '')
+            ..write('|checkin:')
+            ..write(session.attendanceCheckInUid ?? '')
+            ..write('|class:')
+            ..write(session.classType ?? '')
+            ..write('|instructorUid:')
+            ..write(session.instructorUid ?? '')
+            ..write('|instructorName:')
+            ..write(session.instructorName ?? '')
+            ..write('|position:')
+            ..write(session.position ?? '')
+            ..write('|technique:')
+            ..write(session.technique ?? '')
+            ..write('|successes:')
+            ..write(session.successes ?? '')
+            ..write('|difficulties:')
+            ..write(session.difficulties ?? '')
+            ..write('|intensity:')
+            ..write(session.intensity ?? '')
+            ..write('|notes:')
+            ..write(session.notes ?? '')
+            ..write('|debrief:')
+            ..write(session.debriefNotes ?? '')
+            ..write('|context:')
+            ..write(session.applicationContext ?? '')
+            ..write('|outcome:')
+            ..write(session.techniqueOutcome ?? '');
+
+      for (final key in scoreKeys) {
+        part
+          ..write('|score:')
+          ..write(key)
+          ..write('=')
+          ..write(session.scores[key]);
+      }
+
+      for (final entry in session.effectiveTechniqueEntries) {
+        part
+          ..write('|entry:')
+          ..write(entry.technique)
+          ..write(':')
+          ..write(entry.position ?? '')
+          ..write(':')
+          ..write(entry.category ?? '')
+          ..write(':')
+          ..write(entry.side.name)
+          ..write(':')
+          ..write(entry.applicationContext ?? '')
+          ..write(':')
+          ..write(entry.techniqueOutcome ?? '')
+          ..write(':')
+          ..write(entry.notes ?? '');
+      }
+
+      sessionParts.add(part.toString());
+    }
+
+    sessionParts.sort();
+
+    final signature =
+        StringBuffer()
+          ..write(academyId)
+          ..write('|')
+          ..write(uid)
+          ..write('|count:')
+          ..write(sessions.length);
+    for (final part in sessionParts) {
+      signature
+        ..write('|session:')
+        ..write(part);
+    }
+
+    return signature.toString();
   }
 
   void _syncStream({required String academyId, required String uid}) {
@@ -138,6 +241,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     _streamAcademyId = academyId;
     _streamUid = uid;
+    _historyItemsCacheKey = null;
+    _historyItemsCache = const [];
     _sessionsStream = _repo.watchSessions(academyId: academyId, uid: uid);
   }
 
@@ -199,16 +304,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     return _wrapModule(
       appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
-      floatingActionButton:
-          !widget.embedded && canEditTarget
-              ? FloatingActionButton.extended(
-                heroTag: 'training_fab',
-                onPressed:
-                    () => _openTrainingForm(academyId: academyId, uid: uid),
-                icon: const Icon(Icons.add),
-                label: const Text('Treino'),
-              )
-              : null,
+      floatingActionButton: null,
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
         builder: (context, snap) {
@@ -226,7 +322,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
           final rawSessions = snap.data ?? const <TrainingSession>[];
           final sessions = List<TrainingSession>.from(rawSessions)
             ..sort((a, b) => a.date.compareTo(b.date));
-          final historyItems = _historyItemsFor(rawSessions);
+          final historyItems = _historyItemsFor(
+            academyId: academyId,
+            uid: uid,
+            sessions: rawSessions,
+          );
 
           final chart = _TrainingChartViewModel.from(
             sessions: sessions,
@@ -242,7 +342,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           final listPadding =
               widget.embedded
                   ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
-                  : TitansUI.listPadding(context, extra: 132);
+                  : TitansUI.listPadding(context, extra: 48);
 
           return ListView(
             padding: listPadding,
@@ -252,9 +352,9 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 lastTrainingLabel: lastTrainingLabel,
                 period: _period,
                 onPeriodChanged: (p) => setState(() => _period = p),
-                canAddTraining: widget.embedded && canEditTarget,
+                canAddTraining: canEditTarget,
                 onAddTraining:
-                    widget.embedded && canEditTarget
+                    canEditTarget
                         ? () =>
                             _openTrainingForm(academyId: academyId, uid: uid)
                         : null,
@@ -354,7 +454,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 12),
             ],
           );
         },
@@ -621,12 +721,6 @@ class _TrainingSummaryCard extends StatelessWidget {
                   ],
                 ),
               ),
-              if (canAddTraining)
-                IconButton.filledTonal(
-                  tooltip: 'Adicionar treino',
-                  onPressed: onAddTraining,
-                  icon: const Icon(Icons.add),
-                ),
             ],
           ),
           const SizedBox(height: 12),
@@ -679,6 +773,22 @@ class _TrainingSummaryCard extends StatelessWidget {
               );
             },
           ),
+          if (canAddTraining && onAddTraining != null) ...[
+            const SizedBox(height: 12),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: FilledButton.icon(
+                onPressed: onAddTraining,
+                icon: const Icon(Icons.add),
+                label: const Text('Treino'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: TitansUI.actionGold,
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _PeriodFilter(
             period: period,
@@ -757,44 +867,31 @@ class _PeriodFilter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
+    const gap = TitansUI.spaceXs;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : 520.0;
-        final filterWidth = math.min(maxWidth, 520.0);
+            constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0;
+        final narrow = maxWidth <= 430;
+        final chipWidth =
+            narrow ? (maxWidth - gap) / 2 : (maxWidth - (gap * 3)) / 4;
+        final safeChipWidth = chipWidth.clamp(0.0, maxWidth).toDouble();
 
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: SizedBox(
-            width: filterWidth,
-            child: Container(
-              padding: const EdgeInsets.all(4),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(TitansRadius.pill),
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.36),
-                border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-              ),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                clipBehavior: Clip.none,
-                child: Padding(
-                  padding: const EdgeInsets.only(right: 4),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      for (final option in periods)
-                        _PeriodChip(
-                          label: option.label,
-                          selected: period == option.id,
-                          onSelected: () => onChanged(option.id),
-                        ),
-                    ],
-                  ),
+        return Wrap(
+          spacing: gap,
+          runSpacing: gap,
+          children: [
+            for (final option in periods)
+              SizedBox(
+                width: safeChipWidth,
+                child: _PeriodChip(
+                  label: option.label,
+                  selected: period == option.id,
+                  onSelected: () => onChanged(option.id),
                 ),
               ),
-            ),
-          ),
+          ],
         );
       },
     );
@@ -815,28 +912,35 @@ class _PeriodChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isNarrow = MediaQuery.sizeOf(context).width < 380;
-    return Padding(
-      padding: const EdgeInsets.only(right: 4),
-      child: ChoiceChip(
-        label: Text(label, maxLines: 1, overflow: TextOverflow.visible),
-        selected: selected,
-        onSelected: (_) => onSelected(),
-        showCheckmark: false,
-        visualDensity: VisualDensity.compact,
-        labelPadding: EdgeInsets.symmetric(horizontal: isNarrow ? 6 : 8),
-        labelStyle: TextStyle(
-          color: selected ? cs.onPrimary : cs.onSurface.withValues(alpha: 0.82),
-          fontSize: isNarrow ? 12 : null,
-          fontWeight: FontWeight.w900,
+    final accent = TitansUI.actionGold;
+
+    return ChoiceChip(
+      label: SizedBox(
+        width: double.infinity,
+        child: Center(
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
         ),
-        selectedColor: cs.primary,
-        backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
-        side: BorderSide(
-          color: cs.onSurface.withValues(alpha: selected ? 0.0 : 0.12),
-        ),
-        shape: const StadiumBorder(),
       ),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      showCheckmark: false,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+      labelStyle: TextStyle(
+        color: selected ? Colors.black : cs.onSurface.withValues(alpha: 0.78),
+        fontSize: 12,
+        fontWeight: FontWeight.w900,
+      ),
+      selectedColor: accent,
+      backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+      side: BorderSide(
+        color:
+            selected
+                ? accent.withValues(alpha: 0.70)
+                : cs.onSurface.withValues(alpha: 0.14),
+      ),
+      shape: const StadiumBorder(),
     );
   }
 }

@@ -68,6 +68,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<List<TrainingSession>>? _sessionsStream;
   Stream<UserProfile?>? _nutritionProfileStream;
   Stream<List<MealEntry>>? _nutritionMealsStream;
+  String? _homeDashboardCacheKey;
+  _HomeDashboardViewModel? _homeDashboardCache;
   bool _nutritionFallbackToMock = false;
   Object? _nutritionLoadError;
 
@@ -76,6 +78,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
 
     _streamAcademyId = academyId;
     _streamUid = uid;
+    _homeDashboardCacheKey = null;
+    _homeDashboardCache = null;
     _athleteStream = _userRepo.watchUser(academyId: academyId, uid: uid);
     _profileStream = _progressRepo.watchProfile(academyId: academyId, uid: uid);
     _rulesStream = _rulesRepo.watch(academyId);
@@ -261,33 +265,22 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         degree: athlete.degree,
                         sessions: filtered,
                       );
-                      final recentSessions =
-                          filtered.reversed.take(10).toList();
-                      final lastSessions = recentSessions.take(5).toList();
-                      final metrics = TrainingAggregator.metrics(filtered);
-                      final debriefInsights = _buildDebriefInsights(
-                        recentSessions,
+                      final homeViewModel = _homeDashboardViewModelFor(
+                        academyId: academyId,
+                        uid: uid,
+                        contextKey:
+                            '${widget.targetMode.name}|${actor?.role.name ?? 'none'}',
+                        sessions: filtered,
                       );
-                      final gameMapLite = TrainingAggregator.buildGameMap(
-                        recentSessions,
-                        limit: 10,
-                      );
-                      final skillMatrix = TrainingAggregator.buildSkillMatrix(
-                        filtered,
-                        limit: 50,
-                      );
-                      final technicalRadar =
-                          _HomeTechnicalRadarViewModel.fromSessions(filtered);
-                      final recommendedFocus =
-                          TrainingAggregator.buildRecommendedFocus(
-                            filtered,
-                            recentLimit: 20,
-                          );
-                      final nextTraining =
-                          TrainingAggregator.buildNextTrainingRecommendation(
-                            filtered,
-                            recentLimit: 20,
-                          );
+                      final lastSessions = homeViewModel.lastSessions;
+                      final metrics = homeViewModel.metrics;
+                      final debriefInsights = homeViewModel.debriefInsights;
+                      final gameMapLite = homeViewModel.gameMapLite;
+                      final skillMatrix = homeViewModel.skillMatrix;
+                      final technicalRadar = homeViewModel.technicalRadar;
+                      final recommendedFocus = homeViewModel.recommendedFocus;
+                      final nextTraining = homeViewModel.nextTraining;
+                      final frequency = homeViewModel.frequency;
                       final isStaffViewingStudent = _isStaffViewingStudent(
                         actor: actor,
                         target: target,
@@ -545,7 +538,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         belt: beltProgress.belt,
                                         degree: beltProgress.degree,
                                         metrics: metrics,
-                                        frequency: _calcFrequency(filtered),
+                                        frequency: frequency,
                                         lastSession:
                                             lastSessions.isEmpty
                                                 ? null
@@ -562,20 +555,17 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenEvidence: openTraining,
                                         onOpenSkills: openSkills,
                                       ),
-                                      if (technicalRadar
-                                          .hasClassifiedEvidence) ...[
-                                        const SizedBox(height: 12),
-                                        _HomeTechnicalRadarSlot(
-                                          cs: cs,
-                                          radar: technicalRadar,
-                                          onOpenMap: openGameMap,
-                                        ),
-                                      ],
+                                      const SizedBox(height: 12),
+                                      _HomeTechnicalRadarSlot(
+                                        cs: cs,
+                                        radar: technicalRadar,
+                                        onOpenMap: openGameMap,
+                                      ),
                                       const SizedBox(height: 12),
                                       _CoachActiveLiteModules(
                                         cs: cs,
                                         metrics: metrics,
-                                        frequency: _calcFrequency(filtered),
+                                        frequency: frequency,
                                         insights: debriefInsights,
                                         skillMatrix: skillMatrix,
                                         gameMap: gameMapLite,
@@ -601,19 +591,18 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           cs: cs,
                                           recommendation: nextTraining,
                                         ),
-                                        if (technicalRadar
-                                            .hasClassifiedEvidence) ...[
-                                          const SizedBox(height: 12),
-                                          _HomeTechnicalRadarSlot(
-                                            cs: cs,
-                                            radar: technicalRadar,
-                                            onOpenMap: openGameMap,
-                                          ),
-                                        ],
+                                        const SizedBox(height: 12),
+                                        _HomeTechnicalRadarSlot(
+                                          cs: cs,
+                                          radar: technicalRadar,
+                                          onOpenMap: openGameMap,
+                                          onRegisterTraining:
+                                              openRegisterTraining,
+                                        ),
                                         const SizedBox(height: 12),
                                         _AthleteMinimalMetricsCard(
                                           cs: cs,
-                                          frequency: _calcFrequency(filtered),
+                                          frequency: frequency,
                                           metrics: metrics,
                                         ),
                                         if (lastSessions.isNotEmpty) ...[
@@ -648,24 +637,21 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           onOpenGameMap: openGameMap,
                                           onOpenSkills: openSkills,
                                         ),
-                                        if (technicalRadar
-                                            .hasClassifiedEvidence) ...[
-                                          const SizedBox(height: 12),
-                                          _HomeTechnicalRadarSlot(
-                                            cs: cs,
-                                            radar: technicalRadar,
-                                            onOpenMap: openGameMap,
-                                          ),
-                                        ],
+                                        const SizedBox(height: 12),
+                                        _HomeTechnicalRadarSlot(
+                                          cs: cs,
+                                          radar: technicalRadar,
+                                          onOpenMap: openGameMap,
+                                          onRegisterTraining:
+                                              openRegisterTraining,
+                                        ),
                                         const SizedBox(height: 12),
                                         LayoutBuilder(
                                           builder: (context, c) {
                                             final isWide = c.maxWidth >= 980;
                                             final left = _StatsCard(
                                               cs: cs,
-                                              frequency: _calcFrequency(
-                                                filtered,
-                                              ),
+                                              frequency: frequency,
                                               metrics: metrics,
                                             );
                                             final right = _DebriefInsightsCard(
@@ -944,6 +930,122 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     );
   }
 
+  _HomeDashboardViewModel _homeDashboardViewModelFor({
+    required String academyId,
+    required String uid,
+    required String contextKey,
+    required List<TrainingSession> sessions,
+  }) {
+    final cacheKey = _homeDashboardSnapshotKey(
+      academyId: academyId,
+      uid: uid,
+      contextKey: contextKey,
+      sessions: sessions,
+    );
+    final cached = _homeDashboardCache;
+    if (_homeDashboardCacheKey == cacheKey && cached != null) {
+      return cached;
+    }
+
+    final next = _HomeDashboardViewModel.fromSessions(
+      sessions,
+      buildDebriefInsights: _buildDebriefInsights,
+      calcFrequency: _calcFrequency,
+    );
+    _homeDashboardCacheKey = cacheKey;
+    _homeDashboardCache = next;
+    return next;
+  }
+
+  String _homeDashboardSnapshotKey({
+    required String academyId,
+    required String uid,
+    required String contextKey,
+    required List<TrainingSession> sessions,
+  }) {
+    final today = DateTime.now();
+    final buffer =
+        StringBuffer()
+          ..write(academyId)
+          ..write('|')
+          ..write(uid)
+          ..write('|')
+          ..write(contextKey)
+          ..write('|')
+          ..write(today.year)
+          ..write('-')
+          ..write(today.month)
+          ..write('-')
+          ..write(today.day)
+          ..write('|')
+          ..write(sessions.length);
+
+    for (final session in sessions) {
+      buffer
+        ..write('|s:')
+        ..write(session.id)
+        ..write('@')
+        ..write(session.date.microsecondsSinceEpoch)
+        ..write(':')
+        ..write(session.place.name)
+        ..write(':')
+        ..write(session.academyId ?? '')
+        ..write(':')
+        ..write(session.uid ?? '')
+        ..write(':')
+        ..write(session.source ?? '')
+        ..write(':')
+        ..write(session.attendanceSessionId ?? '')
+        ..write(':')
+        ..write(session.classType ?? '')
+        ..write(':')
+        ..write(session.position ?? '')
+        ..write(':')
+        ..write(session.technique ?? '')
+        ..write(':')
+        ..write(session.successes ?? '')
+        ..write(':')
+        ..write(session.difficulties ?? '')
+        ..write(':')
+        ..write(session.intensity ?? '')
+        ..write(':')
+        ..write(session.debriefNotes ?? '')
+        ..write(':')
+        ..write(session.applicationContext ?? '')
+        ..write(':')
+        ..write(session.techniqueOutcome ?? '');
+
+      final scoreKeys = session.scores.keys.toList()..sort();
+      for (final key in scoreKeys) {
+        buffer
+          ..write('|score:')
+          ..write(key)
+          ..write('=')
+          ..write(session.scores[key]);
+      }
+
+      for (final entry in session.effectiveTechniqueEntries) {
+        buffer
+          ..write('|t:')
+          ..write(entry.technique)
+          ..write(':')
+          ..write(entry.position ?? '')
+          ..write(':')
+          ..write(entry.category ?? '')
+          ..write(':')
+          ..write(entry.side.name)
+          ..write(':')
+          ..write(entry.applicationContext ?? '')
+          ..write(':')
+          ..write(entry.techniqueOutcome ?? '')
+          ..write(':')
+          ..write(entry.notes ?? '');
+      }
+    }
+
+    return buffer.toString();
+  }
+
   _BeltProgress _calcBeltProgress({
     required GradingRules rules,
     required UserProgressProfile profile,
@@ -1073,6 +1175,73 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
     final diff = d.difference(firstDay).inDays;
     final week = (diff / 7).floor();
     return '${d.year}-$week';
+  }
+}
+
+class _HomeDashboardViewModel {
+  final List<TrainingSession> sessions;
+  final List<TrainingSession> recentSessions;
+  final List<TrainingSession> lastSessions;
+  final TrainingMetrics metrics;
+  final int frequency;
+  final _DebriefInsights debriefInsights;
+  final List<GameMapEntry> gameMapLite;
+  final List<SkillMatrixCategoryEntry> skillMatrix;
+  final _HomeTechnicalRadarViewModel technicalRadar;
+  final RecommendedTrainingFocus recommendedFocus;
+  final NextTrainingRecommendation nextTraining;
+
+  const _HomeDashboardViewModel({
+    required this.sessions,
+    required this.recentSessions,
+    required this.lastSessions,
+    required this.metrics,
+    required this.frequency,
+    required this.debriefInsights,
+    required this.gameMapLite,
+    required this.skillMatrix,
+    required this.technicalRadar,
+    required this.recommendedFocus,
+    required this.nextTraining,
+  });
+
+  factory _HomeDashboardViewModel.fromSessions(
+    List<TrainingSession> sessions, {
+    required _DebriefInsights Function(List<TrainingSession> sessions)
+    buildDebriefInsights,
+    required int Function(List<TrainingSession> sessions) calcFrequency,
+  }) {
+    final stableSessions = List<TrainingSession>.unmodifiable(sessions);
+    final recentSessions = List<TrainingSession>.unmodifiable(
+      stableSessions.reversed.take(10),
+    );
+    final lastSessions = List<TrainingSession>.unmodifiable(
+      recentSessions.take(5),
+    );
+
+    return _HomeDashboardViewModel(
+      sessions: stableSessions,
+      recentSessions: recentSessions,
+      lastSessions: lastSessions,
+      metrics: TrainingAggregator.metrics(stableSessions),
+      frequency: calcFrequency(stableSessions),
+      debriefInsights: buildDebriefInsights(recentSessions),
+      gameMapLite: List<GameMapEntry>.unmodifiable(
+        TrainingAggregator.buildGameMap(recentSessions, limit: 10),
+      ),
+      skillMatrix: List<SkillMatrixCategoryEntry>.unmodifiable(
+        TrainingAggregator.buildSkillMatrix(stableSessions, limit: 50),
+      ),
+      technicalRadar: _HomeTechnicalRadarViewModel.fromSessions(stableSessions),
+      recommendedFocus: TrainingAggregator.buildRecommendedFocus(
+        stableSessions,
+        recentLimit: 20,
+      ),
+      nextTraining: TrainingAggregator.buildNextTrainingRecommendation(
+        stableSessions,
+        recentLimit: 20,
+      ),
+    );
   }
 }
 
@@ -2357,6 +2526,14 @@ class _HomeTechnicalRadarViewModel {
     return '$sessionsCount $suffix';
   }
 
+  String get classifiedEvidenceLabel {
+    final suffix =
+        classifiedEvidenceCount == 1
+            ? 'evidência classificada'
+            : 'evidências classificadas';
+    return '$classifiedEvidenceCount $suffix';
+  }
+
   String get topAxisLabel {
     final axis = topAxis;
     if (axis == null) return 'Evidências em construção';
@@ -2410,11 +2587,13 @@ class _HomeTechnicalRadarSlot extends StatelessWidget {
   final ColorScheme cs;
   final _HomeTechnicalRadarViewModel radar;
   final VoidCallback onOpenMap;
+  final VoidCallback? onRegisterTraining;
 
   const _HomeTechnicalRadarSlot({
     required this.cs,
     required this.radar,
     required this.onOpenMap,
+    this.onRegisterTraining,
   });
 
   @override
@@ -2435,7 +2614,125 @@ class _HomeTechnicalRadarSlot extends StatelessWidget {
       );
     }
 
-    return const SizedBox.shrink();
+    return _HomeTechnicalRadarInitialCard(
+      cs: cs,
+      onOpenMap: onOpenMap,
+      onRegisterTraining: onRegisterTraining,
+    );
+  }
+}
+
+class _HomeTechnicalRadarInitialCard extends StatelessWidget {
+  final ColorScheme cs;
+  final VoidCallback onOpenMap;
+  final VoidCallback? onRegisterTraining;
+
+  const _HomeTechnicalRadarInitialCard({
+    required this.cs,
+    required this.onOpenMap,
+    this.onRegisterTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return _GlassCard(
+      accent: cs.primary.withValues(alpha: 0.30),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HomeRadarHeader(
+            cs: cs,
+            badgeLabel: 'Inicial',
+            badgeIcon: Icons.radar_outlined,
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compact = constraints.maxWidth < 520;
+              final radarSize = _homeRadarSizeForWidth(
+                constraints.maxWidth,
+                desired: compact ? 160.0 : 176.0,
+              );
+              final visual = _HomeRadarVisualShell(
+                cs: cs,
+                size: radarSize,
+                child: CustomPaint(
+                  size: Size.square(radarSize),
+                  painter: _HomeTechnicalRadarInitialPainter(cs),
+                ),
+              );
+              final details = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Registre treinos para ativar seu mapa técnico',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.90),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'A leitura técnica aparece conforme suas evidências de treino evoluem.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.66),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Baseado em evidências dos treinos.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              );
+
+              if (compact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    visual,
+                    const SizedBox(height: 14),
+                    Align(alignment: Alignment.centerLeft, child: details),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  visual,
+                  const SizedBox(width: 16),
+                  Expanded(child: details),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          _HomeRadarCta(
+            label:
+                onRegisterTraining == null
+                    ? 'Explorar mapa'
+                    : 'Registrar treino',
+            icon: onRegisterTraining == null ? Icons.map_outlined : Icons.add,
+            onPressed: onRegisterTraining ?? onOpenMap,
+            filled: onRegisterTraining != null,
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -2453,46 +2750,33 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      accent: cs.primary.withValues(alpha: 0.30),
+      accent: cs.primary.withValues(alpha: 0.32),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
-                    const SizedBox(height: 4),
-                    _HomeRadarAxisSubtitle(cs: cs),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _InsightBadge(
-                label: radar.evidenceLabel,
-                color: cs.primary,
-                icon: Icons.radar_outlined,
-              ),
-            ],
+          _HomeRadarHeader(
+            cs: cs,
+            badgeLabel: 'Base: ${radar.sessionLabel}',
+            badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 380;
-              final radarSize = compact ? 136.0 : 148.0;
-              final visual = SizedBox.square(
-                dimension: radarSize,
-                child: RepaintBoundary(
-                  child: CustomPaint(
-                    size: Size.square(radarSize),
-                    painter: _HomeTechnicalRadarFormationPainter(
-                      cs,
-                      axisEvidence: radar.axisEvidence,
-                      highlightedAxis: radar.topAxis,
-                    ),
+              final compact = constraints.maxWidth < 520;
+              final radarSize = _homeRadarSizeForWidth(
+                constraints.maxWidth,
+                desired: compact ? 164.0 : 182.0,
+              );
+              final visual = _HomeRadarVisualShell(
+                cs: cs,
+                size: radarSize,
+                highlightedAxis: radar.topAxis,
+                child: CustomPaint(
+                  size: Size.square(radarSize),
+                  painter: _HomeTechnicalRadarFormationPainter(
+                    cs,
+                    axisEvidence: radar.axisEvidence,
+                    highlightedAxis: radar.topAxis,
                   ),
                 ),
               );
@@ -2501,15 +2785,19 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                 children: [
                   Text(
                     'Mapa técnico em formação',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.88),
-                      fontSize: 14,
+                      color: cs.onSurface.withValues(alpha: 0.90),
+                      fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
                   const SizedBox(height: 6),
                   Text(
                     'Trilhas apagadas indicam eixos ainda sem evidência registrada.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.66),
                       fontSize: 12,
@@ -2528,11 +2816,22 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                         icon: Icons.auto_awesome_outlined,
                       ),
                       _InsightBadge(
-                        label: radar.sessionLabel,
+                        label: radar.classifiedEvidenceLabel,
                         color: cs.primary,
-                        icon: Icons.fitness_center_outlined,
+                        icon: Icons.radar_outlined,
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Baseado em evidências dos treinos.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               );
@@ -2542,7 +2841,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     visual,
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     Align(alignment: Alignment.centerLeft, child: details),
                   ],
                 );
@@ -2552,28 +2851,17 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   visual,
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 16),
                   Expanded(child: details),
                 ],
               );
             },
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Baseado em evidências dos treinos.',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: onOpenMap,
-              child: const Text('Explorar mapa'),
-            ),
+          const SizedBox(height: 12),
+          _HomeRadarCta(
+            label: 'Explorar mapa',
+            icon: Icons.map_outlined,
+            onPressed: onOpenMap,
           ),
         ],
       ),
@@ -2595,70 +2883,70 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return _GlassCard(
-      accent: cs.primary.withValues(alpha: 0.35),
+      accent: cs.primary.withValues(alpha: 0.38),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
-                    const SizedBox(height: 4),
-                    _HomeRadarAxisSubtitle(cs: cs),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 10),
-              _InsightBadge(
-                label: radar.evidenceLabel,
-                color: cs.primary,
-                icon: Icons.radar_outlined,
-              ),
-            ],
+          _HomeRadarHeader(
+            cs: cs,
+            badgeLabel: 'Base: ${radar.sessionLabel}',
+            badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 14),
           LayoutBuilder(
             builder: (context, constraints) {
-              final compact = constraints.maxWidth < 380;
-              final availableWidth =
-                  constraints.maxWidth.isFinite ? constraints.maxWidth : 148.0;
-              final maxRadarSize = compact ? 136.0 : 148.0;
-              final radarSize = math.min(
-                maxRadarSize,
-                math.max(compact ? 136.0 : 148.0, availableWidth - 32),
+              final compact = constraints.maxWidth < 520;
+              final radarSize = _homeRadarSizeForWidth(
+                constraints.maxWidth,
+                desired: compact ? 168.0 : 190.0,
               );
-              final radarVisual = SizedBox(
-                width: radarSize,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RepaintBoundary(
-                      child: CustomPaint(
-                        size: Size.square(radarSize),
-                        painter: _HomeTechnicalRadarPainter(
-                          cs,
-                          axisEvidence: radar.axisEvidence,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    _HomeRadarAxisLegend(cs: cs, compact: compact),
-                  ],
+              final radarVisual = _HomeRadarVisualShell(
+                cs: cs,
+                size: radarSize,
+                highlightedAxis: radar.topAxis,
+                child: CustomPaint(
+                  size: Size.square(radarSize),
+                  painter: _HomeTechnicalRadarPainter(
+                    cs,
+                    axisEvidence: radar.axisEvidence,
+                    highlightedAxis: radar.topAxis,
+                  ),
                 ),
               );
               final radarDetails = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _CoachLiteDataRow(
-                    line: _CoachLiteLine('Base', radar.sessionLabel),
+                  Text(
+                    'Leitura técnica por evidências',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.90),
+                      fontSize: 15,
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   _CoachLiteDataRow(
                     line: _CoachLiteLine('Destaque', radar.topAxisLabel),
+                  ),
+                  const SizedBox(height: 8),
+                  _CoachLiteDataRow(
+                    line: _CoachLiteLine(
+                      'Evidências',
+                      radar.classifiedEvidenceLabel,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Baseado em evidências dos treinos.',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ],
               );
@@ -2668,7 +2956,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     radarVisual,
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 14),
                     radarDetails,
                   ],
                 );
@@ -2678,28 +2966,17 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
                   radarVisual,
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 16),
                   Expanded(child: radarDetails),
                 ],
               );
             },
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Baseado em evidências dos treinos.',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton(
-              onPressed: onOpenMap,
-              child: const Text('Explorar mapa →'),
-            ),
+          const SizedBox(height: 12),
+          _HomeRadarCta(
+            label: 'Explorar mapa',
+            icon: Icons.map_outlined,
+            onPressed: onOpenMap,
           ),
         ],
       ),
@@ -2707,64 +2984,313 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
   }
 }
 
-class _HomeRadarAxisSubtitle extends StatelessWidget {
+class _HomeRadarHeader extends StatelessWidget {
   final ColorScheme cs;
+  final String badgeLabel;
+  final IconData badgeIcon;
 
-  const _HomeRadarAxisSubtitle({required this.cs});
+  const _HomeRadarHeader({
+    required this.cs,
+    required this.badgeLabel,
+    required this.badgeIcon,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 6,
-      runSpacing: 4,
-      children: [
-        for (final label in const [
-          'Retenção',
-          'Transição',
-          'Controle',
-          'Ataque',
-        ])
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.visible,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w800,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final titleBlock = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionHeaderCompact(title: 'MAPA TÉCNICO'),
+            const SizedBox(height: 4),
+            Text(
+              'Leitura técnica por evidências',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.72),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
             ),
-          ),
-      ],
+          ],
+        );
+        final badge = _InsightBadge(
+          label: badgeLabel,
+          color: cs.primary,
+          icon: badgeIcon,
+        );
+
+        if (constraints.maxWidth < 340) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [titleBlock, const SizedBox(height: 8), badge],
+          );
+        }
+
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: titleBlock),
+            const SizedBox(width: 10),
+            badge,
+          ],
+        );
+      },
     );
   }
 }
 
-class _HomeRadarAxisLegend extends StatelessWidget {
+class _HomeRadarVisualShell extends StatelessWidget {
   final ColorScheme cs;
-  final bool compact;
+  final double size;
+  final Widget child;
+  final TechnicalRadarAxis? highlightedAxis;
 
-  const _HomeRadarAxisLegend({required this.cs, required this.compact});
+  const _HomeRadarVisualShell({
+    required this.cs,
+    required this.size,
+    required this.child,
+    this.highlightedAxis,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Wrap(
-      alignment: WrapAlignment.center,
-      spacing: compact ? 5 : 6,
-      runSpacing: 4,
-      children: [
-        for (final axis in _homeTechnicalRadarAxisOrder)
-          Text(
-            _homeAxisShortLabel(axis),
+    final outerWidth = size + 132;
+    final outerHeight = size + 76;
+
+    return RepaintBoundary(
+      child: SizedBox(
+        width: outerWidth,
+        height: outerHeight,
+        child: Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Center(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    colors: [
+                      cs.primary.withValues(alpha: 0.20),
+                      cs.primary.withValues(alpha: 0.08),
+                      Colors.transparent,
+                    ],
+                    stops: const [0, 0.58, 1],
+                  ),
+                  border: Border.all(color: cs.primary.withValues(alpha: 0.24)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: cs.primary.withValues(alpha: 0.18),
+                      blurRadius: 30,
+                      spreadRadius: -8,
+                    ),
+                  ],
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: SizedBox.square(dimension: size, child: child),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _HomeRadarAxisEndpointLabel(
+                  cs: cs,
+                  axis: TechnicalRadarAxis.retention,
+                  selected: highlightedAxis == TechnicalRadarAxis.retention,
+                ),
+              ),
+            ),
+            Positioned(
+              right: 0,
+              top: (outerHeight - 28) / 2,
+              child: _HomeRadarAxisEndpointLabel(
+                cs: cs,
+                axis: TechnicalRadarAxis.transition,
+                selected: highlightedAxis == TechnicalRadarAxis.transition,
+              ),
+            ),
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: _HomeRadarAxisEndpointLabel(
+                  cs: cs,
+                  axis: TechnicalRadarAxis.control,
+                  selected: highlightedAxis == TechnicalRadarAxis.control,
+                ),
+              ),
+            ),
+            Positioned(
+              left: 0,
+              top: (outerHeight - 28) / 2,
+              child: _HomeRadarAxisEndpointLabel(
+                cs: cs,
+                axis: TechnicalRadarAxis.attack,
+                selected: highlightedAxis == TechnicalRadarAxis.attack,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeRadarAxisEndpointLabel extends StatelessWidget {
+  final ColorScheme cs;
+  final TechnicalRadarAxis axis;
+  final bool selected;
+
+  const _HomeRadarAxisEndpointLabel({
+    required this.cs,
+    required this.axis,
+    required this.selected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = selected ? cs.secondary : cs.primary;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 62, maxWidth: 72),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: accent.withValues(alpha: selected ? 0.14 : 0.08),
+          border: Border.all(
+            color: accent.withValues(alpha: selected ? 0.42 : 0.22),
+          ),
+          boxShadow:
+              selected
+                  ? [
+                    BoxShadow(
+                      color: accent.withValues(alpha: 0.18),
+                      blurRadius: 14,
+                      spreadRadius: -6,
+                    ),
+                  ]
+                  : const [],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 5),
+          child: Text(
+            axis.displayLabel,
+            textAlign: TextAlign.center,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.70),
-              fontSize: compact ? 9 : 10,
+              color: cs.onSurface.withValues(alpha: selected ? 0.92 : 0.74),
+              fontSize: 10.5,
               fontWeight: FontWeight.w900,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _HomeRadarCta extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool filled;
+
+  const _HomeRadarCta({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17),
+        const SizedBox(width: 8),
+        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        if (!filled) ...[
+          const SizedBox(width: 4),
+          const Icon(Icons.arrow_forward_rounded, size: 16),
+        ],
       ],
     );
+
+    if (filled) {
+      return FilledButton(onPressed: onPressed, child: child);
+    }
+
+    return OutlinedButton(onPressed: onPressed, child: child);
+  }
+}
+
+class _HomeTechnicalRadarInitialPainter extends CustomPainter {
+  final ColorScheme cs;
+
+  const _HomeTechnicalRadarInitialPainter(this.cs);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 14);
+    final gridPaint =
+        Paint()
+          ..color = cs.primary.withValues(alpha: 0.14)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1;
+    final axisPaint =
+        Paint()
+          ..color = cs.onSurface.withValues(alpha: 0.18)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2;
+    final nodePaint = Paint()..color = cs.primary.withValues(alpha: 0.34);
+
+    for (final step in const [0.35, 0.7, 1.0]) {
+      _paintPolygon(canvas, center, radius * step, gridPaint);
+    }
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final angle = _homeRadarAngle(i);
+      final direction = Offset(math.cos(angle), math.sin(angle));
+      final end = center + direction * radius;
+      canvas.drawLine(center, end, axisPaint);
+      canvas.drawCircle(end, 3.6, nodePaint);
+    }
+
+    canvas.drawCircle(
+      center,
+      4.2,
+      Paint()..color = cs.primary.withValues(alpha: 0.72),
+    );
+  }
+
+  void _paintPolygon(Canvas canvas, Offset center, double radius, Paint paint) {
+    final path = Path();
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final angle = _homeRadarAngle(i);
+      final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
+      if (i == 0) {
+        path.moveTo(point.dx, point.dy);
+      } else {
+        path.lineTo(point.dx, point.dy);
+      }
+    }
+    path.close();
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HomeTechnicalRadarInitialPainter oldDelegate) {
+    return oldDelegate.cs != cs;
   }
 }
 
@@ -2866,8 +3392,13 @@ class _HomeTechnicalRadarFormationPainter extends CustomPainter {
 class _HomeTechnicalRadarPainter extends CustomPainter {
   final ColorScheme cs;
   final Map<TechnicalRadarAxis, int> axisEvidence;
+  final TechnicalRadarAxis? highlightedAxis;
 
-  const _HomeTechnicalRadarPainter(this.cs, {required this.axisEvidence});
+  const _HomeTechnicalRadarPainter(
+    this.cs, {
+    required this.axisEvidence,
+    required this.highlightedAxis,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -2893,9 +3424,20 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
     }
 
     for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
       final angle = _homeRadarAngle(i);
       final point = center + Offset(math.cos(angle), math.sin(angle)) * radius;
-      canvas.drawLine(center, point, axisPaint);
+      final isHighlighted = axis == highlightedAxis;
+      canvas.drawLine(
+        center,
+        point,
+        isHighlighted
+            ? (Paint()
+              ..color = cs.secondary.withValues(alpha: 0.58)
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 1.8)
+            : axisPaint,
+      );
     }
 
     final path = Path();
@@ -2923,10 +3465,50 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
     canvas.drawPath(
       path,
       Paint()
-        ..color = cs.primary.withValues(alpha: 0.86)
+        ..color = cs.primary.withValues(alpha: 0.90)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 2,
+        ..strokeWidth = 2.4,
     );
+
+    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
+      final axis = _homeTechnicalRadarAxisOrder[i];
+      final value = axisEvidence[axis] ?? 0;
+      final fraction = value <= 0 ? 0.0 : value / maxEvidence;
+      final angle = _homeRadarAngle(i);
+      final point =
+          center + Offset(math.cos(angle), math.sin(angle)) * radius * fraction;
+      final hasEvidence = value > 0;
+      final isHighlighted = axis == highlightedAxis && hasEvidence;
+      if (isHighlighted) {
+        canvas.drawCircle(
+          point,
+          9.0,
+          Paint()
+            ..color = cs.secondary.withValues(alpha: 0.18)
+            ..style = PaintingStyle.fill,
+        );
+      }
+      canvas.drawCircle(
+        point,
+        isHighlighted ? 5.2 : (hasEvidence ? 4.2 : 2.6),
+        Paint()
+          ..color =
+              isHighlighted
+                  ? cs.secondary.withValues(alpha: 0.98)
+                  : hasEvidence
+                  ? cs.primary.withValues(alpha: 0.96)
+                  : cs.onSurface.withValues(alpha: 0.16),
+      );
+      if (hasEvidence && !isHighlighted) {
+        canvas.drawCircle(
+          point,
+          6.2,
+          Paint()
+            ..color = cs.primary.withValues(alpha: 0.16)
+            ..style = PaintingStyle.fill,
+        );
+      }
+    }
   }
 
   void _paintPolygon(
@@ -2952,7 +3534,9 @@ class _HomeTechnicalRadarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _HomeTechnicalRadarPainter oldDelegate) {
-    return oldDelegate.cs != cs || oldDelegate.axisEvidence != axisEvidence;
+    return oldDelegate.cs != cs ||
+        oldDelegate.axisEvidence != axisEvidence ||
+        oldDelegate.highlightedAxis != highlightedAxis;
   }
 }
 
@@ -2978,19 +3562,17 @@ TechnicalRadarAxis? _homeTopTechnicalRadarAxis(
   return selected;
 }
 
-String _homeAxisShortLabel(TechnicalRadarAxis axis) {
-  switch (axis) {
-    case TechnicalRadarAxis.retention:
-      return 'RET';
-    case TechnicalRadarAxis.transition:
-      return 'TRA';
-    case TechnicalRadarAxis.control:
-      return 'CON';
-    case TechnicalRadarAxis.attack:
-      return 'ATQ';
-    case TechnicalRadarAxis.unclassified:
-      return '—';
+double _homeRadarSizeForWidth(double maxWidth, {required double desired}) {
+  if (!maxWidth.isFinite) return desired;
+  const horizontalLabelReserve = 132.0;
+  const minimumReadableSize = 140.0;
+  final availableForCanvas = maxWidth - horizontalLabelReserve;
+  if (availableForCanvas <= minimumReadableSize) {
+    return math.max(128.0, availableForCanvas);
   }
+  return math
+      .min(desired, availableForCanvas)
+      .clamp(minimumReadableSize, desired);
 }
 
 double _homeRadarAngle(int index) {

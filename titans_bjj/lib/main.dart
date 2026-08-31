@@ -180,36 +180,37 @@ class HomeShell extends StatefulWidget {
 
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
+  final Set<int> _visitedTabs = <int>{0};
 
   // ✅ Corrigido: mestre = professor OU admin
   bool _isMaster(AppUser user) {
     return user.role == UserRole.professor || user.role == UserRole.admin;
   }
 
-  List<Widget> _buildPages(BuildContext context) {
+  List<Widget Function()> _buildPageBuilders(BuildContext context) {
     final user = UserScope.of(context);
 
     // ✅ Mestre: NÃO tem Treinos/Progresso/Nutrição aqui.
     // Ele acessa essas telas SOMENTE pelo card do aluno, dentro do MasterPanel
     // (que abre o AthleteConsoleScreen com gate)
     if (_isMaster(user)) {
-      return <Widget>[
-        const MasterPanelScreen(),
-        const EventScreen(),
-        const AttendanceScreen(),
-        const AcademyScreen(),
+      return <Widget Function()>[
+        () => const MasterPanelScreen(),
+        () => const EventScreen(),
+        () => const AttendanceScreen(),
+        () => const AcademyScreen(),
         // (Opcional)
         // ShoppingScreen(),
       ];
     }
 
     // ✅ Aluno: fluxo completo com 5 tabs
-    return const <Widget>[
-      AthleteDashboardScreen(),
-      EventScreen(),
-      TrainingScreen(),
-      ProgressScreen(),
-      NutritionScreen(),
+    return <Widget Function()>[
+      () => const AthleteDashboardScreen(),
+      () => const EventScreen(),
+      () => const TrainingScreen(),
+      () => const ProgressScreen(),
+      () => const NutritionScreen(),
     ];
   }
 
@@ -258,11 +259,25 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    final pages = _buildPages(context);
+    final pageBuilders = _buildPageBuilders(context);
     final dest = _buildDestinations(context);
 
     // Proteção: se mudar role em runtime e índice estourar
-    if (_index >= pages.length) _index = 0;
+    if (_index >= pageBuilders.length) {
+      _index = 0;
+      _visitedTabs
+        ..clear()
+        ..add(_index);
+    } else {
+      _visitedTabs
+        ..removeWhere((index) => index >= pageBuilders.length)
+        ..add(_index);
+    }
+
+    final pages = <Widget>[
+      for (var i = 0; i < pageBuilders.length; i++)
+        _visitedTabs.contains(i) ? pageBuilders[i]() : const SizedBox.shrink(),
+    ];
 
     return Scaffold(
       extendBody: true,
@@ -273,7 +288,13 @@ class _HomeShellState extends State<HomeShell> {
         ).colorScheme.surface.withValues(alpha: 0.92),
         elevation: 0,
         selectedIndex: _index,
-        onDestinationSelected: (i) => setState(() => _index = i),
+        onDestinationSelected: (i) {
+          if (i == _index) return;
+          setState(() {
+            _index = i;
+            _visitedTabs.add(i);
+          });
+        },
         destinations: dest,
       ),
     );

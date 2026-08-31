@@ -211,6 +211,8 @@ class _NutritionScreenState extends State<NutritionScreen> {
               ? FloatingActionButton(
                 heroTag: 'nutrition_fab',
                 onPressed: _addMeal,
+                backgroundColor: TitansUI.actionGold,
+                foregroundColor: Colors.black,
                 child: const Icon(Icons.add),
               )
               : null,
@@ -232,7 +234,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
           final listPadding =
               widget.embedded
                   ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
-                  : TitansUI.listPadding(context, extra: 80);
+                  : TitansUI.listPadding(context, extra: TitansUI.spaceXl);
 
           return ListView(
             padding: listPadding,
@@ -810,46 +812,45 @@ class _MealLogTile extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final items = meal.items.map((item) => item.name).join(', ');
     final time = TimeOfDay.fromDateTime(meal.date).format(context);
+    final mealChip = TitansStatusChip(
+      label: meal.mealType,
+      variant: TitansStatusChipVariant.technical,
+      icon: Icons.restaurant_menu_outlined,
+      compact: true,
+    );
+    final metaChip = TitansStatusChip(
+      label: '${_NutritionScreenState._fmtDate(meal.date)} - $time',
+      variant: TitansStatusChipVariant.muted,
+      icon: Icons.schedule_outlined,
+      compact: true,
+    );
+    final kcalBlock = _MealEnergyBadge(kcal: meal.totalKcal());
 
-    return Container(
-      padding: const EdgeInsets.all(TitansUI.spaceSm),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.24),
-        borderRadius: BorderRadius.circular(TitansRadius.md),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        color: TitansUI.elevatedSurface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(TitansRadius.sm),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.09)),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
+      child: Padding(
+        padding: const EdgeInsets.all(TitansUI.spaceSm),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isTight = constraints.maxWidth < 330;
+            final details = Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Wrap(
                   spacing: TitansUI.spaceXs,
                   runSpacing: TitansUI.spaceXs,
                   crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    TitansStatusChip(
-                      label: meal.mealType,
-                      variant: TitansStatusChipVariant.technical,
-                      icon: Icons.restaurant_menu_outlined,
-                      compact: true,
-                    ),
-                    TitansStatusChip(
-                      label:
-                          '${_NutritionScreenState._fmtDate(meal.date)} - $time',
-                      variant: TitansStatusChipVariant.muted,
-                      icon: Icons.schedule_outlined,
-                      compact: true,
-                    ),
-                  ],
+                  children: [mealChip, metaChip],
                 ),
                 const SizedBox(height: TitansUI.spaceSm),
                 Text(
                   items.isEmpty ? 'Registro alimentar sem itens.' : items,
                   style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.82),
+                    color: cs.onSurface.withValues(alpha: 0.84),
                     fontWeight: FontWeight.w700,
                   ),
                   maxLines: 2,
@@ -861,33 +862,82 @@ class _MealLogTile extends StatelessWidget {
                   style: TitansTypography.caption(context),
                 ),
               ],
-            ),
-          ),
-          const SizedBox(width: TitansUI.spaceSm),
-          ConstrainedBox(
-            constraints: const BoxConstraints(minWidth: 76, maxWidth: 104),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            );
+
+            if (isTight) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  details,
+                  const SizedBox(height: TitansUI.spaceSm),
+                  Align(alignment: Alignment.centerLeft, child: kcalBlock),
+                ],
+              );
+            }
+
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Energia',
-                  style: TitansTypography.caption(context),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: TitansUI.spaceXs),
-                Text(
-                  '${meal.totalKcal()} kcal',
+                Expanded(child: details),
+                const SizedBox(width: TitansUI.spaceSm),
+                kcalBlock,
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _MealEnergyBadge extends StatelessWidget {
+  final int kcal;
+
+  const _MealEnergyBadge({required this.kcal});
+
+  @override
+  Widget build(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 74, maxWidth: 104),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: TitansUI.actionGold.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(TitansRadius.sm),
+          border: Border.all(
+            color: TitansUI.actionGold.withValues(alpha: 0.24),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: TitansUI.spaceSm,
+            vertical: TitansUI.spaceXs,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Energia',
+                style: TitansTypography.caption(context),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              const SizedBox(height: 2),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: Text(
+                  '$kcal kcal',
                   textAlign: TextAlign.end,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: TitansUI.actionGold,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
