@@ -952,19 +952,16 @@ class _RosterCockpitCard extends StatelessWidget {
                 runSpacing: TitansUI.spaceSm,
                 children: [
                   _RosterMetric(
-                    icon: Icons.groups_2_outlined,
                     label: 'Alunos',
                     value: summary.total.toString(),
                     color: cs.primary,
                   ),
                   _RosterMetric(
-                    icon: Icons.verified_user_outlined,
                     label: 'Ativos',
                     value: summary.active.toString(),
                     color: TitansUI.successGreen,
                   ),
                   _RosterMetric(
-                    icon: Icons.report_gmailerrorred_outlined,
                     label: 'Atenção',
                     value: summary.needsAttention.toString(),
                     color:
@@ -1048,13 +1045,11 @@ class _RosterCockpitCard extends StatelessWidget {
 }
 
 class _RosterMetric extends StatelessWidget {
-  final IconData icon;
   final String label;
   final String value;
   final Color color;
 
   const _RosterMetric({
-    required this.icon,
     required this.label,
     required this.value,
     required this.color,
@@ -1062,48 +1057,9 @@ class _RosterMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      constraints: const BoxConstraints(minWidth: 96, minHeight: 54),
-      padding: const EdgeInsets.symmetric(
-        horizontal: TitansUI.spaceSm,
-        vertical: TitansUI.spaceXs,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansRadius.md),
-        color: color.withValues(alpha: 0.10),
-        border: Border.all(color: color.withValues(alpha: 0.24)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: color, size: 18),
-          const SizedBox(width: TitansUI.spaceXs),
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  color: color,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 18,
-                ),
-              ),
-              Text(
-                label,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.64),
-                  fontSize: 10,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 104, maxWidth: 150),
+      child: TitansCompactMetricCard(label: label, value: value, color: color),
     );
   }
 }

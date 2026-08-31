@@ -1212,36 +1212,9 @@ class _ProfileMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.10)),
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.64),
-                fontSize: 11,
-              ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              value,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 96, maxWidth: 150),
+      child: TitansCompactMetricCard(label: label, value: value),
     );
   }
 }

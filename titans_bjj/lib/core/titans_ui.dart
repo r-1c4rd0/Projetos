@@ -484,6 +484,144 @@ class TitansMetricCard extends StatelessWidget {
   }
 }
 
+class TitansCompactMetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final String? subtitle;
+  final Color? color;
+  final bool compact;
+  final TextAlign textAlign;
+
+  const TitansCompactMetricCard({
+    super.key,
+    required this.label,
+    required this.value,
+    this.subtitle,
+    this.color,
+    this.compact = true,
+    this.textAlign = TextAlign.start,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final accent = color ?? cs.primary;
+    final padding =
+        compact
+            ? const EdgeInsets.symmetric(
+              horizontal: TitansUI.spaceSm,
+              vertical: TitansUI.spaceXs,
+            )
+            : const EdgeInsets.all(TitansUI.spaceSm);
+
+    return Container(
+      constraints: BoxConstraints(minHeight: compact ? 54 : 66),
+      padding: padding,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.sm),
+        color: TitansUI.elevatedSurface.withValues(alpha: 0.48),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment:
+            textAlign == TextAlign.end
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: textAlign,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: compact ? 10 : 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment:
+                textAlign == TextAlign.end
+                    ? Alignment.centerRight
+                    : Alignment.centerLeft,
+            child: TitansAnimatedMetricValue(
+              value: value,
+              textAlign: textAlign,
+              style: TextStyle(
+                color: accent,
+                fontSize: compact ? 16 : 18,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          if (subtitle != null && subtitle!.trim().isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              subtitle!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: textAlign,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.52),
+                fontSize: 10,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class TitansCompactMetricGrid extends StatelessWidget {
+  final List<Widget> children;
+  final double spacing;
+  final int maxColumns;
+  final double fourColumnMinWidth;
+
+  const TitansCompactMetricGrid({
+    super.key,
+    required this.children,
+    this.spacing = TitansUI.spaceXs,
+    this.maxColumns = 4,
+    this.fourColumnMinWidth = 560,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (children.isEmpty) return const SizedBox.shrink();
+
+        final width = constraints.maxWidth;
+        final columns =
+            (width >= fourColumnMinWidth
+                    ? maxColumns.clamp(1, children.length)
+                    : 2.clamp(1, children.length))
+                .toInt();
+        final itemWidth = (width - spacing * (columns - 1)) / columns;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            for (final child in children)
+              SizedBox(
+                width: itemWidth.isFinite ? itemWidth : 140,
+                child: child,
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
 class TitansAnimatedMetricValue extends StatefulWidget {
   final String value;
   final TextStyle? style;

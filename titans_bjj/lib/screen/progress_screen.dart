@@ -837,30 +837,24 @@ class _TrainingMetricsCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            TitansResponsiveGrid(
-              minItemWidth: 128,
-              spacing: 8,
-              runSpacing: 8,
+            TitansCompactMetricGrid(
+              fourColumnMinWidth: 560,
               children: [
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Total da carreira',
                   value: metrics.total.toString(),
-                  icon: Icons.fitness_center_outlined,
                 ),
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Este m\u00eas',
                   value: metrics.month.toString(),
-                  icon: Icons.calendar_month_outlined,
                 ),
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Este ano',
                   value: metrics.year.toString(),
-                  icon: Icons.event_available_outlined,
                 ),
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: '\u00daltimos 30 dias',
                   value: metrics.recent.toString(),
-                  icon: Icons.history_outlined,
                 ),
               ],
             ),
@@ -874,21 +868,17 @@ class _TrainingMetricsCard extends StatelessWidget {
               ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 6),
-            TitansResponsiveGrid(
-              minItemWidth: 180,
-              spacing: 8,
-              runSpacing: 8,
+            TitansCompactMetricGrid(
+              fourColumnMinWidth: 420,
               children: [
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Regularidade 30 dias',
                   value: recentPercent,
-                  icon: Icons.timeline_outlined,
                   color: cs.secondary,
                 ),
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Treinos nos 30 dias',
                   value: metrics.recent.toString(),
-                  icon: Icons.check_circle_outline,
                   color: cs.secondary,
                 ),
               ],
@@ -948,21 +938,17 @@ class _ConsistencySummaryCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 12),
-            TitansResponsiveGrid(
-              minItemWidth: 160,
-              spacing: 8,
-              runSpacing: 8,
+            TitansCompactMetricGrid(
+              fourColumnMinWidth: 420,
               children: [
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Treinos no recorte',
                   value: totalInWindow.toString(),
-                  icon: Icons.insights_outlined,
                   color: cs.primary,
                 ),
-                TitansMetricCard(
+                TitansCompactMetricCard(
                   label: 'Recorte',
                   value: title,
-                  icon: Icons.stacked_line_chart_outlined,
                   color: cs.primary,
                 ),
               ],

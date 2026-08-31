@@ -1801,13 +1801,9 @@ class _AthleteMinimalMetricsCard extends StatelessWidget {
         children: [
           const _SectionHeaderCompact(title: 'MÉTRICAS RÁPIDAS'),
           const SizedBox(height: 10),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 1.55,
+          TitansCompactMetricGrid(
+            fourColumnMinWidth: 520,
+            spacing: 10,
             children: [
               _StatMini(
                 title: '8 SEMANAS',
@@ -1855,43 +1851,10 @@ class _StatMini extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-        color: Colors.black.withValues(alpha: 0.18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.65),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 8),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: TitansAnimatedMetricValue(
-              value: value,
-              style: TextStyle(
-                color: highlight,
-                fontSize: 18,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
+    return TitansCompactMetricCard(
+      label: title,
+      value: value,
+      color: highlight,
     );
   }
 }
@@ -3799,39 +3762,9 @@ class _NutritionLiteMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
+    return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 120, maxWidth: 220),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-        color: Colors.black.withValues(alpha: 0.16),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.62),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 5),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
+      child: TitansCompactMetricCard(label: label, value: value),
     );
   }
 }

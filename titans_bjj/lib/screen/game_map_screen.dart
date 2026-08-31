@@ -152,6 +152,9 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final positionAxisMatrix = _PositionAxisMatrixViewModel.from(
             sessions,
           );
+          final evidenceDistribution = _EvidenceDistributionViewModel.from(
+            positionAxisMatrix,
+          );
           final rtcaEvidence = _RtcaEvidenceViewModel.from(
             sessions: sessions,
             entries: entries,
@@ -259,7 +262,16 @@ class _GameMapScreenState extends State<GameMapScreen> {
               ),
               const SizedBox(height: 12),
               TitansExpandableSection(
-                title: 'Cobertura de Repertório',
+                title: 'Distribuição de evidências',
+                subtitle: evidenceDistribution.subtitle,
+                initiallyExpanded: true,
+                child: _EvidenceDistributionCard(
+                  viewModel: evidenceDistribution,
+                ),
+              ),
+              const SizedBox(height: 12),
+              TitansExpandableSection(
+                title: 'Repertório registrado',
                 subtitle: rtcaEvidence.subtitle,
                 child: _RtcaEvidencePanel(viewModel: rtcaEvidence),
               ),
@@ -376,9 +388,10 @@ class _GameMapSummaryCard extends StatelessWidget {
         children: [
           const _CompactHeader(title: 'RESUMO DO GAME MAP'),
           const SizedBox(height: 12),
-          Wrap(
+
+          TitansCompactMetricGrid(
+            fourColumnMinWidth: 560,
             spacing: 10,
-            runSpacing: 10,
             children: [
               _MetricPill(
                 label: 'POSIÇÕES',
@@ -471,45 +484,9 @@ class _MetricPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      curve: Curves.easeOutCubic,
+    return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 118, maxWidth: 156),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.28)),
-        color: color.withValues(alpha: 0.08),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.62),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 18,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
+      child: TitansCompactMetricCard(label: label, value: value, color: color),
     );
   }
 }
@@ -2148,14 +2125,16 @@ class _PositionAxisMatrixCell {
   final TechnicalRadarAxis axis;
   final int sessionCount;
   final String countLabel;
+  final Set<String> sessionKeys;
   final List<_PositionAxisTechniqueDetailItem> details;
 
-  const _PositionAxisMatrixCell({
+  _PositionAxisMatrixCell({
     required this.axis,
     required this.sessionCount,
     required this.countLabel,
+    required Set<String> sessionKeys,
     required this.details,
-  });
+  }) : sessionKeys = Set.unmodifiable(sessionKeys);
 }
 
 class _PositionAxisTechniqueDetailItem {
@@ -2229,6 +2208,7 @@ class _PositionAxisCellAccumulator {
       axis: axis,
       sessionCount: sessionKeys.length,
       countLabel: TrainingAggregator.sessionCountLabel(sessionKeys.length),
+      sessionKeys: sessionKeys,
       details: [
         for (final detail in details.take(6))
           _PositionAxisTechniqueDetailItem(
@@ -2262,6 +2242,313 @@ Color _axisColor(BuildContext context, TechnicalRadarAxis axis) {
   }
 }
 
+class _EvidenceDistributionCard extends StatelessWidget {
+  final _EvidenceDistributionViewModel viewModel;
+
+  const _EvidenceDistributionCard({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return _VisualCard(
+      accent: TitansUI.technicalBlue,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _CompactHeader(
+            title: 'DISTRIBUI\u00c7\u00c3O DE EVID\u00caNCIAS',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Registros por eixo e posi\u00e7\u00e3o',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            viewModel.subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (viewModel.isEmpty)
+            TitansEmptyState(
+              icon: Icons.bar_chart_rounded,
+              title: 'Sem distribui\u00e7\u00e3o registrada',
+              message:
+                  'Registre posi\u00e7\u00f5es e t\u00e9cnicas nos treinos para visualizar a distribui\u00e7\u00e3o de evid\u00eancias.',
+              compact: true,
+            )
+          else ...[
+            _EvidenceDistributionGroup(
+              title: 'Registros por eixo',
+              items: viewModel.axisItems,
+            ),
+            const SizedBox(height: 14),
+            _EvidenceDistributionGroup(
+              title: 'Evid\u00eancias por posi\u00e7\u00e3o',
+              items: viewModel.positionItems,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceDistributionGroup extends StatelessWidget {
+  final String title;
+  final List<_EvidenceDistributionItem> items;
+
+  const _EvidenceDistributionGroup({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.72),
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final twoColumns = constraints.maxWidth >= 620;
+            final itemWidth =
+                twoColumns
+                    ? ((constraints.maxWidth - 10) / 2).clamp(220.0, 360.0)
+                    : constraints.maxWidth;
+
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                for (final item in items)
+                  SizedBox(
+                    width: itemWidth.toDouble(),
+                    child: _EvidenceDistributionBar(item: item),
+                  ),
+              ],
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _EvidenceDistributionBar extends StatelessWidget {
+  final _EvidenceDistributionItem item;
+
+  const _EvidenceDistributionBar({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final value = item.count;
+    final maxValue = item.maxCount <= 0 ? 1 : item.maxCount;
+    final fraction = (value / maxValue).clamp(0.0, 1.0).toDouble();
+    final active = value > 0;
+    final color = item.color(context);
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color:
+              active
+                  ? color.withValues(alpha: 0.24)
+                  : cs.onSurface.withValues(alpha: 0.07),
+        ),
+        color:
+            active
+                ? color.withValues(alpha: 0.08)
+                : cs.surfaceContainerHighest.withValues(alpha: 0.12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                item.countLabel,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: active ? color : cs.onSurface.withValues(alpha: 0.48),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 7,
+              color: active ? color : cs.onSurface.withValues(alpha: 0.16),
+              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+            ),
+          ),
+          if (item.helper != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              item.helper!,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.50),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceDistributionViewModel {
+  final String subtitle;
+  final List<_EvidenceDistributionItem> axisItems;
+  final List<_EvidenceDistributionItem> positionItems;
+
+  const _EvidenceDistributionViewModel({
+    required this.subtitle,
+    required this.axisItems,
+    required this.positionItems,
+  });
+
+  bool get isEmpty =>
+      axisItems.every((item) => item.count == 0) && positionItems.isEmpty;
+
+  factory _EvidenceDistributionViewModel.from(
+    _PositionAxisMatrixViewModel matrix,
+  ) {
+    final axisSessionKeys = <TechnicalRadarAxis, Set<String>>{
+      for (final axis in _PositionAxisMatrixViewModel.axes) axis: <String>{},
+    };
+
+    for (final row in matrix.rows) {
+      for (final cell in row.cells) {
+        axisSessionKeys[cell.axis]?.addAll(cell.sessionKeys);
+      }
+    }
+
+    final maxAxisCount = axisSessionKeys.values.fold<int>(
+      1,
+      (max, keys) => keys.length > max ? keys.length : max,
+    );
+    final maxPositionCount = matrix.rows.fold<int>(
+      1,
+      (max, row) => row.sessionCount > max ? row.sessionCount : max,
+    );
+
+    return _EvidenceDistributionViewModel(
+      subtitle:
+          matrix.rows.isEmpty
+              ? 'A distribui\u00e7\u00e3o aparece quando h\u00e1 registros classific\u00e1veis.'
+              : 'Baseada apenas em sess\u00f5es registradas por grupo, sem percentual.',
+      axisItems: [
+        for (final axis in _PositionAxisMatrixViewModel.axes)
+          _EvidenceDistributionItem(
+            label: axis.displayLabel,
+            count: axisSessionKeys[axis]!.length,
+            countLabel: TrainingAggregator.sessionCountLabel(
+              axisSessionKeys[axis]!.length,
+            ),
+            maxCount: maxAxisCount,
+            colorBuilder: _axisColor,
+            axis: axis,
+          ),
+      ],
+      positionItems: [
+        for (final row in matrix.rows.take(6))
+          _EvidenceDistributionItem(
+            label: row.position,
+            count: row.sessionCount,
+            countLabel: row.countLabel,
+            maxCount: maxPositionCount,
+            helper: _topAxisLabelForRow(row),
+            colorBuilder: _axisColor,
+            axis: _topAxisForRow(row) ?? TechnicalRadarAxis.unclassified,
+          ),
+      ],
+    );
+  }
+}
+
+class _EvidenceDistributionItem {
+  final String label;
+  final int count;
+  final String countLabel;
+  final int maxCount;
+  final String? helper;
+  final Color Function(BuildContext, TechnicalRadarAxis) colorBuilder;
+  final TechnicalRadarAxis axis;
+
+  const _EvidenceDistributionItem({
+    required this.label,
+    required this.count,
+    required this.countLabel,
+    required this.maxCount,
+    required this.colorBuilder,
+    required this.axis,
+    this.helper,
+  });
+
+  Color color(BuildContext context) => colorBuilder(context, axis);
+}
+
+TechnicalRadarAxis? _topAxisForRow(_PositionAxisMatrixRow row) {
+  TechnicalRadarAxis? selected;
+  var selectedCount = 0;
+  for (final cell in row.cells) {
+    if (cell.sessionCount > selectedCount) {
+      selected = cell.axis;
+      selectedCount = cell.sessionCount;
+    }
+  }
+  return selectedCount == 0 ? null : selected;
+}
+
+String? _topAxisLabelForRow(_PositionAxisMatrixRow row) {
+  final axis = _topAxisForRow(row);
+  if (axis == null) return null;
+  return 'Eixo t\u00e9cnico inferido: ${axis.displayLabel}';
+}
+
 class _RtcaEvidencePanel extends StatelessWidget {
   final _RtcaEvidenceViewModel viewModel;
 
@@ -2276,7 +2563,7 @@ class _RtcaEvidencePanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _CompactHeader(title: 'COBERTURA DE REPERTÓRIO'),
+          const _CompactHeader(title: 'REPERTÓRIO REGISTRADO'),
           const SizedBox(height: 8),
           Text(
             viewModel.title,
@@ -2576,7 +2863,7 @@ class _RtcaEvidenceViewModel {
         sessions.where(_hasMeasuredTechniqueApplication).length;
 
     return _RtcaEvidenceViewModel(
-      title: 'Cobertura de Repertório',
+      title: 'Repertório registrado',
       subtitle:
           'Distribuição de recorrência, técnicas, consistência e aplicação.',
       items: [
@@ -2615,7 +2902,7 @@ class _RtcaEvidenceViewModel {
         ),
       ],
       emptyStateLabel:
-          'Registre treinos para formar a cobertura de repertório com dados reais.',
+          'Registre treinos para formar o repertório técnico com dados reais.',
     );
   }
 

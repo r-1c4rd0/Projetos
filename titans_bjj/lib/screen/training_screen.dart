@@ -668,54 +668,33 @@ class TrainingOverviewSummaryCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final width =
-                  constraints.maxWidth < 390
-                      ? (constraints.maxWidth - 8) / 2
-                      : (constraints.maxWidth - 24) / 4;
-              return Wrap(
-                spacing: TitansUI.spaceXs,
-                runSpacing: TitansUI.spaceXs,
-                children: [
-                  SizedBox(
-                    width: width,
-                    child: _SummaryMetric(
-                      label: 'Treinos',
-                      value: summary.total.toString(),
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _SummaryMetric(
-                      label: 'Técnicas',
-                      value: summary.techniques.toString(),
-                      color: cs.onSurface,
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _SummaryMetric(
-                      label: 'Intensidade',
-                      value:
-                          intensity == null
-                              ? 'Sem dados'
-                              : '${intensity.toStringAsFixed(1)}/5',
-                      color: TitansUI.actionGold,
-                    ),
-                  ),
-                  SizedBox(
-                    width: width,
-                    child: _SummaryMetric(
-                      label: 'Aplicação',
-                      value: summary.applicationCount.toString(),
-                      color: TitansUI.successGreen,
-                    ),
-                  ),
-                ],
-              );
-            },
+          TitansCompactMetricGrid(
+            fourColumnMinWidth: 520,
+            children: [
+              _SummaryMetric(
+                label: 'Treinos',
+                value: summary.total.toString(),
+                color: cs.onSurface,
+              ),
+              _SummaryMetric(
+                label: 'Técnicas',
+                value: summary.techniques.toString(),
+                color: cs.onSurface,
+              ),
+              _SummaryMetric(
+                label: 'Intensidade',
+                value:
+                    intensity == null
+                        ? 'Sem dados'
+                        : '${intensity.toStringAsFixed(1)}/5',
+                color: TitansUI.actionGold,
+              ),
+              _SummaryMetric(
+                label: 'Aplicação',
+                value: summary.applicationCount.toString(),
+                color: TitansUI.successGreen,
+              ),
+            ],
           ),
           if (canAddTraining && onAddTraining != null) ...[
             const SizedBox(height: 12),
@@ -758,42 +737,7 @@ class _SummaryMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      constraints: const BoxConstraints(minWidth: 92),
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansRadius.chip),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-        color: color.withValues(alpha: 0.06),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label.toUpperCase(),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 10,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          const SizedBox(height: 2),
-          TitansAnimatedMetricValue(
-            value: value,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
+    return TitansCompactMetricCard(label: label, value: value, color: color);
   }
 }
 
