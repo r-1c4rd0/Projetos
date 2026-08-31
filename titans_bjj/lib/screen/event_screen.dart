@@ -1,6 +1,8 @@
 // event_screen.dart
 import 'package:flutter/material.dart';
 import '../core/titans_ui.dart';
+import '../features/events/application/event_use_cases.dart';
+import '../features/events/domain/event_models.dart' as events_domain;
 import '../model/app_user.dart';
 import '../model/event_models.dart';
 import 'package:titans_bjj/main.dart';
@@ -21,6 +23,8 @@ class EventScreen extends StatefulWidget {
 class _EventScreenState extends State<EventScreen> {
   late final IEventRepository repo;
   late Future<List<EventModel>> _eventsFuture;
+  final GetEventsDashboardSummary _getEventsDashboardSummary =
+      const GetEventsDashboardSummary();
   EventType? filterType;
   _EventTimelineFilter timelineFilter = _EventTimelineFilter.all;
   bool _repoReady = false;
@@ -161,13 +165,15 @@ class _EventScreenState extends State<EventScreen> {
 
   Widget _buildContent(List<EventModel> events) {
     final now = DateTime.now();
-    final typeFiltered =
-        filterType == null
-            ? List<EventModel>.from(events)
-            : events.where((e) => e.type == filterType).toList();
-
-    final visibleEvents = _eventsForTimelineFilter(typeFiltered, now);
-    final nextEvent = _nextUpcomingEvent(typeFiltered, now);
+    final summary = _getEventsDashboardSummary(
+      events: events,
+      typeFilter: filterType,
+      timelineFilter: timelineFilter.domainFilter,
+      now: now,
+    );
+    final typeFiltered = summary.typeFilteredEvents;
+    final visibleEvents = summary.visibleEvents;
+    final nextEvent = summary.featuredEvent;
     final padding = TitansUI.listPadding(context, extra: 80);
 
     if (typeFiltered.isEmpty) {
@@ -224,76 +230,21 @@ class _EventScreenState extends State<EventScreen> {
     );
   }
 
-  List<EventModel> _eventsForTimelineFilter(
-    List<EventModel> events,
-    DateTime now,
-  ) {
-    final filtered =
-        events.where((event) {
-          switch (timelineFilter) {
-            case _EventTimelineFilter.all:
-              return true;
-            case _EventTimelineFilter.active:
-              return _isActiveEvent(event, now);
-            case _EventTimelineFilter.scheduled:
-              return _isScheduledEvent(event, now);
-            case _EventTimelineFilter.history:
-              return _isHistoricalEvent(event, now);
-          }
-        }).toList();
-
-    filtered.sort((a, b) {
-      if (timelineFilter == _EventTimelineFilter.history) {
-        return b.start.compareTo(a.start);
-      }
-      return a.start.compareTo(b.start);
-    });
-    return filtered;
-  }
-
-  EventModel? _nextUpcomingEvent(List<EventModel> events, DateTime now) {
-    final upcoming =
-        events.where((event) => _isScheduledEvent(event, now)).toList()
-          ..sort((a, b) => a.start.compareTo(b.start));
-    return upcoming.isEmpty ? null : upcoming.first;
-  }
-
-  bool _isCancelled(EventModel event) => event.status == EventStatus.cancelled;
-
-  bool _isActiveEvent(EventModel event, DateTime now) {
-    if (_isCancelled(event) || event.status == EventStatus.finished) {
-      return false;
-    }
-    return !event.start.isAfter(now) && !event.end.isBefore(now);
-  }
-
-  bool _isScheduledEvent(EventModel event, DateTime now) {
-    if (_isCancelled(event) || event.status == EventStatus.finished) {
-      return false;
-    }
-    return event.start.isAfter(now);
-  }
-
-  bool _isHistoricalEvent(EventModel event, DateTime now) {
-    return _isCancelled(event) ||
-        event.status == EventStatus.finished ||
-        event.end.isBefore(now);
-  }
-
   _EventStatusPresentation _eventStatusLabel(EventModel event, DateTime now) {
-    if (_isCancelled(event)) {
+    final status = eventTimelineStatus(event, now);
+    if (status == events_domain.EventTimelineStatus.cancelled) {
       return const _EventStatusPresentation(
         label: 'Cancelado',
         variant: TitansStatusChipVariant.alert,
       );
     }
-    if (_isActiveEvent(event, now)) {
+    if (status == events_domain.EventTimelineStatus.active) {
       return const _EventStatusPresentation(
         label: 'Ativo',
         variant: TitansStatusChipVariant.success,
       );
     }
-    if (_isScheduledEvent(event, now)) {
+    if (status == events_domain.EventTimelineStatus.scheduled) {
       return const _EventStatusPresentation(
         label: 'Agendado',
         variant: TitansStatusChipVariant.action,
@@ -405,6 +356,21 @@ class _EventsErrorState extends StatelessWidget {
 }
 
 enum _EventTimelineFilter { all, active, scheduled, history }
+
+extension _EventTimelineFilterDomain on _EventTimelineFilter {
+  events_domain.EventTimelineFilter get domainFilter {
+    switch (this) {
+      case _EventTimelineFilter.all:
+        return events_domain.EventTimelineFilter.all;
+      case _EventTimelineFilter.active:
+        return events_domain.EventTimelineFilter.active;
+      case _EventTimelineFilter.scheduled:
+        return events_domain.EventTimelineFilter.scheduled;
+      case _EventTimelineFilter.history:
+        return events_domain.EventTimelineFilter.history;
+    }
+  }
+}
 
 class _EventStatusPresentation {
   final String label;
