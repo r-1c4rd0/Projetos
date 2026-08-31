@@ -210,6 +210,14 @@ class _EventScreenState extends State<EventScreen> {
           statusForEvent: (event) => _eventStatusLabel(event, now),
         ),
         const SizedBox(height: TitansUI.spaceMd),
+        _EventsAgendaLite(
+          events: typeFiltered,
+          now: now,
+          fmtDate: _fmtDate,
+          iconForType: _iconForType,
+          statusForEvent: (event) => _eventStatusLabel(event, now),
+        ),
+        const SizedBox(height: TitansUI.spaceMd),
         _EventSegmentedFilter(
           value: timelineFilter,
           onChanged: (value) => setState(() => timelineFilter = value),
@@ -488,6 +496,297 @@ class _NextEventHighlight extends StatelessWidget {
           const SizedBox(width: TitansUI.spaceXs),
           Icon(Icons.star_rounded, color: cs.primary, size: 20),
         ],
+      ),
+    );
+  }
+}
+
+class _EventsAgendaLite extends StatelessWidget {
+  final List<EventModel> events;
+  final DateTime now;
+  final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
+  final _EventStatusPresentation Function(EventModel) statusForEvent;
+
+  const _EventsAgendaLite({
+    required this.events,
+    required this.now,
+    required this.fmtDate,
+    required this.iconForType,
+    required this.statusForEvent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final today = DateTime(now.year, now.month, now.day);
+    final upcoming =
+        events.where((event) {
+            final status = eventTimelineStatus(event, now);
+            return status == events_domain.EventTimelineStatus.active ||
+                status == events_domain.EventTimelineStatus.scheduled;
+          }).toList()
+          ..sort((a, b) => a.start.compareTo(b.start));
+    final anchor = upcoming.isNotEmpty ? upcoming.first.start : today;
+    final daysInMonth = DateUtils.getDaysInMonth(anchor.year, anchor.month);
+    final calendarDays = List<DateTime>.generate(
+      daysInMonth,
+      (index) => DateTime(anchor.year, anchor.month, index + 1),
+    );
+    final nextItems = upcoming.take(3).toList();
+
+    return TitansCard(
+      accent: TitansUI.technicalBlue,
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: TitansUI.technicalBlue.withValues(alpha: 0.12),
+                  border: Border.all(
+                    color: TitansUI.technicalBlue.withValues(alpha: 0.24),
+                  ),
+                ),
+                child: const Icon(
+                  Icons.calendar_month_outlined,
+                  size: 18,
+                  color: TitansUI.technicalBlue,
+                ),
+              ),
+              const SizedBox(width: TitansUI.spaceSm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Agenda', style: TitansTypography.cardTitle(context)),
+                    const SizedBox(height: 2),
+                    Text(
+                      _monthLabel(anchor),
+                      style: TitansTypography.caption(context),
+                    ),
+                  ],
+                ),
+              ),
+              TitansStatusChip(
+                label: _futureEventsLabel(upcoming.length),
+                variant:
+                    upcoming.isEmpty
+                        ? TitansStatusChipVariant.muted
+                        : TitansStatusChipVariant.technical,
+                icon: Icons.event_available_outlined,
+                compact: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: TitansUI.spaceMd),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth < 380 ? 5 : 7;
+              const gap = TitansUI.spaceXs;
+              final cellWidth =
+                  (constraints.maxWidth - (gap * (columns - 1))) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [
+                  for (final day in calendarDays)
+                    SizedBox(
+                      width: cellWidth.clamp(42.0, 72.0).toDouble(),
+                      child: _AgendaDayCell(
+                        day: day,
+                        isToday: _sameCalendarDay(day, today),
+                        events: _eventsForDay(events, day),
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+          if (nextItems.isNotEmpty) ...[
+            const SizedBox(height: TitansUI.spaceMd),
+            Text(
+              'Pr\u00f3ximos na agenda',
+              style: TitansTypography.sectionEyebrow(context),
+            ),
+            const SizedBox(height: TitansUI.spaceXs),
+            for (var i = 0; i < nextItems.length; i++) ...[
+              _AgendaMiniEvent(
+                event: nextItems[i],
+                fmtDate: fmtDate,
+                iconForType: iconForType,
+                status: statusForEvent(nextItems[i]),
+              ),
+              if (i != nextItems.length - 1)
+                const SizedBox(height: TitansUI.spaceXs),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  static List<EventModel> _eventsForDay(List<EventModel> events, DateTime day) {
+    return events.where((event) => _sameCalendarDay(event.start, day)).toList();
+  }
+
+  static bool _sameCalendarDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
+  static String _monthLabel(DateTime date) {
+    const months = [
+      'Janeiro',
+      'Fevereiro',
+      'Mar\u00e7o',
+      'Abril',
+      'Maio',
+      'Junho',
+      'Julho',
+      'Agosto',
+      'Setembro',
+      'Outubro',
+      'Novembro',
+      'Dezembro',
+    ];
+    return '${months[date.month - 1]} ${date.year}';
+  }
+
+  static String _futureEventsLabel(int count) {
+    return count == 1 ? '1 futuro' : '$count futuros';
+  }
+}
+
+class _AgendaDayCell extends StatelessWidget {
+  final DateTime day;
+  final bool isToday;
+  final List<EventModel> events;
+
+  const _AgendaDayCell({
+    required this.day,
+    required this.isToday,
+    required this.events,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasEvent = events.isNotEmpty;
+    final accent =
+        isToday
+            ? TitansUI.actionGold
+            : hasEvent
+            ? TitansUI.technicalBlue
+            : cs.onSurface;
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: hasEvent || isToday ? 0.12 : 0.04),
+        borderRadius: BorderRadius.circular(TitansRadius.sm),
+        border: Border.all(
+          color: accent.withValues(alpha: hasEvent || isToday ? 0.30 : 0.08),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TitansUI.spaceXs,
+          vertical: TitansUI.spaceXs,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              _weekdayLabel(day),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.62),
+                fontSize: 10,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '${day.day}',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: hasEvent ? 0.94 : 0.72),
+                fontSize: 14,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Container(
+              width: hasEvent ? 16 : 4,
+              height: 4,
+              decoration: BoxDecoration(
+                color: accent.withValues(alpha: hasEvent ? 0.90 : 0.22),
+                borderRadius: BorderRadius.circular(TitansRadius.pill),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _weekdayLabel(DateTime date) {
+    const labels = ['S', 'T', 'Q', 'Q', 'S', 'S', 'D'];
+    return labels[date.weekday - 1];
+  }
+}
+
+class _AgendaMiniEvent extends StatelessWidget {
+  final EventModel event;
+  final String Function(DateTime) fmtDate;
+  final IconData Function(EventType) iconForType;
+  final _EventStatusPresentation status;
+
+  const _AgendaMiniEvent({
+    required this.event,
+    required this.fmtDate,
+    required this.iconForType,
+    required this.status,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(TitansRadius.sm),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(TitansUI.spaceXs),
+        child: Row(
+          children: [
+            Icon(
+              iconForType(event.type),
+              color: TitansUI.technicalBlue,
+              size: 18,
+            ),
+            const SizedBox(width: TitansUI.spaceXs),
+            Expanded(
+              child: Text(
+                event.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+            const SizedBox(width: TitansUI.spaceXs),
+            TitansStatusChip(
+              label: fmtDate(event.start),
+              variant: status.variant,
+              compact: true,
+            ),
+          ],
+        ),
       ),
     );
   }
