@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../model/grading_rules.dart';
 import '../model/app_user.dart';
@@ -1151,14 +1152,53 @@ class _ConsistencyChartCard extends StatelessWidget {
   }
 }
 
-class _ProgressAreaChart extends StatelessWidget {
+class _ProgressAreaChart extends StatefulWidget {
   final _ProgressChartViewModel viewModel;
 
   const _ProgressAreaChart({required this.viewModel});
 
   @override
+  State<_ProgressAreaChart> createState() => _ProgressAreaChartState();
+}
+
+class _ProgressAreaChartState extends State<_ProgressAreaChart> {
+  static const _motion = TitansMotionSpec.emphasis();
+  bool _entrancePlayed = false;
+  int? _selectedIndex;
+
+  @override
+  void didUpdateWidget(covariant _ProgressAreaChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final pointsLength = widget.viewModel.points.length;
+    final selectedIndex = _selectedIndex;
+    if (selectedIndex != null && selectedIndex >= pointsLength) {
+      _selectedIndex = pointsLength <= 0 ? null : pointsLength - 1;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final duration = TitansMotion.duration(context, _motion);
+    if (duration == Duration.zero) {
+      return _buildChart(context, 1);
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: _entrancePlayed ? 1 : 0, end: 1),
+      duration: duration,
+      curve: TitansMotion.curve(_motion),
+      onEnd: () {
+        _entrancePlayed = true;
+      },
+      builder: (context, progress, child) {
+        return _buildChart(context, progress.clamp(0.0, 1.0).toDouble());
+      },
+    );
+  }
+
+  Widget _buildChart(BuildContext context, double revealProgress) {
     final cs = Theme.of(context).colorScheme;
+    final viewModel = widget.viewModel;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1173,156 +1213,135 @@ class _ProgressAreaChart extends StatelessWidget {
           chartWidth,
         );
         final spots = _spots(viewModel.points);
+        final animatedSpots = _animatedSpots(spots, revealProgress);
+        final currentIndex =
+            viewModel.points.isEmpty ? null : viewModel.points.length - 1;
+        final selectedIndex = _selectedIndex;
+        final barData = _lineBarData(
+          context,
+          viewModel,
+          animatedSpots,
+          compact: compact,
+          currentIndex: currentIndex,
+          selectedIndex: selectedIndex,
+        );
 
-        return SizedBox(
-          height: chartHeight,
-          width: double.infinity,
-          child: LineChart(
-            LineChartData(
-              minX: 0,
-              maxX: (spots.length - 1).toDouble(),
-              minY: 0,
-              maxY: maxY,
-              lineTouchData: _touchData(context, viewModel),
-              gridData: FlGridData(
-                show: true,
-                drawVerticalLine: false,
-                horizontalInterval: leftInterval,
-                getDrawingHorizontalLine:
-                    (_) => FlLine(
-                      color: cs.onSurface.withValues(alpha: 0.08),
-                      strokeWidth: 1,
-                    ),
-              ),
-              borderData: FlBorderData(show: false),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
+        return RepaintBoundary(
+          child: SizedBox(
+            height: chartHeight,
+            width: double.infinity,
+            child: LineChart(
+              LineChartData(
+                minX: 0,
+                maxX: (spots.length - 1).toDouble(),
+                minY: 0,
+                maxY: maxY,
+                lineTouchData: _touchData(
+                  context,
+                  viewModel,
+                  onPointSelected: _selectPoint,
                 ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
+                showingTooltipIndicators: _tooltipIndicators(
+                  barData,
+                  selectedIndex,
                 ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: compact ? 24 : 30,
-                    interval: leftInterval,
-                    getTitlesWidget: (v, _) {
-                      if (v < 0 || v > maxY) return const SizedBox.shrink();
-                      if (v != v.roundToDouble()) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(
-                        v.toInt().toString(),
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.58),
-                          fontSize: compact ? 10 : 11,
-                        ),
-                      );
-                    },
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  horizontalInterval: leftInterval,
+                  getDrawingHorizontalLine:
+                      (_) => FlLine(
+                        color: cs.onSurface.withValues(alpha: 0.08),
+                        strokeWidth: 1,
+                      ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
                   ),
-                ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: compact ? 42 : 38,
-                    interval: bottomInterval,
-                    getTitlesWidget: (v, _) {
-                      final idx = v.round();
-                      if (v != idx.toDouble() ||
-                          idx < 0 ||
-                          idx >= viewModel.points.length ||
-                          !_showBottomLabel(
-                            idx,
-                            viewModel.points.length,
-                            bottomInterval,
-                          )) {
-                        return const SizedBox.shrink();
-                      }
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: compact ? 24 : 30,
+                      interval: leftInterval,
+                      getTitlesWidget: (v, _) {
+                        if (v < 0 || v > maxY) return const SizedBox.shrink();
+                        if (v != v.roundToDouble()) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          v.toInt().toString(),
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.58),
+                            fontSize: compact ? 10 : 11,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: compact ? 42 : 38,
+                      interval: bottomInterval,
+                      getTitlesWidget: (v, _) {
+                        final idx = v.round();
+                        if (v != idx.toDouble() ||
+                            idx < 0 ||
+                            idx >= viewModel.points.length ||
+                            !_showBottomLabel(
+                              idx,
+                              viewModel.points.length,
+                              bottomInterval,
+                            )) {
+                          return const SizedBox.shrink();
+                        }
 
-                      final text = viewModel.points[idx].label;
-                      final rotate = compact || text.length >= 6;
+                        final text = viewModel.points[idx].label;
+                        final rotate = compact || text.length >= 6;
 
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Transform.rotate(
-                          angle: rotate ? -0.68 : 0,
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 54),
-                            child: Text(
-                              text,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: cs.onSurface.withValues(alpha: 0.58),
-                                fontSize: compact ? 9 : 10,
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Transform.rotate(
+                            angle: rotate ? -0.68 : 0,
+                            child: ConstrainedBox(
+                              constraints: const BoxConstraints(maxWidth: 54),
+                              child: Text(
+                                text,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: cs.onSurface.withValues(alpha: 0.58),
+                                  fontSize: compact ? 9 : 10,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-              ),
-              lineBarsData: [
-                LineChartBarData(
-                  spots: spots,
-                  isCurved: true,
-                  preventCurveOverShooting: true,
-                  barWidth: compact ? 2.8 : 3.5,
-                  color: cs.primary,
-                  isStrokeCapRound: true,
-                  dotData: FlDotData(
-                    show: true,
-                    checkToShowDot: (spot, _) {
-                      final index = spot.x.round();
-                      if (index < 0 || index >= viewModel.points.length) {
-                        return false;
-                      }
-                      return viewModel.points[index].isHighlighted ||
-                          viewModel.points.length <= 7;
-                    },
-                    getDotPainter: (spot, percent, barData, index) {
-                      final highlighted =
-                          index >= 0 &&
-                          index < viewModel.points.length &&
-                          viewModel.points[index].isHighlighted;
-                      return FlDotCirclePainter(
-                        radius: highlighted ? 4.6 : 3.2,
-                        color: highlighted ? cs.secondary : cs.primary,
-                        strokeWidth: 2,
-                        strokeColor: cs.surface,
-                      );
-                    },
-                  ),
-                  belowBarData: BarAreaData(
-                    show: true,
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        cs.primary.withValues(alpha: 0.24),
-                        cs.primary.withValues(alpha: 0.03),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),
-              ],
-              extraLinesData:
-                  viewModel.averageLine == null
-                      ? null
-                      : ExtraLinesData(
-                        horizontalLines: [
-                          HorizontalLine(
-                            y: viewModel.averageLine!.clamp(0, maxY),
-                            color: cs.secondary.withValues(alpha: 0.42),
-                            strokeWidth: 1,
-                            dashArray: [6, 4],
-                          ),
-                        ],
-                      ),
+                lineBarsData: [barData],
+                extraLinesData:
+                    viewModel.averageLine == null
+                        ? null
+                        : ExtraLinesData(
+                          horizontalLines: [
+                            HorizontalLine(
+                              y: viewModel.averageLine!.clamp(0, maxY),
+                              color: cs.secondary.withValues(alpha: 0.42),
+                              strokeWidth: 1,
+                              dashArray: [6, 4],
+                            ),
+                          ],
+                        ),
+              ),
             ),
           ),
         );
@@ -1330,16 +1349,98 @@ class _ProgressAreaChart extends StatelessWidget {
     );
   }
 
-  static LineTouchData _touchData(
+  void _selectPoint(int index) {
+    if (index < 0 || index >= widget.viewModel.points.length) return;
+    if (_selectedIndex == index) return;
+    setState(() => _selectedIndex = index);
+  }
+
+  static LineChartBarData _lineBarData(
     BuildContext context,
     _ProgressChartViewModel viewModel,
-  ) {
+    List<FlSpot> spots, {
+    required bool compact,
+    required int? currentIndex,
+    required int? selectedIndex,
+  }) {
+    final cs = Theme.of(context).colorScheme;
+
+    return LineChartBarData(
+      spots: spots,
+      isCurved: true,
+      preventCurveOverShooting: true,
+      barWidth: compact ? 2.8 : 3.5,
+      color: cs.primary,
+      isStrokeCapRound: true,
+      dotData: FlDotData(
+        show: true,
+        checkToShowDot: (spot, _) {
+          final index = spot.x.round();
+          if (index < 0 || index >= viewModel.points.length) {
+            return false;
+          }
+          return index == selectedIndex ||
+              index == currentIndex ||
+              viewModel.points[index].isHighlighted ||
+              viewModel.points.length <= 7;
+        },
+        getDotPainter: (spot, percent, barData, index) {
+          final selected = index == selectedIndex;
+          final current = index == currentIndex;
+          final highlighted =
+              index >= 0 &&
+              index < viewModel.points.length &&
+              viewModel.points[index].isHighlighted;
+          final color =
+              selected
+                  ? cs.tertiary
+                  : highlighted || current
+                  ? cs.secondary
+                  : cs.primary;
+          return FlDotCirclePainter(
+            radius:
+                selected
+                    ? 5.4
+                    : highlighted || current
+                    ? 4.6
+                    : 3.2,
+            color: color,
+            strokeWidth: selected ? 2.4 : 2,
+            strokeColor: cs.surface,
+          );
+        },
+      ),
+      belowBarData: BarAreaData(
+        show: true,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            cs.primary.withValues(alpha: 0.24),
+            cs.primary.withValues(alpha: 0.03),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static LineTouchData _touchData(
+    BuildContext context,
+    _ProgressChartViewModel viewModel, {
+    required ValueChanged<int> onPointSelected,
+  }) {
     final cs = Theme.of(context).colorScheme;
 
     return LineTouchData(
       enabled: true,
       handleBuiltInTouches: true,
       touchSpotThreshold: 18,
+      touchCallback: (event, response) {
+        if (!event.isInterestedForInteractions) return;
+        final spots = response?.lineBarSpots;
+        if (spots == null || spots.isEmpty) return;
+        onPointSelected(spots.first.spotIndex);
+      },
       touchTooltipData: LineTouchTooltipData(
         fitInsideHorizontally: true,
         fitInsideVertically: true,
@@ -1378,6 +1479,26 @@ class _ProgressAreaChart extends StatelessWidget {
         },
       ),
     );
+  }
+
+  static List<ShowingTooltipIndicators> _tooltipIndicators(
+    LineChartBarData barData,
+    int? selectedIndex,
+  ) {
+    if (selectedIndex == null ||
+        selectedIndex < 0 ||
+        selectedIndex >= barData.spots.length) {
+      return const [];
+    }
+    return [
+      ShowingTooltipIndicators([
+        LineBarSpot(barData, 0, barData.spots[selectedIndex]),
+      ]),
+    ];
+  }
+
+  static List<FlSpot> _animatedSpots(List<FlSpot> spots, double progress) {
+    return spots.map((spot) => FlSpot(spot.x, spot.y * progress)).toList();
   }
 
   static List<FlSpot> _spots(List<_ProgressChartPoint> points) {
