@@ -235,10 +235,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
           }
 
           final meals = snap.data!;
-          final mealSummary = _getNutritionDashboardSummary(
-            profile: null,
-            meals: meals,
-          );
           final listPadding =
               widget.embedded
                   ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
@@ -251,7 +247,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 title: widget.titleOverride ?? 'Nutri\u00e7\u00e3o',
               ),
               const SizedBox(height: 12),
-
               if (isReadOnlyStudentView) ...[
                 const _NutritionInfoCard(
                   icon: Icons.visibility_outlined,
@@ -261,13 +256,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                 ),
                 const SizedBox(height: 12),
               ],
-              const _NutritionInfoCard(
-                icon: Icons.info_outline,
-                title: 'Informa\u00e7\u00f5es educativas',
-                message:
-                    'Estas informa\u00e7\u00f5es s\u00e3o educativas e ajudam no registro da rotina. Para um plano alimentar individual, consulte um profissional de sa\u00fade ou nutri\u00e7\u00e3o.',
-              ),
-              const SizedBox(height: 12),
               FutureBuilder<UserProfile?>(
                 future: _profileFuture,
                 builder: (context, profSnap) {
@@ -280,47 +268,60 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     profile: profile,
                     meals: meals,
                   );
+                  final profileArea =
+                      profile == null
+                          ? Column(
+                            children: [
+                              _NutritionProfilePlaceholder(
+                                canEditNutrition: canEditNutrition,
+                                status: dashboard.profileStatus,
+                                onComplete:
+                                    canEditNutrition ? _editProfile : null,
+                              ),
+                              const SizedBox(height: 12),
+                              const _NutritionEnergyPendingCard(),
+                            ],
+                          )
+                          : Column(
+                            children: [
+                              _NutritionProfileCard(
+                                profile: profile,
+                                canEditNutrition: canEditNutrition,
+                                onEdit: _editProfile,
+                              ),
+                              const SizedBox(height: 12),
+                              _NutritionEnergyCard(
+                                profile: profile,
+                                status: dashboard.profileStatus,
+                              ),
+                            ],
+                          );
 
-                  if (profile == null) {
-                    return Column(
-                      children: [
-                        _NutritionProfilePlaceholder(
-                          canEditNutrition: canEditNutrition,
-                          status: dashboard.profileStatus,
-                          onComplete: canEditNutrition ? _editProfile : null,
-                        ),
-                        const SizedBox(height: 12),
-                        const _NutritionEnergyPendingCard(),
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      _NutritionProfileCard(
-                        profile: profile,
-                        canEditNutrition: canEditNutrition,
-                        onEdit: _editProfile,
-                      ),
-                      const SizedBox(height: 12),
-                      _NutritionEnergyCard(
-                        profile: profile,
-                        status: dashboard.profileStatus,
-                      ),
-                    ],
+                  return _NutritionCompactDashboard(
+                    statusCard: _NutritionDashboardStatusCard(
+                      dashboard: dashboard,
+                      canEditNutrition: canEditNutrition,
+                      onEditProfile: _editProfile,
+                      onAddMeal: _addMeal,
+                    ),
+                    profileArea: profileArea,
+                    weeklyChart: _DailyCaloriesChart(
+                      meals: meals,
+                      points: dashboard.weeklyCalories,
+                    ),
+                    mealsSection: _NutritionMealsSection(
+                      mealLog: dashboard.mealLog,
+                      canEditNutrition: canEditNutrition,
+                      onAddMeal: _addMeal,
+                    ),
+                    safetyCopy: const _NutritionInfoCard(
+                      icon: Icons.info_outline,
+                      title: 'Informa\u00e7\u00f5es educativas',
+                      message:
+                          'Estas informa\u00e7\u00f5es s\u00e3o educativas e ajudam no registro da rotina. Para um plano alimentar individual, consulte um profissional de sa\u00fade ou nutri\u00e7\u00e3o.',
+                    ),
                   );
                 },
-              ),
-              const SizedBox(height: 12),
-              _NutritionMealsSection(
-                mealLog: mealSummary.mealLog,
-                canEditNutrition: canEditNutrition,
-                onAddMeal: _addMeal,
-              ),
-              const SizedBox(height: 12),
-              _DailyCaloriesChart(
-                meals: meals,
-                points: mealSummary.weeklyCalories,
               ),
             ],
           );
@@ -409,6 +410,199 @@ class _NutritionScreenState extends State<NutritionScreen> {
   static String _fmtDate(DateTime date) {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(date.day)}/${two(date.month)}/${date.year}';
+  }
+}
+
+class _NutritionCompactDashboard extends StatelessWidget {
+  final Widget statusCard;
+  final Widget profileArea;
+  final Widget weeklyChart;
+  final Widget mealsSection;
+  final Widget safetyCopy;
+
+  const _NutritionCompactDashboard({
+    required this.statusCard,
+    required this.profileArea,
+    required this.weeklyChart,
+    required this.mealsSection,
+    required this.safetyCopy,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        statusCard,
+        const SizedBox(height: 12),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth >= 820) {
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(flex: 5, child: profileArea),
+                  const SizedBox(width: 12),
+                  Expanded(flex: 4, child: weeklyChart),
+                ],
+              );
+            }
+
+            return Column(
+              children: [profileArea, const SizedBox(height: 12), weeklyChart],
+            );
+          },
+        ),
+        const SizedBox(height: 12),
+        mealsSection,
+        const SizedBox(height: 12),
+        safetyCopy,
+      ],
+    );
+  }
+}
+
+class _NutritionDashboardStatusCard extends StatelessWidget {
+  final NutritionDashboardSummary dashboard;
+  final bool canEditNutrition;
+  final VoidCallback onEditProfile;
+  final VoidCallback onAddMeal;
+
+  const _NutritionDashboardStatusCard({
+    required this.dashboard,
+    required this.canEditNutrition,
+    required this.onEditProfile,
+    required this.onAddMeal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final hasMeals = !dashboard.mealLog.isEmpty;
+    final registeredDays =
+        dashboard.weeklyCalories.where((point) => point.totalKcal > 0).length;
+    final accent =
+        dashboard.profileStatus.hasProfile
+            ? TitansUI.successGreen
+            : TitansUI.actionGold;
+    final registerLabel = hasMeals ? 'Registro ativo' : 'Registro pendente';
+    final message =
+        dashboard.profileStatus.hasProfile
+            ? 'Perfil ativo e registro alimentar acompanhado por dados informados pelo usu\u00e1rio.'
+            : 'Complete o perfil e registre refei\u00e7\u00f5es para acompanhar a rotina com seguran\u00e7a.';
+
+    return TitansCard(
+      accent: accent,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withValues(alpha: 0.12),
+                  border: Border.all(color: accent.withValues(alpha: 0.28)),
+                ),
+                child: Icon(Icons.restaurant_menu_outlined, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Registro alimentar',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.68),
+                        fontSize: 12,
+                        height: 1.25,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: TitansUI.spaceXs,
+            runSpacing: TitansUI.spaceXs,
+            children: [
+              TitansStatusChip(
+                label: dashboard.profileStatus.profileStatusLabel,
+                variant:
+                    dashboard.profileStatus.hasProfile
+                        ? TitansStatusChipVariant.success
+                        : TitansStatusChipVariant.action,
+                icon:
+                    dashboard.profileStatus.hasProfile
+                        ? Icons.check_circle_outline
+                        : Icons.pending_actions_outlined,
+                compact: true,
+              ),
+              TitansStatusChip(
+                label: registerLabel,
+                variant:
+                    hasMeals
+                        ? TitansStatusChipVariant.technical
+                        : TitansStatusChipVariant.muted,
+                icon:
+                    hasMeals
+                        ? Icons.local_dining_outlined
+                        : Icons.playlist_add_outlined,
+                compact: true,
+              ),
+              TitansStatusChip(
+                label: '$registeredDays dias na semana',
+                variant: TitansStatusChipVariant.muted,
+                icon: Icons.calendar_today_outlined,
+                compact: true,
+              ),
+              TitansStatusChip(
+                label: '${dashboard.mealLog.items.length} refei\u00e7\u00f5es',
+                variant: TitansStatusChipVariant.muted,
+                icon: Icons.receipt_long_outlined,
+                compact: true,
+              ),
+            ],
+          ),
+          if (canEditNutrition) ...[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: onAddMeal,
+                  icon: const Icon(Icons.add),
+                  label: const Text('Adicionar refei\u00e7\u00e3o'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onEditProfile,
+                  icon: const Icon(Icons.edit_outlined),
+                  label: const Text('Editar perfil'),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -772,8 +966,8 @@ class _NutritionMealsSection extends StatelessWidget {
             overflowSpacing: 8,
             children: [
               const _SectionTitle(
-                title: 'Refei\u00e7\u00f5es',
-                subtitle: 'Registros alimentares informados pelo usu\u00e1rio.',
+                title: 'Meal Log',
+                subtitle: 'Registros agrupados por dia, sem meta alimentar.',
               ),
               if (canEditNutrition && !mealLog.isEmpty)
                 FilledButton.icon(
@@ -812,15 +1006,60 @@ class _NutritionMealsSection extends StatelessWidget {
   List<Widget> _mealTiles(BuildContext context) {
     final orderedMeals = mealLog.items;
     final tiles = <Widget>[];
+    String? currentDayKey;
 
-    for (var i = 0; i < orderedMeals.length; i++) {
-      tiles.add(_MealLogTile(item: orderedMeals[i]));
-      if (i != orderedMeals.length - 1) {
-        tiles.add(const SizedBox(height: TitansUI.spaceSm));
+    for (final item in orderedMeals) {
+      final dayKey = '${item.date.year}-${item.date.month}-${item.date.day}';
+      if (dayKey != currentDayKey) {
+        if (tiles.isNotEmpty) {
+          tiles.add(const SizedBox(height: TitansUI.spaceSm));
+        }
+        currentDayKey = dayKey;
+        tiles.add(_MealLogDayHeader(date: item.date));
+        tiles.add(const SizedBox(height: TitansUI.spaceXs));
+      } else {
+        tiles.add(const SizedBox(height: TitansUI.spaceXs));
       }
+
+      tiles.add(_MealLogTile(item: item));
     }
 
     return tiles;
+  }
+}
+
+class _MealLogDayHeader extends StatelessWidget {
+  final DateTime date;
+
+  const _MealLogDayHeader({required this.date});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Icon(
+          Icons.calendar_today_outlined,
+          size: 14,
+          color: cs.onSurface.withValues(alpha: 0.56),
+        ),
+        const SizedBox(width: TitansUI.spaceXs),
+        Text(
+          _NutritionScreenState._fmtDate(date),
+          style: TitansTypography.caption(
+            context,
+          ).copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(width: TitansUI.spaceXs),
+        Expanded(
+          child: Container(
+            height: 1,
+            color: cs.onSurface.withValues(alpha: 0.08),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1082,7 +1321,7 @@ class _DailyCaloriesChart extends StatelessWidget {
             )
           else
             SizedBox(
-              height: 220,
+              height: 188,
               child: BarChart(
                 BarChartData(
                   barGroups: groups,
