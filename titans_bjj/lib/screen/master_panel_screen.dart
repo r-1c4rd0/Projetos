@@ -647,8 +647,12 @@ class _StudentsGridState extends State<_StudentsGrid> {
   Widget build(BuildContext context) {
     final bottomInset =
         TitansUI.listPadding(context, extra: TitansUI.spaceLg).bottom;
-    final summary = _RosterSummary.from(widget.students);
-    final filteredStudents = _filteredStudents(widget.students);
+    final summary = _RosterSummary.from(widget.students, widget.rules);
+    final attentionUids =
+        summary.attentionItems
+            .map((item) => item.entry.displayStudent.uid)
+            .toSet();
+    final filteredStudents = _filteredStudents(widget.students, attentionUids);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -682,21 +686,20 @@ class _StudentsGridState extends State<_StudentsGrid> {
                 ),
               ),
             ),
-            if (summary.attentionEntries.isNotEmpty)
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(
-                  TitansUI.spaceMd,
-                  0,
-                  TitansUI.spaceMd,
-                  TitansUI.spaceSm,
-                ),
-                sliver: SliverToBoxAdapter(
-                  child: _TeacherAttentionCard(
-                    entries: summary.attentionEntries,
-                    onOpen: widget.onOpen,
-                  ),
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(
+                TitansUI.spaceMd,
+                0,
+                TitansUI.spaceMd,
+                TitansUI.spaceSm,
+              ),
+              sliver: SliverToBoxAdapter(
+                child: _TeacherAttentionCard(
+                  items: summary.attentionItems,
+                  onOpen: widget.onOpen,
                 ),
               ),
+            ),
             if (filteredStudents.isEmpty)
               SliverPadding(
                 padding: EdgeInsets.fromLTRB(
@@ -762,6 +765,7 @@ class _StudentsGridState extends State<_StudentsGrid> {
 
   List<_StudentAccessEntry> _filteredStudents(
     List<_StudentAccessEntry> students,
+    Set<String> attentionUids,
   ) {
     final normalizedQuery = _query.trim().toLowerCase();
     return students.where((entry) {
@@ -775,7 +779,7 @@ class _StudentsGridState extends State<_StudentsGrid> {
         case _RosterStatusFilter.all:
           return true;
         case _RosterStatusFilter.needsAttention:
-          return entry.status != _StudentAccessStatus.active;
+          return attentionUids.contains(student.uid);
         case _RosterStatusFilter.active:
           return entry.status == _StudentAccessStatus.active;
       }
@@ -788,19 +792,22 @@ class _RosterSummary {
   final int active;
   final int needsAttention;
   final Map<BeltColor, int> beltCounts;
-  final List<_StudentAccessEntry> attentionEntries;
+  final List<_AttentionQueueItem> attentionItems;
 
   const _RosterSummary({
     required this.total,
     required this.active,
     required this.needsAttention,
     required this.beltCounts,
-    required this.attentionEntries,
+    required this.attentionItems,
   });
 
-  factory _RosterSummary.from(List<_StudentAccessEntry> students) {
+  factory _RosterSummary.from(
+    List<_StudentAccessEntry> students,
+    GradingRules rules,
+  ) {
     final beltCounts = <BeltColor, int>{};
-    final attentionEntries = <_StudentAccessEntry>[];
+    final attentionItems = <_AttentionQueueItem>[];
     var active = 0;
 
     for (final entry in students) {
@@ -808,18 +815,66 @@ class _RosterSummary {
       beltCounts[student.belt] = (beltCounts[student.belt] ?? 0) + 1;
       if (entry.status == _StudentAccessStatus.active) {
         active += 1;
-      } else if (attentionEntries.length < 3) {
-        attentionEntries.add(entry);
       }
+
+      final attentionItem = _AttentionQueueItem.from(entry, rules);
+      if (attentionItem != null) attentionItems.add(attentionItem);
     }
 
     return _RosterSummary(
       total: students.length,
       active: active,
-      needsAttention: students.length - active,
+      needsAttention: attentionItems.length,
       beltCounts: beltCounts,
-      attentionEntries: attentionEntries,
+      attentionItems: attentionItems,
     );
+  }
+}
+
+class _AttentionQueueItem {
+  final _StudentAccessEntry entry;
+  final List<String> reasons;
+
+  const _AttentionQueueItem({required this.entry, required this.reasons});
+
+  String get reasonLabel => reasons.take(2).join(' · ');
+
+  static _AttentionQueueItem? from(
+    _StudentAccessEntry entry,
+    GradingRules rules,
+  ) {
+    final student = entry.displayStudent;
+    final reasons = <String>[];
+
+    switch (entry.status) {
+      case _StudentAccessStatus.active:
+        break;
+      case _StudentAccessStatus.pending:
+        reasons.add('Convite pendente');
+        break;
+      case _StudentAccessStatus.expired:
+        reasons.add('Convite expirado');
+        break;
+      case _StudentAccessStatus.revoked:
+        reasons.add('Convite revogado');
+        break;
+      case _StudentAccessStatus.noAccess:
+        reasons.add('Sem acesso ativo');
+        break;
+    }
+
+    final name = student.name.trim();
+    if (name.isEmpty || name.toLowerCase() == 'aluno') {
+      reasons.add('Nome do cadastro precisa revisão');
+    }
+
+    final maxDegree = rules.maxDegrees(student.belt);
+    if (student.degree > maxDegree) {
+      reasons.add('Grau acima da regra da faixa');
+    }
+
+    if (reasons.isEmpty) return null;
+    return _AttentionQueueItem(entry: entry, reasons: reasons);
   }
 }
 
@@ -1127,10 +1182,10 @@ class _RosterBeltFilterChip extends StatelessWidget {
 }
 
 class _TeacherAttentionCard extends StatelessWidget {
-  final List<_StudentAccessEntry> entries;
+  final List<_AttentionQueueItem> items;
   final ValueChanged<_StudentAccessEntry> onOpen;
 
-  const _TeacherAttentionCard({required this.entries, required this.onOpen});
+  const _TeacherAttentionCard({required this.items, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
@@ -1147,17 +1202,18 @@ class _TeacherAttentionCard extends StatelessWidget {
               const SizedBox(width: TitansUI.spaceXs),
               Expanded(
                 child: Text(
-                  'Atenção do professor',
+                  'Precisa de atenção',
                   style: Theme.of(
                     context,
                   ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ),
+              _AttentionCounter(count: items.length),
             ],
           ),
           const SizedBox(height: 4),
           Text(
-            'Cadastros que ainda precisam de ação de acesso ou convite.',
+            'Pendências objetivas de cadastro, acesso ou graduação.',
             style: TextStyle(
               color: cs.onSurface.withValues(alpha: 0.64),
               fontSize: 12,
@@ -1165,13 +1221,102 @@ class _TeacherAttentionCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: TitansUI.spaceSm),
-          Wrap(
-            spacing: TitansUI.spaceXs,
-            runSpacing: TitansUI.spaceXs,
-            children: [
-              for (final entry in entries)
-                _AttentionStudentChip(entry: entry, onTap: () => onOpen(entry)),
-            ],
+          if (items.isEmpty)
+            const _AttentionEmptyState()
+          else
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final twoColumns = constraints.maxWidth >= 520;
+                final itemWidth =
+                    twoColumns
+                        ? (constraints.maxWidth - TitansUI.spaceXs) / 2
+                        : constraints.maxWidth;
+
+                return Wrap(
+                  spacing: TitansUI.spaceXs,
+                  runSpacing: TitansUI.spaceXs,
+                  children: [
+                    for (final item in items)
+                      SizedBox(
+                        width: itemWidth,
+                        child: _AttentionQueueTile(
+                          item: item,
+                          onOpen: () => onOpen(item.entry),
+                        ),
+                      ),
+                  ],
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AttentionCounter extends StatelessWidget {
+  final int count;
+
+  const _AttentionCounter({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = count == 0 ? TitansUI.successGreen : TitansUI.actionGold;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.pill),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Text(
+        count.toString(),
+        style: TextStyle(
+          color: count == 0 ? color : cs.onSurface,
+          fontSize: 12,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+class _AttentionEmptyState extends StatelessWidget {
+  const _AttentionEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(TitansUI.spaceSm),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.md),
+        color: TitansUI.successGreen.withValues(alpha: 0.08),
+        border: Border.all(
+          color: TitansUI.successGreen.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            color: TitansUI.successGreen,
+            size: 18,
+          ),
+          const SizedBox(width: TitansUI.spaceXs),
+          Expanded(
+            child: Text(
+              'Nenhum cadastro pendente no momento.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.78),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
           ),
         ],
       ),
@@ -1179,48 +1324,98 @@ class _TeacherAttentionCard extends StatelessWidget {
   }
 }
 
-class _AttentionStudentChip extends StatelessWidget {
-  final _StudentAccessEntry entry;
-  final VoidCallback onTap;
+class _AttentionQueueTile extends StatelessWidget {
+  final _AttentionQueueItem item;
+  final VoidCallback onOpen;
 
-  const _AttentionStudentChip({required this.entry, required this.onTap});
+  const _AttentionQueueTile({required this.item, required this.onOpen});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final student = item.entry.displayStudent;
+    final beltColor = _StudentCard.beltUiColor(student.belt);
+    final beltName = _StudentCard.beltName(student.belt);
+    final textColor =
+        beltColor.computeLuminance() > 0.82 ? cs.onSurface : beltColor;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(TitansRadius.pill),
-      onTap: onTap,
+      borderRadius: BorderRadius.circular(TitansRadius.md),
+      onTap: onOpen,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 34, maxWidth: 220),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        constraints: const BoxConstraints(minHeight: 76),
+        padding: const EdgeInsets.all(TitansUI.spaceSm),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(TitansRadius.pill),
-          color: TitansUI.actionGold.withValues(alpha: 0.10),
+          borderRadius: BorderRadius.circular(TitansRadius.md),
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.18),
           border: Border.all(
-            color: TitansUI.actionGold.withValues(alpha: 0.28),
+            color: TitansUI.actionGold.withValues(alpha: 0.20),
           ),
         ),
         child: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.person_outline, size: 16, color: TitansUI.actionGold),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                entry.displayStudent.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.86),
-                  fontWeight: FontWeight.w900,
-                  fontSize: 12,
-                ),
+            Container(
+              width: 34,
+              height: 34,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: beltColor.withValues(alpha: 0.12),
+                border: Border.all(color: beltColor.withValues(alpha: 0.34)),
+              ),
+              child: Icon(Icons.person_outline, color: textColor, size: 18),
+            ),
+            const SizedBox(width: TitansUI.spaceSm),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    student.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    '$beltName · Grau ${student.degree}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.reasonLabel,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: TitansUI.actionGold,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
               ),
             ),
-            const SizedBox(width: 6),
-            Icon(Icons.arrow_forward, size: 14, color: TitansUI.actionGold),
+            const SizedBox(width: TitansUI.spaceXs),
+            TextButton(
+              onPressed: onOpen,
+              style: TextButton.styleFrom(
+                minimumSize: const Size(76, 36),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                visualDensity: VisualDensity.compact,
+              ),
+              child: const Text('Abrir'),
+            ),
           ],
         ),
       ),
