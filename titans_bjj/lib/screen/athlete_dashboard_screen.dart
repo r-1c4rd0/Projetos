@@ -1932,8 +1932,8 @@ class _StatMini extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(
-              value,
+            child: TitansAnimatedMetricValue(
+              value: value,
               style: TextStyle(
                 color: highlight,
                 fontSize: 18,

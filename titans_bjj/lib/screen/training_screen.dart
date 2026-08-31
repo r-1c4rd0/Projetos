@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
+import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../model/app_user.dart';
 import '../model/training_session.dart';
@@ -838,9 +839,8 @@ class _SummaryMetric extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 2),
-          Text(
-            value,
-            maxLines: 1,
+          TitansAnimatedMetricValue(
+            value: value,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color: color,
@@ -2436,160 +2436,213 @@ class _TrainingChartCard extends StatelessWidget {
   }
 }
 
-class _TrainingBarChart extends StatelessWidget {
+class _TrainingBarChart extends StatefulWidget {
   final List<_TrainingChartPoint> points;
 
   const _TrainingBarChart({required this.points});
 
   @override
+  State<_TrainingBarChart> createState() => _TrainingBarChartState();
+}
+
+class _TrainingBarChartState extends State<_TrainingBarChart> {
+  static final _motion = TitansMotionSpec.standard();
+
+  bool _entrancePlayed = false;
+  int? _selectedIndex;
+
+  @override
+  void didUpdateWidget(covariant _TrainingBarChart oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = _selectedIndex;
+    if (selected != null && selected >= widget.points.length) {
+      _selectedIndex = widget.points.isEmpty ? null : widget.points.length - 1;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final duration = TitansMotion.duration(context, _motion);
+    if (duration == Duration.zero || _entrancePlayed) {
+      return _buildChart(context, 1);
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: duration,
+      curve: TitansMotion.curve(_motion),
+      onEnd: () => _entrancePlayed = true,
+      builder: (context, progress, _) => _buildChart(context, progress),
+    );
+  }
+
+  Widget _buildChart(BuildContext context, double revealProgress) {
+    final points = widget.points;
     final cs = Theme.of(context).colorScheme;
     final maxValue = points.fold<int>(
       0,
       (max, point) => point.value > max ? point.value : max,
     );
     final maxY = maxValue < 3 ? 3.0 : (maxValue + 1).toDouble();
+    final progress = revealProgress.clamp(0.0, 1.0).toDouble();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final labelEvery = _labelEvery(points.length, constraints.maxWidth);
 
-        return BarChart(
-          BarChartData(
-            minY: 0,
-            maxY: maxY,
-            alignment: BarChartAlignment.spaceAround,
-            gridData: FlGridData(
-              drawVerticalLine: false,
-              horizontalInterval: 1,
-              getDrawingHorizontalLine:
-                  (_) => FlLine(
-                    color: cs.onSurface.withValues(alpha: 0.08),
-                    strokeWidth: 1,
-                  ),
-            ),
-            borderData: FlBorderData(show: false),
-            barTouchData: BarTouchData(
-              enabled: true,
-              touchTooltipData: BarTouchTooltipData(
-                fitInsideHorizontally: true,
-                fitInsideVertically: true,
-                tooltipRoundedRadius: 10,
-                tooltipPadding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 8,
-                ),
-                getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                  if (groupIndex < 0 || groupIndex >= points.length) {
-                    return null;
-                  }
-                  final point = points[groupIndex];
-                  return BarTooltipItem(
-                    '${point.tooltipTitle}\n',
-                    TextStyle(
-                      color: cs.onInverseSurface,
-                      fontWeight: FontWeight.w900,
+        return RepaintBoundary(
+          child: BarChart(
+            BarChartData(
+              minY: 0,
+              maxY: maxY,
+              alignment: BarChartAlignment.spaceAround,
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                horizontalInterval: 1,
+                getDrawingHorizontalLine:
+                    (_) => FlLine(
+                      color: cs.onSurface.withValues(alpha: 0.08),
+                      strokeWidth: 1,
                     ),
-                    children: [
-                      TextSpan(
-                        text: point.tooltipBody,
+              ),
+              borderData: FlBorderData(show: false),
+              barTouchData: _barTouchData(cs, points),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    interval: 1,
+                    getTitlesWidget: (value, _) {
+                      final intValue = value.toInt();
+                      if (value != intValue || intValue < 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        intValue.toString(),
                         style: TextStyle(
-                          color: cs.onInverseSurface.withValues(alpha: 0.82),
-                          fontSize: 12,
+                          color: cs.onSurface.withValues(alpha: 0.62),
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    getTitlesWidget: (value, _) {
+                      final index = value.toInt();
+                      if (index < 0 || index >= points.length) {
+                        return const SizedBox.shrink();
+                      }
+                      final shouldShow =
+                          index == points.length - 1 || index % labelEvery == 0;
+                      if (!shouldShow) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          points[index].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.66),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              barGroups: [
+                for (var i = 0; i < points.length; i++)
+                  BarChartGroupData(
+                    x: i,
+                    showingTooltipIndicators:
+                        _selectedIndex == i ? const [0] : const [],
+                    barRods: [
+                      BarChartRodData(
+                        toY: points[i].value.toDouble() * progress,
+                        width: _barWidth(points.length, constraints.maxWidth),
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(5),
+                        ),
+                        color: _barColor(cs, points[i], i),
+                        backDrawRodData: BackgroundBarChartRodData(
+                          show: true,
+                          toY: maxY,
+                          color: cs.onSurface.withValues(alpha: 0.05),
                         ),
                       ),
                     ],
-                  );
-                },
-              ),
+                  ),
+              ],
             ),
-            titlesData: FlTitlesData(
-              topTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              rightTitles: const AxisTitles(
-                sideTitles: SideTitles(showTitles: false),
-              ),
-              leftTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 30,
-                  interval: 1,
-                  getTitlesWidget: (value, _) {
-                    final intValue = value.toInt();
-                    if (value != intValue || intValue < 0) {
-                      return const SizedBox.shrink();
-                    }
-                    return Text(
-                      intValue.toString(),
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.62),
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    );
-                  },
-                ),
-              ),
-              bottomTitles: AxisTitles(
-                sideTitles: SideTitles(
-                  showTitles: true,
-                  reservedSize: 32,
-                  getTitlesWidget: (value, _) {
-                    final index = value.toInt();
-                    if (index < 0 || index >= points.length) {
-                      return const SizedBox.shrink();
-                    }
-                    final shouldShow =
-                        index == points.length - 1 || index % labelEvery == 0;
-                    if (!shouldShow) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        points[index].label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.66),
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                    );
-                  },
-                ),
-              ),
-            ),
-            barGroups: [
-              for (var i = 0; i < points.length; i++)
-                BarChartGroupData(
-                  x: i,
-                  barRods: [
-                    BarChartRodData(
-                      toY: points[i].value.toDouble(),
-                      width: _barWidth(points.length, constraints.maxWidth),
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(5),
-                      ),
-                      color:
-                          points[i].isHighlighted
-                              ? cs.secondary
-                              : cs.primary.withValues(alpha: 0.78),
-                      backDrawRodData: BackgroundBarChartRodData(
-                        show: true,
-                        toY: maxY,
-                        color: cs.onSurface.withValues(alpha: 0.05),
-                      ),
-                    ),
-                  ],
-                ),
-            ],
+            duration: Duration.zero,
           ),
-          duration: const Duration(milliseconds: 250),
         );
       },
     );
+  }
+
+  BarTouchData _barTouchData(ColorScheme cs, List<_TrainingChartPoint> points) {
+    return BarTouchData(
+      enabled: true,
+      touchCallback: (event, response) {
+        if (!event.isInterestedForInteractions) return;
+        final index = response?.spot?.touchedBarGroupIndex;
+        if (index == null || index < 0 || index >= points.length) return;
+        if (_selectedIndex == index) return;
+        setState(() => _selectedIndex = index);
+      },
+      touchTooltipData: BarTouchTooltipData(
+        fitInsideHorizontally: true,
+        fitInsideVertically: true,
+        tooltipRoundedRadius: 10,
+        tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        getTooltipItem: (group, groupIndex, rod, rodIndex) {
+          if (groupIndex < 0 || groupIndex >= points.length) {
+            return null;
+          }
+          final point = points[groupIndex];
+          return BarTooltipItem(
+            '${point.tooltipTitle}\n',
+            TextStyle(color: cs.onInverseSurface, fontWeight: FontWeight.w900),
+            children: [
+              TextSpan(
+                text: point.tooltipBody,
+                style: TextStyle(
+                  color: cs.onInverseSurface.withValues(alpha: 0.82),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Color _barColor(ColorScheme cs, _TrainingChartPoint point, int index) {
+    final selectedIndex = _selectedIndex;
+    final isSelected = selectedIndex == index;
+    final isDimmed = selectedIndex != null && !isSelected;
+    if (isSelected) return cs.tertiary;
+    if (point.isHighlighted) {
+      return cs.secondary.withValues(alpha: isDimmed ? 0.48 : 1);
+    }
+    return cs.primary.withValues(alpha: isDimmed ? 0.34 : 0.78);
   }
 
   int _labelEvery(int count, double width) {

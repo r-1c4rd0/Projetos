@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'titans_live_motion.dart';
+
 class TitansUI {
   static const radius = 18.0;
   static const radiusSmall = 12.0;
@@ -467,9 +469,8 @@ class TitansMetricCard extends StatelessWidget {
           FittedBox(
             fit: BoxFit.scaleDown,
             alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
+            child: TitansAnimatedMetricValue(
+              value: value,
               style: TextStyle(
                 color: accent,
                 fontSize: 24,
@@ -481,6 +482,84 @@ class TitansMetricCard extends StatelessWidget {
       ),
     );
   }
+}
+
+class TitansAnimatedMetricValue extends StatefulWidget {
+  final String value;
+  final TextStyle? style;
+  final int? maxLines;
+  final TextOverflow? overflow;
+  final TextAlign? textAlign;
+  final TitansMotionSpec motionSpec;
+
+  const TitansAnimatedMetricValue({
+    super.key,
+    required this.value,
+    this.style,
+    this.maxLines = 1,
+    this.overflow,
+    this.textAlign,
+    this.motionSpec = const TitansMotionSpec.standard(),
+  });
+
+  @override
+  State<TitansAnimatedMetricValue> createState() =>
+      _TitansAnimatedMetricValueState();
+}
+
+class _TitansAnimatedMetricValueState extends State<TitansAnimatedMetricValue> {
+  bool _entrancePlayed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final parsed = _MetricValueParts.tryParse(widget.value);
+    if (parsed == null) return _text(widget.value);
+
+    final duration = TitansMotion.duration(context, widget.motionSpec);
+    if (duration == Duration.zero || _entrancePlayed) {
+      return _text(parsed.format(parsed.value));
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: parsed.value.toDouble()),
+      duration: duration,
+      curve: TitansMotion.curve(widget.motionSpec),
+      onEnd: () => _entrancePlayed = true,
+      builder: (context, animatedValue, _) {
+        return _text(parsed.format(animatedValue.round()));
+      },
+    );
+  }
+
+  Widget _text(String value) {
+    return Text(
+      value,
+      maxLines: widget.maxLines,
+      overflow: widget.overflow,
+      textAlign: widget.textAlign,
+      style: widget.style,
+    );
+  }
+}
+
+class _MetricValueParts {
+  final int value;
+  final String suffix;
+
+  const _MetricValueParts({required this.value, required this.suffix});
+
+  static final _pattern = RegExp(r'^(\d+)(%)?$');
+
+  static _MetricValueParts? tryParse(String raw) {
+    final match = _pattern.firstMatch(raw.trim());
+    if (match == null) return null;
+    return _MetricValueParts(
+      value: int.parse(match.group(1)!),
+      suffix: match.group(2) ?? '',
+    );
+  }
+
+  String format(int animatedValue) => '$animatedValue$suffix';
 }
 
 class TitansStatusChip extends StatelessWidget {

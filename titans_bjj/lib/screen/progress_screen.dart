@@ -1612,14 +1612,58 @@ class _ConsistencyHeatmapCard extends StatelessWidget {
   }
 }
 
-class _ConsistencyHeatmapGrid extends StatelessWidget {
+class _ConsistencyHeatmapGrid extends StatefulWidget {
   final _ConsistencyHeatmapViewModel viewModel;
 
   const _ConsistencyHeatmapGrid({required this.viewModel});
 
   @override
+  State<_ConsistencyHeatmapGrid> createState() =>
+      _ConsistencyHeatmapGridState();
+}
+
+class _ConsistencyHeatmapGridState extends State<_ConsistencyHeatmapGrid> {
+  static final _motion = TitansMotionSpec.emphasis();
+
+  bool _entrancePlayed = false;
+  _ConsistencyHeatmapDay? _selectedDay;
+
+  @override
+  void didUpdateWidget(covariant _ConsistencyHeatmapGrid oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = _selectedDay;
+    if (selected == null) return;
+
+    final stillExists = widget.viewModel.weeks.any(
+      (week) => week.days.any((day) => _isSameDay(day.date, selected.date)),
+    );
+    if (!stillExists) _selectedDay = null;
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final duration = TitansMotion.duration(context, _motion);
+    if (duration == Duration.zero || _entrancePlayed) {
+      return _buildGrid(context, 1);
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: duration,
+      curve: TitansMotion.curve(_motion),
+      onEnd: () => _entrancePlayed = true,
+      builder: (context, progress, _) => _buildGrid(context, progress),
+    );
+  }
+
+  Widget _buildGrid(BuildContext context, double revealProgress) {
     final cs = Theme.of(context).colorScheme;
+    final viewModel = widget.viewModel;
+    final totalCells = viewModel.weeks.fold<int>(
+      0,
+      (total, week) => total + week.days.length,
+    );
+    final progress = revealProgress.clamp(0.0, 1.0).toDouble();
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1632,75 +1676,111 @@ class _ConsistencyHeatmapGrid extends StatelessWidget {
             (availableWidth - (gap * (weekCount - 1))) / weekCount;
         final cellSize = rawCellSize.clamp(10.0, 20.0).toDouble();
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: labelWidth,
-              child: Padding(
-                padding: EdgeInsets.only(top: compact ? 0 : 1),
-                child: Column(
-                  children: [
-                    for (final label in viewModel.weekdayLabels)
-                      SizedBox(
-                        height: cellSize,
-                        child: Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            label,
-                            maxLines: 1,
-                            overflow: TextOverflow.clip,
-                            style: TextStyle(
-                              color: cs.onSurface.withValues(alpha: 0.46),
-                              fontSize: compact ? 8 : 9,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            SizedBox(width: gap),
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return RepaintBoundary(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  for (
-                    var weekIndex = 0;
-                    weekIndex < viewModel.weeks.length;
-                    weekIndex++
-                  )
-                    _ConsistencyHeatmapWeekColumn(
-                      week: viewModel.weeks[weekIndex],
-                      cellSize: cellSize,
-                      compact: compact,
-                      showLabel: _showHeatmapWeekLabel(weekIndex),
+                  SizedBox(
+                    width: labelWidth,
+                    child: Padding(
+                      padding: EdgeInsets.only(top: compact ? 0 : 1),
+                      child: Column(
+                        children: [
+                          for (final label in viewModel.weekdayLabels)
+                            SizedBox(
+                              height: cellSize,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: Text(
+                                  label,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.clip,
+                                  style: TextStyle(
+                                    color: cs.onSurface.withValues(alpha: 0.46),
+                                    fontSize: compact ? 8 : 9,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
+                  ),
+                  SizedBox(width: gap),
+                  Expanded(
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (
+                          var weekIndex = 0;
+                          weekIndex < viewModel.weeks.length;
+                          weekIndex++
+                        )
+                          _ConsistencyHeatmapWeekColumn(
+                            week: viewModel.weeks[weekIndex],
+                            weekIndex: weekIndex,
+                            totalCells: totalCells,
+                            revealProgress: progress,
+                            selectedDay: _selectedDay,
+                            onDaySelected: _selectDay,
+                            cellSize: cellSize,
+                            compact: compact,
+                            showLabel: _showHeatmapWeekLabel(weekIndex),
+                          ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-            ),
-          ],
+              if (_selectedDay != null) ...[
+                const SizedBox(height: 10),
+                _ConsistencyHeatmapSelection(day: _selectedDay!),
+              ],
+            ],
+          ),
         );
       },
     );
   }
 
+  void _selectDay(_ConsistencyHeatmapDay day) {
+    final selected = _selectedDay;
+    if (selected != null && _isSameDay(selected.date, day.date)) return;
+    setState(() => _selectedDay = day);
+  }
+
   static bool _showHeatmapWeekLabel(int index) {
     return index == 0 || index == 11 || index % 3 == 0;
+  }
+
+  static bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 }
 
 class _ConsistencyHeatmapWeekColumn extends StatelessWidget {
   final _ConsistencyHeatmapWeek week;
+  final int weekIndex;
+  final int totalCells;
+  final double revealProgress;
+  final _ConsistencyHeatmapDay? selectedDay;
+  final ValueChanged<_ConsistencyHeatmapDay> onDaySelected;
   final double cellSize;
   final bool compact;
   final bool showLabel;
 
   const _ConsistencyHeatmapWeekColumn({
     required this.week,
+    required this.weekIndex,
+    required this.totalCells,
+    required this.revealProgress,
+    required this.selectedDay,
+    required this.onDaySelected,
     required this.cellSize,
     required this.compact,
     required this.showLabel,
@@ -1714,8 +1794,18 @@ class _ConsistencyHeatmapWeekColumn extends StatelessWidget {
       width: cellSize,
       child: Column(
         children: [
-          for (final day in week.days)
-            _ConsistencyHeatmapCell(day: day, size: cellSize),
+          for (var dayIndex = 0; dayIndex < week.days.length; dayIndex++)
+            _ConsistencyHeatmapCell(
+              day: week.days[dayIndex],
+              size: cellSize,
+              animationProgress: _cellProgress(
+                (weekIndex * 7) + dayIndex,
+                totalCells,
+                revealProgress,
+              ),
+              isSelected: _isSelected(week.days[dayIndex]),
+              onTap: () => onDaySelected(week.days[dayIndex]),
+            ),
           const SizedBox(height: 6),
           SizedBox(
             height: 14,
@@ -1735,40 +1825,92 @@ class _ConsistencyHeatmapWeekColumn extends StatelessWidget {
       ),
     );
   }
+
+  bool _isSelected(_ConsistencyHeatmapDay day) {
+    final selected = selectedDay;
+    if (selected == null) return false;
+    return selected.date.year == day.date.year &&
+        selected.date.month == day.date.month &&
+        selected.date.day == day.date.day;
+  }
+
+  double _cellProgress(int index, int total, double reveal) {
+    if (total <= 1 || reveal >= 1) return 1;
+    final start = (index / total).clamp(0.0, 1.0) * 0.42;
+    final local = ((reveal - start) / (1 - start)).clamp(0.0, 1.0).toDouble();
+    return Curves.easeOutCubic.transform(local);
+  }
 }
 
 class _ConsistencyHeatmapCell extends StatelessWidget {
   final _ConsistencyHeatmapDay day;
   final double size;
+  final double animationProgress;
+  final bool isSelected;
+  final VoidCallback onTap;
 
-  const _ConsistencyHeatmapCell({required this.day, required this.size});
+  const _ConsistencyHeatmapCell({
+    required this.day,
+    required this.size,
+    required this.animationProgress,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final color = _cellColor(cs, day.intensityLevel);
     final borderColor =
-        day.isToday
+        isSelected
+            ? cs.primary.withValues(alpha: 0.92)
+            : day.isToday
             ? cs.secondary.withValues(alpha: 0.86)
             : cs.onSurface.withValues(alpha: day.isOutsideRange ? 0.05 : 0.08);
+    final opacity =
+        (0.36 + (animationProgress * 0.64)).clamp(0.0, 1.0).toDouble();
+    final scale =
+        (0.72 + (animationProgress * 0.28)).clamp(0.0, 1.0).toDouble();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Tooltip(
         message: '${day.tooltipTitle}\n${day.tooltipBody}',
         child: Semantics(
+          button: true,
+          selected: isSelected,
           label: '${day.dayLabel}, ${day.tooltipTitle}: ${day.tooltipBody}',
           value: day.count.toString(),
           hint: _semanticDate(day.date),
-          child: Container(
-            width: size,
-            height: size,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: borderColor,
-                width: day.isToday ? 1.5 : 1,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: onTap,
+            child: Opacity(
+              opacity: opacity,
+              child: Transform.scale(
+                scale: scale,
+                child: Container(
+                  width: size,
+                  height: size,
+                  decoration: BoxDecoration(
+                    color: color,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: borderColor,
+                      width: isSelected || day.isToday ? 1.5 : 1,
+                    ),
+                    boxShadow:
+                        isSelected
+                            ? [
+                              BoxShadow(
+                                color: cs.primary.withValues(alpha: 0.18),
+                                blurRadius: 10,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                            : null,
+                  ),
+                ),
               ),
             ),
           ),
@@ -1792,6 +1934,87 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
       default:
         return cs.surfaceContainerHighest.withValues(alpha: 0.26);
     }
+  }
+}
+
+class _ConsistencyHeatmapSelection extends StatelessWidget {
+  final _ConsistencyHeatmapDay day;
+
+  const _ConsistencyHeatmapSelection({required this.day});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.32),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 9,
+            height: 9,
+            decoration: BoxDecoration(
+              color: _ConsistencyHeatmapCell._cellColor(cs, day.intensityLevel),
+              borderRadius: BorderRadius.circular(3),
+              border: Border.all(
+                color:
+                    day.isToday
+                        ? cs.secondary.withValues(alpha: 0.86)
+                        : cs.onSurface.withValues(alpha: 0.08),
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  day.tooltipTitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  day.tooltipBody,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.66),
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (day.isToday) ...[
+            const SizedBox(width: 8),
+            Text(
+              'Hoje',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.secondary,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
