@@ -32,6 +32,8 @@ class TitansTechnicalRadarEvidence {
 /// vários radares ao mesmo tempo (ex: dashboard com um card por aluno),
 /// desligue com `enableSweep: false` e deixe ligado só na tela de detalhe
 /// (Game Map / SkillDetail), onde há um radar só na tela.
+enum TitansTechnicalRadarVariant { full, compact }
+
 class TitansTechnicalRadar extends StatefulWidget {
   final String title;
   final String subtitle;
@@ -45,6 +47,13 @@ class TitansTechnicalRadar extends StatefulWidget {
 
   final int classifiedEvidenceCount;
   final int awaitingClassificationCount;
+  final TitansTechnicalRadarVariant variant;
+  final bool interactive;
+  final bool showDistribution;
+  final bool showLegend;
+  final bool showGhostPolygon;
+  final bool showMetrics;
+  final bool showSafetyCopy;
 
   /// Liga a varredura rotativa contínua e o pulso de glow. Desligue em
   /// contextos de lista (ver nota de performance acima).
@@ -60,6 +69,13 @@ class TitansTechnicalRadar extends StatefulWidget {
     this.previousAxisEvidence,
     this.classifiedEvidenceCount = 0,
     this.awaitingClassificationCount = 0,
+    this.variant = TitansTechnicalRadarVariant.full,
+    this.interactive = true,
+    this.showDistribution = true,
+    this.showLegend = true,
+    this.showGhostPolygon = true,
+    this.showMetrics = true,
+    this.showSafetyCopy = true,
     this.enableSweep = true,
   });
 
@@ -93,6 +109,9 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     if (widget.enableSweep != oldWidget.enableSweep) {
       widget.enableSweep ? _loop.repeat() : _loop.stop();
     }
+    if (!widget.interactive && _focusedAxisIndex != null) {
+      _focusedAxisIndex = null;
+    }
   }
 
   @override
@@ -103,6 +122,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
   }
 
   void _handleTapUp(TapUpDetails details, double size, double radius) {
+    if (!widget.interactive) return;
     final center = Offset(size / 2, size / 2);
     final local = details.localPosition - center;
     if (local.distance > radius * 1.35) {
@@ -119,10 +139,28 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     });
   }
 
+  static double _radarSizeFor(
+    double maxWidth,
+    TitansTechnicalRadarVariant variant,
+  ) {
+    if (variant == TitansTechnicalRadarVariant.compact) {
+      if (maxWidth < 360) return 188.0;
+      if (maxWidth < 430) return 204.0;
+      return 216.0;
+    }
+    if (maxWidth < 360) return 214.0;
+    if (maxWidth < 430) return 232.0;
+    return 252.0;
+  }
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final hasEvidence = widget.axisEvidence.values.any((value) => value > 0);
+    final effectiveFocusedAxisIndex =
+        widget.interactive ? _focusedAxisIndex : null;
+    final effectivePreviousAxisEvidence =
+        widget.showGhostPolygon ? widget.previousAxisEvidence : null;
 
     return TitansPressableCard(
       accent: cs.tertiary,
@@ -131,12 +169,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
         children: [
           LayoutBuilder(
             builder: (context, constraints) {
-              final size =
-                  constraints.maxWidth < 360
-                      ? 214.0
-                      : constraints.maxWidth < 430
-                      ? 232.0
-                      : 252.0;
+              final size = _radarSizeFor(constraints.maxWidth, widget.variant);
               final radius = size * 0.31;
               return Center(
                 child: AnimatedBuilder(
@@ -145,10 +178,17 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
                     final progress = Curves.easeOutCubic.transform(
                       _entrance.value,
                     );
+                    final loopValue = widget.enableSweep ? _loop.value : 0.0;
                     final pulse =
-                        0.85 + 0.15 * math.sin(_loop.value * 2 * math.pi * 3);
+                        widget.enableSweep
+                            ? 0.85 +
+                                0.15 * math.sin(loopValue * 2 * math.pi * 3)
+                            : 1.0;
                     return GestureDetector(
-                      onTapUp: (d) => _handleTapUp(d, size, radius),
+                      onTapUp:
+                          widget.interactive
+                              ? (d) => _handleTapUp(d, size, radius)
+                              : null,
                       child: SizedBox(
                         width: size,
                         height: size,
@@ -156,11 +196,12 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
                           painter: _TechnicalRadarEvidencePainter(
                             cs,
                             axisEvidence: widget.axisEvidence,
-                            previousAxisEvidence: widget.previousAxisEvidence,
+                            previousAxisEvidence: effectivePreviousAxisEvidence,
                             progress: progress,
-                            sweepAngle: _loop.value * 2 * math.pi,
+                            sweepAngle: loopValue * 2 * math.pi,
                             pulse: pulse,
-                            focusedAxisIndex: _focusedAxisIndex,
+                            showSweep: widget.enableSweep,
+                            focusedAxisIndex: effectiveFocusedAxisIndex,
                           ),
                           child:
                               hasEvidence
@@ -174,7 +215,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
               );
             },
           ),
-          if (_focusedAxisIndex != null) ...[
+          if (widget.interactive && _focusedAxisIndex != null) ...[
             const SizedBox(height: 8),
             _RadarFocusDetail(
               axis: _axisOrder[_focusedAxisIndex!],
@@ -182,47 +223,53 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
               color: _axisColors[_focusedAxisIndex!],
             ),
           ],
-          const SizedBox(height: 10),
-          _RadarLegend(
-            items: [
-              _RadarLegendItem(color: cs.tertiary, label: 'Evidências'),
-              if (widget.previousAxisEvidence != null)
-                _RadarLegendItem(
-                  color: cs.onSurface.withValues(alpha: 0.4),
-                  label: 'Período anterior',
-                ),
-              if (widget.evidences.any(
-                (item) => item.label.toLowerCase().contains('avalia'),
-              ))
-                _RadarLegendItem(
-                  color: cs.secondary,
-                  label: 'Avaliações registradas',
-                ),
-            ],
-          ),
-          if (widget.evidences.isNotEmpty) ...[
+          if (widget.showLegend) ...[
+            const SizedBox(height: 10),
+            _RadarLegend(
+              items: [
+                _RadarLegendItem(color: cs.tertiary, label: 'Evidências'),
+                if (effectivePreviousAxisEvidence != null)
+                  _RadarLegendItem(
+                    color: cs.onSurface.withValues(alpha: 0.4),
+                    label: 'Período anterior',
+                  ),
+                if (widget.evidences.any(
+                  (item) => item.label.toLowerCase().contains('avalia'),
+                ))
+                  _RadarLegendItem(
+                    color: cs.secondary,
+                    label: 'Avaliações registradas',
+                  ),
+              ],
+            ),
+          ],
+          if (widget.showMetrics && widget.evidences.isNotEmpty) ...[
             const SizedBox(height: 12),
             _RadarEvidenceMetrics(items: widget.evidences),
           ],
           const SizedBox(height: 12),
           _RadarStatusLabel(label: widget.stateLabel),
-          const SizedBox(height: 8),
-          Text(
-            'Não representa nota ou desempenho.',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
+          if (widget.showSafetyCopy) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Não representa nota ou desempenho.',
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.58),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          _RadarEvidenceDistribution(
-            axisEvidence: widget.axisEvidence,
-            classifiedEvidenceCount: widget.classifiedEvidenceCount,
-            awaitingClassificationCount: widget.awaitingClassificationCount,
-          ),
+          ],
+          if (widget.showDistribution) ...[
+            const SizedBox(height: 12),
+            _RadarEvidenceDistribution(
+              axisEvidence: widget.axisEvidence,
+              classifiedEvidenceCount: widget.classifiedEvidenceCount,
+              awaitingClassificationCount: widget.awaitingClassificationCount,
+            ),
+          ],
         ],
       ),
     );
@@ -683,6 +730,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
   final double progress;
   final double sweepAngle;
   final double pulse;
+  final bool showSweep;
   final int? focusedAxisIndex;
 
   const _TechnicalRadarEvidencePainter(
@@ -692,6 +740,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     required this.progress,
     this.sweepAngle = 0,
     this.pulse = 1.0,
+    this.showSweep = true,
     this.focusedAxisIndex,
   });
 
@@ -785,6 +834,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
   /// Feixe rotativo translúcido — o motivo visual mais reconhecível de
   /// "radar". `sweepAngle` vem de um AnimationController em loop (0 a 2π).
   void _paintSweep(Canvas canvas, Offset center, double radius) {
+    if (!showSweep) return;
     if (sweepAngle == 0 && !_hasAnyEvidence()) return;
     final rect = Rect.fromCircle(center: center, radius: radius * 1.15);
     final sweepPaint =
@@ -819,7 +869,9 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
               ? 0.0
               : (0.16 + (values[i] / maxValue) * 0.78) * progress;
       final point = _point(center, radius * factor, i);
-      i == 0 ? path.moveTo(point.dx, point.dy) : path.lineTo(point.dx, point.dy);
+      i == 0
+          ? path.moveTo(point.dx, point.dy)
+          : path.lineTo(point.dx, point.dy);
     }
     path.close();
 
@@ -1006,6 +1058,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
         oldDelegate.progress != progress ||
         oldDelegate.sweepAngle != sweepAngle ||
         oldDelegate.pulse != pulse ||
+        oldDelegate.showSweep != showSweep ||
         oldDelegate.focusedAxisIndex != focusedAxisIndex;
   }
 }
