@@ -54,6 +54,7 @@ class TitansTechnicalRadar extends StatefulWidget {
   final bool showGhostPolygon;
   final bool showMetrics;
   final bool showSafetyCopy;
+  final bool contained;
 
   /// Liga a varredura rotativa contínua e o pulso de glow. Desligue em
   /// contextos de lista (ver nota de performance acima).
@@ -76,6 +77,7 @@ class TitansTechnicalRadar extends StatefulWidget {
     this.showGhostPolygon = true,
     this.showMetrics = true,
     this.showSafetyCopy = true,
+    this.contained = true,
     this.enableSweep = true,
   });
 
@@ -162,117 +164,115 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     final effectivePreviousAxisEvidence =
         widget.showGhostPolygon ? widget.previousAxisEvidence : null;
 
-    return TitansPressableCard(
-      accent: cs.tertiary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final size = _radarSizeFor(constraints.maxWidth, widget.variant);
-              final radius = size * 0.31;
-              return Center(
-                child: AnimatedBuilder(
-                  animation: Listenable.merge([_entrance, _loop]),
-                  builder: (context, _) {
-                    final progress = Curves.easeOutCubic.transform(
-                      _entrance.value,
-                    );
-                    final loopValue = widget.enableSweep ? _loop.value : 0.0;
-                    final pulse =
-                        widget.enableSweep
-                            ? 0.85 +
-                                0.15 * math.sin(loopValue * 2 * math.pi * 3)
-                            : 1.0;
-                    return GestureDetector(
-                      onTapUp:
-                          widget.interactive
-                              ? (d) => _handleTapUp(d, size, radius)
-                              : null,
-                      child: SizedBox(
-                        width: size,
-                        height: size,
-                        child: CustomPaint(
-                          painter: _TechnicalRadarEvidencePainter(
-                            cs,
-                            axisEvidence: widget.axisEvidence,
-                            previousAxisEvidence: effectivePreviousAxisEvidence,
-                            progress: progress,
-                            sweepAngle: loopValue * 2 * math.pi,
-                            pulse: pulse,
-                            showSweep: widget.enableSweep,
-                            focusedAxisIndex: effectiveFocusedAxisIndex,
-                          ),
-                          child:
-                              hasEvidence
-                                  ? null
-                                  : const _RadarEmptyCenterLabel(),
+    final content = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final size = _radarSizeFor(constraints.maxWidth, widget.variant);
+            final radius = size * 0.31;
+            return Center(
+              child: AnimatedBuilder(
+                animation: Listenable.merge([_entrance, _loop]),
+                builder: (context, _) {
+                  final progress = Curves.easeOutCubic.transform(
+                    _entrance.value,
+                  );
+                  final loopValue = widget.enableSweep ? _loop.value : 0.0;
+                  final pulse =
+                      widget.enableSweep
+                          ? 0.85 + 0.15 * math.sin(loopValue * 2 * math.pi * 3)
+                          : 1.0;
+                  return GestureDetector(
+                    onTapUp:
+                        widget.interactive
+                            ? (d) => _handleTapUp(d, size, radius)
+                            : null,
+                    child: SizedBox(
+                      width: size,
+                      height: size,
+                      child: CustomPaint(
+                        painter: _TechnicalRadarEvidencePainter(
+                          cs,
+                          axisEvidence: widget.axisEvidence,
+                          previousAxisEvidence: effectivePreviousAxisEvidence,
+                          progress: progress,
+                          sweepAngle: loopValue * 2 * math.pi,
+                          pulse: pulse,
+                          showSweep: widget.enableSweep,
+                          focusedAxisIndex: effectiveFocusedAxisIndex,
                         ),
+                        child:
+                            hasEvidence ? null : const _RadarEmptyCenterLabel(),
                       ),
-                    );
-                  },
-                ),
-              );
-            },
-          ),
-          if (widget.interactive && _focusedAxisIndex != null) ...[
-            const SizedBox(height: 8),
-            _RadarFocusDetail(
-              axis: _axisOrder[_focusedAxisIndex!],
-              value: widget.axisEvidence[_axisOrder[_focusedAxisIndex!]] ?? 0,
-              color: _axisColors[_focusedAxisIndex!],
-            ),
-          ],
-          if (widget.showLegend) ...[
-            const SizedBox(height: 10),
-            _RadarLegend(
-              items: [
-                _RadarLegendItem(color: cs.tertiary, label: 'Evidências'),
-                if (effectivePreviousAxisEvidence != null)
-                  _RadarLegendItem(
-                    color: cs.onSurface.withValues(alpha: 0.4),
-                    label: 'Período anterior',
-                  ),
-                if (widget.evidences.any(
-                  (item) => item.label.toLowerCase().contains('avalia'),
-                ))
-                  _RadarLegendItem(
-                    color: cs.secondary,
-                    label: 'Avaliações registradas',
-                  ),
-              ],
-            ),
-          ],
-          if (widget.showMetrics && widget.evidences.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _RadarEvidenceMetrics(items: widget.evidences),
-          ],
-          const SizedBox(height: 12),
-          _RadarStatusLabel(label: widget.stateLabel),
-          if (widget.showSafetyCopy) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Não representa nota ou desempenho.',
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.58),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
+                    ),
+                  );
+                },
               ),
-            ),
-          ],
-          if (widget.showDistribution) ...[
-            const SizedBox(height: 12),
-            _RadarEvidenceDistribution(
-              axisEvidence: widget.axisEvidence,
-              classifiedEvidenceCount: widget.classifiedEvidenceCount,
-              awaitingClassificationCount: widget.awaitingClassificationCount,
-            ),
-          ],
+            );
+          },
+        ),
+        if (widget.interactive && _focusedAxisIndex != null) ...[
+          const SizedBox(height: 8),
+          _RadarFocusDetail(
+            axis: _axisOrder[_focusedAxisIndex!],
+            value: widget.axisEvidence[_axisOrder[_focusedAxisIndex!]] ?? 0,
+            color: _axisColors[_focusedAxisIndex!],
+          ),
         ],
-      ),
+        if (widget.showLegend) ...[
+          const SizedBox(height: 10),
+          _RadarLegend(
+            items: [
+              _RadarLegendItem(color: cs.tertiary, label: 'Evidências'),
+              if (effectivePreviousAxisEvidence != null)
+                _RadarLegendItem(
+                  color: cs.onSurface.withValues(alpha: 0.4),
+                  label: 'Período anterior',
+                ),
+              if (widget.evidences.any(
+                (item) => item.label.toLowerCase().contains('avalia'),
+              ))
+                _RadarLegendItem(
+                  color: cs.secondary,
+                  label: 'Avaliações registradas',
+                ),
+            ],
+          ),
+        ],
+        if (widget.showMetrics && widget.evidences.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          _RadarEvidenceMetrics(items: widget.evidences),
+        ],
+        const SizedBox(height: 12),
+        _RadarStatusLabel(label: widget.stateLabel),
+        if (widget.showSafetyCopy) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Não representa nota ou desempenho.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ],
+        if (widget.showDistribution) ...[
+          const SizedBox(height: 12),
+          _RadarEvidenceDistribution(
+            axisEvidence: widget.axisEvidence,
+            classifiedEvidenceCount: widget.classifiedEvidenceCount,
+            awaitingClassificationCount: widget.awaitingClassificationCount,
+          ),
+        ],
+      ],
     );
+
+    if (!widget.contained) return content;
+
+    return TitansPressableCard(accent: cs.tertiary, child: content);
   }
 }
 

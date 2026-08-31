@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -20,6 +19,7 @@ import '../service/target_resolver.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_belt_status_card.dart';
+import '../widgets/charts/titans_technical_radar.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'add_training_session_screen.dart';
@@ -2697,17 +2697,8 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
-              final radarSize = _homeRadarSizeForWidth(
-                constraints.maxWidth,
-                desired: compact ? 160.0 : 176.0,
-              );
-              final visual = _HomeRadarVisualShell(
-                cs: cs,
-                size: radarSize,
-                child: CustomPaint(
-                  size: Size.square(radarSize),
-                  painter: _HomeTechnicalRadarInitialPainter(cs),
-                ),
+              final visual = const _HomeEmbeddedTechnicalRadar(
+                stateLabel: 'Mapa inicial',
               );
               final details = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2811,22 +2802,9 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
-              final radarSize = _homeRadarSizeForWidth(
-                constraints.maxWidth,
-                desired: compact ? 164.0 : 182.0,
-              );
-              final visual = _HomeRadarVisualShell(
-                cs: cs,
-                size: radarSize,
-                highlightedAxis: radar.topAxis,
-                child: CustomPaint(
-                  size: Size.square(radarSize),
-                  painter: _HomeTechnicalRadarFormationPainter(
-                    cs,
-                    axisEvidence: radar.axisEvidence,
-                    highlightedAxis: radar.topAxis,
-                  ),
-                ),
+              final visual = _HomeEmbeddedTechnicalRadar(
+                radar: radar,
+                stateLabel: 'Mapa técnico em formação',
               );
               final details = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -2944,22 +2922,9 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
-              final radarSize = _homeRadarSizeForWidth(
-                constraints.maxWidth,
-                desired: compact ? 168.0 : 190.0,
-              );
-              final radarVisual = _HomeRadarVisualShell(
-                cs: cs,
-                size: radarSize,
-                highlightedAxis: radar.topAxis,
-                child: CustomPaint(
-                  size: Size.square(radarSize),
-                  painter: _HomeTechnicalRadarPainter(
-                    cs,
-                    axisEvidence: radar.axisEvidence,
-                    highlightedAxis: radar.topAxis,
-                  ),
-                ),
+              final radarVisual = _HomeEmbeddedTechnicalRadar(
+                radar: radar,
+                stateLabel: 'Radar técnico ativo',
               );
               final radarDetails = Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3027,6 +2992,102 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
   }
 }
 
+class _HomeRadarCta extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onPressed;
+  final bool filled;
+
+  const _HomeRadarCta({
+    required this.label,
+    required this.icon,
+    required this.onPressed,
+    this.filled = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final child = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 17),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+        ),
+        if (!filled) ...[
+          const SizedBox(width: 4),
+          const Icon(Icons.arrow_forward_rounded, size: 16),
+        ],
+      ],
+    );
+
+    final cs = Theme.of(context).colorScheme;
+    final minimumSize = const Size.fromHeight(44);
+
+    if (filled) {
+      return SizedBox(
+        width: double.infinity,
+        child: FilledButton(
+          onPressed: onPressed,
+          style: FilledButton.styleFrom(
+            minimumSize: minimumSize,
+            backgroundColor: cs.secondary,
+            foregroundColor: Colors.black,
+          ),
+          child: child,
+        ),
+      );
+    }
+
+    return SizedBox(
+      width: double.infinity,
+      child: OutlinedButton(
+        onPressed: onPressed,
+        style: OutlinedButton.styleFrom(
+          minimumSize: minimumSize,
+          foregroundColor: cs.onSurface,
+          side: BorderSide(color: cs.secondary.withValues(alpha: 0.38)),
+          backgroundColor: cs.secondary.withValues(alpha: 0.07),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _HomeEmbeddedTechnicalRadar extends StatelessWidget {
+  final _HomeTechnicalRadarViewModel? radar;
+  final String stateLabel;
+
+  const _HomeEmbeddedTechnicalRadar({this.radar, required this.stateLabel});
+
+  @override
+  Widget build(BuildContext context) {
+    final data = radar;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 260),
+        child: TitansTechnicalRadar(
+          variant: TitansTechnicalRadarVariant.compact,
+          interactive: false,
+          enableSweep: false,
+          showDistribution: false,
+          showLegend: false,
+          showGhostPolygon: false,
+          showMetrics: false,
+          showSafetyCopy: false,
+          contained: false,
+          axisEvidence: data?.axisEvidence ?? const {},
+          classifiedEvidenceCount: data?.classifiedEvidenceCount ?? 0,
+          awaitingClassificationCount: data?.awaitingClassificationCount ?? 0,
+          stateLabel: stateLabel,
+        ),
+      ),
+    );
+  }
+}
+
 class _HomeRadarHeader extends StatelessWidget {
   final ColorScheme cs;
   final String badgeLabel;
@@ -3084,718 +3145,6 @@ class _HomeRadarHeader extends StatelessWidget {
     );
   }
 }
-
-class _HomeRadarVisualShell extends StatelessWidget {
-  final ColorScheme cs;
-  final double size;
-  final Widget child;
-  final TechnicalRadarAxis? highlightedAxis;
-
-  const _HomeRadarVisualShell({
-    required this.cs,
-    required this.size,
-    required this.child,
-    this.highlightedAxis,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final outerWidth = size + 132;
-    final outerHeight = size + 76;
-
-    return RepaintBoundary(
-      child: SizedBox(
-        width: outerWidth,
-        height: outerHeight,
-        child: Stack(
-          alignment: Alignment.center,
-          clipBehavior: Clip.none,
-          children: [
-            Positioned.fill(
-              child: CustomPaint(
-                painter: _HomeRadarOrbitPainter(
-                  cs: cs,
-                  radarSize: size,
-                  highlightedAxis: highlightedAxis,
-                ),
-              ),
-            ),
-            Center(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  gradient: RadialGradient(
-                    colors: [
-                      cs.primary.withValues(alpha: 0.20),
-                      cs.primary.withValues(alpha: 0.08),
-                      Colors.transparent,
-                    ],
-                    stops: const [0, 0.58, 1],
-                  ),
-                  border: Border.all(color: cs.primary.withValues(alpha: 0.24)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: cs.primary.withValues(alpha: 0.18),
-                      blurRadius: 30,
-                      spreadRadius: -8,
-                    ),
-                  ],
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(8),
-                  child: SizedBox.square(dimension: size, child: child),
-                ),
-              ),
-            ),
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _HomeRadarAxisEndpointLabel(
-                  cs: cs,
-                  axis: TechnicalRadarAxis.retention,
-                  selected: highlightedAxis == TechnicalRadarAxis.retention,
-                ),
-              ),
-            ),
-            Positioned(
-              right: 0,
-              top: (outerHeight - 28) / 2,
-              child: _HomeRadarAxisEndpointLabel(
-                cs: cs,
-                axis: TechnicalRadarAxis.transition,
-                selected: highlightedAxis == TechnicalRadarAxis.transition,
-              ),
-            ),
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: _HomeRadarAxisEndpointLabel(
-                  cs: cs,
-                  axis: TechnicalRadarAxis.control,
-                  selected: highlightedAxis == TechnicalRadarAxis.control,
-                ),
-              ),
-            ),
-            Positioned(
-              left: 0,
-              top: (outerHeight - 28) / 2,
-              child: _HomeRadarAxisEndpointLabel(
-                cs: cs,
-                axis: TechnicalRadarAxis.attack,
-                selected: highlightedAxis == TechnicalRadarAxis.attack,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeRadarOrbitPainter extends CustomPainter {
-  final ColorScheme cs;
-  final double radarSize;
-  final TechnicalRadarAxis? highlightedAxis;
-
-  const _HomeRadarOrbitPainter({
-    required this.cs,
-    required this.radarSize,
-    required this.highlightedAxis,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final orbitRadius = radarSize / 2 + 20;
-    final orbitPaint =
-        Paint()
-          ..color = cs.primary.withValues(alpha: 0.08)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.1;
-    final orbitGlowPaint =
-        Paint()
-          ..color = cs.primary.withValues(alpha: 0.06)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 7;
-
-    _paintHomeRadarPolygon(canvas, center, orbitRadius, orbitGlowPaint);
-    _paintHomeRadarPolygon(canvas, center, orbitRadius, orbitPaint);
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final axisColor =
-          axis == highlightedAxis
-              ? cs.secondary
-              : _homeRadarAxisColor(axis, cs);
-      final start = _homeRadarPoint(center, radarSize / 2 + 6, i);
-      final end = _homeRadarPoint(center, orbitRadius - 8, i);
-      final selected = axis == highlightedAxis;
-
-      canvas.drawLine(
-        start,
-        end,
-        Paint()
-          ..color = axisColor.withValues(alpha: selected ? 0.34 : 0.14)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = selected ? 2.0 : 1.0,
-      );
-      canvas.drawCircle(
-        end,
-        selected ? 4.6 : 3.2,
-        Paint()..color = axisColor.withValues(alpha: selected ? 0.70 : 0.32),
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _HomeRadarOrbitPainter oldDelegate) {
-    return oldDelegate.cs != cs ||
-        oldDelegate.radarSize != radarSize ||
-        oldDelegate.highlightedAxis != highlightedAxis;
-  }
-}
-
-class _HomeRadarAxisEndpointLabel extends StatelessWidget {
-  final ColorScheme cs;
-  final TechnicalRadarAxis axis;
-  final bool selected;
-
-  const _HomeRadarAxisEndpointLabel({
-    required this.cs,
-    required this.axis,
-    required this.selected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final accent = selected ? cs.secondary : _homeRadarAxisColor(axis, cs);
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 62, maxWidth: 74),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              accent.withValues(alpha: selected ? 0.20 : 0.09),
-              accent.withValues(alpha: selected ? 0.07 : 0.025),
-            ],
-          ),
-          border: Border.all(
-            color: accent.withValues(alpha: selected ? 0.62 : 0.26),
-          ),
-          boxShadow:
-              selected
-                  ? [
-                    BoxShadow(
-                      color: accent.withValues(alpha: 0.20),
-                      blurRadius: 16,
-                      spreadRadius: -7,
-                    ),
-                  ]
-                  : const [],
-        ),
-        child: SizedBox(
-          height: 26,
-          child: Center(
-            child: Text(
-              axis.displayLabel,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color:
-                    selected
-                        ? cs.secondary
-                        : cs.onSurface.withValues(alpha: 0.78),
-                fontSize: 10.3,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _HomeRadarCta extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onPressed;
-  final bool filled;
-
-  const _HomeRadarCta({
-    required this.label,
-    required this.icon,
-    required this.onPressed,
-    this.filled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final child = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 17),
-        const SizedBox(width: 8),
-        Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        if (!filled) ...[
-          const SizedBox(width: 4),
-          const Icon(Icons.arrow_forward_rounded, size: 16),
-        ],
-      ],
-    );
-
-    final cs = Theme.of(context).colorScheme;
-    final minimumSize = const Size.fromHeight(44);
-
-    if (filled) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: onPressed,
-          style: FilledButton.styleFrom(
-            minimumSize: minimumSize,
-            backgroundColor: cs.secondary,
-            foregroundColor: Colors.black,
-          ),
-          child: child,
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: minimumSize,
-          foregroundColor: cs.onSurface,
-          side: BorderSide(color: cs.secondary.withValues(alpha: 0.38)),
-          backgroundColor: cs.secondary.withValues(alpha: 0.07),
-        ),
-        child: child,
-      ),
-    );
-  }
-}
-
-class _HomeTechnicalRadarInitialPainter extends CustomPainter {
-  final ColorScheme cs;
-
-  const _HomeTechnicalRadarInitialPainter(this.cs);
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
-    final glowPaint =
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              cs.primary.withValues(alpha: 0.18),
-              cs.primary.withValues(alpha: 0),
-            ],
-          ).createShader(
-            Rect.fromCircle(center: center, radius: radius * 1.16),
-          );
-    final gridPaint =
-        Paint()
-          ..color = cs.onSurface.withValues(alpha: 0.12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-    final softGridPaint =
-        Paint()
-          ..color = cs.primary.withValues(alpha: 0.11)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.2;
-    final axisPaint =
-        Paint()
-          ..color = cs.onSurface.withValues(alpha: 0.18)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2;
-
-    canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
-      _paintHomeRadarPolygon(
-        canvas,
-        center,
-        radius * step,
-        step == 1.0 ? softGridPaint : gridPaint,
-      );
-    }
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final axisColor = _homeRadarAxisColor(axis, cs);
-      final end = _homeRadarPoint(center, radius, i);
-      canvas.drawLine(center, end, axisPaint);
-      canvas.drawCircle(
-        end,
-        7.2,
-        Paint()..color = axisColor.withValues(alpha: 0.10),
-      );
-      canvas.drawCircle(
-        end,
-        3.9,
-        Paint()..color = axisColor.withValues(alpha: 0.50),
-      );
-    }
-
-    canvas.drawCircle(
-      center,
-      5.8,
-      Paint()..color = cs.primary.withValues(alpha: 0.16),
-    );
-    canvas.drawCircle(
-      center,
-      3.2,
-      Paint()..color = cs.primary.withValues(alpha: 0.72),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _HomeTechnicalRadarInitialPainter oldDelegate) {
-    return oldDelegate.cs != cs;
-  }
-}
-
-class _HomeTechnicalRadarFormationPainter extends CustomPainter {
-  final ColorScheme cs;
-  final Map<TechnicalRadarAxis, int> axisEvidence;
-  final TechnicalRadarAxis? highlightedAxis;
-
-  const _HomeTechnicalRadarFormationPainter(
-    this.cs, {
-    required this.axisEvidence,
-    required this.highlightedAxis,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
-    final glowPaint =
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              cs.primary.withValues(alpha: 0.16),
-              cs.secondary.withValues(alpha: 0.05),
-              cs.primary.withValues(alpha: 0),
-            ],
-            stops: const [0, 0.58, 1],
-          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2));
-    final gridPaint =
-        Paint()
-          ..color = cs.onSurface.withValues(alpha: 0.10)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-    final outerGridPaint =
-        Paint()
-          ..color = cs.primary.withValues(alpha: 0.12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.2;
-
-    canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
-      _paintHomeRadarPolygon(
-        canvas,
-        center,
-        radius * step,
-        step == 1.0 ? outerGridPaint : gridPaint,
-      );
-    }
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final axisColor = _homeRadarAxisColor(axis, cs);
-      final end = _homeRadarPoint(center, radius, i);
-      final hasEvidence = (axisEvidence[axis] ?? 0) > 0;
-      final isHighlighted = axis == highlightedAxis && hasEvidence;
-      final lineColor = isHighlighted ? cs.secondary : axisColor;
-      final lineAlpha = isHighlighted ? 0.72 : (hasEvidence ? 0.34 : 0.16);
-
-      canvas.drawLine(
-        center,
-        end,
-        Paint()
-          ..color = lineColor.withValues(alpha: lineAlpha)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = isHighlighted ? 2.2 : 1.2,
-      );
-      if (isHighlighted) {
-        canvas.drawLine(
-          center,
-          end,
-          Paint()
-            ..color = cs.secondary.withValues(alpha: 0.12)
-            ..style = PaintingStyle.stroke
-            ..strokeWidth = 7,
-        );
-      }
-      canvas.drawCircle(
-        end,
-        isHighlighted ? 8.6 : 6.4,
-        Paint()
-          ..color = lineColor.withValues(alpha: isHighlighted ? 0.18 : 0.08),
-      );
-      canvas.drawCircle(
-        end,
-        isHighlighted ? 4.8 : 3.2,
-        Paint()
-          ..color = lineColor.withValues(alpha: isHighlighted ? 0.94 : 0.36),
-      );
-      if (!hasEvidence) {
-        final lockedPoint = _homeRadarPoint(center, radius * 0.58, i);
-        canvas.drawCircle(
-          lockedPoint,
-          2.1,
-          Paint()..color = cs.onSurface.withValues(alpha: 0.16),
-        );
-      }
-    }
-
-    canvas.drawCircle(
-      center,
-      5.4,
-      Paint()..color = cs.primary.withValues(alpha: 0.14),
-    );
-    canvas.drawCircle(
-      center,
-      3.2,
-      Paint()..color = cs.primary.withValues(alpha: 0.70),
-    );
-  }
-
-  @override
-  bool shouldRepaint(
-    covariant _HomeTechnicalRadarFormationPainter oldDelegate,
-  ) {
-    return oldDelegate.cs != cs ||
-        oldDelegate.axisEvidence != axisEvidence ||
-        oldDelegate.highlightedAxis != highlightedAxis;
-  }
-}
-
-class _HomeTechnicalRadarPainter extends CustomPainter {
-  final ColorScheme cs;
-  final Map<TechnicalRadarAxis, int> axisEvidence;
-  final TechnicalRadarAxis? highlightedAxis;
-
-  const _HomeTechnicalRadarPainter(
-    this.cs, {
-    required this.axisEvidence,
-    required this.highlightedAxis,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
-    final radius = math.max(0.0, math.min(size.width, size.height) / 2 - 16);
-    final maxEvidence = _homeRadarMaxEvidence(axisEvidence);
-    final glowPaint =
-        Paint()
-          ..shader = RadialGradient(
-            colors: [
-              cs.primary.withValues(alpha: 0.18),
-              cs.secondary.withValues(alpha: 0.06),
-              cs.primary.withValues(alpha: 0),
-            ],
-            stops: const [0, 0.56, 1],
-          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.2));
-    final gridPaint =
-        Paint()
-          ..color = cs.onSurface.withValues(alpha: 0.12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1;
-    final outerGridPaint =
-        Paint()
-          ..color = cs.primary.withValues(alpha: 0.12)
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 4.2;
-
-    canvas.drawCircle(center, radius * 1.12, glowPaint);
-    for (final step in const [0.2, 0.4, 0.6, 0.8, 1.0]) {
-      _paintHomeRadarPolygon(
-        canvas,
-        center,
-        radius * step,
-        step == 1.0 ? outerGridPaint : gridPaint,
-      );
-    }
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final axisColor = _homeRadarAxisColor(axis, cs);
-      final point = _homeRadarPoint(center, radius, i);
-      final isHighlighted = axis == highlightedAxis;
-      canvas.drawLine(
-        center,
-        point,
-        Paint()
-          ..color = (isHighlighted ? cs.secondary : axisColor).withValues(
-            alpha: isHighlighted ? 0.58 : 0.32,
-          )
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = isHighlighted ? 1.8 : 1.15,
-      );
-    }
-
-    final path = Path();
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final value = axisEvidence[axis] ?? 0;
-      final factor = value <= 0 ? 0.0 : 0.16 + (value / maxEvidence) * 0.78;
-      final point = _homeRadarPoint(center, radius * factor, i);
-      if (i == 0) {
-        path.moveTo(point.dx, point.dy);
-      } else {
-        path.lineTo(point.dx, point.dy);
-      }
-    }
-    path.close();
-
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = cs.primary.withValues(alpha: 0.16)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 6,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..shader = RadialGradient(
-          colors: [
-            cs.primary.withValues(alpha: 0.26),
-            cs.secondary.withValues(alpha: 0.10),
-          ],
-        ).createShader(Rect.fromCircle(center: center, radius: radius))
-        ..style = PaintingStyle.fill,
-    );
-    canvas.drawPath(
-      path,
-      Paint()
-        ..color = cs.primary.withValues(alpha: 0.86)
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.2,
-    );
-
-    for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-      final axis = _homeTechnicalRadarAxisOrder[i];
-      final value = axisEvidence[axis] ?? 0;
-      final hasEvidence = value > 0;
-      final factor = hasEvidence ? 0.16 + (value / maxEvidence) * 0.78 : 0.0;
-      final point = _homeRadarPoint(center, radius * factor, i);
-      final axisColor = _homeRadarAxisColor(axis, cs);
-      final isHighlighted = axis == highlightedAxis && hasEvidence;
-      final nodeColor = isHighlighted ? cs.secondary : axisColor;
-
-      canvas.drawCircle(
-        point,
-        isHighlighted ? 9.4 : (hasEvidence ? 7.2 : 3.0),
-        Paint()
-          ..color = nodeColor.withValues(alpha: isHighlighted ? 0.20 : 0.12),
-      );
-      canvas.drawCircle(
-        point,
-        isHighlighted ? 5.2 : (hasEvidence ? 4.2 : 2.4),
-        Paint()..color = nodeColor.withValues(alpha: hasEvidence ? 0.92 : 0.18),
-      );
-    }
-
-    canvas.drawCircle(
-      center,
-      5.8,
-      Paint()..color = cs.primary.withValues(alpha: 0.14),
-    );
-    canvas.drawCircle(
-      center,
-      3.2,
-      Paint()..color = cs.primary.withValues(alpha: 0.74),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _HomeTechnicalRadarPainter oldDelegate) {
-    return oldDelegate.cs != cs ||
-        oldDelegate.axisEvidence != axisEvidence ||
-        oldDelegate.highlightedAxis != highlightedAxis;
-  }
-}
-
-void _paintHomeRadarPolygon(
-  Canvas canvas,
-  Offset center,
-  double radius,
-  Paint paint,
-) {
-  final path = Path();
-  for (var i = 0; i < _homeTechnicalRadarAxisOrder.length; i++) {
-    final point = _homeRadarPoint(center, radius, i);
-    if (i == 0) {
-      path.moveTo(point.dx, point.dy);
-    } else {
-      path.lineTo(point.dx, point.dy);
-    }
-  }
-  canvas.drawPath(path..close(), paint);
-}
-
-Offset _homeRadarPoint(Offset center, double radius, int index) {
-  final angle = _homeRadarAngle(index);
-  return center + Offset(math.cos(angle), math.sin(angle)) * radius;
-}
-
-Color _homeRadarAxisColor(TechnicalRadarAxis axis, ColorScheme cs) {
-  final index = _homeTechnicalRadarAxisOrder.indexOf(axis);
-  if (index < 0) return cs.primary;
-  return _homeTechnicalRadarAxisColors[index];
-}
-
-int _homeRadarMaxEvidence(Map<TechnicalRadarAxis, int> axisEvidence) {
-  return axisEvidence.values.fold<int>(
-    1,
-    (max, value) => value > max ? value : max,
-  );
-}
-
-const _homeTechnicalRadarAxisColors = <Color>[
-  Color(0xFF4CC9F0),
-  Color(0xFFE9C46A),
-  Color(0xFFB026FF),
-  Color(0xFF2D6BFF),
-];
-double _homeRadarSizeForWidth(double maxWidth, {required double desired}) {
-  if (!maxWidth.isFinite) return desired;
-  const horizontalLabelReserve = 132.0;
-  const minimumReadableSize = 140.0;
-  final availableForCanvas = maxWidth - horizontalLabelReserve;
-  if (availableForCanvas <= minimumReadableSize) {
-    return math.max(128.0, availableForCanvas);
-  }
-  return math
-      .min(desired, availableForCanvas)
-      .clamp(minimumReadableSize, desired);
-}
-
-double _homeRadarAngle(int index) {
-  return -math.pi / 2 +
-      index * (math.pi * 2 / _homeTechnicalRadarAxisOrder.length);
-}
-
-const _homeTechnicalRadarAxisOrder = <TechnicalRadarAxis>[
-  TechnicalRadarAxis.retention,
-  TechnicalRadarAxis.transition,
-  TechnicalRadarAxis.control,
-  TechnicalRadarAxis.attack,
-];
 
 class _CoachActiveLiteModules extends StatelessWidget {
   final ColorScheme cs;
