@@ -3,7 +3,8 @@ import 'package:flutter/material.dart';
 class ThemeController extends ChangeNotifier {
   ThemeMode _mode;
 
-  ThemeController({ThemeMode initialMode = ThemeMode.dark}) : _mode = initialMode;
+  ThemeController({ThemeMode initialMode = ThemeMode.dark})
+    : _mode = initialMode;
 
   ThemeMode get mode => _mode;
 
@@ -20,3 +21,7 @@ class ThemeController extends ChangeNotifier {
     notifyListeners();
   }
 }
+
+final ThemeController themeController = ThemeController(
+  initialMode: ThemeMode.dark,
+);

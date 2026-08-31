@@ -24,10 +24,6 @@ import 'service/session_lifecycle.dart';
 import 'service/user_session.dart';
 import 'widgets/academy_branding.dart';
 
-final ThemeController themeController = ThemeController(
-  initialMode: ThemeMode.dark,
-);
-
 // ✅ Controller global do aluno selecionado (mestre)
 final SelectedStudentController selectedStudentController =
     SelectedStudentController();
