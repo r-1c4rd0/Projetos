@@ -14,10 +14,7 @@ class GetHomeDashboardSummary {
     this.getGameMapEvidenceSummary = const GetGameMapEvidenceSummary(),
   });
 
-  HomeDashboardSummary call(
-    List<TrainingSession> sessions, {
-    DateTime? now,
-  }) {
+  HomeDashboardSummary call(List<TrainingSession> sessions, {DateTime? now}) {
     final stableSessions = List<TrainingSession>.unmodifiable(sessions);
     final recentSessions = List<TrainingSession>.unmodifiable(
       stableSessions.reversed.take(10),
