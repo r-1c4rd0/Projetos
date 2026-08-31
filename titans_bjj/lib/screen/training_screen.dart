@@ -490,7 +490,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (loggedUser.uid == target.uid || canManage);
   }
 
-
   Future<void> _openTrainingForm({
     required String academyId,
     required String uid,
