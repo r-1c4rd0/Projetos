@@ -3,11 +3,12 @@ import 'package:fl_chart/fl_chart.dart';
 
 import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
+import '../features/training/application/training_use_cases.dart';
+import '../features/training/domain/training_models.dart';
 import '../model/app_user.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 import '../service/target_resolver.dart';
-import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/titans_feedback.dart';
@@ -35,7 +36,7 @@ class TrainingScreen extends StatefulWidget {
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
-  _TrainingChartPeriod _period = _TrainingChartPeriod.thirtyDays;
+  TrainingChartPeriod _period = TrainingChartPeriod.thirtyDays;
   String? _expandedSessionId;
   final _historySearchController = TextEditingController();
   _TrainingHistoryPeriodFilter _historyPeriod =
@@ -47,8 +48,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
   String? _historyPositionFilter;
   String? _historyTechniqueFilter;
   int _visibleHistoryCount = 20;
-  String? _historyItemsCacheKey;
-  List<_TrainingSessionViewModel> _historyItemsCache = const [];
+  String? _trainingDashboardCacheKey;
+  TrainingDashboardSummary? _trainingDashboardCache;
+  late final GetTrainingDashboardSummary _getTrainingDashboardSummary =
+      const GetTrainingDashboardSummary();
 
   late final TrainingRepository _repo = TrainingRepository.instance;
 
@@ -89,7 +92,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 
   Future<void> _showHistoryFilters(
-    List<_TrainingSessionViewModel> items,
+    List<TrainingSessionHistoryItem> items,
   ) async {
     final filters = await showModalBottomSheet<_TrainingHistoryFilters>(
       context: context,
@@ -116,32 +119,36 @@ class _TrainingScreenState extends State<TrainingScreen> {
     _applyHistoryFilters(filters);
   }
 
-  List<_TrainingSessionViewModel> _historyItemsFor({
+  TrainingDashboardSummary _trainingDashboardFor({
     required String academyId,
     required String uid,
     required List<TrainingSession> sessions,
+    required TrainingChartPeriod selectedPeriod,
   }) {
-    final cacheKey = _historySessionsSignature(
+    final cacheKey = _trainingDashboardSignature(
       academyId: academyId,
       uid: uid,
+      selectedPeriod: selectedPeriod,
       sessions: sessions,
     );
-    if (_historyItemsCacheKey == cacheKey) {
-      return _historyItemsCache;
+    final cached = _trainingDashboardCache;
+    if (_trainingDashboardCacheKey == cacheKey && cached != null) {
+      return cached;
     }
 
-    final sorted = List<TrainingSession>.from(sessions)
-      ..sort((a, b) => b.date.compareTo(a.date));
-    _historyItemsCacheKey = cacheKey;
-    _historyItemsCache = List<_TrainingSessionViewModel>.unmodifiable(
-      sorted.map(_TrainingSessionViewModel.fromSession),
+    final next = _getTrainingDashboardSummary(
+      sessions,
+      selectedPeriod: selectedPeriod,
     );
-    return _historyItemsCache;
+    _trainingDashboardCacheKey = cacheKey;
+    _trainingDashboardCache = next;
+    return next;
   }
 
-  String _historySessionsSignature({
+  String _trainingDashboardSignature({
     required String academyId,
     required String uid,
+    required TrainingChartPeriod selectedPeriod,
     required List<TrainingSession> sessions,
   }) {
     final sessionParts = <String>[];
@@ -226,6 +233,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
           ..write(academyId)
           ..write('|')
           ..write(uid)
+          ..write('|period:')
+          ..write(selectedPeriod.name)
           ..write('|count:')
           ..write(sessions.length);
     for (final part in sessionParts) {
@@ -242,8 +251,8 @@ class _TrainingScreenState extends State<TrainingScreen> {
 
     _streamAcademyId = academyId;
     _streamUid = uid;
-    _historyItemsCacheKey = null;
-    _historyItemsCache = const [];
+    _trainingDashboardCacheKey = null;
+    _trainingDashboardCache = null;
     _sessionsStream = _repo.watchSessions(academyId: academyId, uid: uid);
   }
 
@@ -321,24 +330,17 @@ class _TrainingScreenState extends State<TrainingScreen> {
           }
 
           final rawSessions = snap.data ?? const <TrainingSession>[];
-          final sessions = List<TrainingSession>.from(rawSessions)
-            ..sort((a, b) => a.date.compareTo(b.date));
-          final historyItems = _historyItemsFor(
+          final dashboard = _trainingDashboardFor(
             academyId: academyId,
             uid: uid,
             sessions: rawSessions,
-          );
-
-          final chart = _TrainingChartViewModel.from(
-            sessions: sessions,
             selectedPeriod: _period,
           );
-          final periodSessions = _filterSessionsForPeriod(sessions, _period);
-          final summary = _buildTrainingSummary(periodSessions);
-          final lastTrainingLabel =
-              sessions.isEmpty
-                  ? 'Último treino: sem registro'
-                  : 'Último treino: ${_smartDateLabel(sessions.last.date)}';
+          final sessions = dashboard.sortedSessions;
+          final historyItems = dashboard.historyItems;
+          final chart = dashboard.chart;
+          final summary = dashboard.overview;
+          final lastTrainingLabel = dashboard.lastTrainingLabel;
 
           final listPadding =
               widget.embedded
@@ -348,7 +350,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
           return ListView(
             padding: listPadding,
             children: [
-              _TrainingSummaryCard(
+              TrainingOverviewSummaryCard(
                 summary: summary,
                 lastTrainingLabel: lastTrainingLabel,
                 period: _period,
@@ -374,7 +376,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
               _TrainingExpandableSection(
                 title: 'Registros de treino',
                 subtitle:
-                    '${_trainingCountLabel(sessions.length)} • $lastTrainingLabel',
+                    '${trainingCountLabel(sessions.length)} • $lastTrainingLabel',
                 child: SizedBox(
                   width: double.infinity,
                   child: _TrainingHistoryPanel(
@@ -488,7 +490,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (loggedUser.uid == target.uid || canManage);
   }
 
-  static String _fmt2(int n) => n.toString().padLeft(2, '0');
 
   Future<void> _openTrainingForm({
     required String academyId,
@@ -504,50 +505,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
               session: session,
             ),
       ),
-    );
-  }
-
-  List<TrainingSession> _filterSessionsForPeriod(
-    List<TrainingSession> sessions,
-    _TrainingChartPeriod period,
-  ) {
-    final now = DateTime.now();
-    final window = _TrainingChartWindow.forPeriod(period, now);
-    return sessions.where((session) {
-      final date = _dateOnly(session.date);
-      return !date.isBefore(window.start) && !date.isAfter(window.end);
-    }).toList();
-  }
-
-  _TrainingSummary _buildTrainingSummary(List<TrainingSession> sessions) {
-    final techniqueKeys = <String>{};
-    var intensitySum = 0;
-    var intensityCount = 0;
-    var applicationCount = 0;
-
-    for (final session in sessions) {
-      for (final entry in session.effectiveTechniqueEntries) {
-        final technique = _cleanDisplayText(entry.technique);
-        if (technique != null) techniqueKeys.add(technique.toLowerCase());
-      }
-
-      final intensity = session.intensity;
-      if (intensity != null && intensity >= 1 && intensity <= 5) {
-        intensitySum += intensity;
-        intensityCount++;
-      }
-
-      if (_sessionHasMeasuredApplication(session)) {
-        applicationCount++;
-      }
-    }
-
-    return _TrainingSummary(
-      total: sessions.length,
-      techniques: techniqueKeys.length,
-      averageIntensity:
-          intensityCount == 0 ? null : intensitySum / intensityCount,
-      applicationCount: applicationCount,
     );
   }
 }
@@ -650,29 +607,16 @@ class _TrainingExpandableSectionState
   }
 }
 
-class _TrainingSummary {
-  final int total;
-  final int techniques;
-  final double? averageIntensity;
-  final int applicationCount;
-
-  const _TrainingSummary({
-    required this.total,
-    required this.techniques,
-    required this.averageIntensity,
-    required this.applicationCount,
-  });
-}
-
-class _TrainingSummaryCard extends StatelessWidget {
-  final _TrainingSummary summary;
+class TrainingOverviewSummaryCard extends StatelessWidget {
+  final TrainingOverviewSummary summary;
   final String lastTrainingLabel;
-  final _TrainingChartPeriod period;
-  final ValueChanged<_TrainingChartPeriod> onPeriodChanged;
+  final TrainingChartPeriod period;
+  final ValueChanged<TrainingChartPeriod> onPeriodChanged;
   final bool canAddTraining;
   final VoidCallback? onAddTraining;
 
-  const _TrainingSummaryCard({
+  const TrainingOverviewSummaryCard({
+    super.key,
     required this.summary,
     required this.lastTrainingLabel,
     required this.period,
@@ -793,7 +737,7 @@ class _TrainingSummaryCard extends StatelessWidget {
           const SizedBox(height: 12),
           _PeriodFilter(
             period: period,
-            periods: _TrainingChartPeriodOption.defaults,
+            periods: TrainingChartPeriodOption.defaults,
             onChanged: onPeriodChanged,
           ),
         ],
@@ -855,9 +799,9 @@ class _SummaryMetric extends StatelessWidget {
 }
 
 class _PeriodFilter extends StatelessWidget {
-  final _TrainingChartPeriod period;
-  final List<_TrainingChartPeriodOption> periods;
-  final ValueChanged<_TrainingChartPeriod> onChanged;
+  final TrainingChartPeriod period;
+  final List<TrainingChartPeriodOption> periods;
+  final ValueChanged<TrainingChartPeriod> onChanged;
 
   const _PeriodFilter({
     required this.period,
@@ -945,179 +889,8 @@ class _PeriodChip extends StatelessWidget {
   }
 }
 
-bool _sessionHasMeasuredApplication(TrainingSession session) {
-  for (final entry in session.effectiveTechniqueEntries) {
-    final applicationContext =
-        _cleanDisplayText(entry.applicationContext) ??
-        _cleanDisplayText(session.applicationContext);
-    final techniqueOutcome =
-        _cleanDisplayText(entry.techniqueOutcome) ??
-        _cleanDisplayText(session.techniqueOutcome);
-
-    if (TrainingSession.isApplicationContextMeasured(applicationContext) ||
-        TrainingSession.isTechniqueOutcomeUseful(techniqueOutcome)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-List<_TrainingTechniqueDisplayEntry> _trainingTechniqueDisplayEntries(
-  TrainingSession session,
-) {
-  return session.effectiveTechniqueEntries
-      .map((entry) {
-        final technique = _cleanDisplayText(entry.technique);
-        if (technique == null) return null;
-
-        final position =
-            _cleanDisplayText(entry.position) ??
-            _cleanDisplayText(session.position);
-        final applicationContext =
-            _cleanDisplayText(entry.applicationContext) ??
-            _cleanDisplayText(session.applicationContext);
-        final techniqueOutcome =
-            _cleanDisplayText(entry.techniqueOutcome) ??
-            _cleanDisplayText(session.techniqueOutcome);
-        final notes = _cleanDisplayText(entry.notes);
-
-        return _TrainingTechniqueDisplayEntry(
-          technique: technique,
-          position: position,
-          applicationContext: applicationContext,
-          techniqueOutcome: techniqueOutcome,
-          notes: notes,
-        );
-      })
-      .whereType<_TrainingTechniqueDisplayEntry>()
-      .toList();
-}
-
-class _TrainingTechniqueDisplayEntry {
-  final String technique;
-  final String? position;
-  final String? applicationContext;
-  final String? techniqueOutcome;
-  final String? notes;
-
-  const _TrainingTechniqueDisplayEntry({
-    required this.technique,
-    required this.position,
-    required this.applicationContext,
-    required this.techniqueOutcome,
-    required this.notes,
-  });
-
-  String get label {
-    final positionLabel = position;
-    if (positionLabel == null) return technique;
-    return '$technique em $positionLabel';
-  }
-}
-
-class _TrainingSessionViewModel {
-  final TrainingSession session;
-  final String id;
-  final DateTime date;
-  final String dateLabel;
-  final String contextLabel;
-  final String summary;
-  final List<_TrainingTechniqueDisplayEntry> techniques;
-  final List<String> positions;
-  final List<String> techniqueNames;
-  final Set<String> positionKeys;
-  final Set<String> techniqueKeys;
-  final Set<_TrainingHistoryContextFilter> contextBuckets;
-  final _TrainingHistoryResultFilter resultBucket;
-  final String searchText;
-
-  const _TrainingSessionViewModel({
-    required this.session,
-    required this.id,
-    required this.date,
-    required this.dateLabel,
-    required this.contextLabel,
-    required this.summary,
-    required this.techniques,
-    required this.positions,
-    required this.techniqueNames,
-    required this.positionKeys,
-    required this.techniqueKeys,
-    required this.contextBuckets,
-    required this.resultBucket,
-    required this.searchText,
-  });
-
-  factory _TrainingSessionViewModel.fromSession(TrainingSession session) {
-    final techniques = List<_TrainingTechniqueDisplayEntry>.unmodifiable(
-      _trainingTechniqueDisplayEntries(session),
-    );
-    final dateLabel = _smartDateLabel(session.date);
-    final primaryNote = _primarySessionNote(session);
-    final summary =
-        primaryNote?.text ??
-        _cleanDisplayText(session.notes) ??
-        'Sem resumo informado';
-    final contextLabel = _sessionContextLabel(session, techniques);
-    final positions = _dedupeDisplayValues(
-      techniques.map((entry) => entry.position).whereType<String>(),
-    );
-    final techniqueNames = _dedupeDisplayValues(
-      techniques.map((entry) => entry.technique),
-    );
-    final searchParts = <String>[
-      dateLabel,
-      _placeLabel(session.place),
-      contextLabel,
-      summary,
-      if (session.notes != null) session.notes!,
-      if (session.successes != null) session.successes!,
-      if (session.difficulties != null) session.difficulties!,
-      if (session.debriefNotes != null) session.debriefNotes!,
-      for (final entry in techniques) ...[
-        entry.technique,
-        if (entry.position != null) entry.position!,
-        if (entry.applicationContext != null)
-          TrainingAggregator.applicationContextLabel(
-                entry.applicationContext,
-              ) ??
-              entry.applicationContext!,
-        if (entry.techniqueOutcome != null)
-          TrainingAggregator.techniqueOutcomeLabel(entry.techniqueOutcome) ??
-              entry.techniqueOutcome!,
-        if (entry.notes != null) entry.notes!,
-      ],
-    ];
-
-    return _TrainingSessionViewModel(
-      session: session,
-      id: session.id,
-      date: session.date,
-      dateLabel: dateLabel,
-      contextLabel: contextLabel,
-      summary: summary,
-      techniques: techniques,
-      positions: positions,
-      techniqueNames: techniqueNames,
-      positionKeys: positions.map(_historyKey).toSet(),
-      techniqueKeys: techniqueNames.map(_historyKey).toSet(),
-      contextBuckets: _contextBucketsFor(session, techniques),
-      resultBucket: _resultBucketFor(techniques),
-      searchText: searchParts.map(_historyKey).join(' '),
-    );
-  }
-
-  int get techniqueCount => techniques.length;
-
-  String get techniqueCountLabel {
-    if (techniqueCount == 0) return 'Sem tecnica';
-    return TrainingAggregator.techniqueCountLabel(techniqueCount);
-  }
-}
-
 class _TrainingHistoryPanel extends StatelessWidget {
-  final List<_TrainingSessionViewModel> items;
+  final List<TrainingSessionHistoryItem> items;
   final TextEditingController searchController;
   final _TrainingHistoryPeriodFilter period;
   final _TrainingHistoryResultFilter result;
@@ -1135,8 +908,8 @@ class _TrainingHistoryPanel extends StatelessWidget {
   final VoidCallback onClearPosition;
   final VoidCallback onClearTechnique;
   final VoidCallback onLoadMore;
-  final ValueChanged<_TrainingSessionViewModel> onToggle;
-  final Future<void> Function(_TrainingSessionViewModel item)? onEdit;
+  final ValueChanged<TrainingSessionHistoryItem> onToggle;
+  final Future<void> Function(TrainingSessionHistoryItem item)? onEdit;
   final Future<void> Function()? onAddTraining;
 
   const _TrainingHistoryPanel({
@@ -1280,31 +1053,37 @@ class _TrainingHistoryPanel extends StatelessWidget {
     );
   }
 
-  List<_TrainingSessionViewModel> _filteredItems() {
-    final query = _historyKey(searchController.text);
+  List<TrainingSessionHistoryItem> _filteredItems() {
+    final query = trainingHistoryKey(searchController.text);
     final now = DateTime.now();
     return items
         .where((item) {
           if (query.isNotEmpty && !item.searchText.contains(query)) {
             return false;
           }
-          if (!_matchesPeriod(item.date, period, now)) return false;
+          if (!matchesTrainingHistoryPeriod(
+            item.date,
+            period.domainPeriod,
+            now,
+          )) {
+            return false;
+          }
           if (result != _TrainingHistoryResultFilter.all &&
-              item.resultBucket != result) {
+              item.resultBucket != result.domainBucket) {
             return false;
           }
           if (contextFilter != _TrainingHistoryContextFilter.all &&
-              !item.contextBuckets.contains(contextFilter)) {
+              !item.contextBuckets.contains(contextFilter.domainBucket)) {
             return false;
           }
           final position = positionFilter;
           if (position != null &&
-              !item.positionKeys.contains(_historyKey(position))) {
+              !item.positionKeys.contains(trainingHistoryKey(position))) {
             return false;
           }
           final technique = techniqueFilter;
           if (technique != null &&
-              !item.techniqueKeys.contains(_historyKey(technique))) {
+              !item.techniqueKeys.contains(trainingHistoryKey(technique))) {
             return false;
           }
           return true;
@@ -1666,6 +1445,21 @@ extension _TrainingHistoryResultFilterLabel on _TrainingHistoryResultFilter {
         return 'Sem resultado';
     }
   }
+
+  TrainingHistoryResultBucket get domainBucket {
+    switch (this) {
+      case _TrainingHistoryResultFilter.all:
+        return TrainingHistoryResultBucket.none;
+      case _TrainingHistoryResultFilter.worked:
+        return TrainingHistoryResultBucket.worked;
+      case _TrainingHistoryResultFilter.partial:
+        return TrainingHistoryResultBucket.partial;
+      case _TrainingHistoryResultFilter.review:
+        return TrainingHistoryResultBucket.review;
+      case _TrainingHistoryResultFilter.none:
+        return TrainingHistoryResultBucket.none;
+    }
+  }
 }
 
 extension _TrainingHistoryContextFilterLabel on _TrainingHistoryContextFilter {
@@ -1685,10 +1479,42 @@ extension _TrainingHistoryContextFilterLabel on _TrainingHistoryContextFilter {
         return 'Competicao';
     }
   }
+
+  TrainingHistoryContextBucket get domainBucket {
+    switch (this) {
+      case _TrainingHistoryContextFilter.all:
+        return TrainingHistoryContextBucket.academy;
+      case _TrainingHistoryContextFilter.academy:
+        return TrainingHistoryContextBucket.academy;
+      case _TrainingHistoryContextFilter.home:
+        return TrainingHistoryContextBucket.home;
+      case _TrainingHistoryContextFilter.sparring:
+        return TrainingHistoryContextBucket.sparring;
+      case _TrainingHistoryContextFilter.drill:
+        return TrainingHistoryContextBucket.drill;
+      case _TrainingHistoryContextFilter.competition:
+        return TrainingHistoryContextBucket.competition;
+    }
+  }
+}
+
+extension _TrainingHistoryPeriodFilterDomain on _TrainingHistoryPeriodFilter {
+  TrainingHistoryPeriod get domainPeriod {
+    switch (this) {
+      case _TrainingHistoryPeriodFilter.sevenDays:
+        return TrainingHistoryPeriod.sevenDays;
+      case _TrainingHistoryPeriodFilter.thirtyDays:
+        return TrainingHistoryPeriod.thirtyDays;
+      case _TrainingHistoryPeriodFilter.threeMonths:
+        return TrainingHistoryPeriod.threeMonths;
+      case _TrainingHistoryPeriodFilter.all:
+        return TrainingHistoryPeriod.all;
+    }
+  }
 }
 
 class _TrainingSessionCard extends StatelessWidget {
-  final _TrainingSessionViewModel item;
+  final TrainingSessionHistoryItem item;
   final bool expanded;
   final bool canEdit;
   final VoidCallback onToggle;
@@ -1848,7 +1674,7 @@ class _TrainingSessionCard extends StatelessWidget {
 
 class _TrainingSessionDetails extends StatelessWidget {
   final TrainingSession session;
-  final List<_TrainingTechniqueDisplayEntry> techniques;
+  final List<TrainingTechniqueDisplayEntry> techniques;
   final bool canEdit;
   final Future<void> Function()? onEdit;
 
@@ -1862,7 +1688,7 @@ class _TrainingSessionDetails extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final primaryNote = _primarySessionNote(session);
+    final primaryNote = primarySessionNote(session);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1918,19 +1744,15 @@ class _TrainingSessionDetails extends StatelessWidget {
 }
 
 class _TrainingTechniqueDetail extends StatelessWidget {
-  final _TrainingTechniqueDisplayEntry entry;
+  final TrainingTechniqueDisplayEntry entry;
 
   const _TrainingTechniqueDetail({required this.entry});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final contextLabel = TrainingAggregator.applicationContextLabel(
-      entry.applicationContext,
-    );
-    final outcomeLabel = TrainingAggregator.techniqueOutcomeLabel(
-      entry.techniqueOutcome,
-    );
+    final contextLabel = applicationContextLabel(entry.applicationContext);
+    final outcomeLabel = techniqueOutcomeLabel(entry.techniqueOutcome);
 
     return Container(
       width: double.infinity,
@@ -1986,205 +1808,9 @@ class _TrainingTechniqueDetail extends StatelessWidget {
 }
 
 List<String> _historyFilterValues(Iterable<String> values) {
-  final deduped = _dedupeDisplayValues(values);
+  final deduped = dedupeTrainingDisplayValues(values);
   return List<String>.from(deduped)
     ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
-}
-
-List<String> _dedupeDisplayValues(Iterable<String> values) {
-  final byKey = <String, String>{};
-  for (final value in values) {
-    final clean = _cleanDisplayText(value);
-    if (clean == null) continue;
-    byKey.putIfAbsent(_historyKey(clean), () => clean);
-  }
-  return List<String>.unmodifiable(byKey.values);
-}
-
-String _historyKey(String value) {
-  return value.trim().replaceAll(RegExp(r'\s+'), ' ').toLowerCase();
-}
-
-Set<_TrainingHistoryContextFilter> _contextBucketsFor(
-  TrainingSession session,
-  List<_TrainingTechniqueDisplayEntry> techniques,
-) {
-  final buckets = <_TrainingHistoryContextFilter>{};
-  switch (session.place) {
-    case TrainingPlace.academy:
-      buckets.add(_TrainingHistoryContextFilter.academy);
-      break;
-    case TrainingPlace.home:
-      buckets.add(_TrainingHistoryContextFilter.home);
-      break;
-    case TrainingPlace.other:
-      break;
-  }
-
-  for (final entry in techniques) {
-    switch (entry.applicationContext) {
-      case TrainingSession.applicationContextDrill:
-        buckets.add(_TrainingHistoryContextFilter.drill);
-        break;
-      case TrainingSession.applicationContextPositionalSparring:
-      case TrainingSession.applicationContextSparring:
-        buckets.add(_TrainingHistoryContextFilter.sparring);
-        break;
-      case TrainingSession.applicationContextCompetition:
-        buckets.add(_TrainingHistoryContextFilter.competition);
-        break;
-    }
-  }
-
-  return buckets;
-}
-
-_TrainingHistoryResultFilter _resultBucketFor(
-  List<_TrainingTechniqueDisplayEntry> techniques,
-) {
-  var hasPartial = false;
-  var hasReview = false;
-
-  for (final entry in techniques) {
-    switch (entry.techniqueOutcome) {
-      case TrainingSession.techniqueOutcomeWorked:
-        return _TrainingHistoryResultFilter.worked;
-      case TrainingSession.techniqueOutcomeAlmost:
-        hasPartial = true;
-        break;
-      case TrainingSession.techniqueOutcomeFailed:
-      case TrainingSession.techniqueOutcomeDefended:
-        hasReview = true;
-        break;
-    }
-  }
-
-  if (hasPartial) return _TrainingHistoryResultFilter.partial;
-  if (hasReview) return _TrainingHistoryResultFilter.review;
-  return _TrainingHistoryResultFilter.none;
-}
-
-bool _matchesPeriod(
-  DateTime date,
-  _TrainingHistoryPeriodFilter period,
-  DateTime now,
-) {
-  final day = _dateOnly(date);
-  final today = _dateOnly(now);
-  final start = switch (period) {
-    _TrainingHistoryPeriodFilter.sevenDays => today.subtract(
-      const Duration(days: 6),
-    ),
-    _TrainingHistoryPeriodFilter.thirtyDays => today.subtract(
-      const Duration(days: 29),
-    ),
-    _TrainingHistoryPeriodFilter.threeMonths => DateTime(
-      today.year,
-      today.month - 2,
-      1,
-    ),
-    _TrainingHistoryPeriodFilter.all => null,
-  };
-
-  if (start == null) return true;
-  return !day.isBefore(start) && !day.isAfter(today);
-}
-
-String _sessionContextLabel(
-  TrainingSession session,
-  List<_TrainingTechniqueDisplayEntry> techniques,
-) {
-  final place = _placeLabel(session.place);
-
-  for (final entry in techniques) {
-    final context = TrainingAggregator.applicationContextLabel(
-      entry.applicationContext,
-    );
-    if (context != null) return '$place - $context';
-  }
-
-  return place;
-}
-
-class _PrimarySessionNote {
-  final String label;
-  final String text;
-
-  const _PrimarySessionNote({required this.label, required this.text});
-}
-
-_PrimarySessionNote? _primarySessionNote(TrainingSession session) {
-  final difficulty = _cleanDisplayText(session.difficulties);
-  if (difficulty != null) {
-    return _PrimarySessionNote(label: 'Dificuldade:', text: difficulty);
-  }
-
-  final success = _cleanDisplayText(session.successes);
-  if (success != null) {
-    return _PrimarySessionNote(label: 'Sucesso:', text: success);
-  }
-
-  final debrief = _cleanDisplayText(session.debriefNotes);
-  if (debrief != null) {
-    return _PrimarySessionNote(label: 'Debrief:', text: debrief);
-  }
-
-  final notes = _cleanDisplayText(session.notes);
-  if (notes != null) {
-    return _PrimarySessionNote(label: 'Nota:', text: notes);
-  }
-
-  return null;
-}
-
-String? _cleanDisplayText(String? value) {
-  final clean = value?.trim().replaceAll(RegExp(r'\s+'), ' ');
-  if (clean == null || clean.isEmpty) return null;
-  final normalized = clean.toLowerCase();
-  if (normalized == 'unknown' ||
-      normalized == 'n/a' ||
-      normalized == 'na' ||
-      normalized == 'null') {
-    return null;
-  }
-  return clean;
-}
-
-String _smartDateLabel(DateTime date) {
-  final base =
-      '${_TrainingScreenState._fmt2(date.day)} ${_monthLabel(date.month)} ${date.year}';
-  if (date.hour == 0 && date.minute == 0) return base;
-  return '$base ${_TrainingScreenState._fmt2(date.hour)}:${_TrainingScreenState._fmt2(date.minute)}';
-}
-
-String _monthLabel(int month) {
-  const labels = [
-    'JAN',
-    'FEV',
-    'MAR',
-    'ABR',
-    'MAI',
-    'JUN',
-    'JUL',
-    'AGO',
-    'SET',
-    'OUT',
-    'NOV',
-    'DEZ',
-  ];
-  final index = (month - 1).clamp(0, labels.length - 1).toInt();
-  return labels[index];
-}
-
-String _placeLabel(TrainingPlace place) {
-  switch (place) {
-    case TrainingPlace.academy:
-      return 'Academia';
-    case TrainingPlace.home:
-      return 'Casa';
-    case TrainingPlace.other:
-      return 'Outro local';
-  }
 }
 
 Color _outcomeColor(String outcome) {
@@ -2209,153 +1835,8 @@ class _TrainingActionChip extends StatelessWidget {
   }
 }
 
-enum _TrainingChartPeriod { sevenDays, thirtyDays, threeMonths, twelveMonths }
-
-enum _TrainingChartAggregationMode { day, week, month }
-
-class _TrainingChartPeriodOption {
-  final _TrainingChartPeriod id;
-  final String label;
-  final _TrainingChartAggregationMode aggregationMode;
-
-  const _TrainingChartPeriodOption({
-    required this.id,
-    required this.label,
-    required this.aggregationMode,
-  });
-
-  static const defaults = [
-    _TrainingChartPeriodOption(
-      id: _TrainingChartPeriod.sevenDays,
-      label: '7 dias',
-      aggregationMode: _TrainingChartAggregationMode.day,
-    ),
-    _TrainingChartPeriodOption(
-      id: _TrainingChartPeriod.thirtyDays,
-      label: '30 dias',
-      aggregationMode: _TrainingChartAggregationMode.week,
-    ),
-    _TrainingChartPeriodOption(
-      id: _TrainingChartPeriod.threeMonths,
-      label: '3 meses',
-      aggregationMode: _TrainingChartAggregationMode.week,
-    ),
-    _TrainingChartPeriodOption(
-      id: _TrainingChartPeriod.twelveMonths,
-      label: '12 meses',
-      aggregationMode: _TrainingChartAggregationMode.month,
-    ),
-  ];
-
-  static _TrainingChartPeriodOption byId(_TrainingChartPeriod id) {
-    return defaults.firstWhere((option) => option.id == id);
-  }
-}
-
-class _TrainingChartViewModel {
-  final String title;
-  final String subtitle;
-  final _TrainingChartPeriod selectedPeriod;
-  final List<_TrainingChartPeriodOption> periods;
-  final List<_TrainingChartPoint> points;
-  final String totalLabel;
-  final String emptyStateLabel;
-
-  const _TrainingChartViewModel({
-    required this.title,
-    required this.subtitle,
-    required this.selectedPeriod,
-    required this.periods,
-    required this.points,
-    required this.totalLabel,
-    required this.emptyStateLabel,
-  });
-
-  factory _TrainingChartViewModel.from({
-    required List<TrainingSession> sessions,
-    required _TrainingChartPeriod selectedPeriod,
-  }) {
-    final now = DateTime.now();
-    final option = _TrainingChartPeriodOption.byId(selectedPeriod);
-    final window = _TrainingChartWindow.forPeriod(selectedPeriod, now);
-    final buckets = _TrainingChartBucket.build(window, option.aggregationMode);
-    final counts = {for (final bucket in buckets) bucket.key: 0};
-
-    for (final session in sessions) {
-      final date = _dateOnly(session.date);
-      if (date.isBefore(window.start) || date.isAfter(window.end)) continue;
-      final key = _TrainingChartBucket.keyFor(
-        date,
-        window,
-        option.aggregationMode,
-      );
-      if (counts.containsKey(key)) {
-        counts[key] = (counts[key] ?? 0) + 1;
-      }
-    }
-
-    final maxValue = counts.values.fold<int>(
-      0,
-      (max, value) => value > max ? value : max,
-    );
-    final points = [
-      for (final bucket in buckets)
-        _TrainingChartPoint(
-          date: bucket.date,
-          label: bucket.label,
-          value: counts[bucket.key] ?? 0,
-          tooltipTitle: bucket.tooltipTitle,
-          tooltipBody: _trainingCountLabel(counts[bucket.key] ?? 0),
-          isHighlighted: maxValue > 0 && counts[bucket.key] == maxValue,
-        ),
-    ];
-    final total = points.fold<int>(0, (sum, point) => sum + point.value);
-
-    return _TrainingChartViewModel(
-      title: 'Treinos registrados',
-      subtitle: _subtitleFor(option),
-      selectedPeriod: selectedPeriod,
-      periods: _TrainingChartPeriodOption.defaults,
-      points: points,
-      totalLabel: 'Total no per\u00edodo: ${_trainingCountLabel(total)}',
-      emptyStateLabel: 'Nenhum treino registrado neste per\u00edodo.',
-    );
-  }
-
-  bool get isEmpty => points.every((point) => point.value == 0);
-
-  static String _subtitleFor(_TrainingChartPeriodOption option) {
-    switch (option.aggregationMode) {
-      case _TrainingChartAggregationMode.day:
-        return 'Contagem por dia, usando apenas datas dos treinos.';
-      case _TrainingChartAggregationMode.week:
-        return 'Contagem por semana, usando apenas datas dos treinos.';
-      case _TrainingChartAggregationMode.month:
-        return 'Contagem por m\u00eas, usando apenas datas dos treinos.';
-    }
-  }
-}
-
-class _TrainingChartPoint {
-  final DateTime date;
-  final String label;
-  final int value;
-  final String tooltipTitle;
-  final String tooltipBody;
-  final bool isHighlighted;
-
-  const _TrainingChartPoint({
-    required this.date,
-    required this.label,
-    required this.value,
-    required this.tooltipTitle,
-    required this.tooltipBody,
-    required this.isHighlighted,
-  });
-}
-
 class _TrainingChartCard extends StatelessWidget {
-  final _TrainingChartViewModel viewModel;
+  final TrainingChartSummary viewModel;
 
   const _TrainingChartCard({required this.viewModel});
 
@@ -2363,7 +1844,7 @@ class _TrainingChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final periodLabel =
-        _TrainingChartPeriodOption.byId(viewModel.selectedPeriod).label;
+        TrainingChartPeriodOption.byId(viewModel.selectedPeriod).label;
 
     return glassCard(
       context,
@@ -2437,7 +1918,7 @@ class _TrainingChartCard extends StatelessWidget {
 }
 
 class _TrainingBarChart extends StatefulWidget {
-  final List<_TrainingChartPoint> points;
+  final List<TrainingChartPoint> points;
 
   const _TrainingBarChart({required this.points});
 
@@ -2595,7 +2076,7 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
     );
   }
 
-  BarTouchData _barTouchData(ColorScheme cs, List<_TrainingChartPoint> points) {
+  BarTouchData _barTouchData(ColorScheme cs, List<TrainingChartPoint> points) {
     return BarTouchData(
       enabled: true,
       touchCallback: (event, response) {
@@ -2634,7 +2115,7 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
     );
   }
 
-  Color _barColor(ColorScheme cs, _TrainingChartPoint point, int index) {
+  Color _barColor(ColorScheme cs, TrainingChartPoint point, int index) {
     final selectedIndex = _selectedIndex;
     final isSelected = selectedIndex == index;
     final isDimmed = selectedIndex != null && !isSelected;
@@ -2658,152 +2139,4 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
     if (width >= 420) return 10;
     return 8;
   }
-}
-
-class _TrainingChartWindow {
-  final DateTime start;
-  final DateTime end;
-
-  const _TrainingChartWindow({required this.start, required this.end});
-
-  static _TrainingChartWindow forPeriod(
-    _TrainingChartPeriod period,
-    DateTime now,
-  ) {
-    final today = _dateOnly(now);
-    final start = switch (period) {
-      _TrainingChartPeriod.sevenDays => today.subtract(const Duration(days: 6)),
-      _TrainingChartPeriod.thirtyDays => today.subtract(
-        const Duration(days: 29),
-      ),
-      _TrainingChartPeriod.threeMonths => DateTime(
-        today.year,
-        today.month - 2,
-        1,
-      ),
-      _TrainingChartPeriod.twelveMonths => DateTime(
-        today.year,
-        today.month - 11,
-        1,
-      ),
-    };
-    return _TrainingChartWindow(start: start, end: today);
-  }
-}
-
-class _TrainingChartBucket {
-  final DateTime date;
-  final String key;
-  final String label;
-  final String tooltipTitle;
-
-  const _TrainingChartBucket({
-    required this.date,
-    required this.key,
-    required this.label,
-    required this.tooltipTitle,
-  });
-
-  static List<_TrainingChartBucket> build(
-    _TrainingChartWindow window,
-    _TrainingChartAggregationMode mode,
-  ) {
-    switch (mode) {
-      case _TrainingChartAggregationMode.day:
-        return _dayBuckets(window);
-      case _TrainingChartAggregationMode.week:
-        return _weekBuckets(window);
-      case _TrainingChartAggregationMode.month:
-        return _monthBuckets(window);
-    }
-  }
-
-  static String keyFor(
-    DateTime date,
-    _TrainingChartWindow window,
-    _TrainingChartAggregationMode mode,
-  ) {
-    switch (mode) {
-      case _TrainingChartAggregationMode.day:
-        return _dayKey(date);
-      case _TrainingChartAggregationMode.week:
-        final offset = date.difference(window.start).inDays ~/ 7;
-        return _dayKey(window.start.add(Duration(days: offset * 7)));
-      case _TrainingChartAggregationMode.month:
-        return _monthKey(date);
-    }
-  }
-
-  static List<_TrainingChartBucket> _dayBuckets(_TrainingChartWindow window) {
-    final buckets = <_TrainingChartBucket>[];
-    var cursor = window.start;
-    while (!cursor.isAfter(window.end)) {
-      buckets.add(
-        _TrainingChartBucket(
-          date: cursor,
-          key: _dayKey(cursor),
-          label: _shortDayLabel(cursor),
-          tooltipTitle: _shortDayLabel(cursor),
-        ),
-      );
-      cursor = cursor.add(const Duration(days: 1));
-    }
-    return buckets;
-  }
-
-  static List<_TrainingChartBucket> _weekBuckets(_TrainingChartWindow window) {
-    final buckets = <_TrainingChartBucket>[];
-    var cursor = window.start;
-    while (!cursor.isAfter(window.end)) {
-      buckets.add(
-        _TrainingChartBucket(
-          date: cursor,
-          key: _dayKey(cursor),
-          label: _shortDayLabel(cursor),
-          tooltipTitle: 'Semana ${_shortDayLabel(cursor)}',
-        ),
-      );
-      cursor = cursor.add(const Duration(days: 7));
-    }
-    return buckets;
-  }
-
-  static List<_TrainingChartBucket> _monthBuckets(_TrainingChartWindow window) {
-    final buckets = <_TrainingChartBucket>[];
-    var cursor = DateTime(window.start.year, window.start.month, 1);
-    while (!cursor.isAfter(window.end)) {
-      buckets.add(
-        _TrainingChartBucket(
-          date: cursor,
-          key: _monthKey(cursor),
-          label: _monthYearLabel(cursor),
-          tooltipTitle: _monthYearLabel(cursor),
-        ),
-      );
-      cursor = DateTime(cursor.year, cursor.month + 1, 1);
-    }
-    return buckets;
-  }
-
-  static String _dayKey(DateTime date) {
-    return '${date.year}-${_TrainingScreenState._fmt2(date.month)}-${_TrainingScreenState._fmt2(date.day)}';
-  }
-
-  static String _monthKey(DateTime date) {
-    return '${date.year}-${_TrainingScreenState._fmt2(date.month)}';
-  }
-}
-
-DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
-
-String _shortDayLabel(DateTime date) {
-  return '${_TrainingScreenState._fmt2(date.day)}/${_TrainingScreenState._fmt2(date.month)}';
-}
-
-String _monthYearLabel(DateTime date) {
-  return '${_monthLabel(date.month)} ${date.year}';
-}
-
-String _trainingCountLabel(int count) {
-  return count == 1 ? '1 treino registrado' : '$count treinos registrados';
 }
