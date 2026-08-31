@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
+import '../features/progress/application/progress_use_cases.dart';
+import '../features/progress/domain/progress_models.dart';
 import '../model/grading_rules.dart';
 import '../model/app_user.dart';
 import '../model/progress_period.dart';
@@ -16,7 +18,7 @@ import '../repository/user_repository.dart';
 import '../repository/user_progress_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/user_session.dart';
-import '../service/training_aggregator.dart';
+import '../service/training_aggregator.dart' show TrainingMetrics;
 import '../widgets/titans_belt_status_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
@@ -53,6 +55,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
       UserProgressRepository.instance;
 
   late final UserRepository _userRepo = UserRepository.instance;
+
+  late final PrepareProgressSessions _prepareProgressSessions =
+      const PrepareProgressSessions();
+  late final GetProgressOverview _getProgressOverview =
+      const GetProgressOverview();
+  late final GetBeltProgressSummary _getBeltProgressSummary =
+      const GetBeltProgressSummary();
+  late final GetProgressSeries _getProgressSeries = const GetProgressSeries();
+  late final GetConsistencyHeatmap _getConsistencyHeatmap =
+      const GetConsistencyHeatmap();
 
   String? _streamAcademyId;
   String? _streamUid;
@@ -286,44 +298,30 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 );
                               }
 
-                              final sessions =
-                                  TrainingAggregator.uniqueSessions(
-                                    List<TrainingSession>.from(
-                                      trainSnap.data ??
-                                          const <TrainingSession>[],
-                                    ),
-                                  );
-
-                              final filtered =
-                                  rules.onlyAcademyPlace
-                                      ? sessions
-                                          .where(
-                                            (s) =>
-                                                s.place ==
-                                                TrainingPlace.academy,
-                                          )
-                                          .toList()
-                                      : List<TrainingSession>.from(sessions);
-
-                              filtered.sort((a, b) => a.date.compareTo(b.date));
-
-                              final metrics = TrainingAggregator.metrics(
-                                filtered,
-                              );
-
-                              final beltProgress = _calcBeltProgress(
+                              final filtered = _prepareProgressSessions(
+                                trainSnap.data ?? const <TrainingSession>[],
                                 rules: rules,
-                                athlete: athlete,
-                                profile: profile,
-                                sessions: filtered,
                               );
-
-                              final series = _buildSeries(filtered, _period);
+                              final metrics = _getProgressOverview(filtered);
+                              final beltProgress = _BeltProgress.fromSummary(
+                                _getBeltProgressSummary(
+                                  rules: rules,
+                                  athlete: athlete,
+                                  profile: profile,
+                                  sessions: filtered,
+                                ),
+                              );
+                              final series = _Series.fromSummary(
+                                _getProgressSeries(filtered, _period),
+                              );
                               final totalInWindow = series.values.fold<int>(
                                 0,
                                 (a, b) => a + b,
                               );
-                              final heatmap = _buildHeatmap(filtered);
+                              final heatmap =
+                                  _ConsistencyHeatmapViewModel.fromSummary(
+                                    _getConsistencyHeatmap(filtered),
+                                  );
 
                               final listPadding =
                                   widget.embedded
@@ -582,189 +580,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
         );
       },
     );
-  }
-
-  _BeltProgress _calcBeltProgress({
-    required GradingRules rules,
-    required AppUser athlete,
-    required UserProgressProfile profile,
-    required List<TrainingSession> sessions,
-  }) {
-    // TODO migration: currentBelt/currentDegree in progress/profile are legacy
-    // cache fields. Graduation is canonical in academies/{academyId}/users/{uid}.
-    final belt = athlete.belt;
-    final maxDeg = rules.maxDegrees(belt).clamp(1, 12).toInt();
-
-    final beltStart = profile.beltStartAt;
-    final sessionsInBelt =
-        sessions.where((s) => !s.date.isBefore(beltStart)).length;
-
-    final degree = athlete.degree.clamp(0, maxDeg).toInt();
-
-    final estimated = profile.estimatedSessionsInBelt;
-    final requiredByRules = rules.requiredSessions(belt);
-    final safeFallback = sessionsInBelt > 0 ? sessionsInBelt : maxDeg;
-    final sessionsRequired =
-        (requiredByRules > 0 ? requiredByRules : (estimated ?? safeFallback))
-            .clamp(1, 1 << 30)
-            .toInt();
-
-    final percent =
-        (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
-
-    return _BeltProgress(
-      belt: belt,
-      degree: degree,
-      maxDegree: maxDeg,
-      percentToNextBelt: percent,
-      sessionsInCurrentBelt: sessionsInBelt,
-      sessionsRequiredCurrentBelt: sessionsRequired,
-    );
-  }
-
-  _Series _buildSeries(List<TrainingSession> sessions, ProgressPeriod period) {
-    final now = DateTime.now();
-    final map = <String, int>{};
-    final labels = <String>[];
-
-    if (period == ProgressPeriod.day) {
-      for (int i = 13; i >= 0; i--) {
-        final d = now.subtract(Duration(days: i));
-        final label =
-            '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}';
-        labels.add(label);
-        map[label] = 0;
-      }
-    } else if (period == ProgressPeriod.month) {
-      for (int i = 11; i >= 0; i--) {
-        final d = DateTime(now.year, now.month - i, 1);
-        final label = '${d.month.toString().padLeft(2, '0')}/${d.year}';
-        labels.add(label);
-        map[label] = 0;
-      }
-    } else {
-      for (int i = 4; i >= 0; i--) {
-        final label = (now.year - i).toString();
-        labels.add(label);
-        map[label] = 0;
-      }
-    }
-
-    for (final s in sessions) {
-      final d = s.date;
-
-      final key = switch (period) {
-        ProgressPeriod.day =>
-          '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}',
-        ProgressPeriod.month =>
-          '${d.month.toString().padLeft(2, '0')}/${d.year}',
-        ProgressPeriod.year => d.year.toString(),
-      };
-
-      if (map.containsKey(key)) {
-        map[key] = (map[key] ?? 0) + 1;
-      }
-    }
-
-    return _Series(
-      labels: labels,
-      values: labels.map((l) => map[l] ?? 0).toList(),
-    );
-  }
-
-  _ConsistencyHeatmapViewModel _buildHeatmap(List<TrainingSession> sessions) {
-    final today = _dateOnly(DateTime.now());
-    final start = today.subtract(const Duration(days: 83));
-    final countsByDay = <String, int>{};
-
-    for (final session in sessions) {
-      final day = _dateOnly(session.date);
-      if (day.isBefore(start) || day.isAfter(today)) continue;
-      final key = _heatmapDateKey(day);
-      countsByDay[key] = (countsByDay[key] ?? 0) + 1;
-    }
-
-    final weeks = <_ConsistencyHeatmapWeek>[];
-    for (var weekIndex = 0; weekIndex < 12; weekIndex++) {
-      final days = <_ConsistencyHeatmapDay>[];
-      final weekStart = start.add(Duration(days: weekIndex * 7));
-
-      for (var dayIndex = 0; dayIndex < 7; dayIndex++) {
-        final date = weekStart.add(Duration(days: dayIndex));
-        final count = countsByDay[_heatmapDateKey(date)] ?? 0;
-        final level = count >= 3 ? 3 : count;
-        final dateLabel = _shortDateLabel(date);
-        final countLabel = _heatmapCountLabel(count);
-
-        days.add(
-          _ConsistencyHeatmapDay(
-            date: date,
-            dayLabel: _weekdayLabel(date.weekday),
-            count: count,
-            intensityLevel: level,
-            tooltipTitle: _dateOnly(date) == today ? 'Hoje' : dateLabel,
-            tooltipBody: countLabel,
-            isToday: _dateOnly(date) == today,
-            isOutsideRange: false,
-          ),
-        );
-      }
-
-      weeks.add(
-        _ConsistencyHeatmapWeek(label: _shortDateLabel(weekStart), days: days),
-      );
-    }
-
-    final totalTrainingDays =
-        countsByDay.values.where((count) => count > 0).length;
-
-    return _ConsistencyHeatmapViewModel(
-      title: 'Consist\u00eancia di\u00e1ria (\u00faltimos 84 dias)',
-      subtitle:
-          'Cada quadrado representa treinos registrados em um dia do recorte.',
-      weeks: weeks,
-      weekdayLabels: weeks.first.days.map((day) => day.dayLabel).toList(),
-      legendItems: const [
-        _ConsistencyHeatmapLegendItem(label: '0', intensityLevel: 0),
-        _ConsistencyHeatmapLegendItem(label: '1', intensityLevel: 1),
-        _ConsistencyHeatmapLegendItem(label: '2', intensityLevel: 2),
-        _ConsistencyHeatmapLegendItem(label: '3+', intensityLevel: 3),
-      ],
-      totalTrainingDays: totalTrainingDays,
-      emptyStateLabel: 'Sem treino registrado nos \u00faltimos 84 dias.',
-    );
-  }
-
-  static DateTime _dateOnly(DateTime value) {
-    return DateTime(value.year, value.month, value.day);
-  }
-
-  static String _heatmapDateKey(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
-  }
-
-  static String _shortDateLabel(DateTime date) {
-    return '${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}';
-  }
-
-  static String _weekdayLabel(int weekday) {
-    const labels = <int, String>{
-      DateTime.monday: 'S',
-      DateTime.tuesday: 'T',
-      DateTime.wednesday: 'Q',
-      DateTime.thursday: 'Q',
-      DateTime.friday: 'S',
-      DateTime.saturday: 'S',
-      DateTime.sunday: 'D',
-    };
-    return labels[weekday] ?? '';
-  }
-
-  static String _heatmapCountLabel(int count) {
-    if (count <= 0) return 'Sem treino registrado';
-    if (count == 1) return '1 treino registrado';
-    if (count == 2) return '2 treinos registrados';
-    return '3+ treinos registrados';
   }
 
   String _titleForPeriod(ProgressPeriod p) {
@@ -2220,6 +2035,23 @@ class _ConsistencyHeatmapViewModel {
     required this.totalTrainingDays,
     required this.emptyStateLabel,
   });
+
+  factory _ConsistencyHeatmapViewModel.fromSummary(
+    ConsistencyHeatmapSummary summary,
+  ) {
+    return _ConsistencyHeatmapViewModel(
+      title: summary.title,
+      subtitle: summary.subtitle,
+      weeks: summary.weeks.map(_ConsistencyHeatmapWeek.fromSummary).toList(),
+      weekdayLabels: summary.weekdayLabels,
+      legendItems:
+          summary.legendItems
+              .map(_ConsistencyHeatmapLegendItem.fromSummary)
+              .toList(),
+      totalTrainingDays: summary.totalTrainingDays,
+      emptyStateLabel: summary.emptyStateLabel,
+    );
+  }
 }
 
 class _ConsistencyHeatmapWeek {
@@ -2227,6 +2059,15 @@ class _ConsistencyHeatmapWeek {
   final List<_ConsistencyHeatmapDay> days;
 
   const _ConsistencyHeatmapWeek({required this.label, required this.days});
+
+  factory _ConsistencyHeatmapWeek.fromSummary(
+    ConsistencyHeatmapWeekSummary summary,
+  ) {
+    return _ConsistencyHeatmapWeek(
+      label: summary.label,
+      days: summary.days.map(_ConsistencyHeatmapDay.fromSummary).toList(),
+    );
+  }
 }
 
 class _ConsistencyHeatmapDay {
@@ -2249,6 +2090,21 @@ class _ConsistencyHeatmapDay {
     required this.isToday,
     required this.isOutsideRange,
   });
+
+  factory _ConsistencyHeatmapDay.fromSummary(
+    ConsistencyHeatmapDaySummary summary,
+  ) {
+    return _ConsistencyHeatmapDay(
+      date: summary.date,
+      dayLabel: summary.dayLabel,
+      count: summary.count,
+      intensityLevel: summary.intensityLevel,
+      tooltipTitle: summary.tooltipTitle,
+      tooltipBody: summary.tooltipBody,
+      isToday: summary.isToday,
+      isOutsideRange: summary.isOutsideRange,
+    );
+  }
 }
 
 class _ConsistencyHeatmapLegendItem {
@@ -2259,6 +2115,15 @@ class _ConsistencyHeatmapLegendItem {
     required this.label,
     required this.intensityLevel,
   });
+
+  factory _ConsistencyHeatmapLegendItem.fromSummary(
+    ConsistencyHeatmapLegendSummary summary,
+  ) {
+    return _ConsistencyHeatmapLegendItem(
+      label: summary.label,
+      intensityLevel: summary.intensityLevel,
+    );
+  }
 }
 
 class _ProgressChartViewModel {
@@ -2311,6 +2176,10 @@ class _Series {
   final List<String> labels;
   final List<int> values;
   _Series({required this.labels, required this.values});
+
+  factory _Series.fromSummary(ProgressSeriesSummary summary) {
+    return _Series(labels: summary.labels, values: summary.values);
+  }
 }
 
 class _BeltProgress {
@@ -2329,4 +2198,15 @@ class _BeltProgress {
     required this.sessionsInCurrentBelt,
     required this.sessionsRequiredCurrentBelt,
   });
+
+  factory _BeltProgress.fromSummary(BeltProgressSummary summary) {
+    return _BeltProgress(
+      belt: summary.belt,
+      degree: summary.degree,
+      maxDegree: summary.maxDegree,
+      percentToNextBelt: summary.percentToNextBelt,
+      sessionsInCurrentBelt: summary.sessionsInCurrentBelt,
+      sessionsRequiredCurrentBelt: summary.sessionsRequiredCurrentBelt,
+    );
+  }
 }
