@@ -642,10 +642,10 @@ class _StudentsGrid extends StatelessWidget {
         final width = constraints.maxWidth;
         final ratio =
             width < 390
-                ? 1.30
-                : width < 600
-                ? 1.45
-                : 2.25;
+                ? 1.95
+                : width < 900
+                ? 2.15
+                : 2.35;
 
         return CustomScrollView(
           slivers: [
@@ -803,6 +803,7 @@ class _StudentCard extends StatelessWidget {
     required this.onArchive,
     required this.canCopyInvite,
   });
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
@@ -813,128 +814,123 @@ class _StudentCard extends StatelessWidget {
       accent: beltColor,
       padding: const EdgeInsets.all(TitansUI.spaceSm),
       onTap: onOpen,
-      child: Row(
-        children: [
-          Container(
-            width: 6,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(TitansRadius.pill),
-              color: beltColor,
-            ),
-          ),
-          const SizedBox(width: TitansUI.spaceSm),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 340;
+          final header = Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _StudentProgressRing(
+                degree: degree,
+                maxDegree: maxDegree,
+                color: beltColor,
+              ),
+              const SizedBox(width: TitansUI.spaceSm),
+              Expanded(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            student.name.toUpperCase(),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 13,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          Text(
-                            beltLabel,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: cs.onSurface.withValues(alpha: 0.70),
-                              fontWeight: FontWeight.w800,
-                              fontSize: 12,
-                            ),
-                          ),
-                          const SizedBox(height: 5),
-                          _AccessStatusBadge(status: accessStatus),
-                        ],
+                    Text(
+                      student.name.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 13,
                       ),
                     ),
-                    if (capabilities.canViewAdminActions)
-                      _StudentActionsMenu(
-                        canEditProfile: capabilities.canEditProfile,
-                        canEditGraduation: capabilities.canEditGraduation,
-                        canArchiveProfile: capabilities.canArchiveProfile,
-                        onEdit: onEdit,
-                        onEditGraduation: onEditGraduation,
-                        onArchive: onArchive,
-                        accessStatus: accessStatus,
-                        onInviteAction: onInviteAction,
-                        canCopyInvite: canCopyInvite,
-                      ),
-                  ],
-                ),
-                const SizedBox(height: TitansUI.spaceSm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _CompactMetric(
-                        label: 'Frequ\u00eancia',
-                        value: 'Sem dados',
-                        color: cs.primary,
-                      ),
-                    ),
-                    const SizedBox(width: TitansUI.spaceXs),
-                    Expanded(
-                      child: _CompactMetric(
-                        label: 'Prontid\u00e3o',
-                        value: 'não calculada',
-                        color: TitansUI.neonGold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: TitansUI.spaceXs),
-                LayoutBuilder(
-                  builder: (context, constraints) {
-                    final lastTraining = Text(
-                      '\u00daltimo treino: sem registro',
+                    const SizedBox(height: 4),
+                    Text(
+                      beltLabel,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.58),
+                        color: cs.onSurface.withValues(alpha: 0.70),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 12,
+                      ),
+                    ),
+                    const SizedBox(height: TitansUI.spaceXs),
+                    Wrap(
+                      spacing: TitansUI.spaceXs,
+                      runSpacing: TitansUI.spaceXs,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _AccessStatusBadge(status: accessStatus),
+                        _StudentInfoPill(
+                          icon: Icons.military_tech_outlined,
+                          label: beltName(student.belt),
+                          color: beltColor,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              if (capabilities.canViewAdminActions)
+                _StudentActionsMenu(
+                  canEditProfile: capabilities.canEditProfile,
+                  canEditGraduation: capabilities.canEditGraduation,
+                  canArchiveProfile: capabilities.canArchiveProfile,
+                  onEdit: onEdit,
+                  onEditGraduation: onEditGraduation,
+                  onArchive: onArchive,
+                  accessStatus: accessStatus,
+                  onInviteAction: onInviteAction,
+                  canCopyInvite: canCopyInvite,
+                ),
+            ],
+          );
+          final openAction = Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: onOpen,
+              icon: const Icon(Icons.arrow_forward, size: 16),
+              label: const Text('Abrir aluno'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                minimumSize: const Size(88, 36),
+              ),
+            ),
+          );
+
+          if (compact) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                header,
+                const SizedBox(height: TitansUI.spaceSm),
+                openAction,
+              ],
+            );
+          }
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              header,
+              const SizedBox(height: TitansUI.spaceSm),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Acompanhamento pelo console do aluno selecionado.',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.56),
                         fontSize: 11,
                         fontWeight: FontWeight.w700,
                       ),
-                    );
-                    final open = TextButton.icon(
-                      onPressed: onOpen,
-                      icon: const Icon(Icons.arrow_forward, size: 16),
-                      label: const Text('Abrir'),
-                      style: TextButton.styleFrom(
-                        visualDensity: VisualDensity.compact,
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        minimumSize: const Size(56, 36),
-                      ),
-                    );
-
-                    if (constraints.maxWidth < 280) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          lastTraining,
-                          Align(alignment: Alignment.centerRight, child: open),
-                        ],
-                      );
-                    }
-
-                    return Row(children: [Expanded(child: lastTraining), open]);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ],
+                    ),
+                  ),
+                  openAction,
+                ],
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -967,6 +963,115 @@ class _StudentCard extends StatelessWidget {
       case BeltColor.black:
         return 'Preta';
     }
+  }
+}
+
+class _StudentProgressRing extends StatelessWidget {
+  final int degree;
+  final int maxDegree;
+  final Color color;
+
+  const _StudentProgressRing({
+    required this.degree,
+    required this.maxDegree,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final safeMax = maxDegree.clamp(1, 12).toInt();
+    final safeDegree = degree.clamp(0, safeMax).toInt();
+    final value = (safeDegree / safeMax).clamp(0.0, 1.0).toDouble();
+    final textColor = color.computeLuminance() > 0.82 ? cs.onSurface : color;
+
+    return SizedBox(
+      width: 58,
+      height: 58,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          SizedBox(
+            width: 52,
+            height: 52,
+            child: CircularProgressIndicator(
+              value: value,
+              strokeWidth: 5,
+              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$safeDegree',
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              Text(
+                'grau',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.58),
+                  fontSize: 9,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StudentInfoPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _StudentInfoPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textColor = color.computeLuminance() > 0.82 ? cs.onSurface : color;
+
+    return Container(
+      constraints: const BoxConstraints(minHeight: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.pill),
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: textColor, size: 13),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 10,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -1177,66 +1282,6 @@ class _MenuItem extends StatelessWidget {
         const SizedBox(width: TitansUI.spaceSm),
         Flexible(child: Text(label)),
       ],
-    );
-  }
-}
-
-class _CompactMetric extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color color;
-
-  const _CompactMetric({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 44),
-      padding: const EdgeInsets.symmetric(
-        horizontal: TitansUI.spaceSm,
-        vertical: TitansUI.spaceXs,
-      ),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansRadius.sm),
-        color: TitansUI.card2,
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.06)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.52),
-              fontSize: 10,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-          const SizedBox(height: 1),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Text(
-              value,
-              maxLines: 1,
-              style: TextStyle(
-                color: color,
-                fontSize: 16,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
