@@ -1145,7 +1145,6 @@ _CoachStudentHomeState _coachStudentHomeStateFor(int trainingCount) {
 
 // ---------------- UI ----------------
 
-
 class _BeltProgress {
   final BeltColor belt;
   final int degree;
