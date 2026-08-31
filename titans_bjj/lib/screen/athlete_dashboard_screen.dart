@@ -4,7 +4,8 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
-import '../features/technical_domain/application/technical_domain_use_cases.dart';
+import '../features/home/application/home_dashboard_use_cases.dart';
+import '../features/home/domain/home_dashboard_models.dart';
 import '../model/app_user.dart';
 import '../model/grading_rules.dart';
 import '../model/nutrition_models.dart';
@@ -71,6 +72,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<List<MealEntry>>? _nutritionMealsStream;
   String? _homeDashboardCacheKey;
   _HomeDashboardViewModel? _homeDashboardCache;
+  late final GetHomeDashboardSummary _getHomeDashboardSummary =
+      const GetHomeDashboardSummary();
   bool _nutritionFallbackToMock = false;
   Object? _nutritionLoadError;
 
@@ -948,10 +951,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       return cached;
     }
 
-    final next = _HomeDashboardViewModel.fromSessions(
-      sessions,
-      buildDebriefInsights: _buildDebriefInsights,
-      calcFrequency: _calcFrequency,
+    final next = _HomeDashboardViewModel.fromSummary(
+      _getHomeDashboardSummary(sessions),
     );
     _homeDashboardCacheKey = cacheKey;
     _homeDashboardCache = next;
@@ -1082,110 +1083,15 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       percentToNextBelt: progressInBelt,
     );
   }
-
-  int _calcFrequency(List<TrainingSession> sessions) {
-    final now = DateTime.now();
-    final weeks = <String, bool>{};
-    for (int i = 0; i < 8; i++) {
-      final d = now.subtract(Duration(days: i * 7));
-      weeks[_weekKey(d)] = false;
-    }
-    for (final s in sessions) {
-      final k = _weekKey(s.date);
-      if (weeks.containsKey(k)) weeks[k] = true;
-    }
-    final total = weeks.length;
-    final hit = weeks.values.where((v) => v).length;
-    if (total == 0) return 0;
-    return ((hit / total) * 100).round();
-  }
-
-  _DebriefInsights _buildDebriefInsights(List<TrainingSession> sessions) {
-    final focus = <String>[];
-    final attention = <String>[];
-    final strength = <String>[];
-    final intensities = <int>[];
-
-    for (final session in sessions) {
-      for (final entry in session.effectiveTechniqueEntries) {
-        final technique = _cleanDebriefText(entry.technique);
-        if (technique == null) {
-          continue;
-        }
-        final position =
-            _cleanDebriefText(entry.position) ??
-            _cleanDebriefText(session.position);
-        focus.add(position == null ? technique : '$technique em $position');
-      }
-
-      final difficulties = _cleanDebriefText(session.difficulties);
-      if (difficulties != null) attention.add(difficulties);
-
-      final successes = _cleanDebriefText(session.successes);
-      if (successes != null) strength.add(successes);
-
-      final intensity = session.intensity;
-      if (intensity != null && intensity >= 1 && intensity <= 5) {
-        intensities.add(intensity);
-      }
-    }
-
-    final intensityAverage =
-        intensities.isEmpty
-            ? null
-            : intensities.fold<int>(0, (sum, value) => sum + value) /
-                intensities.length;
-
-    return _DebriefInsights(
-      technicalFocus: _mostRecurringRecent(focus),
-      attentionPoint: _mostRecurringRecent(attention),
-      strengthPoint: _mostRecurringRecent(strength),
-      averageIntensity: intensityAverage,
-    );
-  }
-
-  String? _mostRecurringRecent(List<String> values) {
-    final scores = <String, _InsightScore>{};
-
-    for (var index = 0; index < values.length; index++) {
-      final value = values[index].trim();
-      if (value.isEmpty) continue;
-      final key = value.toLowerCase();
-      final score = scores[key];
-      if (score == null) {
-        scores[key] = _InsightScore(value: value, count: 1, firstIndex: index);
-      } else {
-        score.count += 1;
-      }
-    }
-
-    _InsightScore? best;
-    for (final score in scores.values) {
-      if (best == null ||
-          score.count > best.count ||
-          (score.count == best.count && score.firstIndex < best.firstIndex)) {
-        best = score;
-      }
-    }
-
-    return best?.value;
-  }
-
-  String _weekKey(DateTime d) {
-    final firstDay = DateTime(d.year, 1, 1);
-    final diff = d.difference(firstDay).inDays;
-    final week = (diff / 7).floor();
-    return '${d.year}-$week';
-  }
 }
 
 class _HomeDashboardViewModel {
   final List<TrainingSession> sessions;
   final List<TrainingSession> recentSessions;
   final List<TrainingSession> lastSessions;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
   final int frequency;
-  final _DebriefInsights debriefInsights;
+  final HomeDebriefInsights debriefInsights;
   final List<GameMapEntry> gameMapLite;
   final List<SkillMatrixCategoryEntry> skillMatrix;
   final _HomeTechnicalRadarViewModel technicalRadar;
@@ -1206,42 +1112,21 @@ class _HomeDashboardViewModel {
     required this.nextTraining,
   });
 
-  factory _HomeDashboardViewModel.fromSessions(
-    List<TrainingSession> sessions, {
-    required _DebriefInsights Function(List<TrainingSession> sessions)
-    buildDebriefInsights,
-    required int Function(List<TrainingSession> sessions) calcFrequency,
-  }) {
-    final stableSessions = List<TrainingSession>.unmodifiable(sessions);
-    final recentSessions = List<TrainingSession>.unmodifiable(
-      stableSessions.reversed.take(10),
-    );
-    final lastSessions = List<TrainingSession>.unmodifiable(
-      recentSessions.take(5),
-    );
-
+  factory _HomeDashboardViewModel.fromSummary(HomeDashboardSummary summary) {
     return _HomeDashboardViewModel(
-      sessions: stableSessions,
-      recentSessions: recentSessions,
-      lastSessions: lastSessions,
-      metrics: TrainingAggregator.metrics(stableSessions),
-      frequency: calcFrequency(stableSessions),
-      debriefInsights: buildDebriefInsights(recentSessions),
-      gameMapLite: List<GameMapEntry>.unmodifiable(
-        TrainingAggregator.buildGameMap(recentSessions, limit: 10),
+      sessions: summary.sessions,
+      recentSessions: summary.recentSessions,
+      lastSessions: summary.lastSessions,
+      metrics: summary.metrics,
+      frequency: summary.frequency,
+      debriefInsights: summary.debriefInsights,
+      gameMapLite: summary.gameMapLite,
+      skillMatrix: summary.skillMatrix,
+      technicalRadar: _HomeTechnicalRadarViewModel.fromSummary(
+        summary.technicalRadar,
       ),
-      skillMatrix: List<SkillMatrixCategoryEntry>.unmodifiable(
-        TrainingAggregator.buildSkillMatrix(stableSessions, limit: 50),
-      ),
-      technicalRadar: _HomeTechnicalRadarViewModel.fromSessions(stableSessions),
-      recommendedFocus: TrainingAggregator.buildRecommendedFocus(
-        stableSessions,
-        recentLimit: 20,
-      ),
-      nextTraining: TrainingAggregator.buildNextTrainingRecommendation(
-        stableSessions,
-        recentLimit: 20,
-      ),
+      recommendedFocus: summary.recommendedFocus,
+      nextTraining: summary.nextTraining,
     );
   }
 }
@@ -1260,31 +1145,6 @@ _CoachStudentHomeState _coachStudentHomeStateFor(int trainingCount) {
 
 // ---------------- UI ----------------
 
-class _DebriefInsights {
-  final String? technicalFocus;
-  final String? attentionPoint;
-  final String? strengthPoint;
-  final double? averageIntensity;
-
-  const _DebriefInsights({
-    required this.technicalFocus,
-    required this.attentionPoint,
-    required this.strengthPoint,
-    required this.averageIntensity,
-  });
-}
-
-class _InsightScore {
-  final String value;
-  final int firstIndex;
-  int count;
-
-  _InsightScore({
-    required this.value,
-    required this.firstIndex,
-    required this.count,
-  });
-}
 
 class _BeltProgress {
   final BeltColor belt;
@@ -1836,7 +1696,7 @@ class _AthleteMinimalNextTrainingCard extends StatelessWidget {
 class _AthleteMinimalMetricsCard extends StatelessWidget {
   final ColorScheme cs;
   final int frequency;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
 
   const _AthleteMinimalMetricsCard({
     required this.cs,
@@ -1950,7 +1810,7 @@ class _StatMini extends StatelessWidget {
 class _StatsCard extends StatelessWidget {
   final ColorScheme cs;
   final int frequency;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
 
   const _StatsCard({
     required this.cs,
@@ -2025,7 +1885,7 @@ class _StatsCard extends StatelessWidget {
 
 class _DebriefInsightsCard extends StatelessWidget {
   final ColorScheme cs;
-  final _DebriefInsights insights;
+  final HomeDebriefInsights insights;
 
   const _DebriefInsightsCard({required this.cs, required this.insights});
 
@@ -2169,7 +2029,7 @@ class _CoachStudentFoundationCard extends StatelessWidget {
   final String studentName;
   final BeltColor belt;
   final int degree;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
   final TrainingSession? lastSession;
   final VoidCallback onRegisterTraining;
 
@@ -2264,7 +2124,7 @@ class _CoachStudentActiveSummaryCard extends StatelessWidget {
   final String studentName;
   final BeltColor belt;
   final int degree;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
   final int frequency;
   final TrainingSession? lastSession;
   final RecommendedTrainingFocus focus;
@@ -2613,18 +2473,13 @@ class _HomeTechnicalRadarViewModel {
     return '${axis.displayLabel} mais presente';
   }
 
-  factory _HomeTechnicalRadarViewModel.fromSessions(
-    List<TrainingSession> sessions,
+  factory _HomeTechnicalRadarViewModel.fromSummary(
+    HomeTechnicalRadarSummary summary,
   ) {
-    final summary = const GetTechnicalRadarSummary()(
-      sessions,
-      limit: sessions.length,
-    );
-
     return _HomeTechnicalRadarViewModel(
       axisEvidence: summary.axisEvidence,
-      classifiedEvidenceCount: summary.classifiedEvidences,
-      awaitingClassificationCount: summary.unclassifiedEvidences,
+      classifiedEvidenceCount: summary.classifiedEvidenceCount,
+      awaitingClassificationCount: summary.awaitingClassificationCount,
       sessionsCount: summary.sessionsCount,
       topAxis: summary.topAxis,
     );
@@ -3148,9 +3003,9 @@ class _HomeRadarHeader extends StatelessWidget {
 
 class _CoachActiveLiteModules extends StatelessWidget {
   final ColorScheme cs;
-  final TrainingMetrics metrics;
+  final HomeTrainingMetrics metrics;
   final int frequency;
-  final _DebriefInsights insights;
+  final HomeDebriefInsights insights;
   final List<SkillMatrixCategoryEntry> skillMatrix;
   final List<GameMapEntry> gameMap;
   final Stream<UserProfile?>? profileStream;
