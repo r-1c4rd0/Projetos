@@ -1200,30 +1200,172 @@ class _GameMapVisualClusterCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 14),
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final cardWidth =
-                    constraints.maxWidth >= 760
-                        ? (constraints.maxWidth - 12) / 2
-                        : constraints.maxWidth;
-
-                return Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final node in viewModel.nodes)
-                      SizedBox(
-                        width: cardWidth,
-                        child: _GameMapPositionCluster(node: node),
-                      ),
-                  ],
-                );
-              },
-            ),
+            _GameMapPositionClusterGraph(viewModel: viewModel),
           ],
         ],
       ),
     );
+  }
+}
+
+class _GameMapPositionClusterGraph extends StatelessWidget {
+  final _GameMapVisualViewModel viewModel;
+
+  const _GameMapPositionClusterGraph({required this.viewModel});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final width = constraints.maxWidth;
+        final isCompact = width < 420;
+        final nodeWidth =
+            (isCompact
+                    ? ((width - 10) / 2).clamp(132.0, 178.0)
+                    : width >= 720
+                    ? ((width - 24) / 3).clamp(172.0, 240.0)
+                    : ((width - 12) / 2).clamp(150.0, 220.0))
+                .toDouble();
+
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isCompact ? 12 : 16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                cs.primary.withValues(alpha: 0.10),
+                cs.secondary.withValues(alpha: 0.06),
+                cs.surfaceContainerHighest.withValues(alpha: 0.12),
+              ],
+            ),
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: IgnorePointer(
+                  child: CustomPaint(
+                    painter: _GameMapClusterBackdropPainter(
+                      primary: cs.primary,
+                      secondary: cs.secondary,
+                      lineColor: cs.onSurface.withValues(alpha: 0.12),
+                    ),
+                  ),
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        width: 42,
+                        height: 42,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: cs.primary.withValues(alpha: 0.12),
+                          border: Border.all(
+                            color: cs.primary.withValues(alpha: 0.28),
+                          ),
+                        ),
+                        child: Icon(
+                          Icons.account_tree_outlined,
+                          color: cs.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Toque em uma posi\u00e7\u00e3o para abrir as t\u00e9cnicas e evid\u00eancias vinculadas.',
+                          maxLines: isCompact ? 3 : 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.66),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Wrap(
+                    spacing: isCompact ? 10 : 12,
+                    runSpacing: isCompact ? 10 : 12,
+                    children: [
+                      for (final node in viewModel.nodes)
+                        SizedBox(
+                          width: nodeWidth,
+                          child: _GameMapPositionClusterNode(node: node),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _GameMapClusterBackdropPainter extends CustomPainter {
+  final Color primary;
+  final Color secondary;
+  final Color lineColor;
+
+  const _GameMapClusterBackdropPainter({
+    required this.primary,
+    required this.secondary,
+    required this.lineColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width * 0.5, size.height * 0.54);
+    final radius = (size.shortestSide * 0.32).clamp(48.0, 118.0).toDouble();
+    final linePaint =
+        Paint()
+          ..color = lineColor
+          ..strokeWidth = 1
+          ..style = PaintingStyle.stroke;
+    final glowPaint =
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              primary.withValues(alpha: 0.18),
+              secondary.withValues(alpha: 0.08),
+              Colors.transparent,
+            ],
+          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.6));
+
+    canvas.drawCircle(center, radius * 1.6, glowPaint);
+    for (var i = 1; i <= 3; i++) {
+      canvas.drawCircle(center, radius * i / 3, linePaint);
+    }
+    canvas.drawLine(
+      Offset(center.dx - radius * 1.35, center.dy),
+      Offset(center.dx + radius * 1.35, center.dy),
+      linePaint,
+    );
+    canvas.drawLine(
+      Offset(center.dx, center.dy - radius),
+      Offset(center.dx, center.dy + radius),
+      linePaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _GameMapClusterBackdropPainter oldDelegate) {
+    return oldDelegate.primary != primary ||
+        oldDelegate.secondary != secondary ||
+        oldDelegate.lineColor != lineColor;
   }
 }
 
@@ -1246,89 +1388,233 @@ class _GameMapHighlightChip extends StatelessWidget {
   }
 }
 
-class _GameMapPositionCluster extends StatelessWidget {
+class _GameMapPositionClusterNode extends StatelessWidget {
   final _GameMapPositionNode node;
 
-  const _GameMapPositionCluster({required this.node});
+  const _GameMapPositionClusterNode({required this.node});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final weight = node.normalizedWeight.clamp(0.0, 1.0);
+    final weight = node.normalizedWeight.clamp(0.0, 1.0).toDouble();
+    final accent = weight >= 0.76 ? TitansUI.actionGold : cs.primary;
 
     return Tooltip(
       message:
-          '${node.recurrenceCount} registros nesta posi\u00e7\u00e3o; peso visual relativo.',
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: cs.secondary.withValues(alpha: 0.22)),
-          color: cs.secondary.withValues(alpha: 0.06 + (weight * 0.04)),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+          '${node.recurrenceCount} registros nesta posi\u00e7\u00e3o; toque para detalhes.',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => _showGameMapPositionDetail(context, node),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minHeight: 132),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: accent.withValues(alpha: 0.26)),
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
+              boxShadow: [
+                BoxShadow(
+                  color: accent.withValues(alpha: 0.08 + (weight * 0.06)),
+                  blurRadius: 18,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Expanded(
-                  child: Text(
-                    node.position,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w900,
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _GameMapNodeOrb(weight: weight, color: accent),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        node.position,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    _MiniBadge(label: node.countLabel, color: accent),
+                    _MiniBadge(label: node.categoryLabel, color: cs.primary),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(999),
+                  child: Container(
+                    height: 6,
+                    width: double.infinity,
+                    color: cs.onSurface.withValues(alpha: 0.08),
+                    alignment: Alignment.centerLeft,
+                    child: FractionallySizedBox(
+                      widthFactor: weight,
+                      child: Container(color: accent.withValues(alpha: 0.78)),
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
-                _MiniBadge(label: node.countLabel, color: cs.secondary),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                _MiniBadge(label: node.categoryLabel, color: cs.primary),
-                _MiniBadge(
-                  label: '${(weight * 100).round()}% recorr\u00eancia relativa',
-                  color: cs.secondary,
+                const SizedBox(height: 9),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${node.techniques.length} t\u00e9cnicas vinculadas',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.62),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                        ),
+                      ),
+                    ),
+                    Icon(
+                      Icons.expand_more_rounded,
+                      size: 18,
+                      color: accent.withValues(alpha: 0.92),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(height: 10),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                height: 7,
-                width: double.infinity,
-                color: cs.onSurface.withValues(alpha: 0.08),
-                alignment: Alignment.centerLeft,
-                child: FractionallySizedBox(
-                  widthFactor: weight,
-                  child: Container(color: cs.secondary.withValues(alpha: 0.72)),
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final technique in node.techniques)
-                  _GameMapTechniqueLinkChip(link: technique),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _GameMapNodeOrb extends StatelessWidget {
+  final double weight;
+  final Color color;
+
+  const _GameMapNodeOrb({required this.weight, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final size = 18.0 + (weight * 12.0);
+
+    return Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: color.withValues(alpha: 0.10),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: color.withValues(alpha: 0.18 + (weight * 0.20)),
+          border: Border.all(color: color.withValues(alpha: 0.52)),
+        ),
+      ),
+    );
+  }
+}
+
+void _showGameMapPositionDetail(
+  BuildContext context,
+  _GameMapPositionNode node,
+) {
+  final cs = Theme.of(context).colorScheme;
+
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: cs.surface,
+    builder: (context) {
+      return SafeArea(
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 14,
+            bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const _CompactHeader(
+                          title: 'DETALHE DA POSI\u00c7\u00c3O',
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          node.position,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Fechar',
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close_rounded),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _MiniBadge(label: node.countLabel, color: cs.primary),
+                  _MiniBadge(label: node.categoryLabel, color: cs.secondary),
+                ],
+              ),
+              const SizedBox(height: 14),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.58,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final technique in node.techniques) ...[
+                        _GameMapTechniqueLinkChip(link: technique),
+                        const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 class _GameMapTechniqueLinkChip extends StatelessWidget {
