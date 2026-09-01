@@ -539,6 +539,11 @@ class _SkillsMatrixGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final maxEvidence = nodes.fold<int>(
+      1,
+      (max, node) => node.evidenceCount > max ? node.evidenceCount : max,
+    );
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
@@ -555,6 +560,7 @@ class _SkillsMatrixGrid extends StatelessWidget {
                 width: itemWidth.clamp(132.0, width).toDouble(),
                 child: _SkillsMatrixNodeCard(
                   node: node,
+                  maxEvidence: maxEvidence,
                   selected: selectedKey == node.key,
                   onTap: () => onSelectNode(node),
                 ),
@@ -568,11 +574,13 @@ class _SkillsMatrixGrid extends StatelessWidget {
 
 class _SkillsMatrixNodeCard extends StatelessWidget {
   final _SkillsMatrixNode node;
+  final int maxEvidence;
   final bool selected;
   final VoidCallback onTap;
 
   const _SkillsMatrixNodeCard({
     required this.node,
+    required this.maxEvidence,
     required this.selected,
     required this.onTap,
   });
@@ -659,6 +667,13 @@ class _SkillsMatrixNodeCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 10),
+              _EvidenceBar(
+                label: node.evidenceLabel,
+                value: node.evidenceCount,
+                maxValue: maxEvidence,
+                color: accent,
+              ),
+              const SizedBox(height: 10),
               Wrap(
                 spacing: 5,
                 runSpacing: 5,
@@ -692,7 +707,7 @@ class _SkillsMatrixHint extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: cs.surfaceContainerHighest.withValues(alpha: 0.14),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        border: Border.all(color: TitansUI.navBorder(context)),
       ),
       child: Text(
         'Toque em uma $label para ver tecnicas e evidencias registradas.',
@@ -720,6 +735,10 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final maxTechniqueEvidence = node.techniques.fold<int>(
+      1,
+      (max, technique) => technique.count > max ? technique.count : max,
+    );
 
     return TitansCard(
       accent: TitansUI.actionGold,
@@ -760,6 +779,13 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
               _TechniqueChip(label: node.statusLabel),
             ],
           ),
+          const SizedBox(height: 10),
+          _EvidenceBar(
+            label: node.evidenceLabel,
+            value: node.evidenceCount,
+            maxValue: node.evidenceCount.clamp(1, 999999).toInt(),
+            color: TitansUI.actionGold,
+          ),
           if (node.preview.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
@@ -777,6 +803,9 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
               name: technique.name,
               count: technique.count,
               detail: technique.detail,
+              evidenceLabel: technique.evidenceLabel,
+              lastRegisteredLabel: technique.lastRegisteredLabel,
+              maxCount: maxTechniqueEvidence,
               onTap: () => onOpenTechnique(technique.target),
             ),
         ],
@@ -818,6 +847,8 @@ class _SkillsMatrixNode {
   final IconData icon;
   final Color accent;
   final List<String> preview;
+  final int evidenceCount;
+  final String evidenceLabel;
   final List<_SkillsMatrixTechnique> techniques;
 
   const _SkillsMatrixNode({
@@ -829,6 +860,8 @@ class _SkillsMatrixNode {
     required this.icon,
     required this.accent,
     required this.preview,
+    required this.evidenceCount,
+    required this.evidenceLabel,
     required this.techniques,
   });
 }
@@ -837,12 +870,16 @@ class _SkillsMatrixTechnique {
   final String name;
   final int count;
   final String detail;
+  final String evidenceLabel;
+  final String lastRegisteredLabel;
   final _SkillNavigationTarget target;
 
   const _SkillsMatrixTechnique({
     required this.name,
     required this.count,
     required this.detail,
+    required this.evidenceLabel,
+    required this.lastRegisteredLabel,
     required this.target,
   });
 }
@@ -862,12 +899,21 @@ List<_SkillsMatrixNode> _positionMatrixNodes(List<GameMapEntry> entries) {
         preview: [
           for (final technique in entry.techniques.take(3)) technique.technique,
         ],
+        evidenceCount: entry.sessionsCount,
+        evidenceLabel: TrainingAggregator.sessionCountLabel(
+          entry.sessionsCount,
+        ),
         techniques: [
           for (final technique in entry.techniques)
             _SkillsMatrixTechnique(
               name: technique.technique,
               count: technique.sessionsCount,
               detail: _formatShortDate(technique.lastTrainedAt),
+              evidenceLabel: TrainingAggregator.sessionCountLabel(
+                technique.sessionsCount,
+              ),
+              lastRegisteredLabel:
+                  'Último registro ${_formatShortDate(technique.lastTrainedAt)}',
               target: _SkillNavigationTarget.fromGameMap(
                 technique: technique,
                 position: entry.position,
@@ -896,12 +942,21 @@ List<_SkillsMatrixNode> _categoryMatrixNodes(
           for (final technique in category.techniques.take(3))
             technique.technique,
         ],
+        evidenceCount: category.sessionsCount,
+        evidenceLabel: TrainingAggregator.sessionCountLabel(
+          category.sessionsCount,
+        ),
         techniques: [
           for (final technique in category.techniques)
             _SkillsMatrixTechnique(
               name: technique.technique,
               count: technique.sessionsCount,
               detail: technique.position ?? 'Posicao nao informada',
+              evidenceLabel: TrainingAggregator.sessionCountLabel(
+                technique.sessionsCount,
+              ),
+              lastRegisteredLabel:
+                  'Último registro ${_formatShortDate(technique.lastTrainedAt)}',
               target: _SkillNavigationTarget.fromSkillMatrix(technique),
             ),
         ],
@@ -937,14 +992,12 @@ class _ExplorerModeSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+        color: TitansUI.navUnselectedBackground(context),
+        border: Border.all(color: TitansUI.navBorder(context)),
       ),
       child: Row(
         children: [
@@ -981,8 +1034,6 @@ class _ModeButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -993,7 +1044,7 @@ class _ModeButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(999),
-            color: selected ? cs.primary.withValues(alpha: 0.18) : null,
+            color: selected ? TitansUI.navSelectedBackground(context) : null,
           ),
           child: Text(
             label,
@@ -1002,7 +1053,9 @@ class _ModeButton extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
               color:
-                  selected ? cs.primary : cs.onSurface.withValues(alpha: 0.68),
+                  selected
+                      ? TitansUI.navSelectedForeground(context)
+                      : TitansUI.navUnselectedForeground(context),
               fontWeight: FontWeight.w900,
             ),
           ),
@@ -1012,16 +1065,86 @@ class _ModeButton extends StatelessWidget {
   }
 }
 
+class _EvidenceBar extends StatelessWidget {
+  final String label;
+  final int value;
+  final int maxValue;
+  final Color color;
+
+  const _EvidenceBar({
+    required this.label,
+    required this.value,
+    required this.maxValue,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final safeMax = maxValue <= 0 ? 1 : maxValue;
+    final fraction = (value / safeMax).clamp(0.0, 1.0).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Evidencia registrada',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.54),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.78),
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 5),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: fraction,
+            minHeight: 6,
+            color: color,
+            backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _TechniqueMiniRow extends StatelessWidget {
   final String name;
   final int count;
   final String detail;
+  final String evidenceLabel;
+  final String lastRegisteredLabel;
+  final int maxCount;
   final VoidCallback onTap;
 
   const _TechniqueMiniRow({
     required this.name,
     required this.count,
     required this.detail,
+    required this.evidenceLabel,
+    required this.lastRegisteredLabel,
+    required this.maxCount,
     required this.onTap,
   });
 
@@ -1037,7 +1160,7 @@ class _TechniqueMiniRow extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
+          color: TitansUI.navUnselectedBackground(context),
           border: Border.all(color: cs.onSurface.withValues(alpha: 0.07)),
         ),
         child: Row(
@@ -1063,12 +1186,28 @@ class _TechniqueMiniRow extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
+                  const SizedBox(height: 2),
+                  Text(
+                    lastRegisteredLabel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.46),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _EvidenceBar(
+                    label: evidenceLabel,
+                    value: count,
+                    maxValue: maxCount,
+                    color: TitansUI.actionGold,
+                  ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            _TechniqueChip(label: '${count}x'),
-            const SizedBox(width: 6),
             Icon(
               Icons.chevron_right_rounded,
               color: cs.onSurface.withValues(alpha: 0.58),

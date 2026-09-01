@@ -247,14 +247,14 @@ ThemeData buildTitansDarkTheme() {
 /// LIGHT
 ThemeData buildTitansLightTheme() {
   const ext = TitansColors(
-    background: Color(0xFFF5F6F8),
-    overlay: Color(0x66FFFFFF),
-    card: Color(0xEFFFFFFF),
-    elevatedSurface: Color(0xFFFFFFFF),
-    cardBorder: Color(0x1A0B0D10),
-    textPrimary: Color(0xFF0B0D10),
-    textSecondary: Color(0xB30B0D10),
-    textFaint: Color(0x660B0D10),
+    background: Color(0xFFEDE7DA),
+    overlay: Color(0x66F7F0E4),
+    card: Color(0xFFF7F0E4),
+    elevatedSurface: Color(0xFFFBF6EE),
+    cardBorder: Color(0x33B8860B),
+    textPrimary: Color(0xFF181510),
+    textSecondary: Color(0xB3181510),
+    textFaint: Color(0x66181510),
     accent: Color(0xFFB8860B),
     technical: Color(0xFF2D6BFF),
     success: Color(0xFF2E7D32),
@@ -276,7 +276,7 @@ ThemeData buildTitansLightTheme() {
     secondary: ext.technical,
     tertiary: ext.beltPurple,
     surface: ext.background,
-    surfaceContainerHighest: ext.card,
+    surfaceContainerHighest: ext.elevatedSurface,
     onSurface: ext.textPrimary,
     outline: ext.cardBorder,
   );
@@ -334,7 +334,10 @@ ThemeData buildTitansLightTheme() {
     ),
     navigationBarTheme: NavigationBarThemeData(
       height: 72,
-      indicatorColor: ext.accent.withValues(alpha: 0.16),
+      backgroundColor: ext.card.withValues(alpha: 0.96),
+      indicatorColor: ext.accent.withValues(alpha: 0.22),
+      shadowColor: const Color(0xFF7A6A48).withValues(alpha: 0.10),
+      surfaceTintColor: Colors.transparent,
       labelTextStyle: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return TextStyle(
@@ -346,10 +349,47 @@ ThemeData buildTitansLightTheme() {
       iconTheme: WidgetStateProperty.resolveWith((states) {
         final selected = states.contains(WidgetState.selected);
         return IconThemeData(
-          color: selected ? ext.accent : ext.textSecondary,
+          color: selected ? ext.textPrimary : ext.textSecondary,
           size: selected ? 26 : 24,
         );
       }),
+    ),
+    chipTheme: ChipThemeData(
+      backgroundColor: ext.elevatedSurface.withValues(alpha: 0.86),
+      selectedColor: ext.accent.withValues(alpha: 0.20),
+      disabledColor: ext.elevatedSurface.withValues(alpha: 0.45),
+      labelStyle: TextStyle(
+        color: ext.textSecondary,
+        fontWeight: FontWeight.w800,
+      ),
+      secondaryLabelStyle: TextStyle(
+        color: ext.textPrimary,
+        fontWeight: FontWeight.w900,
+      ),
+      side: BorderSide(color: ext.cardBorder),
+      shape: const StadiumBorder(),
+    ),
+    segmentedButtonTheme: SegmentedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? ext.textPrimary
+              : ext.textPrimary.withValues(alpha: 0.76);
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? ext.accent.withValues(alpha: 0.20)
+              : ext.elevatedSurface.withValues(alpha: 0.86);
+        }),
+        side: WidgetStateProperty.resolveWith((states) {
+          return BorderSide(
+            color:
+                states.contains(WidgetState.selected)
+                    ? ext.accent.withValues(alpha: 0.42)
+                    : ext.cardBorder.withValues(alpha: 0.85),
+          );
+        }),
+      ),
     ),
     cardTheme: CardThemeData(
       color: ext.card,

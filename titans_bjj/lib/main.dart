@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'auth_gate.dart';
 import 'core/theme_controller.dart';
 import 'core/titans_theme.dart';
+import 'core/titans_ui.dart';
 import 'firebase_options.dart';
 import 'model/academy_models.dart';
 import 'model/app_user.dart';
@@ -279,9 +280,7 @@ class _HomeShellState extends State<HomeShell> {
       extendBody: true,
       body: IndexedStack(index: _index, children: pages),
       bottomNavigationBar: NavigationBar(
-        backgroundColor: Theme.of(
-          context,
-        ).colorScheme.surface.withValues(alpha: 0.92),
+        backgroundColor: TitansUI.surfaceColor(context).withValues(alpha: 0.96),
         elevation: 0,
         selectedIndex: _index,
         onDestinationSelected: (i) {

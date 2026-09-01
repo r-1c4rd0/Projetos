@@ -507,21 +507,21 @@ class _ThemePreferenceSection extends StatelessWidget {
                     visualDensity: VisualDensity.compact,
                     foregroundColor: WidgetStateProperty.resolveWith((states) {
                       if (states.contains(WidgetState.selected)) {
-                        return Colors.black;
+                        return TitansUI.navSelectedForeground(context);
                       }
-                      return cs.onSurface.withValues(alpha: 0.78);
+                      return TitansUI.navUnselectedForeground(context);
                     }),
                     backgroundColor: WidgetStateProperty.resolveWith((states) {
                       if (states.contains(WidgetState.selected)) {
-                        return TitansUI.actionGold;
+                        return TitansUI.navSelectedBackground(context);
                       }
-                      return cs.surfaceContainerHighest.withValues(alpha: 0.30);
+                      return TitansUI.navUnselectedBackground(context);
                     }),
                     side: WidgetStateProperty.resolveWith((states) {
                       final color =
                           states.contains(WidgetState.selected)
-                              ? TitansUI.actionGold
-                              : cs.onSurface.withValues(alpha: 0.12);
+                              ? TitansUI.navBorder(context, selected: true)
+                              : TitansUI.navBorder(context);
                       return BorderSide(color: color);
                     }),
                   ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'titans_live_motion.dart';
+import 'titans_theme.dart';
 
 class TitansUI {
   static const radius = 18.0;
@@ -97,28 +98,114 @@ class TitansUI {
     return EdgeInsets.fromLTRB(spaceMd, spaceMd, spaceMd, 80 + bottom + extra);
   }
 
+  static TitansColors colors(BuildContext context) => titansColors(context);
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color backgroundColor(BuildContext context) =>
+      colors(context).background;
+
+  static Color surfaceColor(BuildContext context) => colors(context).card;
+
+  static Color elevatedSurfaceColor(BuildContext context) =>
+      colors(context).elevatedSurface;
+
+  static Color borderColor(BuildContext context, {double alpha = 1}) =>
+      colors(context).cardBorder.withValues(alpha: alpha);
+
+  static Color textPrimaryColor(BuildContext context) =>
+      colors(context).textPrimary;
+
+  static Color textSecondaryColor(BuildContext context) =>
+      colors(context).textSecondary;
+
+  static Color textFaintColor(BuildContext context) =>
+      colors(context).textFaint;
+
+  static Color overlayColor(BuildContext context) => colors(context).overlay;
+
+  static Color softShadowColor(BuildContext context) {
+    return isDark(context)
+        ? Colors.black.withValues(alpha: 0.34)
+        : const Color(0xFF7A6A48).withValues(alpha: 0.12);
+  }
+
+  static Color subtleFillColor(BuildContext context, {double alpha = 1}) {
+    final base =
+        isDark(context)
+            ? colors(context).elevatedSurface
+            : colors(context).card;
+    return base.withValues(alpha: alpha);
+  }
+
+  static Color navSelectedBackground(BuildContext context) {
+    return isDark(context)
+        ? actionGold
+        : colors(context).accent.withValues(alpha: 0.20);
+  }
+
+  static Color navSelectedForeground(BuildContext context) {
+    return isDark(context) ? Colors.black : colors(context).textPrimary;
+  }
+
+  static Color navUnselectedBackground(BuildContext context) {
+    return isDark(context)
+        ? colors(context).elevatedSurface.withValues(alpha: 0.42)
+        : colors(context).elevatedSurface.withValues(alpha: 0.86);
+  }
+
+  static Color navUnselectedForeground(BuildContext context) {
+    return isDark(context)
+        ? colors(context).textSecondary
+        : colors(context).textPrimary.withValues(alpha: 0.78);
+  }
+
+  static Color navBorder(BuildContext context, {bool selected = false}) {
+    return selected
+        ? colors(
+          context,
+        ).accent.withValues(alpha: isDark(context) ? 0.70 : 0.42)
+        : colors(
+          context,
+        ).cardBorder.withValues(alpha: isDark(context) ? 0.60 : 0.85);
+  }
+
+  static Color navShadow(BuildContext context) {
+    return isDark(context)
+        ? Colors.black.withValues(alpha: 0.24)
+        : const Color(0xFF7A6A48).withValues(alpha: 0.08);
+  }
+
   static BoxDecoration cardDecoration(
     BuildContext context, {
     Color? accent,
     double radius = TitansUI.radius,
   }) {
     final cs = Theme.of(context).colorScheme;
+    final tokens = colors(context);
     final glow = accent ?? cs.primary;
+    final dark = isDark(context);
 
     return BoxDecoration(
       borderRadius: BorderRadius.circular(radius),
-      color: card,
-      border: Border.all(color: cs.onSurface.withValues(alpha: 0.09)),
+      color: tokens.card,
+      border: Border.all(
+        color:
+            dark
+                ? cs.onSurface.withValues(alpha: 0.09)
+                : tokens.cardBorder.withValues(alpha: 0.85),
+      ),
       boxShadow: [
         BoxShadow(
-          color: glow.withValues(alpha: 0.10),
-          blurRadius: 24,
-          offset: const Offset(0, 12),
+          color: glow.withValues(alpha: dark ? 0.10 : 0.07),
+          blurRadius: dark ? 24 : 18,
+          offset: const Offset(0, 10),
         ),
         BoxShadow(
-          color: Colors.black.withValues(alpha: 0.34),
-          blurRadius: 22,
-          offset: const Offset(0, 14),
+          color: softShadowColor(context),
+          blurRadius: dark ? 22 : 16,
+          offset: const Offset(0, 10),
         ),
       ],
     );
@@ -519,7 +606,7 @@ class TitansCompactMetricCard extends StatelessWidget {
       padding: padding,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(TitansRadius.sm),
-        color: TitansUI.elevatedSurface.withValues(alpha: 0.48),
+        color: TitansUI.subtleFillColor(context, alpha: 0.72),
         border: Border.all(color: accent.withValues(alpha: 0.18)),
       ),
       child: Column(

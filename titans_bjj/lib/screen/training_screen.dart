@@ -798,8 +798,8 @@ class _PeriodChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final accent = TitansUI.actionGold;
+    final selectedBackground = TitansUI.navSelectedBackground(context);
+    final unselectedBackground = TitansUI.navUnselectedBackground(context);
 
     return ChoiceChip(
       label: SizedBox(
@@ -815,17 +815,20 @@ class _PeriodChip extends StatelessWidget {
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       labelPadding: const EdgeInsets.symmetric(horizontal: 8),
       labelStyle: TextStyle(
-        color: selected ? Colors.black : cs.onSurface.withValues(alpha: 0.78),
+        color:
+            selected
+                ? TitansUI.navSelectedForeground(context)
+                : TitansUI.navUnselectedForeground(context),
         fontSize: 12,
         fontWeight: FontWeight.w900,
       ),
-      selectedColor: accent,
-      backgroundColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+      selectedColor: selectedBackground,
+      backgroundColor: unselectedBackground,
       side: BorderSide(
         color:
             selected
-                ? accent.withValues(alpha: 0.70)
-                : cs.onSurface.withValues(alpha: 0.14),
+                ? TitansUI.navBorder(context, selected: true)
+                : TitansUI.navBorder(context),
       ),
       shape: const StadiumBorder(),
     );

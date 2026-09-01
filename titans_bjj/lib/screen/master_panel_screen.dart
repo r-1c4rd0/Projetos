@@ -982,9 +982,7 @@ class _RosterCockpitCard extends StatelessWidget {
                   fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(TitansRadius.lg),
-                    borderSide: BorderSide(
-                      color: cs.onSurface.withValues(alpha: 0.10),
-                    ),
+                    borderSide: BorderSide(color: TitansUI.navBorder(context)),
                   ),
                 ),
               ),
@@ -1077,20 +1075,22 @@ class _RosterFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = selected ? TitansUI.actionGold : cs.onSurface;
-
     return ActionChip(
       onPressed: onTap,
       label: Text(label),
       labelStyle: TextStyle(
-        color: selected ? Colors.black : cs.onSurface.withValues(alpha: 0.76),
+        color:
+            selected
+                ? TitansUI.navSelectedForeground(context)
+                : TitansUI.navUnselectedForeground(context),
         fontWeight: FontWeight.w900,
         fontSize: 12,
       ),
       backgroundColor:
-          selected ? TitansUI.actionGold : cs.surfaceContainerHighest,
-      side: BorderSide(color: color.withValues(alpha: selected ? 0.70 : 0.14)),
+          selected
+              ? TitansUI.navSelectedBackground(context)
+              : TitansUI.navUnselectedBackground(context),
+      side: BorderSide(color: TitansUI.navBorder(context, selected: selected)),
       visualDensity: VisualDensity.compact,
     );
   }
@@ -1118,19 +1118,19 @@ class _RosterBeltFilterChip extends StatelessWidget {
       onPressed: onTap,
       label: Text(label),
       labelStyle: TextStyle(
-        color: selected ? textColor : cs.onSurface.withValues(alpha: 0.72),
+        color: selected ? textColor : TitansUI.navUnselectedForeground(context),
         fontWeight: FontWeight.w800,
         fontSize: 11,
       ),
       backgroundColor:
           selected
               ? color.withValues(alpha: 0.14)
-              : cs.surfaceContainerHighest.withValues(alpha: 0.22),
+              : TitansUI.navUnselectedBackground(context),
       side: BorderSide(
         color:
             selected
                 ? color.withValues(alpha: 0.46)
-                : cs.onSurface.withValues(alpha: 0.10),
+                : TitansUI.navBorder(context),
       ),
       visualDensity: VisualDensity.compact,
     );

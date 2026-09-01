@@ -868,8 +868,6 @@ class _EventFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final accent = selected ? TitansUI.actionGold : cs.onSurface;
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -879,9 +877,12 @@ class _EventFilterChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(TitansRadius.chip),
-            color: accent.withValues(alpha: selected ? 0.14 : 0.06),
+            color:
+                selected
+                    ? TitansUI.navSelectedBackground(context)
+                    : TitansUI.navUnselectedBackground(context),
             border: Border.all(
-              color: accent.withValues(alpha: selected ? 0.34 : 0.14),
+              color: TitansUI.navBorder(context, selected: selected),
             ),
           ),
           child: Text(
@@ -889,7 +890,10 @@ class _EventFilterChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: selected ? 0.92 : 0.70),
+              color:
+                  selected
+                      ? TitansUI.navSelectedForeground(context)
+                      : TitansUI.navUnselectedForeground(context),
               fontSize: 12,
               fontWeight: FontWeight.w800,
             ),
