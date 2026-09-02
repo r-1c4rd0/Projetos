@@ -1089,7 +1089,7 @@ class _MealLogTile extends StatelessWidget {
 
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: TitansUI.elevatedSurface.withValues(alpha: 0.72),
+        color: TitansUI.elevatedSurfaceColor(context).withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(TitansRadius.sm),
         border: Border.all(color: cs.onSurface.withValues(alpha: 0.09)),
       ),

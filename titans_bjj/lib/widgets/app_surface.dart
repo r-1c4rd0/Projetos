@@ -8,7 +8,7 @@ class AppSurface extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: TitansUI.bg,
+      color: TitansUI.backgroundColor(context),
       child: Stack(
         children: [
           // Radial glow
@@ -29,7 +29,7 @@ class AppSurface extends StatelessWidget {
           // Pattern (hex/dots fake, leve)
           Positioned.fill(
             child: CustomPaint(
-              painter: _DotPatternPainter(),
+              painter: _DotPatternPainter(isDark: TitansUI.isDark(context)),
             ),
           ),
           child,
@@ -40,9 +40,15 @@ class AppSurface extends StatelessWidget {
 }
 
 class _DotPatternPainter extends CustomPainter {
+  final bool isDark;
+
+  const _DotPatternPainter({required this.isDark});
   @override
   void paint(Canvas canvas, Size size) {
-    final p = Paint()..color = Colors.white.withValues(alpha: 0.03);
+    final p =
+        Paint()
+          ..color = (isDark ? Colors.white : const Color(0xFF7A6A48))
+              .withValues(alpha: isDark ? 0.03 : 0.045);
     const step = 26.0;
 
     for (double y = 0; y < size.height; y += step) {
@@ -53,5 +59,6 @@ class _DotPatternPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(covariant _DotPatternPainter oldDelegate) =>
+      oldDelegate.isDark != isDark;
 }

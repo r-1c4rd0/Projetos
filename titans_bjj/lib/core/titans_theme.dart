@@ -10,7 +10,10 @@ class TitansColors extends ThemeExtension<TitansColors> {
   final Color textPrimary;
   final Color textSecondary;
   final Color textFaint;
-  final Color accent; // dourado / destaque
+  final Color
+  accent; // dourado / destaque — uso em PREENCHIMENTO (botão, badge)
+  final Color
+  accentText; // dourado quando é a cor do próprio TEXTO sobre o fundo
   final Color technical;
   final Color success;
   final Color alert;
@@ -30,6 +33,7 @@ class TitansColors extends ThemeExtension<TitansColors> {
     required this.textSecondary,
     required this.textFaint,
     required this.accent,
+    required this.accentText,
     required this.technical,
     required this.success,
     required this.alert,
@@ -55,6 +59,7 @@ class TitansColors extends ThemeExtension<TitansColors> {
     Color? textSecondary,
     Color? textFaint,
     Color? accent,
+    Color? accentText,
     Color? technical,
     Color? success,
     Color? alert,
@@ -74,6 +79,7 @@ class TitansColors extends ThemeExtension<TitansColors> {
       textSecondary: textSecondary ?? this.textSecondary,
       textFaint: textFaint ?? this.textFaint,
       accent: accent ?? this.accent,
+      accentText: accentText ?? this.accentText,
       technical: technical ?? this.technical,
       success: success ?? this.success,
       alert: alert ?? this.alert,
@@ -98,6 +104,7 @@ class TitansColors extends ThemeExtension<TitansColors> {
       textSecondary: Color.lerp(textSecondary, other.textSecondary, t)!,
       textFaint: Color.lerp(textFaint, other.textFaint, t)!,
       accent: Color.lerp(accent, other.accent, t)!,
+      accentText: Color.lerp(accentText, other.accentText, t)!,
       technical: Color.lerp(technical, other.technical, t)!,
       success: Color.lerp(success, other.success, t)!,
       alert: Color.lerp(alert, other.alert, t)!,
@@ -113,7 +120,50 @@ class TitansColors extends ThemeExtension<TitansColors> {
 TitansColors titansColors(BuildContext context) =>
     Theme.of(context).extension<TitansColors>()!;
 
-/// DARK
+/// Botões/chips compartilhados entre os dois temas, pra não repetir a
+/// definição e evitar que um tema fique com menos componentes cobertos
+/// que o outro (era o caso do tema escuro antes desta correção).
+ChipThemeData _chipTheme(TitansColors ext) => ChipThemeData(
+  backgroundColor: ext.elevatedSurface.withValues(alpha: 0.86),
+  selectedColor: ext.accent.withValues(alpha: 0.20),
+  disabledColor: ext.elevatedSurface.withValues(alpha: 0.45),
+  labelStyle: TextStyle(color: ext.textSecondary, fontWeight: FontWeight.w800),
+  secondaryLabelStyle: TextStyle(
+    color: ext.textPrimary,
+    fontWeight: FontWeight.w900,
+  ),
+  side: BorderSide(color: ext.cardBorder),
+  shape: const StadiumBorder(),
+);
+
+SegmentedButtonThemeData _segmentedButtonTheme(TitansColors ext) =>
+    SegmentedButtonThemeData(
+      style: ButtonStyle(
+        foregroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? ext.textPrimary
+              : ext.textPrimary.withValues(alpha: 0.76);
+        }),
+        backgroundColor: WidgetStateProperty.resolveWith((states) {
+          return states.contains(WidgetState.selected)
+              ? ext.accent.withValues(alpha: 0.20)
+              : ext.elevatedSurface.withValues(alpha: 0.86);
+        }),
+        side: WidgetStateProperty.resolveWith((states) {
+          return BorderSide(
+            color:
+                states.contains(WidgetState.selected)
+                    ? ext.accent.withValues(alpha: 0.42)
+                    : ext.cardBorder.withValues(alpha: 0.85),
+          );
+        }),
+      ),
+    );
+
+/// DARK — inalterado no que já funcionava, só ganhou chip/segmented theme
+/// e o novo campo `accentText` (aqui pode ser igual ao `accent`, porque
+/// dourado sobre fundo quase preto já tem contraste alto o suficiente
+/// pra servir como texto direto).
 ThemeData buildTitansDarkTheme() {
   const ext = TitansColors(
     background: Color(0xFF070A0F),
@@ -125,6 +175,7 @@ ThemeData buildTitansDarkTheme() {
     textSecondary: Color(0xC9D7DCE8),
     textFaint: Color(0x80D7DCE8),
     accent: Color(0xFFE9C46A),
+    accentText: Color(0xFFE9C46A), // ok como texto direto no fundo escuro
     technical: Color(0xFF2D6BFF),
     success: Color(0xFF70E000),
     alert: Color(0xFFFF5C5C),
@@ -154,7 +205,7 @@ ThemeData buildTitansDarkTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: ext.background,
-    extensions: const [ext],
+    extensions: [ext],
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: ext.textPrimary,
@@ -163,6 +214,8 @@ ThemeData buildTitansDarkTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        foregroundColor: const Color(0xFF121212),
+        iconColor: const Color(0xFF121212),
         minimumSize: const Size(48, 46),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -171,6 +224,8 @@ ThemeData buildTitansDarkTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        foregroundColor: ext.textPrimary,
+        iconColor: ext.textPrimary,
         minimumSize: const Size(48, 46),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -179,6 +234,8 @@ ThemeData buildTitansDarkTheme() {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
+        foregroundColor: ext.accentText,
+        iconColor: ext.accentText,
         minimumSize: const Size(44, 44),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -220,6 +277,8 @@ ThemeData buildTitansDarkTheme() {
         );
       }),
     ),
+    chipTheme: _chipTheme(ext),
+    segmentedButtonTheme: _segmentedButtonTheme(ext),
     cardTheme: CardThemeData(
       color: ext.card,
       elevation: 0,
@@ -228,6 +287,7 @@ ThemeData buildTitansDarkTheme() {
         side: BorderSide(color: ext.cardBorder),
       ),
     ),
+    iconTheme: IconThemeData(color: ext.textPrimary, size: 24),
     textTheme: TextTheme(
       titleLarge: TextStyle(
         fontSize: 22,
@@ -244,23 +304,42 @@ ThemeData buildTitansDarkTheme() {
   );
 }
 
-/// LIGHT
+/// LIGHT — paleta creme/dourada mantida (é uma escolha de direção válida,
+/// não troquei por cinza neutro), mas com os ajustes de contraste abaixo:
+///
+/// - `background` escurecido levemente e `card` clareado, pra criar
+///   separação real entre página e card (antes os dois eram quase do
+///   mesmo tom).
+/// - `overlay` virou um scrim escuro (preto ~70%), igual ao tema escuro —
+///   overlay de modal precisa escurecer o fundo em QUALQUER tema.
+/// - `technical`/`beltBlue` escurecidos pra ~5,6:1 de contraste (antes
+///   ~3,76:1, o mesmo azul do tema escuro sem ajuste nenhum).
+/// - `accentText` criado como variante mais escura do dourado, só pra uso
+///   como cor de TEXTO direto sobre o fundo (o `accent` original continua
+///   valendo pra preenchimento de botão/badge, onde já tem contraste bom
+///   contra texto escuro em cima).
+/// - `textSecondary`/`textFaint` com opacidade mais alta (a mesma opacidade
+///   do tema escuro não rende o mesmo contraste em fundo claro).
+/// - `cardBorder` trocado de dourado a 20% pra um marrom-neutro mais
+///   opaco — dourado claro não escurece o suficiente pra funcionar como
+///   borda visível.
 ThemeData buildTitansLightTheme() {
   const ext = TitansColors(
-    background: Color(0xFFEDE7DA),
-    overlay: Color(0x66F7F0E4),
-    card: Color(0xFFF7F0E4),
-    elevatedSurface: Color(0xFFFBF6EE),
-    cardBorder: Color(0x33B8860B),
+    background: Color(0xFFE6DFCC),
+    overlay: Color(0xB3000000),
+    card: Color(0xFFFFFCF6),
+    elevatedSurface: Color(0xFFFFFFFF),
+    cardBorder: Color(0x51201A10),
     textPrimary: Color(0xFF181510),
-    textSecondary: Color(0xB3181510),
-    textFaint: Color(0x66181510),
+    textSecondary: Color(0xCC181510),
+    textFaint: Color(0x99181510),
     accent: Color(0xFFB8860B),
-    technical: Color(0xFF2D6BFF),
+    accentText: Color(0xFF8A6508),
+    technical: Color(0xFF1D4ED8),
     success: Color(0xFF2E7D32),
     alert: Color(0xFFC62828),
     beltWhite: Color(0xFFFFFFFF),
-    beltBlue: Color(0xFF2D6BFF),
+    beltBlue: Color(0xFF1D4ED8),
     beltPurple: Color(0xFF7B1FA2),
     beltBrown: Color(0xFF795548),
     beltBlack: Color(0xFF1F232B),
@@ -285,7 +364,7 @@ ThemeData buildTitansLightTheme() {
     useMaterial3: true,
     colorScheme: scheme,
     scaffoldBackgroundColor: ext.background,
-    extensions: const [ext],
+    extensions: [ext],
     appBarTheme: AppBarTheme(
       backgroundColor: Colors.transparent,
       foregroundColor: ext.textPrimary,
@@ -294,6 +373,8 @@ ThemeData buildTitansLightTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
+        foregroundColor: const Color(0xFF121212),
+        iconColor: const Color(0xFF121212),
         minimumSize: const Size(48, 46),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -302,6 +383,8 @@ ThemeData buildTitansLightTheme() {
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
+        foregroundColor: ext.textPrimary,
+        iconColor: ext.textPrimary,
         minimumSize: const Size(48, 46),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
@@ -310,6 +393,8 @@ ThemeData buildTitansLightTheme() {
     ),
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
+        foregroundColor: ext.accentText,
+        iconColor: ext.accentText,
         minimumSize: const Size(44, 44),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         textStyle: const TextStyle(fontWeight: FontWeight.w800),
@@ -354,51 +439,18 @@ ThemeData buildTitansLightTheme() {
         );
       }),
     ),
-    chipTheme: ChipThemeData(
-      backgroundColor: ext.elevatedSurface.withValues(alpha: 0.86),
-      selectedColor: ext.accent.withValues(alpha: 0.20),
-      disabledColor: ext.elevatedSurface.withValues(alpha: 0.45),
-      labelStyle: TextStyle(
-        color: ext.textSecondary,
-        fontWeight: FontWeight.w800,
-      ),
-      secondaryLabelStyle: TextStyle(
-        color: ext.textPrimary,
-        fontWeight: FontWeight.w900,
-      ),
-      side: BorderSide(color: ext.cardBorder),
-      shape: const StadiumBorder(),
-    ),
-    segmentedButtonTheme: SegmentedButtonThemeData(
-      style: ButtonStyle(
-        foregroundColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.selected)
-              ? ext.textPrimary
-              : ext.textPrimary.withValues(alpha: 0.76);
-        }),
-        backgroundColor: WidgetStateProperty.resolveWith((states) {
-          return states.contains(WidgetState.selected)
-              ? ext.accent.withValues(alpha: 0.20)
-              : ext.elevatedSurface.withValues(alpha: 0.86);
-        }),
-        side: WidgetStateProperty.resolveWith((states) {
-          return BorderSide(
-            color:
-                states.contains(WidgetState.selected)
-                    ? ext.accent.withValues(alpha: 0.42)
-                    : ext.cardBorder.withValues(alpha: 0.85),
-          );
-        }),
-      ),
-    ),
+    chipTheme: _chipTheme(ext),
+    segmentedButtonTheme: _segmentedButtonTheme(ext),
     cardTheme: CardThemeData(
       color: ext.card,
-      elevation: 0,
+      elevation: 1,
+      shadowColor: const Color(0xFF7A6A48).withValues(alpha: 0.14),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(18),
         side: BorderSide(color: ext.cardBorder),
       ),
     ),
+    iconTheme: IconThemeData(color: ext.textPrimary, size: 24),
     textTheme: TextTheme(
       titleLarge: TextStyle(
         fontSize: 22,

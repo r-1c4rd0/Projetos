@@ -22,6 +22,7 @@ import '../service/user_session.dart';
 import '../widgets/charts/titans_technical_radar.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
+import '../widgets/quick_log_sheet.dart';
 import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
@@ -325,6 +326,17 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
+                      void openQuickLog() {
+                        showQuickLogSheet(
+                          context: context,
+                          academyId: academyId,
+                          uid: uid,
+                          recentSessions: filtered,
+                          canSave: canEditTarget,
+                          onOpenFullForm: openRegisterTraining,
+                        );
+                      }
+
                       void openNutrition() {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -421,6 +433,24 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   if (isAthleteSelfView) ...[
                                     const _AthleteMinimalHeader(),
                                     const SizedBox(height: 12),
+                                    _AthleteHomeCockpitHero(
+                                      cs: cs,
+                                      focus: recommendedFocus,
+                                      nextTraining: nextTraining,
+                                      lastSession:
+                                          lastSessions.isEmpty
+                                              ? null
+                                              : lastSessions.first,
+                                      onRegisterTraining: openQuickLog,
+                                      onOpenTraining: openTraining,
+                                    ),
+                                    const SizedBox(height: 12),
+                                    _AthleteMinimalMetricsCard(
+                                      cs: cs,
+                                      frequency: frequency,
+                                      metrics: metrics,
+                                    ),
+                                    const SizedBox(height: 12),
                                     _AthleteMinimalIdentityCard(
                                       cs: cs,
                                       name: headerName,
@@ -435,12 +465,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           beltProgress.sessionsInBelt,
                                       sessionsRequired:
                                           beltProgress.sessionsRequired,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    _AthleteMinimalActionsCard(
-                                      cs: cs,
-                                      onRegisterTraining: openRegisterTraining,
-                                      onOpenTraining: openTraining,
                                     ),
                                   ] else ...[
                                     LayoutBuilder(
@@ -590,11 +614,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       ),
                                     ] else ...[
                                       if (isAthleteSelfView) ...[
-                                        _AthleteMinimalNextTrainingCard(
-                                          cs: cs,
-                                          recommendation: nextTraining,
-                                        ),
-                                        const SizedBox(height: 12),
                                         _HomeTechnicalRadarSlot(
                                           cs: cs,
                                           radar: technicalRadar,
@@ -602,18 +621,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           onRegisterTraining:
                                               openRegisterTraining,
                                         ),
-                                        const SizedBox(height: 12),
-                                        _AthleteMinimalMetricsCard(
-                                          cs: cs,
-                                          frequency: frequency,
-                                          metrics: metrics,
-                                        ),
                                         if (lastSessions.isNotEmpty) ...[
                                           const SizedBox(height: 12),
                                           _RecentActivityTimelineCard(
                                             cs: cs,
                                             items: lastSessions,
                                             onOpenTraining: openTraining,
+                                            compact: true,
                                           ),
                                         ],
                                       ] else ...[
@@ -1661,121 +1675,211 @@ class _DegreeDots extends StatelessWidget {
   }
 }
 
-class _AthleteMinimalActionsCard extends StatelessWidget {
+class _AthleteHomeCockpitHero extends StatelessWidget {
   final ColorScheme cs;
+  final RecommendedTrainingFocus focus;
+  final NextTrainingRecommendation nextTraining;
+  final TrainingSession? lastSession;
   final VoidCallback onRegisterTraining;
   final VoidCallback onOpenTraining;
 
-  const _AthleteMinimalActionsCard({
+  const _AthleteHomeCockpitHero({
     required this.cs,
+    required this.focus,
+    required this.nextTraining,
+    required this.lastSession,
     required this.onRegisterTraining,
     required this.onOpenTraining,
   });
 
   @override
   Widget build(BuildContext context) {
+    final accent = _priorityColor(cs, focus.priority, nextTraining.priority);
+    final title =
+        focus.hasRecommendation
+            ? focus.title
+            : nextTraining.hasRecommendation
+            ? nextTraining.title
+            : 'Foco do treino em construção';
+    final subtitle =
+        focus.hasRecommendation
+            ? focus.summary
+            : nextTraining.hasRecommendation
+            ? nextTraining.subtitle
+            : 'Registre treinos e debriefs para alimentar seu próximo passo.';
+    final support = _supportText();
+    final tags =
+        <String>[
+          if (focus.hasRecommendation) ...focus.tags,
+          if (!focus.hasRecommendation && nextTraining.hasRecommendation)
+            ...nextTraining.tags,
+        ].take(2).toList();
+    final lastActivity =
+        lastSession == null
+            ? 'Sem treino registrado ainda'
+            : 'Última atividade ${_formatShortDate(lastSession!.date)}';
+
     return _GlassCard(
-      accent: Colors.amber.withValues(alpha: 0.25),
-      child: Row(
+      accent: accent.withValues(alpha: 0.22),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            child: FilledButton.icon(
-              onPressed: onRegisterTraining,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Registrar treino'),
-              style: FilledButton.styleFrom(
-                backgroundColor: Colors.amber,
-                foregroundColor: Colors.black,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: accent.withValues(alpha: 0.12),
+                  border: Border.all(color: accent.withValues(alpha: 0.24)),
+                ),
+                child: Icon(Icons.flag_outlined, color: accent, size: 15),
               ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'FOCO DO TREINO',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: accent,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.72),
+              fontSize: 13,
+              fontWeight: FontWeight.w800,
             ),
           ),
-          const SizedBox(width: 10),
-          OutlinedButton.icon(
-            onPressed: onOpenTraining,
-            icon: const Icon(Icons.list_alt_outlined, size: 18),
-            label: const Text('Treinos'),
+          const SizedBox(height: 4),
+          Text(
+            support,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.60),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              _InsightBadge(
+                label: lastActivity,
+                color: cs.onSurface.withValues(alpha: 0.46),
+                icon: Icons.history_rounded,
+                muted: true,
+              ),
+              for (final tag in tags) _InsightBadge(label: tag, color: accent),
+            ],
+          ),
+          const SizedBox(height: 10),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final stackButtons = constraints.maxWidth < 360;
+              final primary = FilledButton.icon(
+                onPressed: onRegisterTraining,
+                icon: const Icon(Icons.add_rounded, size: 18),
+                label: const Text('Registrar treino'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: TitansUI.actionGold,
+                  foregroundColor: Colors.black,
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 38),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                ),
+              );
+              final secondary = OutlinedButton.icon(
+                onPressed: onOpenTraining,
+                icon: const Icon(Icons.list_alt_outlined, size: 18),
+                label: const Text('Treinos'),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 38),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 8,
+                  ),
+                ),
+              );
+
+              if (stackButtons) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [primary, const SizedBox(height: 8), secondary],
+                );
+              }
+
+              return Row(
+                children: [
+                  Expanded(child: primary),
+                  const SizedBox(width: 8),
+                  secondary,
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
-}
 
-class _AthleteMinimalNextTrainingCard extends StatelessWidget {
-  final ColorScheme cs;
-  final NextTrainingRecommendation recommendation;
-
-  const _AthleteMinimalNextTrainingCard({
-    required this.cs,
-    required this.recommendation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final priorityColor = _priorityColor(cs, recommendation.priority);
-    final tags = recommendation.tags.take(3).toList();
-
-    return _GlassCard(
-      accent: priorityColor.withValues(alpha: 0.24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _SectionHeaderCompact(title: 'PRÓXIMO TREINO'),
-          const SizedBox(height: 10),
-          Text(
-            recommendation.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            recommendation.hasRecommendation
-                ? recommendation.subtitle
-                : (recommendation.emptyMessage ?? recommendation.subtitle),
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.70),
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          if (recommendation.hasRecommendation) ...[
-            const SizedBox(height: 8),
-            Text(
-              recommendation.objective,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.76)),
-            ),
-          ],
-          if (tags.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                for (final tag in tags)
-                  _InsightBadge(label: tag, color: priorityColor),
-              ],
-            ),
-          ],
-        ],
-      ),
-    );
+  String _supportText() {
+    if (focus.hasRecommendation) return focus.reason;
+    if (nextTraining.hasRecommendation) return nextTraining.objective;
+    return nextTraining.emptyMessage ?? nextTraining.subtitle;
   }
 
   Color _priorityColor(
     ColorScheme cs,
-    RecommendedTrainingFocusPriority priority,
+    RecommendedTrainingFocusPriority focusPriority,
+    RecommendedTrainingFocusPriority nextPriority,
   ) {
+    final priority =
+        focusPriority == RecommendedTrainingFocusPriority.none
+            ? nextPriority
+            : focusPriority;
     switch (priority) {
       case RecommendedTrainingFocusPriority.high:
         return cs.error;
       case RecommendedTrainingFocusPriority.medium:
-        return Colors.amber;
+        return TitansUI.actionGold;
       case RecommendedTrainingFocusPriority.low:
-        return Colors.lightGreenAccent;
+        return TitansUI.successGreen;
       case RecommendedTrainingFocusPriority.none:
         return cs.primary;
     }
@@ -1795,37 +1899,36 @@ class _AthleteMinimalMetricsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return _GlassCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansRadius.md),
+        color: TitansUI.subtleFillColor(context, alpha: 0.62),
+        border: Border.all(color: TitansUI.borderColor(context, alpha: 0.48)),
+      ),
+      child: TitansCompactMetricGrid(
+        fourColumnMinWidth: 440,
+        spacing: 8,
         children: [
-          const _SectionHeaderCompact(title: 'MÉTRICAS RÁPIDAS'),
-          const SizedBox(height: 10),
-          TitansCompactMetricGrid(
-            fourColumnMinWidth: 520,
-            spacing: 10,
-            children: [
-              _StatMini(
-                title: '8 SEMANAS',
-                value: '$frequency%',
-                highlight: cs.primary,
-              ),
-              _StatMini(
-                title: '30 DIAS',
-                value: metrics.recent.toString(),
-                highlight: Colors.lightGreenAccent,
-              ),
-              _StatMini(
-                title: 'ANO',
-                value: metrics.year.toString(),
-                highlight: Colors.amber,
-              ),
-              _StatMini(
-                title: 'TOTAL',
-                value: metrics.total.toString(),
-                highlight: cs.secondary,
-              ),
-            ],
+          _StatMini(
+            title: '8 SEMANAS',
+            value: '$frequency%',
+            highlight: cs.primary,
+          ),
+          _StatMini(
+            title: '30 DIAS',
+            value: metrics.recent.toString(),
+            highlight: TitansUI.successGreen,
+          ),
+          _StatMini(
+            title: 'ANO',
+            value: metrics.year.toString(),
+            highlight: TitansUI.actionGold,
+          ),
+          _StatMini(
+            title: 'TOTAL',
+            value: metrics.total.toString(),
+            highlight: cs.secondary,
           ),
         ],
       ),
@@ -2600,7 +2703,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
             badgeLabel: 'Inicial',
             badgeIcon: Icons.radar_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
@@ -2612,7 +2715,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
                 children: [
                   Text(
                     'Registre treinos para ativar seu mapa técnico',
-                    maxLines: 2,
+                    maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.90),
@@ -2623,7 +2726,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'A leitura técnica aparece conforme suas evidências de treino evoluem.',
-                    maxLines: 2,
+                    maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.66),
@@ -2631,7 +2734,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
                       fontWeight: FontWeight.w700,
                     ),
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
                     'Baseado em evidências dos treinos.',
                     maxLines: 1,
@@ -2650,7 +2753,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     visual,
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     Align(alignment: Alignment.centerLeft, child: details),
                   ],
                 );
@@ -2666,7 +2769,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _HomeRadarCta(
             label:
                 onRegisterTraining == null
@@ -2705,7 +2808,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
             badgeLabel: 'Base: ${radar.sessionLabel}',
             badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
@@ -2729,7 +2832,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Trilhas apagadas indicam eixos ainda sem evidência registrada.',
-                    maxLines: 2,
+                    maxLines: compact ? 1 : 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: cs.onSurface.withValues(alpha: 0.66),
@@ -2744,7 +2847,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                     children: [
                       _InsightBadge(
                         label:
-                            'Eixo mais presente: ${radar.topAxis?.displayLabel ?? 'em formação'}',
+                            'Eixo: ${radar.topAxis?.displayLabel ?? 'em formação'}',
                         color: cs.secondary,
                         icon: Icons.auto_awesome_outlined,
                       ),
@@ -2755,7 +2858,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
                     'Baseado em evidências dos treinos.',
                     maxLines: 1,
@@ -2774,7 +2877,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     visual,
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     Align(alignment: Alignment.centerLeft, child: details),
                   ],
                 );
@@ -2790,7 +2893,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _HomeRadarCta(
             label: 'Explorar mapa',
             icon: Icons.map_outlined,
@@ -2825,7 +2928,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
             badgeLabel: 'Base: ${radar.sessionLabel}',
             badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 520;
@@ -2841,7 +2944,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       _InsightBadge(
-                        label: 'Destaque: ${radar.topAxisLabel}',
+                        label: radar.topAxisLabel,
                         color: cs.secondary,
                         icon: Icons.auto_awesome_outlined,
                       ),
@@ -2852,9 +2955,9 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 6),
                   Text(
-                    'Baseado em evid\u00eancias dos treinos.',
+                    'Baseado em evidências dos treinos.',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -2868,10 +2971,10 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
 
               if (compact) {
                 return Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    radarVisual,
-                    const SizedBox(height: 14),
+                    Center(child: radarVisual),
+                    const SizedBox(height: 10),
                     radarDetails,
                   ],
                 );
@@ -2887,7 +2990,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           _HomeRadarCta(
             label: 'Explorar mapa',
             icon: Icons.map_outlined,
@@ -2914,52 +3017,59 @@ class _HomeRadarCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final child = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 17),
-        const SizedBox(width: 8),
+        Icon(icon, size: 15),
+        const SizedBox(width: 6),
         Flexible(
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
         ),
         if (!filled) ...[
-          const SizedBox(width: 4),
-          const Icon(Icons.arrow_forward_rounded, size: 16),
+          const SizedBox(width: 3),
+          const Icon(Icons.arrow_forward_rounded, size: 14),
         ],
       ],
     );
 
-    final cs = Theme.of(context).colorScheme;
-    final minimumSize = const Size.fromHeight(44);
-
-    if (filled) {
-      return SizedBox(
-        width: double.infinity,
-        child: FilledButton(
-          onPressed: onPressed,
-          style: FilledButton.styleFrom(
-            minimumSize: minimumSize,
-            backgroundColor: cs.secondary,
-            foregroundColor: Colors.black,
-          ),
-          child: child,
-        ),
-      );
-    }
-
-    return SizedBox(
-      width: double.infinity,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          minimumSize: minimumSize,
-          foregroundColor: cs.onSurface,
-          side: BorderSide(color: cs.secondary.withValues(alpha: 0.38)),
-          backgroundColor: cs.secondary.withValues(alpha: 0.07),
-        ),
-        child: child,
-      ),
+    final minimumSize = const Size(0, 36);
+    final stylePadding = const EdgeInsets.symmetric(
+      horizontal: 12,
+      vertical: 8,
     );
+    final button =
+        filled
+            ? FilledButton(
+              onPressed: onPressed,
+              style: FilledButton.styleFrom(
+                minimumSize: minimumSize,
+                visualDensity: VisualDensity.compact,
+                padding: stylePadding,
+                backgroundColor: cs.secondary,
+                foregroundColor: Colors.black,
+              ),
+              child: child,
+            )
+            : OutlinedButton(
+              onPressed: onPressed,
+              style: OutlinedButton.styleFrom(
+                minimumSize: minimumSize,
+                visualDensity: VisualDensity.compact,
+                padding: stylePadding,
+                foregroundColor: cs.onSurface,
+                side: BorderSide(color: cs.secondary.withValues(alpha: 0.32)),
+                backgroundColor: cs.secondary.withValues(alpha: 0.05),
+              ),
+              child: child,
+            );
+
+    return Align(alignment: Alignment.centerRight, child: button);
   }
 }
 
@@ -3033,7 +3143,7 @@ class _HomeRadarHeader extends StatelessWidget {
           icon: badgeIcon,
         );
 
-        if (constraints.maxWidth < 340) {
+        if (constraints.maxWidth < 400) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [titleBlock, const SizedBox(height: 8), badge],
@@ -4793,16 +4903,18 @@ class _RecentActivityTimelineCard extends StatelessWidget {
   final ColorScheme cs;
   final List<TrainingSession> items;
   final VoidCallback onOpenTraining;
+  final bool compact;
 
   const _RecentActivityTimelineCard({
     required this.cs,
     required this.items,
     required this.onOpenTraining,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final visibleItems = items.take(3).toList();
+    final visibleItems = items.take(compact ? 2 : 3).toList();
     final usefulPlaces =
         visibleItems
             .map((session) => session.place)
@@ -4818,7 +4930,9 @@ class _RecentActivityTimelineCard extends StatelessWidget {
             children: [
               Expanded(
                 child: Text(
-                  'ATIVIDADE RECENTE',
+                  compact ? 'ÚLTIMOS TREINOS' : 'ATIVIDADE RECENTE',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.75),
                     fontWeight: FontWeight.w800,
@@ -4827,11 +4941,11 @@ class _RecentActivityTimelineCard extends StatelessWidget {
               ),
               TextButton(
                 onPressed: onOpenTraining,
-                child: const Text('Ver todos os treinos →'),
+                child: Text(compact ? 'Ver todos' : 'Ver todos os treinos →'),
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          SizedBox(height: compact ? 6 : 10),
           if (visibleItems.isEmpty)
             Text(
               '—',
@@ -4844,6 +4958,7 @@ class _RecentActivityTimelineCard extends StatelessWidget {
                   _RecentActivityTimelineRow(
                     session: visibleItems[i],
                     showPlace: showPlace,
+                    compact: compact,
                   ),
                   if (i != visibleItems.length - 1)
                     Divider(color: cs.onSurface.withValues(alpha: 0.08)),
@@ -4859,10 +4974,12 @@ class _RecentActivityTimelineCard extends StatelessWidget {
 class _RecentActivityTimelineRow extends StatelessWidget {
   final TrainingSession session;
   final bool showPlace;
+  final bool compact;
 
   const _RecentActivityTimelineRow({
     required this.session,
     required this.showPlace,
+    this.compact = false,
   });
 
   @override
@@ -4879,7 +4996,7 @@ class _RecentActivityTimelineRow extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: EdgeInsets.symmetric(vertical: compact ? 6 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -4910,7 +5027,7 @@ class _RecentActivityTimelineRow extends StatelessWidget {
                   detailParts.isEmpty
                       ? 'Registro técnico'
                       : detailParts.join(' · '),
-                  maxLines: 2,
+                  maxLines: compact ? 1 : 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color: cs.onSurface.withValues(alpha: 0.72),

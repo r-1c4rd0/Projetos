@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 
@@ -13,6 +15,7 @@ import '../service/user_session.dart';
 import '../widgets/glass_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
+import '../widgets/quick_log_sheet.dart';
 import 'add_training_session_screen.dart';
 
 class TrainingScreen extends StatefulWidget {
@@ -35,8 +38,35 @@ class TrainingScreen extends StatefulWidget {
   State<TrainingScreen> createState() => _TrainingScreenState();
 }
 
+enum _TrainingChartMode { bar, line, pie }
+
+extension _TrainingChartModeUi on _TrainingChartMode {
+  IconData get icon {
+    switch (this) {
+      case _TrainingChartMode.bar:
+        return Icons.bar_chart_rounded;
+      case _TrainingChartMode.line:
+        return Icons.show_chart_rounded;
+      case _TrainingChartMode.pie:
+        return Icons.donut_large_rounded;
+    }
+  }
+
+  String get label {
+    switch (this) {
+      case _TrainingChartMode.bar:
+        return 'Barras';
+      case _TrainingChartMode.line:
+        return 'Linha';
+      case _TrainingChartMode.pie:
+        return 'Pizza';
+    }
+  }
+}
+
 class _TrainingScreenState extends State<TrainingScreen> {
   TrainingChartPeriod _period = TrainingChartPeriod.thirtyDays;
+  _TrainingChartMode _selectedChartMode = _TrainingChartMode.bar;
   String? _expandedSessionId;
   final _historySearchController = TextEditingController();
   _TrainingHistoryPeriodFilter _historyPeriod =
@@ -350,112 +380,106 @@ class _TrainingScreenState extends State<TrainingScreen> {
           return ListView(
             padding: listPadding,
             children: [
-              TrainingOverviewSummaryCard(
+              _TrainingFrequencyHeroCard(
+                chart: chart,
+                chartMode: _selectedChartMode,
+                onPeriodChanged: (period) => setState(() => _period = period),
+                onChartModeChanged:
+                    (mode) => setState(() => _selectedChartMode = mode),
+              ),
+              const SizedBox(height: 10),
+              _TrainingCompactMetricsAndActions(
                 summary: summary,
                 lastTrainingLabel: lastTrainingLabel,
-                period: _period,
-                onPeriodChanged: (p) => setState(() => _period = p),
                 canAddTraining: canEditTarget,
+                onQuickLog:
+                    canEditTarget
+                        ? () => _openQuickLog(
+                          academyId: academyId,
+                          uid: uid,
+                          sessions: sessions,
+                        )
+                        : null,
                 onAddTraining:
                     canEditTarget
                         ? () =>
                             _openTrainingForm(academyId: academyId, uid: uid)
                         : null,
               ),
-              const SizedBox(height: 12),
-              _TrainingExpandableSection(
-                title: 'Evolução dos treinos',
-                subtitle: chart.totalLabel,
-                initiallyExpanded: true,
-                child: SizedBox(
-                  width: double.infinity,
-                  child: _TrainingChartCard(viewModel: chart),
-                ),
-              ),
-              const SizedBox(height: 12),
-              _TrainingExpandableSection(
-                title: 'Registros de treino',
-                subtitle:
-                    '${trainingCountLabel(sessions.length)} • $lastTrainingLabel',
-                child: SizedBox(
-                  width: double.infinity,
-                  child: _TrainingHistoryPanel(
-                    items: historyItems,
-                    searchController: _historySearchController,
-                    period: _historyPeriod,
-                    result: _historyResult,
-                    contextFilter: _historyContext,
-                    positionFilter: _historyPositionFilter,
-                    techniqueFilter: _historyTechniqueFilter,
-                    visibleCount: _visibleHistoryCount,
-                    expandedSessionId: _expandedSessionId,
-                    canEdit: canEditTarget,
-                    onOpenFilters: () => _showHistoryFilters(historyItems),
-                    onClearSearch: _historySearchController.clear,
-                    onClearPeriod: () {
-                      setState(() {
-                        _historyPeriod = _TrainingHistoryPeriodFilter.all;
-                        _resetHistoryWindow();
-                      });
-                    },
-                    onClearResult: () {
-                      setState(() {
-                        _historyResult = _TrainingHistoryResultFilter.all;
-                        _resetHistoryWindow();
-                      });
-                    },
-                    onClearContext: () {
-                      setState(() {
-                        _historyContext = _TrainingHistoryContextFilter.all;
-                        _resetHistoryWindow();
-                      });
-                    },
-                    onClearPosition: () {
-                      setState(() {
-                        _historyPositionFilter = null;
-                        _resetHistoryWindow();
-                      });
-                    },
-                    onClearTechnique: () {
-                      setState(() {
-                        _historyTechniqueFilter = null;
-                        _resetHistoryWindow();
-                      });
-                    },
-                    onLoadMore: () {
-                      setState(() => _visibleHistoryCount += 20);
-                    },
-                    onToggle: (item) {
-                      setState(() {
-                        _expandedSessionId =
-                            _expandedSessionId == item.id ? null : item.id;
-                      });
-                    },
-                    onEdit:
-                        canEditTarget
-                            ? (item) {
-                              final session = item.session;
-                              debugPrint(
-                                '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
-                                'target.uid=$uid canEditTarget=$canEditTarget '
-                                'academyId=$academyId session.id=${session.id}',
-                              );
-                              return _openTrainingForm(
-                                academyId: academyId,
-                                uid: uid,
-                                session: session,
-                              );
-                            }
-                            : null,
-                    onAddTraining:
-                        canEditTarget
-                            ? () => _openTrainingForm(
-                              academyId: academyId,
-                              uid: uid,
-                            )
-                            : null,
-                  ),
-                ),
+              const SizedBox(height: 10),
+              _TrainingHistorySection(
+                items: historyItems,
+                searchController: _historySearchController,
+                period: _historyPeriod,
+                result: _historyResult,
+                contextFilter: _historyContext,
+                positionFilter: _historyPositionFilter,
+                techniqueFilter: _historyTechniqueFilter,
+                visibleCount: _visibleHistoryCount,
+                expandedSessionId: _expandedSessionId,
+                canEdit: canEditTarget,
+                onOpenFilters: () => _showHistoryFilters(historyItems),
+                onClearSearch: _historySearchController.clear,
+                onClearPeriod: () {
+                  setState(() {
+                    _historyPeriod = _TrainingHistoryPeriodFilter.all;
+                    _resetHistoryWindow();
+                  });
+                },
+                onClearResult: () {
+                  setState(() {
+                    _historyResult = _TrainingHistoryResultFilter.all;
+                    _resetHistoryWindow();
+                  });
+                },
+                onClearContext: () {
+                  setState(() {
+                    _historyContext = _TrainingHistoryContextFilter.all;
+                    _resetHistoryWindow();
+                  });
+                },
+                onClearPosition: () {
+                  setState(() {
+                    _historyPositionFilter = null;
+                    _resetHistoryWindow();
+                  });
+                },
+                onClearTechnique: () {
+                  setState(() {
+                    _historyTechniqueFilter = null;
+                    _resetHistoryWindow();
+                  });
+                },
+                onLoadMore: () {
+                  setState(() => _visibleHistoryCount += 20);
+                },
+                onToggle: (item) {
+                  setState(() {
+                    _expandedSessionId =
+                        _expandedSessionId == item.id ? null : item.id;
+                  });
+                },
+                onEdit:
+                    canEditTarget
+                        ? (item) {
+                          final session = item.session;
+                          debugPrint(
+                            '[TRAINING_EDIT_OPEN] actor.uid=${actor?.uid} '
+                            'target.uid=$uid canEditTarget=$canEditTarget '
+                            'academyId=$academyId session.id=${session.id}',
+                          );
+                          return _openTrainingForm(
+                            academyId: academyId,
+                            uid: uid,
+                            session: session,
+                          );
+                        }
+                        : null,
+                onAddTraining:
+                    canEditTarget
+                        ? () =>
+                            _openTrainingForm(academyId: academyId, uid: uid)
+                        : null,
               ),
               const SizedBox(height: 12),
             ],
@@ -490,6 +514,21 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (loggedUser.uid == target.uid || canManage);
   }
 
+  Future<bool?> _openQuickLog({
+    required String academyId,
+    required String uid,
+    required List<TrainingSession> sessions,
+  }) {
+    return showQuickLogSheet(
+      context: context,
+      academyId: academyId,
+      uid: uid,
+      recentSessions: sessions,
+      canSave: true,
+      onOpenFullForm: () => _openTrainingForm(academyId: academyId, uid: uid),
+    );
+  }
+
   Future<void> _openTrainingForm({
     required String academyId,
     required String uid,
@@ -508,533 +547,99 @@ class _TrainingScreenState extends State<TrainingScreen> {
   }
 }
 
-class _TrainingExpandableSection extends StatefulWidget {
-  final String title;
-  final String? subtitle;
-  final bool initiallyExpanded;
-  final Widget child;
-
-  const _TrainingExpandableSection({
-    required this.title,
-    this.subtitle,
-    this.initiallyExpanded = false,
-    required this.child,
-  });
-
-  @override
-  State<_TrainingExpandableSection> createState() =>
-      _TrainingExpandableSectionState();
-}
-
-class _TrainingExpandableSectionState
-    extends State<_TrainingExpandableSection> {
-  late bool _expanded = widget.initiallyExpanded;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return TitansCard(
-      padding: EdgeInsets.zero,
-      radius: TitansUI.radiusSmall,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          InkWell(
-            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-            onTap: () => setState(() => _expanded = !_expanded),
-            child: Padding(
-              padding: const EdgeInsets.all(TitansUI.spaceMd),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w900,
-                          ),
-                        ),
-                        if (widget.subtitle != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            widget.subtitle!,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: cs.onSurface.withValues(alpha: 0.64),
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: TitansUI.spaceSm),
-                  AnimatedRotation(
-                    turns: _expanded ? 0.5 : 0,
-                    duration: const Duration(milliseconds: 180),
-                    curve: Curves.easeOutCubic,
-                    child: Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: cs.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_expanded)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                TitansUI.spaceMd,
-                0,
-                TitansUI.spaceMd,
-                TitansUI.spaceMd,
-              ),
-              child: widget.child,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class TrainingOverviewSummaryCard extends StatelessWidget {
-  final TrainingOverviewSummary summary;
-  final String lastTrainingLabel;
-  final TrainingChartPeriod period;
-  final ValueChanged<TrainingChartPeriod> onPeriodChanged;
-  final bool canAddTraining;
-  final VoidCallback? onAddTraining;
-
-  const TrainingOverviewSummaryCard({
-    super.key,
-    required this.summary,
-    required this.lastTrainingLabel,
-    required this.period,
-    required this.onPeriodChanged,
-    required this.canAddTraining,
-    required this.onAddTraining,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final intensity = summary.averageIntensity;
-
-    return glassCard(
-      context,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      'Histórico de treinos',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      lastTrainingLabel,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.66),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          TitansCompactMetricGrid(
-            fourColumnMinWidth: 520,
-            children: [
-              _SummaryMetric(
-                label: 'Treinos',
-                value: summary.total.toString(),
-                color: cs.onSurface,
-              ),
-              _SummaryMetric(
-                label: 'Técnicas',
-                value: summary.techniques.toString(),
-                color: cs.onSurface,
-              ),
-              _SummaryMetric(
-                label: 'Intensidade',
-                value:
-                    intensity == null
-                        ? 'Sem dados'
-                        : '${intensity.toStringAsFixed(1)}/5',
-                color: TitansUI.actionGold,
-              ),
-              _SummaryMetric(
-                label: 'Aplicação',
-                value: summary.applicationCount.toString(),
-                color: TitansUI.successGreen,
-              ),
-            ],
-          ),
-          if (canAddTraining && onAddTraining != null) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                onPressed: onAddTraining,
-                icon: const Icon(Icons.add),
-                label: const Text('Treino'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: TitansUI.actionGold,
-                  foregroundColor: Colors.black,
-                  visualDensity: VisualDensity.compact,
-                ),
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _PeriodFilter(
-            period: period,
-            periods: TrainingChartPeriodOption.defaults,
-            onChanged: onPeriodChanged,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryMetric extends StatelessWidget {
+class _TrainingMetricRailItemData {
   final String label;
   final String value;
   final Color color;
 
-  const _SummaryMetric({
+  const _TrainingMetricRailItemData({
     required this.label,
     required this.value,
     required this.color,
   });
-
-  @override
-  Widget build(BuildContext context) {
-    return TitansCompactMetricCard(label: label, value: value, color: color);
-  }
 }
 
-class _PeriodFilter extends StatelessWidget {
-  final TrainingChartPeriod period;
-  final List<TrainingChartPeriodOption> periods;
-  final ValueChanged<TrainingChartPeriod> onChanged;
+class _TrainingMetricRail extends StatelessWidget {
+  final List<_TrainingMetricRailItemData> items;
 
-  const _PeriodFilter({
-    required this.period,
-    required this.periods,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    const gap = TitansUI.spaceXs;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final maxWidth =
-            constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0;
-        final narrow = maxWidth <= 430;
-        final chipWidth =
-            narrow ? (maxWidth - gap) / 2 : (maxWidth - (gap * 3)) / 4;
-        final safeChipWidth = chipWidth.clamp(0.0, maxWidth).toDouble();
-
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (final option in periods)
-              SizedBox(
-                width: safeChipWidth,
-                child: _PeriodChip(
-                  label: option.label,
-                  selected: period == option.id,
-                  onSelected: () => onChanged(option.id),
-                ),
-              ),
-          ],
-        );
-      },
-    );
-  }
-}
-
-class _PeriodChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  const _PeriodChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final selectedBackground = TitansUI.navSelectedBackground(context);
-    final unselectedBackground = TitansUI.navUnselectedBackground(context);
-
-    return ChoiceChip(
-      label: SizedBox(
-        width: double.infinity,
-        child: Center(
-          child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis),
-        ),
-      ),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      labelPadding: const EdgeInsets.symmetric(horizontal: 8),
-      labelStyle: TextStyle(
-        color:
-            selected
-                ? TitansUI.navSelectedForeground(context)
-                : TitansUI.navUnselectedForeground(context),
-        fontSize: 12,
-        fontWeight: FontWeight.w900,
-      ),
-      selectedColor: selectedBackground,
-      backgroundColor: unselectedBackground,
-      side: BorderSide(
-        color:
-            selected
-                ? TitansUI.navBorder(context, selected: true)
-                : TitansUI.navBorder(context),
-      ),
-      shape: const StadiumBorder(),
-    );
-  }
-}
-
-class _TrainingHistoryPanel extends StatelessWidget {
-  final List<TrainingSessionHistoryItem> items;
-  final TextEditingController searchController;
-  final _TrainingHistoryPeriodFilter period;
-  final _TrainingHistoryResultFilter result;
-  final _TrainingHistoryContextFilter contextFilter;
-  final String? positionFilter;
-  final String? techniqueFilter;
-  final int visibleCount;
-  final String? expandedSessionId;
-  final bool canEdit;
-  final VoidCallback onOpenFilters;
-  final VoidCallback onClearSearch;
-  final VoidCallback onClearPeriod;
-  final VoidCallback onClearResult;
-  final VoidCallback onClearContext;
-  final VoidCallback onClearPosition;
-  final VoidCallback onClearTechnique;
-  final VoidCallback onLoadMore;
-  final ValueChanged<TrainingSessionHistoryItem> onToggle;
-  final Future<void> Function(TrainingSessionHistoryItem item)? onEdit;
-  final Future<void> Function()? onAddTraining;
-
-  const _TrainingHistoryPanel({
-    required this.items,
-    required this.searchController,
-    required this.period,
-    required this.result,
-    required this.contextFilter,
-    required this.positionFilter,
-    required this.techniqueFilter,
-    required this.visibleCount,
-    required this.expandedSessionId,
-    required this.canEdit,
-    required this.onOpenFilters,
-    required this.onClearSearch,
-    required this.onClearPeriod,
-    required this.onClearResult,
-    required this.onClearContext,
-    required this.onClearPosition,
-    required this.onClearTechnique,
-    required this.onLoadMore,
-    required this.onToggle,
-    required this.onEdit,
-    required this.onAddTraining,
-  });
+  const _TrainingMetricRail({required this.items});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final filtered = _filteredItems();
-    final visible = filtered.take(visibleCount).toList(growable: false);
-    final query = searchController.text.trim();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: searchController,
-                textInputAction: TextInputAction.search,
-                decoration: InputDecoration(
-                  labelText: 'Buscar treino',
-                  prefixIcon: const Icon(Icons.search),
-                  suffixIcon:
-                      query.isEmpty
-                          ? null
-                          : IconButton(
-                            tooltip: 'Limpar busca',
-                            onPressed: onClearSearch,
-                            icon: const Icon(Icons.close),
-                          ),
-                  isDense: true,
-                  filled: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        color: TitansUI.subtleFillColor(context, alpha: 0.48),
+        border: Border.all(color: TitansUI.borderColor(context, alpha: 0.34)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final maxWidth =
+              constraints.maxWidth.isFinite ? constraints.maxWidth : 360.0;
+          final columns = maxWidth >= 520 ? 4 : 2;
+          const gap = 8.0;
+          final itemWidth = (maxWidth - (gap * (columns - 1))) / columns;
+
+          return Wrap(
+            spacing: gap,
+            runSpacing: gap,
+            children: [
+              for (final item in items)
+                SizedBox(
+                  width: itemWidth.clamp(112.0, maxWidth).toDouble(),
+                  child: _TrainingMetricRailItem(
+                    item: item,
+                    baseColor: cs.onSurface,
                   ),
                 ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              tooltip: 'Filtros',
-              onPressed: onOpenFilters,
-              icon: const Icon(Icons.tune),
-            ),
-          ],
-        ),
-        const SizedBox(height: 10),
-        _TrainingHistoryActiveFilters(
-          query: query,
-          period: period,
-          result: result,
-          contextFilter: contextFilter,
-          positionFilter: positionFilter,
-          techniqueFilter: techniqueFilter,
-          onClearSearch: onClearSearch,
-          onClearPeriod: onClearPeriod,
-          onClearResult: onClearResult,
-          onClearContext: onClearContext,
-          onClearPosition: onClearPosition,
-          onClearTechnique: onClearTechnique,
-        ),
-        const SizedBox(height: 10),
-        Text(
-          '${filtered.length} treinos encontrados',
-          style: TextStyle(
-            color: cs.onSurface.withValues(alpha: 0.68),
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 12),
-        if (items.isEmpty)
-          TitansEmptyState(
-            icon: Icons.fitness_center_outlined,
-            title: 'Sem treinos registrados',
-            message: 'Adicione uma sessao para iniciar o historico.',
-            compact: true,
-            action:
-                canEdit
-                    ? FilledButton.icon(
-                      onPressed: onAddTraining,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Adicionar treino'),
-                    )
-                    : null,
-          )
-        else if (filtered.isEmpty)
-          const TitansEmptyState(
-            icon: Icons.filter_alt_off_outlined,
-            title: 'Nenhum treino encontrado com esses filtros.',
-            message: 'Ajuste a busca ou remova algum filtro ativo.',
-            compact: true,
-          )
-        else ...[
-          for (final item in visible)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _TrainingSessionCard(
-                item: item,
-                expanded: expandedSessionId == item.id,
-                canEdit: canEdit,
-                onToggle: () => onToggle(item),
-                onEdit: onEdit == null ? null : () => onEdit!(item),
-              ),
-            ),
-          if (filtered.length > visible.length)
-            Center(
-              child: OutlinedButton.icon(
-                onPressed: onLoadMore,
-                icon: const Icon(Icons.expand_more),
-                label: Text(
-                  'Carregar mais (${filtered.length - visible.length})',
-                ),
-              ),
-            ),
-        ],
-      ],
+            ],
+          );
+        },
+      ),
     );
   }
+}
 
-  List<TrainingSessionHistoryItem> _filteredItems() {
-    final query = trainingHistoryKey(searchController.text);
-    final now = DateTime.now();
-    return items
-        .where((item) {
-          if (query.isNotEmpty && !item.searchText.contains(query)) {
-            return false;
-          }
-          if (!matchesTrainingHistoryPeriod(
-            item.date,
-            period.domainPeriod,
-            now,
-          )) {
-            return false;
-          }
-          if (result != _TrainingHistoryResultFilter.all &&
-              item.resultBucket != result.domainBucket) {
-            return false;
-          }
-          if (contextFilter != _TrainingHistoryContextFilter.all &&
-              !item.contextBuckets.contains(contextFilter.domainBucket)) {
-            return false;
-          }
-          final position = positionFilter;
-          if (position != null &&
-              !item.positionKeys.contains(trainingHistoryKey(position))) {
-            return false;
-          }
-          final technique = techniqueFilter;
-          if (technique != null &&
-              !item.techniqueKeys.contains(trainingHistoryKey(technique))) {
-            return false;
-          }
-          return true;
-        })
-        .toList(growable: false);
+class _TrainingMetricRailItem extends StatelessWidget {
+  final _TrainingMetricRailItemData item;
+  final Color baseColor;
+
+  const _TrainingMetricRailItem({required this.item, required this.baseColor});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          item.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: baseColor.withValues(alpha: 0.54),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 2),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          alignment: Alignment.centerLeft,
+          child: TitansAnimatedMetricValue(
+            value: item.value,
+            style: TextStyle(
+              color: item.color,
+              fontSize: 17,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
   }
 }
 
@@ -1781,86 +1386,935 @@ class _TrainingActionChip extends StatelessWidget {
   }
 }
 
-class _TrainingChartCard extends StatelessWidget {
-  final TrainingChartSummary viewModel;
+class _TrainingPeriodInlineSelector extends StatelessWidget {
+  final TrainingChartPeriod selectedPeriod;
+  final ValueChanged<TrainingChartPeriod> onChanged;
 
-  const _TrainingChartCard({required this.viewModel});
+  const _TrainingPeriodInlineSelector({
+    required this.selectedPeriod,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final periodLabel =
-        TrainingChartPeriodOption.byId(viewModel.selectedPeriod).label;
+    final foreground = TitansUI.navSelectedForeground(context);
 
-    return glassCard(
-      context,
-      Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  viewModel.title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
+    return Tooltip(
+      message: 'Alterar período',
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onChanged(_nextPeriod(selectedPeriod)),
+          borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 190),
+            curve: Curves.easeOutCubic,
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 32),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+              color: TitansUI.navSelectedBackground(
+                context,
+              ).withValues(alpha: 0.86),
+              border: Border.all(
+                color: TitansUI.navBorder(context, selected: true),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: cs.secondary.withValues(alpha: 0.10),
+                  blurRadius: 14,
+                  offset: const Offset(0, 6),
+                ),
+              ],
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: Text(
+                _compactPeriodLabel(selectedPeriod),
+                key: ValueKey(selectedPeriod),
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: foreground,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  TrainingChartPeriod _nextPeriod(TrainingChartPeriod period) {
+    switch (period) {
+      case TrainingChartPeriod.sevenDays:
+        return TrainingChartPeriod.thirtyDays;
+      case TrainingChartPeriod.thirtyDays:
+        return TrainingChartPeriod.threeMonths;
+      case TrainingChartPeriod.threeMonths:
+        return TrainingChartPeriod.twelveMonths;
+      case TrainingChartPeriod.twelveMonths:
+        return TrainingChartPeriod.sevenDays;
+    }
+  }
+
+  String _compactPeriodLabel(TrainingChartPeriod period) {
+    switch (period) {
+      case TrainingChartPeriod.sevenDays:
+        return '7d';
+      case TrainingChartPeriod.thirtyDays:
+        return '30d';
+      case TrainingChartPeriod.threeMonths:
+        return '3m';
+      case TrainingChartPeriod.twelveMonths:
+        return '12m';
+    }
+  }
+}
+
+class _TrainingChartModeSwitcher extends StatelessWidget {
+  final _TrainingChartMode selectedMode;
+  final ValueChanged<_TrainingChartMode> onChanged;
+
+  const _TrainingChartModeSwitcher({
+    required this.selectedMode,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final foreground = TitansUI.navSelectedForeground(context);
+
+    return Tooltip(
+      message: 'Alterar gráfico: ${selectedMode.label}',
+      child: Semantics(
+        label: 'Alterar gráfico',
+        button: true,
+        child: Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: () => onChanged(_nextMode(selectedMode)),
+            borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 190),
+              curve: Curves.easeOutCubic,
+              width: 36,
+              height: 32,
+              decoration: BoxDecoration(
+                color: TitansUI.navUnselectedBackground(
+                  context,
+                ).withValues(alpha: 0.50),
+                borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+                border: Border.all(
+                  color: TitansUI.navBorder(context, selected: false),
+                ),
+              ),
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 180),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeOutCubic,
+                child: Icon(
+                  selectedMode.icon,
+                  key: ValueKey(selectedMode),
+                  size: 18,
+                  color: foreground,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  _TrainingChartMode _nextMode(_TrainingChartMode mode) {
+    switch (mode) {
+      case _TrainingChartMode.bar:
+        return _TrainingChartMode.line;
+      case _TrainingChartMode.line:
+        return _TrainingChartMode.pie;
+      case _TrainingChartMode.pie:
+        return _TrainingChartMode.bar;
+    }
+  }
+}
+
+class _TrainingChartView extends StatelessWidget {
+  final _TrainingChartMode mode;
+  final List<TrainingChartPoint> points;
+
+  const _TrainingChartView({required this.mode, required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    switch (mode) {
+      case _TrainingChartMode.bar:
+        return _TrainingBarChart(points: points);
+      case _TrainingChartMode.line:
+        return _TrainingLineChart(points: points);
+      case _TrainingChartMode.pie:
+        return _TrainingDonutChart(points: points);
+    }
+  }
+}
+
+class _TrainingLineChart extends StatelessWidget {
+  final List<TrainingChartPoint> points;
+
+  const _TrainingLineChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final maxValue = points.fold<int>(
+      0,
+      (max, point) => point.value > max ? point.value : max,
+    );
+    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1).toDouble();
+    final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final labelEvery = _trainingChartLabelEvery(
+          points.length,
+          constraints.maxWidth,
+        );
+
+        return RepaintBoundary(
+          child: LineChart(
+            LineChartData(
+              minX: 0,
+              maxX: maxX,
+              minY: 0,
+              maxY: maxY,
+              gridData: FlGridData(
+                drawVerticalLine: false,
+                horizontalInterval: 1,
+                getDrawingHorizontalLine:
+                    (_) => FlLine(
+                      color: cs.onSurface.withValues(alpha: 0.08),
+                      strokeWidth: 1,
+                    ),
+              ),
+              borderData: FlBorderData(show: false),
+              lineTouchData: LineTouchData(
+                enabled: true,
+                touchTooltipData: LineTouchTooltipData(
+                  fitInsideHorizontally: true,
+                  fitInsideVertically: true,
+                  tooltipRoundedRadius: 10,
+                  tooltipPadding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 8,
+                  ),
+                  getTooltipItems:
+                      (spots) => [
+                        for (final spot in spots)
+                          if (spot.x.toInt() >= 0 &&
+                              spot.x.toInt() < points.length)
+                            LineTooltipItem(
+                              '${points[spot.x.toInt()].tooltipTitle}\n',
+                              TextStyle(
+                                color: cs.onInverseSurface,
+                                fontWeight: FontWeight.w900,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: points[spot.x.toInt()].tooltipBody,
+                                  style: TextStyle(
+                                    color: cs.onInverseSurface.withValues(
+                                      alpha: 0.82,
+                                    ),
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            null,
+                      ],
+                ),
+              ),
+              titlesData: FlTitlesData(
+                topTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                rightTitles: const AxisTitles(
+                  sideTitles: SideTitles(showTitles: false),
+                ),
+                leftTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 30,
+                    interval: 1,
+                    getTitlesWidget: (value, _) {
+                      final intValue = value.toInt();
+                      if (value != intValue || intValue < 0) {
+                        return const SizedBox.shrink();
+                      }
+                      return Text(
+                        intValue.toString(),
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.62),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                bottomTitles: AxisTitles(
+                  sideTitles: SideTitles(
+                    showTitles: true,
+                    reservedSize: 32,
+                    getTitlesWidget: (value, _) {
+                      final index = value.toInt();
+                      if (index < 0 || index >= points.length) {
+                        return const SizedBox.shrink();
+                      }
+                      final shouldShow =
+                          index == points.length - 1 || index % labelEvery == 0;
+                      if (!shouldShow) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          points[index].label,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.66),
+                            fontSize: 9,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              _TrainingActionChip(
-                label: periodLabel,
-                color: TitansUI.technicalBlue,
-              ),
+              lineBarsData: [
+                LineChartBarData(
+                  spots: [
+                    for (var i = 0; i < points.length; i++)
+                      FlSpot(i.toDouble(), points[i].value.toDouble()),
+                  ],
+                  isCurved: true,
+                  preventCurveOverShooting: true,
+                  barWidth: 3,
+                  color: cs.primary,
+                  belowBarData: BarAreaData(
+                    show: true,
+                    color: cs.primary.withValues(alpha: 0.10),
+                  ),
+                  dotData: FlDotData(
+                    show: true,
+                    getDotPainter:
+                        (spot, percent, barData, index) => FlDotCirclePainter(
+                          radius: points[index].isHighlighted ? 4 : 2.8,
+                          color:
+                              points[index].isHighlighted
+                                  ? cs.secondary
+                                  : cs.primary,
+                          strokeColor: Theme.of(context).colorScheme.surface,
+                          strokeWidth: 1.5,
+                        ),
+                  ),
+                ),
+              ],
+            ),
+            duration: Duration.zero,
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _TrainingDonutChart extends StatelessWidget {
+  static final _motion = TitansMotionSpec.standard();
+
+  final List<TrainingChartPoint> points;
+
+  const _TrainingDonutChart({required this.points});
+
+  @override
+  Widget build(BuildContext context) {
+    final total = points.fold<int>(0, (sum, point) => sum + point.value);
+    final activePoints = points.where((point) => point.value > 0).toList();
+
+    if (total == 0 || activePoints.isEmpty) {
+      return TitansEmptyState(
+        icon: Icons.donut_large_rounded,
+        title: 'Sem registros no período',
+        message: 'Nenhum treino registrado neste período.',
+        compact: true,
+      );
+    }
+
+    final duration = TitansMotion.duration(context, _motion);
+    if (duration == Duration.zero) {
+      return _buildOrb(context, activePoints, total, 1);
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: duration,
+      curve: TitansMotion.curve(_motion),
+      builder:
+          (context, progress, _) => _buildOrb(
+            context,
+            activePoints,
+            total,
+            progress.clamp(0.0, 1.0).toDouble(),
+          ),
+    );
+  }
+
+  Widget _buildOrb(
+    BuildContext context,
+    List<TrainingChartPoint> activePoints,
+    int total,
+    double revealProgress,
+  ) {
+    final mostActive = activePoints.reduce(
+      (a, b) => a.value >= b.value ? a : b,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final compact = constraints.maxWidth < 390;
+        final chartWidget = _TrainingEnergyOrb(
+          points: activePoints,
+          total: total,
+          progress: revealProgress,
+          compact: compact,
+        );
+        final legend = _TrainingDonutLegend(
+          points: activePoints,
+          mostActive: mostActive,
+        );
+
+        if (compact) {
+          return Column(
+            children: [
+              Expanded(child: chartWidget),
+              const SizedBox(height: 8),
+              legend,
             ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: chartWidget),
+            const SizedBox(width: 14),
+            SizedBox(width: 156, child: legend),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _TrainingEnergyOrb extends StatefulWidget {
+  final List<TrainingChartPoint> points;
+  final int total;
+  final double progress;
+  final bool compact;
+
+  const _TrainingEnergyOrb({
+    required this.points,
+    required this.total,
+    required this.progress,
+    required this.compact,
+  });
+
+  @override
+  State<_TrainingEnergyOrb> createState() => _TrainingEnergyOrbState();
+}
+
+class _TrainingEnergyOrbState extends State<_TrainingEnergyOrb>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseController;
+  int? _selectedIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 2400),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final disableAnimations = MediaQuery.disableAnimationsOf(context);
+    if (disableAnimations) {
+      _pulseController.stop();
+    } else if (!_pulseController.isAnimating) {
+      _pulseController.repeat(reverse: true);
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _TrainingEnergyOrb oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = _selectedIndex;
+    if (selected != null && selected >= widget.points.length) {
+      _selectedIndex = widget.points.isEmpty ? null : widget.points.length - 1;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    super.dispose();
+  }
+
+  void _selectNextSegment() {
+    if (widget.points.isEmpty) return;
+    setState(() {
+      final selected = _selectedIndex;
+      _selectedIndex =
+          selected == null ? 0 : (selected + 1) % widget.points.length;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final orbSize = widget.compact ? 92.0 : 112.0;
+    final selectedPoint =
+        _selectedIndex == null ? null : widget.points[_selectedIndex!];
+
+    return RepaintBoundary(
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: _selectNextSegment,
+        child: AnimatedBuilder(
+          animation: _pulseController,
+          builder: (context, _) {
+            final pulse =
+                MediaQuery.disableAnimationsOf(context)
+                    ? 0.0
+                    : _pulseController.value;
+            return Stack(
+              alignment: Alignment.center,
+              children: [
+                CustomPaint(
+                  size: Size.square(widget.compact ? 188 : 220),
+                  painter: _TrainingEnergyOrbPainter(
+                    points: widget.points,
+                    progress: widget.progress,
+                    selectedIndex: _selectedIndex,
+                    pulse: pulse,
+                    colorScheme: cs,
+                  ),
+                ),
+                Container(
+                  width: orbSize,
+                  height: orbSize,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: RadialGradient(
+                      center: const Alignment(-0.34, -0.42),
+                      radius: 0.94,
+                      colors: [
+                        Colors.white.withValues(alpha: 0.92),
+                        cs.primary.withValues(alpha: 0.56),
+                        cs.secondary.withValues(alpha: 0.18),
+                        cs.surface.withValues(alpha: 0.96),
+                      ],
+                      stops: const [0.0, 0.28, 0.58, 1.0],
+                    ),
+                    border: Border.all(
+                      color: cs.secondary.withValues(alpha: 0.32),
+                      width: 1.2,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: cs.primary.withValues(
+                          alpha: 0.22 + pulse * 0.08,
+                        ),
+                        blurRadius: 24 + pulse * 8,
+                        spreadRadius: 1,
+                      ),
+                      BoxShadow(
+                        color: cs.shadow.withValues(alpha: 0.28),
+                        blurRadius: 18,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      Positioned(
+                        top: orbSize * 0.15,
+                        left: orbSize * 0.20,
+                        child: Container(
+                          width: orbSize * 0.28,
+                          height: orbSize * 0.18,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withValues(alpha: 0.34),
+                          ),
+                        ),
+                      ),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.total.toString(),
+                              style: TextStyle(
+                                color: cs.onSurface,
+                                fontSize: widget.compact ? 22 : 26,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                            Text(
+                              selectedPoint?.label ?? 'treinos',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: cs.onSurface.withValues(alpha: 0.66),
+                                fontSize: widget.compact ? 10 : 11,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (selectedPoint != null)
+                  Positioned(
+                    bottom: widget.compact ? 8 : 12,
+                    child: Container(
+                      constraints: BoxConstraints(
+                        maxWidth: widget.compact ? 142 : 172,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 9,
+                        vertical: 5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: cs.surface.withValues(alpha: 0.82),
+                        borderRadius: BorderRadius.circular(
+                          TitansUI.radiusPill,
+                        ),
+                        border: Border.all(
+                          color: cs.primary.withValues(alpha: 0.28),
+                        ),
+                      ),
+                      child: Text(
+                        '${selectedPoint.label}: ${selectedPoint.value}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.82),
+                          fontSize: 10.5,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _TrainingEnergyOrbPainter extends CustomPainter {
+  final List<TrainingChartPoint> points;
+  final double progress;
+  final int? selectedIndex;
+  final double pulse;
+  final ColorScheme colorScheme;
+
+  const _TrainingEnergyOrbPainter({
+    required this.points,
+    required this.progress,
+    required this.selectedIndex,
+    required this.pulse,
+    required this.colorScheme,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = size.center(Offset.zero);
+    final shortest = math.min(size.width, size.height);
+    final total = points.fold<int>(0, (sum, point) => sum + point.value);
+    if (total <= 0) return;
+
+    final haloPaint =
+        Paint()
+          ..shader = RadialGradient(
+            colors: [
+              colorScheme.primary.withValues(alpha: 0.20 + pulse * 0.06),
+              colorScheme.secondary.withValues(alpha: 0.08),
+              Colors.transparent,
+            ],
+            stops: const [0.0, 0.55, 1.0],
+          ).createShader(
+            Rect.fromCircle(center: center, radius: shortest * 0.48),
+          );
+    canvas.drawCircle(center, shortest * 0.48, haloPaint);
+
+    final ghostPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 14
+          ..strokeCap = StrokeCap.round
+          ..color = colorScheme.onSurface.withValues(alpha: 0.055);
+    final ringRect = Rect.fromCircle(center: center, radius: shortest * 0.34);
+    canvas.drawArc(ringRect, -math.pi / 2, math.pi * 2, false, ghostPaint);
+
+    var start = -math.pi / 2;
+    final visibleProgress = progress.clamp(0.0, 1.0).toDouble();
+    for (var i = 0; i < points.length; i++) {
+      final point = points[i];
+      final sweep = (point.value / total) * math.pi * 2 * visibleProgress;
+      if (sweep <= 0) continue;
+      final selected =
+          selectedIndex == i || (selectedIndex == null && point.isHighlighted);
+      final baseColor = _trainingChartSliceColor(colorScheme, i);
+      final paint =
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = selected ? 18 : 13
+            ..strokeCap = StrokeCap.round
+            ..shader = SweepGradient(
+              startAngle: start,
+              endAngle: start + sweep,
+              colors: [
+                baseColor.withValues(alpha: selected ? 0.96 : 0.70),
+                colorScheme.secondary.withValues(alpha: selected ? 0.92 : 0.58),
+                colorScheme.primary.withValues(alpha: selected ? 0.98 : 0.76),
+              ],
+            ).createShader(ringRect);
+
+      canvas.drawArc(
+        ringRect,
+        start + 0.025,
+        math.max(0.0, sweep - 0.05),
+        false,
+        paint,
+      );
+
+      if (selected) {
+        final endAngle = start + sweep;
+        final pointOffset = Offset(
+          center.dx + math.cos(endAngle) * shortest * 0.34,
+          center.dy + math.sin(endAngle) * shortest * 0.34,
+        );
+        final nodePaint =
+            Paint()
+              ..color = colorScheme.primary.withValues(alpha: 0.95)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+        canvas.drawCircle(pointOffset, 5.5 + pulse * 1.5, nodePaint);
+      }
+
+      start += sweep;
+    }
+
+    final orbitPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.2
+          ..color = colorScheme.secondary.withValues(
+            alpha: 0.22 + pulse * 0.07,
+          );
+    canvas.drawCircle(center, shortest * 0.42, orbitPaint);
+
+    final diagonalPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = colorScheme.primary.withValues(alpha: 0.16);
+    canvas.drawArc(
+      Rect.fromCenter(
+        center: center,
+        width: shortest * 0.74,
+        height: shortest * 0.30,
+      ),
+      math.pi * 0.08,
+      math.pi * 1.36,
+      false,
+      diagonalPaint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _TrainingEnergyOrbPainter oldDelegate) {
+    return oldDelegate.points != points ||
+        oldDelegate.progress != progress ||
+        oldDelegate.selectedIndex != selectedIndex ||
+        oldDelegate.pulse != pulse ||
+        oldDelegate.colorScheme != colorScheme;
+  }
+}
+
+class _TrainingDonutLegend extends StatelessWidget {
+  final List<TrainingChartPoint> points;
+  final TrainingChartPoint mostActive;
+
+  const _TrainingDonutLegend({required this.points, required this.mostActive});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final visiblePoints = points.take(6).toList(growable: false);
+    final remaining = points.length - visiblePoints.length;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Composição do período',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.58),
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
           ),
-          const SizedBox(height: 8),
-          Text(
-            viewModel.subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
+        ),
+        const SizedBox(height: 6),
+        Text(
+          '${mostActive.label} - ${mostActive.value} treinos',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface,
+            fontSize: 12,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            for (var i = 0; i < visiblePoints.length; i++)
+              _TrainingDonutLegendPill(point: visiblePoints[i], index: i),
+            if (remaining > 0) _TrainingDonutMorePill(count: remaining),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _TrainingDonutLegendPill extends StatelessWidget {
+  final TrainingChartPoint point;
+  final int index;
+
+  const _TrainingDonutLegendPill({required this.point, required this.index});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      constraints: const BoxConstraints(maxWidth: 146),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: cs.surface.withValues(alpha: 0.50),
+        borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              color: _trainingChartSliceColor(cs, index),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: _trainingChartSliceColor(
+                    cs,
+                    index,
+                  ).withValues(alpha: 0.22),
+                  blurRadius: 8,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            viewModel.isEmpty
-                ? 'A evolução aparece quando houver treinos no período selecionado.'
-                : 'Leitura simples da frequência registrada neste período.',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.52),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 16),
-          if (viewModel.isEmpty)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 8),
-              child: TitansEmptyState(
-                icon: Icons.bar_chart_outlined,
-                title: 'Sem registros no período',
-                message: viewModel.emptyStateLabel,
-                compact: true,
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              '${point.label} - ${point.value}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.76),
+                fontSize: 10.5,
+                fontWeight: FontWeight.w800,
               ),
-            )
-          else
-            SizedBox(
-              height: 238,
-              child: _TrainingBarChart(points: viewModel.points),
             ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _TrainingDonutMorePill extends StatelessWidget {
+  final int count;
+
+  const _TrainingDonutMorePill({required this.count});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+      decoration: BoxDecoration(
+        color: cs.onSurface.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Text(
+        '+$count',
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.62),
+          fontSize: 10.5,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+}
+
+int _trainingChartLabelEvery(int count, double width) {
+  if (count <= 7) return 1;
+  if (width >= 460) return 2;
+  if (width >= 390) return 3;
+  return 4;
+}
+
+Color _trainingChartSliceColor(ColorScheme cs, int index) {
+  final colors = [cs.primary, cs.secondary, cs.tertiary, cs.error];
+  return colors[index % colors.length].withValues(alpha: 0.88);
 }
 
 class _TrainingBarChart extends StatefulWidget {
@@ -2002,13 +2456,13 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
                         toY: points[i].value.toDouble() * progress,
                         width: _barWidth(points.length, constraints.maxWidth),
                         borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(5),
+                          top: Radius.circular(7),
                         ),
                         color: _barColor(cs, points[i], i),
                         backDrawRodData: BackgroundBarChartRodData(
                           show: true,
                           toY: maxY,
-                          color: cs.onSurface.withValues(alpha: 0.05),
+                          color: cs.onSurface.withValues(alpha: 0.045),
                         ),
                       ),
                     ],
@@ -2084,5 +2538,490 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
     if (count <= 10) return 14;
     if (width >= 420) return 10;
     return 8;
+  }
+}
+
+class _TrainingFrequencyHeroCard extends StatelessWidget {
+  final TrainingChartSummary chart;
+  final _TrainingChartMode chartMode;
+  final ValueChanged<TrainingChartPeriod> onPeriodChanged;
+  final ValueChanged<_TrainingChartMode> onChartModeChanged;
+
+  const _TrainingFrequencyHeroCard({
+    required this.chart,
+    required this.chartMode,
+    required this.onPeriodChanged,
+    required this.onChartModeChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return glassCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final compactHeader = constraints.maxWidth < 430;
+              final titleBlock = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Frequência de treino',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    chart.subtitle,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              );
+              final controls = Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _TrainingPeriodInlineSelector(
+                    selectedPeriod: chart.selectedPeriod,
+                    onChanged: onPeriodChanged,
+                  ),
+                  const SizedBox(width: 8),
+                  _TrainingChartModeSwitcher(
+                    selectedMode: chartMode,
+                    onChanged: onChartModeChanged,
+                  ),
+                ],
+              );
+
+              if (compactHeader) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: titleBlock),
+                        const SizedBox(width: 10),
+                        controls,
+                      ],
+                    ),
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: titleBlock),
+                  const SizedBox(width: 12),
+                  controls,
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 10),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 180),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeOutCubic,
+            child: Text(
+              chart.totalLabel,
+              key: ValueKey(chart.totalLabel),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.secondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          if (chart.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: TitansEmptyState(
+                icon: chartMode.icon,
+                title: 'Sem registros no período',
+                message: chart.emptyStateLabel,
+                compact: true,
+              ),
+            )
+          else
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 220),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: SizedBox(
+                key: ValueKey('${chart.selectedPeriod}-$chartMode'),
+                height: 280,
+                child: _TrainingChartView(
+                  mode: chartMode,
+                  points: chart.points,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrainingCompactMetricsAndActions extends StatelessWidget {
+  final TrainingOverviewSummary summary;
+  final String lastTrainingLabel;
+  final bool canAddTraining;
+  final VoidCallback? onQuickLog;
+  final VoidCallback? onAddTraining;
+
+  const _TrainingCompactMetricsAndActions({
+    required this.summary,
+    required this.lastTrainingLabel,
+    required this.canAddTraining,
+    this.onQuickLog,
+    this.onAddTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final intensity = summary.averageIntensity;
+
+    return glassCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Histórico de treinos',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      lastTrainingLabel,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.66),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          _TrainingMetricRail(
+            items: [
+              _TrainingMetricRailItemData(
+                label: 'Treinos',
+                value: summary.total.toString(),
+                color: cs.onSurface,
+              ),
+              _TrainingMetricRailItemData(
+                label: 'Técnicas',
+                value: summary.techniques.toString(),
+                color: cs.onSurface,
+              ),
+              _TrainingMetricRailItemData(
+                label: 'Intensidade',
+                value:
+                    intensity == null
+                        ? 'Sem dados'
+                        : '${intensity.toStringAsFixed(1)}/5',
+                color: TitansUI.actionGold,
+              ),
+              _TrainingMetricRailItemData(
+                label: 'Aplicação',
+                value: summary.applicationCount.toString(),
+                color: TitansUI.successGreen,
+              ),
+            ],
+          ),
+          if (canAddTraining &&
+              (onQuickLog != null || onAddTraining != null)) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                if (onQuickLog != null)
+                  FilledButton.icon(
+                    onPressed: onQuickLog,
+                    icon: const Icon(Icons.flash_on_rounded, size: 18),
+                    label: const Text('Registro rápido'),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: TitansUI.actionGold,
+                      foregroundColor: Colors.black,
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      minimumSize: const Size(0, 38),
+                    ),
+                  ),
+                if (onAddTraining != null)
+                  OutlinedButton.icon(
+                    onPressed: onAddTraining,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('+ Treino'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      minimumSize: const Size(0, 38),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _TrainingHistorySection extends StatelessWidget {
+  final List<TrainingSessionHistoryItem> items;
+  final TextEditingController searchController;
+  final _TrainingHistoryPeriodFilter period;
+  final _TrainingHistoryResultFilter result;
+  final _TrainingHistoryContextFilter contextFilter;
+  final String? positionFilter;
+  final String? techniqueFilter;
+  final int visibleCount;
+  final String? expandedSessionId;
+  final bool canEdit;
+  final VoidCallback onOpenFilters;
+  final VoidCallback onClearSearch;
+  final VoidCallback onClearPeriod;
+  final VoidCallback onClearResult;
+  final VoidCallback onClearContext;
+  final VoidCallback onClearPosition;
+  final VoidCallback onClearTechnique;
+  final VoidCallback onLoadMore;
+  final ValueChanged<TrainingSessionHistoryItem> onToggle;
+  final Future<void> Function(TrainingSessionHistoryItem item)? onEdit;
+  final Future<void> Function()? onAddTraining;
+
+  const _TrainingHistorySection({
+    required this.items,
+    required this.searchController,
+    required this.period,
+    required this.result,
+    required this.contextFilter,
+    required this.positionFilter,
+    required this.techniqueFilter,
+    required this.visibleCount,
+    required this.expandedSessionId,
+    required this.canEdit,
+    required this.onOpenFilters,
+    required this.onClearSearch,
+    required this.onClearPeriod,
+    required this.onClearResult,
+    required this.onClearContext,
+    required this.onClearPosition,
+    required this.onClearTechnique,
+    required this.onLoadMore,
+    required this.onToggle,
+    required this.onEdit,
+    required this.onAddTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final filtered = _filteredItems();
+    final visible = filtered.take(visibleCount).toList(growable: false);
+    final query = searchController.text.trim();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: searchController,
+                textInputAction: TextInputAction.search,
+                decoration: InputDecoration(
+                  labelText: 'Buscar treino',
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  suffixIcon:
+                      query.isEmpty
+                          ? null
+                          : IconButton(
+                            tooltip: 'Limpar busca',
+                            onPressed: onClearSearch,
+                            icon: const Icon(Icons.close, size: 18),
+                          ),
+                  isDense: true,
+                  filled: true,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton.filledTonal(
+              tooltip: 'Filtros',
+              onPressed: onOpenFilters,
+              icon: const Icon(Icons.tune, size: 18),
+              visualDensity: VisualDensity.compact,
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        _TrainingHistoryActiveFilters(
+          query: query,
+          period: period,
+          result: result,
+          contextFilter: contextFilter,
+          positionFilter: positionFilter,
+          techniqueFilter: techniqueFilter,
+          onClearSearch: onClearSearch,
+          onClearPeriod: onClearPeriod,
+          onClearResult: onClearResult,
+          onClearContext: onClearContext,
+          onClearPosition: onClearPosition,
+          onClearTechnique: onClearTechnique,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${filtered.length} treinos encontrados',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.60),
+            fontSize: 11,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 10),
+        if (items.isEmpty)
+          TitansEmptyState(
+            icon: Icons.fitness_center_outlined,
+            title: 'Sem treinos registrados',
+            message: 'Adicione uma sessao para iniciar o historico.',
+            compact: true,
+            action:
+                canEdit
+                    ? FilledButton.icon(
+                      onPressed: onAddTraining,
+                      icon: const Icon(Icons.add, size: 18),
+                      label: const Text('Adicionar treino'),
+                      style: FilledButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        minimumSize: const Size(0, 38),
+                      ),
+                    )
+                    : null,
+          )
+        else if (filtered.isEmpty)
+          const TitansEmptyState(
+            icon: Icons.filter_alt_off_outlined,
+            title: 'Nenhum treino encontrado com esses filtros.',
+            message: 'Ajuste a busca ou remova algum filtro ativo.',
+            compact: true,
+          )
+        else ...[
+          for (final item in visible)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: _TrainingSessionCard(
+                item: item,
+                expanded: expandedSessionId == item.id,
+                canEdit: canEdit,
+                onToggle: () => onToggle(item),
+                onEdit: onEdit == null ? null : () => onEdit!(item),
+              ),
+            ),
+          if (filtered.length > visible.length)
+            Center(
+              child: OutlinedButton.icon(
+                onPressed: onLoadMore,
+                icon: const Icon(Icons.expand_more, size: 18),
+                label: Text(
+                  'Carregar mais (${filtered.length - visible.length})',
+                  style: const TextStyle(fontSize: 12),
+                ),
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  minimumSize: const Size(0, 38),
+                ),
+              ),
+            ),
+        ],
+      ],
+    );
+  }
+
+  List<TrainingSessionHistoryItem> _filteredItems() {
+    final query = trainingHistoryKey(searchController.text);
+    final now = DateTime.now();
+    return items
+        .where((item) {
+          if (query.isNotEmpty && !item.searchText.contains(query)) {
+            return false;
+          }
+          if (!matchesTrainingHistoryPeriod(
+            item.date,
+            period.domainPeriod,
+            now,
+          )) {
+            return false;
+          }
+          if (result != _TrainingHistoryResultFilter.all &&
+              item.resultBucket != result.domainBucket) {
+            return false;
+          }
+          if (contextFilter != _TrainingHistoryContextFilter.all &&
+              !item.contextBuckets.contains(contextFilter.domainBucket)) {
+            return false;
+          }
+          final position = positionFilter;
+          if (position != null &&
+              !item.positionKeys.contains(trainingHistoryKey(position))) {
+            return false;
+          }
+          final technique = techniqueFilter;
+          if (technique != null &&
+              !item.techniqueKeys.contains(trainingHistoryKey(technique))) {
+            return false;
+          }
+          return true;
+        })
+        .toList(growable: false);
   }
 }

@@ -22,6 +22,7 @@ import '../service/training_aggregator.dart' show TrainingMetrics;
 import '../widgets/titans_belt_status_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
+import '../widgets/glass_card.dart';
 
 class ProgressScreen extends StatefulWidget {
   final String? titleOverride;
@@ -362,39 +363,38 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                         ),
                                       ),
                                     ),
-                                  _ProgressOverviewSection(
-                                    beltCard: _BeltProgressCard(
-                                      progress: beltProgress,
-                                      onEditGraduation:
-                                          canEditTarget
-                                              ? () => _showGraduationDialog(
-                                                academyId: academyId,
-                                                uid: uid,
-                                                athlete: athlete,
-                                                rules: rules,
-                                              )
-                                              : null,
-                                    ),
-                                    heatmapCard: _ConsistencyHeatmapCard(
-                                      viewModel: heatmap,
-                                    ),
+                                  _ProgressBeltHero(
+                                    progress: beltProgress,
+                                    onEditGraduation:
+                                        canEditTarget
+                                            ? () => _showGraduationDialog(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              athlete: athlete,
+                                              rules: rules,
+                                            )
+                                            : null,
                                   ),
-                                  const SizedBox(height: 12),
-                                  _ProgressSupportSection(
-                                    chartCard: _ConsistencyChartCard(
-                                      title: _titleForPeriod(_period),
-                                      totalInWindow: totalInWindow,
-                                      labels: series.labels,
-                                      values: series.values,
-                                      period: _period,
-                                    ),
-                                    consistencyCard: _ConsistencySummaryCard(
-                                      title: _titleForPeriod(_period),
-                                      totalInWindow: totalInWindow,
-                                    ),
-                                    metricsCard: _TrainingMetricsCard(
-                                      metrics: metrics,
-                                    ),
+                                  const SizedBox(height: 10),
+                                  _ProgressCompactMetrics(
+                                    progress: beltProgress,
+                                    metrics: metrics,
+                                    totalInWindow: totalInWindow,
+                                    periodTitle: _titleForPeriod(_period),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _ProgressVisualPanel(
+                                    heatmap: heatmap,
+                                    series: series,
+                                    totalInWindow: totalInWindow,
+                                    period: _period,
+                                    periodTitle: _titleForPeriod(_period),
+                                  ),
+                                  const SizedBox(height: 10),
+                                  _ProgressDetailsSection(
+                                    metrics: metrics,
+                                    totalInWindow: totalInWindow,
+                                    periodTitle: _titleForPeriod(_period),
                                   ),
                                 ],
                               );
@@ -599,186 +599,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
   }
 }
 
-class _ProgressOverviewSection extends StatelessWidget {
-  final Widget beltCard;
-  final Widget heatmapCard;
-
-  const _ProgressOverviewSection({
-    required this.beltCard,
-    required this.heatmapCard,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ProgressSectionIntro(
-          title: 'Como sua consist\u00eancia evolui',
-          subtitle:
-              'Faixa, grau e rotina recente aparecem juntos para separar carreira, recorte e regularidade.',
-          icon: Icons.auto_graph_outlined,
-          color: cs.primary,
-        ),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth >= 760) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: beltCard),
-                  const SizedBox(width: 12),
-                  Expanded(child: heatmapCard),
-                ],
-              );
-            }
-
-            return Column(
-              children: [beltCard, const SizedBox(height: 12), heatmapCard],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _ProgressSupportSection extends StatelessWidget {
-  final Widget chartCard;
-  final Widget consistencyCard;
-  final Widget metricsCard;
-
-  const _ProgressSupportSection({
-    required this.chartCard,
-    required this.consistencyCard,
-    required this.metricsCard,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _ProgressSectionIntro(
-          title: 'Leituras de apoio',
-          subtitle:
-              'Recortes temporais e volume continuam dispon\u00edveis sem competir com a leitura central.',
-          icon: Icons.query_stats_outlined,
-          color: cs.secondary,
-        ),
-        const SizedBox(height: 10),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth >= 820) {
-              return Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 3, child: chartCard),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    flex: 2,
-                    child: Column(
-                      children: [
-                        consistencyCard,
-                        const SizedBox(height: 12),
-                        metricsCard,
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            }
-
-            return Column(
-              children: [
-                chartCard,
-                const SizedBox(height: 12),
-                consistencyCard,
-                const SizedBox(height: 12),
-                metricsCard,
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _ProgressSectionIntro extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-
-  const _ProgressSectionIntro({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: 34,
-          height: 34,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            border: Border.all(color: color.withValues(alpha: 0.24)),
-            color: color.withValues(alpha: 0.10),
-          ),
-          child: Icon(icon, size: 18, color: color),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                subtitle,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                  height: 1.25,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _BeltProgressCard extends StatelessWidget {
   final _BeltProgress progress;
-  final VoidCallback? onEditGraduation;
 
-  const _BeltProgressCard({required this.progress, this.onEditGraduation});
+  const _BeltProgressCard({required this.progress});
 
   @override
   Widget build(BuildContext context) {
@@ -794,7 +618,6 @@ class _BeltProgressCard extends StatelessWidget {
       progressValueLabel: pctText,
       subtitle:
           '$sessionLabel\nBaseado em sess\u00f5es registradas nesta faixa.',
-      onEdit: onEditGraduation,
     );
   }
 
@@ -2178,6 +2001,513 @@ class _ErrorState extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _ProgressBeltHero extends StatelessWidget {
+  final _BeltProgress progress;
+  final VoidCallback? onEditGraduation;
+
+  const _ProgressBeltHero({required this.progress, this.onEditGraduation});
+
+  @override
+  Widget build(BuildContext context) {
+    final beltKey = progress.belt.name.toLowerCase();
+    final beltColor = TitansUI.beltColor(beltKey);
+    final beltLabel = TitansUI.beltLabel(beltKey);
+    final percent = progress.percentToNextBelt.clamp(0.0, 1.0).toDouble();
+    final pctText = '${(percent * 100).toStringAsFixed(0)}%';
+    final sessionLabel =
+        '${progress.sessionsInCurrentBelt} de ${progress.sessionsRequiredCurrentBelt} sessões';
+
+    return glassCard(
+      context,
+      LayoutBuilder(
+        builder: (context, constraints) {
+          final compact = constraints.maxWidth < 520;
+          return _ProgressBeltHeroIntegrated(
+            beltLabel: beltLabel,
+            degree: progress.degree,
+            maxDegree: progress.maxDegree,
+            sessionLabel: sessionLabel,
+            percent: percent,
+            pctText: pctText,
+            beltColor: beltColor,
+            onEditGraduation: onEditGraduation,
+            compact: compact,
+          );
+        },
+      ),
+      accent: beltColor.withValues(alpha: 0.32),
+    );
+  }
+}
+
+class _ProgressBeltHeroIntegrated extends StatelessWidget {
+  final String beltLabel;
+  final int degree;
+  final int maxDegree;
+  final String sessionLabel;
+  final double percent;
+  final String pctText;
+  final Color beltColor;
+  final VoidCallback? onEditGraduation;
+  final bool compact;
+
+  const _ProgressBeltHeroIntegrated({
+    required this.beltLabel,
+    required this.degree,
+    required this.maxDegree,
+    required this.sessionLabel,
+    required this.percent,
+    required this.pctText,
+    required this.beltColor,
+    required this.onEditGraduation,
+    required this.compact,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final degreeText = degree > 0 ? '$degreeº grau' : 'Grau inicial';
+    final ringSize = compact ? 128.0 : 142.0;
+    final innerSize = ringSize - 28;
+
+    return Column(
+      crossAxisAlignment:
+          compact ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+      children: [
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            SizedBox(
+              width: ringSize,
+              height: ringSize,
+              child: CircularProgressIndicator(
+                value: percent,
+                strokeWidth: compact ? 8 : 9,
+                backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(beltColor),
+              ),
+            ),
+            Container(
+              width: innerSize,
+              height: innerSize,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: beltColor.withValues(alpha: 0.11),
+                border: Border.all(color: beltColor.withValues(alpha: 0.28)),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    beltLabel.toUpperCase(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: beltColor,
+                      fontSize: compact ? 16 : 18,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    pctText,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.82),
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  Text(
+                    'na faixa',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.54),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          alignment: compact ? WrapAlignment.center : WrapAlignment.start,
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _ProgressHeroChip(label: degreeText, color: beltColor),
+            _ProgressHeroChip(label: sessionLabel, color: cs.primary),
+            _ProgressDegreeDots(degree: degree, maxDegree: maxDegree),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Text(
+          'Evolução baseada nos treinos registrados nesta faixa.',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          textAlign: compact ? TextAlign.center : TextAlign.start,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.66),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+          child: LinearProgressIndicator(
+            value: percent,
+            minHeight: 5,
+            backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+            valueColor: AlwaysStoppedAnimation<Color>(beltColor),
+          ),
+        ),
+        if (onEditGraduation != null) ...[
+          const SizedBox(height: 10),
+          Align(
+            alignment: compact ? Alignment.center : Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onEditGraduation,
+              icon: const Icon(Icons.edit_outlined, size: 16),
+              label: const Text('Editar graduação'),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProgressHeroChip extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _ProgressHeroChip({required this.label, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.22)),
+      ),
+      child: Text(
+        label,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.78),
+          fontSize: 12,
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProgressDegreeDots extends StatelessWidget {
+  final int degree;
+  final int maxDegree;
+
+  const _ProgressDegreeDots({required this.degree, required this.maxDegree});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final total = maxDegree <= 0 ? 4 : maxDegree;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        for (var i = 0; i < total; i++) ...[
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color:
+                  i < degree
+                      ? TitansUI.actionGold
+                      : cs.onSurface.withValues(alpha: 0.16),
+            ),
+          ),
+          if (i != total - 1) const SizedBox(width: 4),
+        ],
+      ],
+    );
+  }
+}
+
+class _ProgressCompactMetrics extends StatelessWidget {
+  final _BeltProgress progress;
+  final TrainingMetrics metrics;
+  final int totalInWindow;
+  final String periodTitle;
+
+  const _ProgressCompactMetrics({
+    required this.progress,
+    required this.metrics,
+    required this.totalInWindow,
+    required this.periodTitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final beltColor = TitansUI.beltColor(progress.belt.name.toLowerCase());
+    final recentPercent =
+        '${(metrics.recentFrequency * 100).toStringAsFixed(0)}%';
+
+    return glassCard(
+      context,
+      TitansCompactMetricGrid(
+        fourColumnMinWidth: 560,
+        spacing: TitansUI.spaceXs,
+        children: [
+          TitansCompactMetricCard(
+            label: 'NA FAIXA',
+            value: progress.sessionsInCurrentBelt.toString(),
+            subtitle: '/${progress.sessionsRequiredCurrentBelt}',
+            color: beltColor,
+          ),
+          TitansCompactMetricCard(
+            label: 'CONSISTÊNCIA',
+            value: recentPercent,
+            subtitle: '30 dias',
+            color: cs.secondary,
+          ),
+          TitansCompactMetricCard(
+            label: 'ÚLTIMO RECORTE',
+            value: totalInWindow.toString(),
+            subtitle: periodTitle,
+            color: cs.primary,
+          ),
+          TitansCompactMetricCard(
+            label: 'CARREIRA',
+            value: metrics.total.toString(),
+            subtitle: 'total',
+            color: cs.onSurface.withValues(alpha: 0.70),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ProgressVisualPanel extends StatelessWidget {
+  final _ConsistencyHeatmapViewModel heatmap;
+  final _Series series;
+  final int totalInWindow;
+  final ProgressPeriod period;
+  final String periodTitle;
+
+  const _ProgressVisualPanel({
+    required this.heatmap,
+    required this.series,
+    required this.totalInWindow,
+    required this.period,
+    required this.periodTitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final wide = constraints.maxWidth >= 760;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (wide)
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    flex: 3,
+                    child: _ConsistencyHeatmapCard(viewModel: heatmap),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    flex: 2,
+                    child: _ConsistencyChartCard(
+                      title: periodTitle,
+                      totalInWindow: totalInWindow,
+                      period: period,
+                      labels: series.labels,
+                      values: series.values,
+                    ),
+                  ),
+                ],
+              )
+            else ...[
+              _ConsistencyHeatmapCard(viewModel: heatmap),
+              const SizedBox(height: 12),
+              _ConsistencyChartCard(
+                title: periodTitle,
+                totalInWindow: totalInWindow,
+                period: period,
+                labels: series.labels,
+                values: series.values,
+              ),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _ProgressDetailsSection extends StatefulWidget {
+  final TrainingMetrics metrics;
+  final int totalInWindow;
+  final String periodTitle;
+
+  const _ProgressDetailsSection({
+    required this.metrics,
+    required this.totalInWindow,
+    required this.periodTitle,
+  });
+
+  @override
+  State<_ProgressDetailsSection> createState() =>
+      _ProgressDetailsSectionState();
+}
+
+class _ProgressDetailsSectionState extends State<_ProgressDetailsSection>
+    with SingleTickerProviderStateMixin {
+  late bool _expanded = false;
+  late AnimationController _controller;
+  late Animation<double> _heightFactor;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 220),
+      vsync: this,
+    );
+    _heightFactor = CurvedAnimation(
+      parent: _controller,
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _toggle() {
+    setState(() {
+      _expanded = !_expanded;
+      if (_expanded) {
+        _controller.forward();
+      } else {
+        _controller.reverse();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return glassCard(
+      context,
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+              onTap: _toggle,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Detalhes e métricas complementares',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            _expanded
+                                ? 'Toque para recolher'
+                                : 'Toque para expandir',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.58),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: TitansUI.spaceSm),
+                    AnimatedRotation(
+                      turns: _expanded ? 0.5 : 0,
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOutCubic,
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: cs.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          ClipRect(
+            child: SizeTransition(
+              sizeFactor: _heightFactor,
+              axisAlignment: -1.0,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _ConsistencySummaryCard(
+                      title: widget.periodTitle,
+                      totalInWindow: widget.totalInWindow,
+                    ),
+                    const SizedBox(height: 12),
+                    _TrainingMetricsCard(metrics: widget.metrics),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

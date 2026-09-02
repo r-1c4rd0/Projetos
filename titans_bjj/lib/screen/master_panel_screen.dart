@@ -659,10 +659,10 @@ class _StudentsGridState extends State<_StudentsGrid> {
         final width = constraints.maxWidth;
         final ratio =
             width < 390
-                ? 1.95
+                ? 2.08
                 : width < 900
-                ? 2.15
-                : 2.35;
+                ? 2.28
+                : 2.55;
 
         return CustomScrollView(
           slivers: [
@@ -902,24 +902,60 @@ class _RosterCockpitCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return TitansCard(
-      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      padding: const EdgeInsets.all(TitansUI.spaceSm),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final compact = constraints.maxWidth < 420;
+          final metrics = TitansCompactMetricGrid(
+            fourColumnMinWidth: 480,
+            children: [
+              _RosterMetric(
+                label: 'Alunos',
+                value: summary.total.toString(),
+                color: cs.primary,
+              ),
+              _RosterMetric(
+                label: 'Ativos',
+                value: summary.active.toString(),
+                color: TitansUI.successGreen,
+              ),
+              _RosterMetric(
+                label: 'Atenção',
+                value: summary.needsAttention.toString(),
+                color:
+                    summary.needsAttention == 0
+                        ? cs.onSurface.withValues(alpha: 0.62)
+                        : TitansUI.actionGold,
+              ),
+            ],
+          );
           final titleBlock = Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
+                'Painel do professor',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.58),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0.4,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
                 'Cockpit da turma',
                 style: Theme.of(
                   context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 4),
               Text(
-                'Leitura rápida dos alunos vinculados a esta academia.',
+                'Leitura rápida dos alunos vinculados.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.68),
+                  color: cs.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -927,8 +963,12 @@ class _RosterCockpitCard extends StatelessWidget {
           );
           final action = FilledButton.icon(
             onPressed: onCreate,
-            icon: const Icon(Icons.person_add_alt_1_outlined),
+            icon: const Icon(Icons.person_add_alt_1_outlined, size: 18),
             label: const Text('Cadastrar atleta'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            ),
           );
 
           return Column(
@@ -936,50 +976,31 @@ class _RosterCockpitCard extends StatelessWidget {
             children: [
               if (compact) ...[
                 titleBlock,
-                const SizedBox(height: TitansUI.spaceMd),
+                const SizedBox(height: TitansUI.spaceSm),
                 action,
               ] else
                 Row(
                   children: [
                     Expanded(child: titleBlock),
-                    const SizedBox(width: TitansUI.spaceMd),
+                    const SizedBox(width: TitansUI.spaceSm),
                     action,
                   ],
                 ),
-              const SizedBox(height: TitansUI.spaceMd),
-              Wrap(
-                spacing: TitansUI.spaceSm,
-                runSpacing: TitansUI.spaceSm,
-                children: [
-                  _RosterMetric(
-                    label: 'Alunos',
-                    value: summary.total.toString(),
-                    color: cs.primary,
-                  ),
-                  _RosterMetric(
-                    label: 'Ativos',
-                    value: summary.active.toString(),
-                    color: TitansUI.successGreen,
-                  ),
-                  _RosterMetric(
-                    label: 'Atenção',
-                    value: summary.needsAttention.toString(),
-                    color:
-                        summary.needsAttention == 0
-                            ? cs.onSurface.withValues(alpha: 0.62)
-                            : TitansUI.actionGold,
-                  ),
-                ],
-              ),
-              const SizedBox(height: TitansUI.spaceMd),
+              const SizedBox(height: TitansUI.spaceSm),
+              metrics,
+              const SizedBox(height: TitansUI.spaceSm),
               TextField(
                 onChanged: onQueryChanged,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search),
+                  prefixIcon: const Icon(Icons.search, size: 18),
                   hintText: 'Buscar aluno por nome',
                   isDense: true,
                   filled: true,
                   fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.18),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(TitansRadius.lg),
                     borderSide: BorderSide(color: TitansUI.navBorder(context)),
@@ -1055,10 +1076,7 @@ class _RosterMetric extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 104, maxWidth: 150),
-      child: TitansCompactMetricCard(label: label, value: value, color: color),
-    );
+    return TitansCompactMetricCard(label: label, value: value, color: color);
   }
 }
 
@@ -1146,15 +1164,24 @@ class _TeacherAttentionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final visibleItems = items.take(4).toList();
+    final hiddenCount = items.length - visibleItems.length;
 
     return TitansCard(
-      padding: const EdgeInsets.all(TitansUI.spaceMd),
+      padding: const EdgeInsets.all(TitansUI.spaceSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.priority_high_rounded, color: TitansUI.actionGold),
+              Icon(
+                items.isEmpty
+                    ? Icons.check_circle_outline
+                    : Icons.assignment_late_outlined,
+                color:
+                    items.isEmpty ? TitansUI.successGreen : TitansUI.actionGold,
+                size: 18,
+              ),
               const SizedBox(width: TitansUI.spaceXs),
               Expanded(
                 child: Text(
@@ -1167,39 +1194,57 @@ class _TeacherAttentionCard extends StatelessWidget {
               _AttentionCounter(count: items.length),
             ],
           ),
-          const SizedBox(height: 4),
+          const SizedBox(height: 3),
           Text(
             'Pendências objetivas de cadastro, acesso ou graduação.',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
+              color: cs.onSurface.withValues(alpha: 0.58),
+              fontSize: 11,
               fontWeight: FontWeight.w700,
             ),
           ),
-          const SizedBox(height: TitansUI.spaceSm),
+          const SizedBox(height: TitansUI.spaceXs),
           if (items.isEmpty)
             const _AttentionEmptyState()
           else
             LayoutBuilder(
               builder: (context, constraints) {
-                final twoColumns = constraints.maxWidth >= 520;
+                final twoColumns = constraints.maxWidth >= 560;
                 final itemWidth =
                     twoColumns
                         ? (constraints.maxWidth - TitansUI.spaceXs) / 2
                         : constraints.maxWidth;
 
-                return Wrap(
-                  spacing: TitansUI.spaceXs,
-                  runSpacing: TitansUI.spaceXs,
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    for (final item in items)
-                      SizedBox(
-                        width: itemWidth,
-                        child: _AttentionQueueTile(
-                          item: item,
-                          onOpen: () => onOpen(item.entry),
+                    Wrap(
+                      spacing: TitansUI.spaceXs,
+                      runSpacing: TitansUI.spaceXs,
+                      children: [
+                        for (final item in visibleItems)
+                          SizedBox(
+                            width: itemWidth,
+                            child: _AttentionQueueTile(
+                              item: item,
+                              onOpen: () => onOpen(item.entry),
+                            ),
+                          ),
+                      ],
+                    ),
+                    if (hiddenCount > 0) ...[
+                      const SizedBox(height: TitansUI.spaceXs),
+                      Text(
+                        '+$hiddenCount cadastros aparecem no filtro Atenção.',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.56),
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
                         ),
                       ),
+                    ],
                   ],
                 );
               },
@@ -1221,7 +1266,7 @@ class _AttentionCounter extends StatelessWidget {
     final color = count == 0 ? TitansUI.successGreen : TitansUI.actionGold;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(TitansRadius.pill),
         color: color.withValues(alpha: 0.12),
@@ -1299,7 +1344,7 @@ class _AttentionQueueTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(TitansRadius.md),
       onTap: onOpen,
       child: Container(
-        constraints: const BoxConstraints(minHeight: 76),
+        constraints: const BoxConstraints(minHeight: 64),
         padding: const EdgeInsets.all(TitansUI.spaceSm),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(TitansRadius.md),
@@ -1311,15 +1356,15 @@ class _AttentionQueueTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 34,
-              height: 34,
+              width: 30,
+              height: 30,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: beltColor.withValues(alpha: 0.12),
                 border: Border.all(color: beltColor.withValues(alpha: 0.34)),
               ),
-              child: Icon(Icons.person_outline, color: textColor, size: 18),
+              child: Icon(Icons.person_outline, color: textColor, size: 16),
             ),
             const SizedBox(width: TitansUI.spaceSm),
             Expanded(
@@ -1366,7 +1411,7 @@ class _AttentionQueueTile extends StatelessWidget {
             TextButton(
               onPressed: onOpen,
               style: TextButton.styleFrom(
-                minimumSize: const Size(76, 36),
+                minimumSize: const Size(64, 32),
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 visualDensity: VisualDensity.compact,
               ),
@@ -1446,7 +1491,6 @@ class _StudentCard extends StatelessWidget {
       onTap: onOpen,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final compact = constraints.maxWidth < 340;
           final header = Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1481,19 +1525,7 @@ class _StudentCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: TitansUI.spaceXs),
-                    Wrap(
-                      spacing: TitansUI.spaceXs,
-                      runSpacing: TitansUI.spaceXs,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _AccessStatusBadge(status: accessStatus),
-                        _StudentInfoPill(
-                          icon: Icons.military_tech_outlined,
-                          label: beltName(student.belt),
-                          color: beltColor,
-                        ),
-                      ],
-                    ),
+                    _AccessStatusBadge(status: accessStatus),
                   ],
                 ),
               ),
@@ -1515,49 +1547,22 @@ class _StudentCard extends StatelessWidget {
             alignment: Alignment.centerRight,
             child: TextButton.icon(
               onPressed: onOpen,
-              icon: const Icon(Icons.arrow_forward, size: 16),
-              label: const Text('Abrir aluno'),
+              icon: const Icon(Icons.arrow_forward, size: 15),
+              label: const Text('Abrir'),
               style: TextButton.styleFrom(
                 visualDensity: VisualDensity.compact,
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                minimumSize: const Size(88, 36),
+                minimumSize: const Size(68, 32),
               ),
             ),
           );
-
-          if (compact) {
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                header,
-                const SizedBox(height: TitansUI.spaceSm),
-                openAction,
-              ],
-            );
-          }
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               header,
-              const SizedBox(height: TitansUI.spaceSm),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Acompanhamento pelo console do aluno selecionado.',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.56),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                  openAction,
-                ],
-              ),
+              const SizedBox(height: TitansUI.spaceXs),
+              openAction,
             ],
           );
         },
@@ -1616,17 +1621,17 @@ class _StudentProgressRing extends StatelessWidget {
     final textColor = color.computeLuminance() > 0.82 ? cs.onSurface : color;
 
     return SizedBox(
-      width: 58,
-      height: 58,
+      width: 52,
+      height: 52,
       child: Stack(
         alignment: Alignment.center,
         children: [
           SizedBox(
-            width: 52,
-            height: 52,
+            width: 46,
+            height: 46,
             child: CircularProgressIndicator(
               value: value,
-              strokeWidth: 5,
+              strokeWidth: 4.5,
               backgroundColor: cs.onSurface.withValues(alpha: 0.08),
               valueColor: AlwaysStoppedAnimation<Color>(color),
             ),
@@ -1638,7 +1643,7 @@ class _StudentProgressRing extends StatelessWidget {
                 '$safeDegree',
                 style: TextStyle(
                   color: textColor,
-                  fontSize: 16,
+                  fontSize: 15,
                   fontWeight: FontWeight.w900,
                 ),
               ),
@@ -1651,53 +1656,6 @@ class _StudentProgressRing extends StatelessWidget {
                 ),
               ),
             ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StudentInfoPill extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-
-  const _StudentInfoPill({
-    required this.icon,
-    required this.label,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textColor = color.computeLuminance() > 0.82 ? cs.onSurface : color;
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 24),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansRadius.pill),
-        color: color.withValues(alpha: 0.10),
-        border: Border.all(color: color.withValues(alpha: 0.30)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, color: textColor, size: 13),
-          const SizedBox(width: 4),
-          Flexible(
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 10,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
           ),
         ],
       ),

@@ -21,6 +21,22 @@ class TitansUI {
   static const sectionGap = SizedBox(height: 12);
   static const cardGap = SizedBox(height: 12);
 
+  // ---------------------------------------------------------------------
+  // LEGADO — cores fixas, sempre no tom do tema escuro.
+  //
+  // Estas constantes existem por compatibilidade com código antigo que já
+  // as referencia diretamente. NÃO adicione novos usos delas em widgets
+  // que devem responder a tema claro/escuro — para isso, use sempre
+  // `titansColors(context)` (de titans_theme.dart), que é dinâmico.
+  //
+  // Só é seguro usar estas constantes fixas para valores genuinamente
+  // invariantes de tema — ex: identidade de faixa (branca/azul/roxa/...),
+  // onde a cor representa uma categoria do mundo real, não uma superfície
+  // da UI. Foi mistura de uso (constante fixa + `titansColors(context)`
+  // dinâmico no mesmo widget) que causou o bug de Ataque/Transição
+  // trocados de cor entre o radar e a matriz do Game Map — ver
+  // `technical_axis_colors.dart` para o mapeamento correto de eixo.
+  // ---------------------------------------------------------------------
   static const bg = Color(0xFF070A0F);
   static const surface = Color(0xFF0B111A);
   static const elevatedSurface = Color(0xFF101826);
@@ -48,6 +64,8 @@ class TitansUI {
   static const danger = alertRed;
   static const info = Color(0xFF4CC9F0);
 
+  // Cores de faixa: mantidas fixas de propósito (identidade categórica,
+  // não superfície de UI — ver nota acima).
   static const beltWhite = Color(0xE6FFFFFF);
   static const beltBlue = technicalBlue;
   static const beltPurple = neonPurple;
@@ -139,9 +157,16 @@ class TitansUI {
     return base.withValues(alpha: alpha);
   }
 
+  /// Corrigido: antes usava `actionGold` (constante fixa) no ramo escuro,
+  /// enquanto o ramo claro já usava `colors(context).accent` (dinâmico).
+  /// Os dois valores coincidem hoje por acaso — se o token `accent` do
+  /// tema escuro mudar em `titans_theme.dart`, este método ficaria
+  /// dessincronizado sem ninguém perceber. Agora os dois ramos leem do
+  /// mesmo token dinâmico; a diferença visual pretendida (preenchido vs.
+  /// translúcido) continua preservada.
   static Color navSelectedBackground(BuildContext context) {
     return isDark(context)
-        ? actionGold
+        ? colors(context).accent
         : colors(context).accent.withValues(alpha: 0.20);
   }
 
@@ -809,24 +834,29 @@ class TitansStatusChip extends StatelessWidget {
     this.color,
   }) : assert(label != null || text != null, 'label or text is required');
 
+  /// Corrigido: antes lia direto de `TitansUI.technicalBlue` /
+  /// `TitansUI.actionGold` / `TitansUI.successGreen` / `TitansUI.alertRed`
+  /// — constantes fixas do tema escuro, ignoradas quando o app roda em
+  /// tema claro. Agora resolve via `titansColors(context)`, que já é a
+  /// fonte dinâmica corrigida em `titans_theme.dart`.
   Color _accentFor(BuildContext context) {
     if (color != null) return color!;
 
-    final cs = Theme.of(context).colorScheme;
+    final tokens = titansColors(context);
     switch (type ?? variant) {
       case TitansStatusChipVariant.technical:
       case TitansStatusChipVariant.neutral:
-        return TitansUI.technicalBlue;
+        return tokens.technical;
       case TitansStatusChipVariant.action:
       case TitansStatusChipVariant.attention:
-        return TitansUI.actionGold;
+        return tokens.accent;
       case TitansStatusChipVariant.success:
-        return TitansUI.successGreen;
+        return tokens.success;
       case TitansStatusChipVariant.alert:
       case TitansStatusChipVariant.error:
-        return TitansUI.alertRed;
+        return tokens.alert;
       case TitansStatusChipVariant.muted:
-        return cs.onSurface.withValues(alpha: 0.58);
+        return Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.58);
     }
   }
 

@@ -17,19 +17,20 @@ class NeoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final glow = glowColor ?? TitansUI.neonPurple;
+    final glow = glowColor ?? Theme.of(context).colorScheme.primary;
+    final dark = TitansUI.isDark(context);
 
     return Container(
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(TitansUI.radius),
         boxShadow: [
           BoxShadow(
-            color: glow.withValues(alpha: 0.14),
+            color: glow.withValues(alpha: dark ? 0.14 : 0.07),
             blurRadius: 30,
             offset: const Offset(0, 14),
           ),
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.45),
+            color: TitansUI.softShadowColor(context),
             blurRadius: 30,
             offset: const Offset(0, 18),
           ),
@@ -37,9 +38,9 @@ class NeoCard extends StatelessWidget {
       ),
       child: Container(
         decoration: BoxDecoration(
-          color: TitansUI.card,
+          color: TitansUI.surfaceColor(context),
           borderRadius: BorderRadius.circular(TitansUI.radius),
-          border: Border.all(color: TitansUI.stroke, width: 1),
+          border: Border.all(color: TitansUI.borderColor(context), width: 1),
         ),
         child: Stack(
           children: [
@@ -115,9 +116,9 @@ class StatBox extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: TitansUI.card2,
+        color: TitansUI.subtleFillColor(context, alpha: 0.82),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: TitansUI.stroke),
+        border: Border.all(color: TitansUI.borderColor(context)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -125,7 +126,9 @@ class StatBox extends StatelessWidget {
           Text(
             label.toUpperCase(),
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.55),
+              color: TitansUI.textSecondaryColor(
+                context,
+              ).withValues(alpha: 0.72),
               fontSize: 11,
               fontWeight: FontWeight.w700,
               letterSpacing: 0.4,
