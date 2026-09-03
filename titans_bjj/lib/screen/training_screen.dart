@@ -1558,13 +1558,51 @@ class _TrainingLineChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final reduceMotion = MediaQuery.disableAnimationsOf(context);
+
+    if (reduceMotion) {
+      return _TrainingParticleLineChart(points: points, revealProgress: 1);
+    }
+
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 720),
+      curve: Curves.easeOutCubic,
+      builder:
+          (context, revealProgress, _) => _TrainingParticleLineChart(
+            points: points,
+            revealProgress: revealProgress,
+          ),
+    );
+  }
+}
+
+class _TrainingParticleLineChart extends StatelessWidget {
+  final List<TrainingChartPoint> points;
+  final double revealProgress;
+
+  const _TrainingParticleLineChart({
+    required this.points,
+    required this.revealProgress,
+  });
+
+  @override
+  Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final glowColor = Color.lerp(cs.primary, cs.secondary, 0.35)!;
     final maxValue = points.fold<int>(
       0,
       (max, point) => point.value > max ? point.value : max,
     );
-    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1).toDouble();
+    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1.4).toDouble();
     final maxX = points.length <= 1 ? 1.0 : (points.length - 1).toDouble();
+    final activeCutoff = (points.length - 1) * revealProgress;
+    final visibleSpots = [
+      for (var i = 0; i < points.length; i++)
+        if (i <= activeCutoff || revealProgress >= 1)
+          FlSpot(i.toDouble(), points[i].value.toDouble()),
+    ];
+    final spots = visibleSpots.isEmpty ? const [FlSpot(0, 0)] : visibleSpots;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -1581,25 +1619,76 @@ class _TrainingLineChart extends StatelessWidget {
               minY: 0,
               maxY: maxY,
               gridData: FlGridData(
-                drawVerticalLine: false,
+                drawVerticalLine: true,
                 horizontalInterval: 1,
+                verticalInterval:
+                    points.length <= 7 ? 1 : labelEvery.toDouble(),
                 getDrawingHorizontalLine:
                     (_) => FlLine(
-                      color: cs.onSurface.withValues(alpha: 0.08),
+                      color: cs.onSurface.withValues(alpha: 0.07),
+                      strokeWidth: 1,
+                      dashArray: const [5, 6],
+                    ),
+                getDrawingVerticalLine:
+                    (_) => FlLine(
+                      color: cs.onSurface.withValues(alpha: 0.035),
                       strokeWidth: 1,
                     ),
               ),
-              borderData: FlBorderData(show: false),
+              borderData: FlBorderData(
+                show: true,
+                border: Border(
+                  bottom: BorderSide(
+                    color: cs.onSurface.withValues(alpha: 0.12),
+                  ),
+                ),
+              ),
               lineTouchData: LineTouchData(
                 enabled: true,
+                touchSpotThreshold: 18,
+                getTouchedSpotIndicator:
+                    (barData, spotIndexes) => [
+                      for (final _ in spotIndexes)
+                        TouchedSpotIndicatorData(
+                          FlLine(
+                            color: glowColor.withValues(alpha: 0.34),
+                            strokeWidth: 1.4,
+                            dashArray: const [4, 5],
+                          ),
+                          FlDotData(
+                            getDotPainter:
+                                (spot, percent, barData, spotIndex) =>
+                                    _TrainingParticleDotPainter(
+                                      color: cs.secondary,
+                                      surfaceColor: cs.surface,
+                                      haloColor: glowColor,
+                                      radius: 5.6,
+                                      haloRadius: 11,
+                                      haloAlpha: 0.30,
+                                      strokeWidth: 1.8,
+                                    ),
+                          ),
+                        ),
+                    ],
                 touchTooltipData: LineTouchTooltipData(
                   fitInsideHorizontally: true,
                   fitInsideVertically: true,
-                  tooltipRoundedRadius: 10,
+                  tooltipRoundedRadius: 12,
+                  tooltipMargin: 12,
+                  maxContentWidth: 156,
                   tooltipPadding: const EdgeInsets.symmetric(
-                    horizontal: 10,
-                    vertical: 8,
+                    horizontal: 12,
+                    vertical: 9,
                   ),
+                  tooltipBorder: BorderSide(
+                    color: cs.primary.withValues(alpha: 0.24),
+                  ),
+                  getTooltipColor:
+                      (_) => Color.lerp(
+                        cs.inverseSurface,
+                        cs.primary,
+                        0.08,
+                      )!.withValues(alpha: 0.94),
                   getTooltipItems:
                       (spots) => [
                         for (final spot in spots)
@@ -1649,7 +1738,7 @@ class _TrainingLineChart extends StatelessWidget {
                       return Text(
                         intValue.toString(),
                         style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.62),
+                          color: cs.onSurface.withValues(alpha: 0.58),
                           fontSize: 10,
                           fontWeight: FontWeight.w700,
                         ),
@@ -1688,30 +1777,68 @@ class _TrainingLineChart extends StatelessWidget {
               ),
               lineBarsData: [
                 LineChartBarData(
-                  spots: [
-                    for (var i = 0; i < points.length; i++)
-                      FlSpot(i.toDouble(), points[i].value.toDouble()),
-                  ],
+                  spots: spots,
                   isCurved: true,
+                  curveSmoothness: 0.28,
                   preventCurveOverShooting: true,
-                  barWidth: 3,
-                  color: cs.primary,
+                  isStrokeCapRound: true,
+                  isStrokeJoinRound: true,
+                  barWidth: 8,
+                  color: glowColor.withValues(alpha: 0.14),
+                  dotData: const FlDotData(show: false),
+                  belowBarData: BarAreaData(show: false),
+                ),
+                LineChartBarData(
+                  spots: spots,
+                  isCurved: true,
+                  curveSmoothness: 0.28,
+                  preventCurveOverShooting: true,
+                  isStrokeCapRound: true,
+                  isStrokeJoinRound: true,
+                  barWidth: 3.4,
+                  gradient: LinearGradient(
+                    colors: [
+                      cs.primary.withValues(alpha: 0.88),
+                      glowColor,
+                      cs.secondary.withValues(alpha: 0.92),
+                    ],
+                  ),
+                  shadow: Shadow(
+                    color: glowColor.withValues(alpha: 0.34),
+                    blurRadius: 10,
+                  ),
                   belowBarData: BarAreaData(
                     show: true,
-                    color: cs.primary.withValues(alpha: 0.10),
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        glowColor.withValues(alpha: 0.16),
+                        cs.primary.withValues(alpha: 0.035),
+                        Colors.transparent,
+                      ],
+                    ),
                   ),
                   dotData: FlDotData(
                     show: true,
-                    getDotPainter:
-                        (spot, percent, barData, index) => FlDotCirclePainter(
-                          radius: points[index].isHighlighted ? 4 : 2.8,
-                          color:
-                              points[index].isHighlighted
-                                  ? cs.secondary
-                                  : cs.primary,
-                          strokeColor: Theme.of(context).colorScheme.surface,
-                          strokeWidth: 1.5,
-                        ),
+                    getDotPainter: (spot, percent, barData, index) {
+                      final point =
+                          index >= 0 && index < points.length
+                              ? points[index]
+                              : points.last;
+                      final isLast = index == points.length - 1;
+                      final isSpecial = point.isHighlighted || isLast;
+
+                      return _TrainingParticleDotPainter(
+                        color: isSpecial ? cs.secondary : cs.primary,
+                        surfaceColor: cs.surface,
+                        haloColor: isSpecial ? cs.secondary : glowColor,
+                        radius: isSpecial ? 4.8 : 3.2,
+                        haloRadius: isSpecial ? 9.2 : 6.6,
+                        haloAlpha: isSpecial ? 0.24 : 0.14,
+                        strokeWidth: isSpecial ? 1.7 : 1.3,
+                      );
+                    },
                   ),
                 ),
               ],
@@ -1722,6 +1849,78 @@ class _TrainingLineChart extends StatelessWidget {
       },
     );
   }
+}
+
+class _TrainingParticleDotPainter extends FlDotPainter {
+  final Color color;
+  final Color surfaceColor;
+  final Color haloColor;
+  final double radius;
+  final double haloRadius;
+  final double haloAlpha;
+  final double strokeWidth;
+
+  const _TrainingParticleDotPainter({
+    required this.color,
+    required this.surfaceColor,
+    required this.haloColor,
+    required this.radius,
+    required this.haloRadius,
+    required this.haloAlpha,
+    required this.strokeWidth,
+  });
+
+  @override
+  void draw(Canvas canvas, FlSpot spot, Offset offsetInCanvas) {
+    canvas.drawCircle(
+      offsetInCanvas,
+      haloRadius,
+      Paint()
+        ..color = haloColor.withValues(alpha: haloAlpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    canvas.drawCircle(
+      offsetInCanvas,
+      radius + strokeWidth,
+      Paint()
+        ..color = surfaceColor.withValues(alpha: 0.92)
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      offsetInCanvas,
+      radius,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.fill,
+    );
+    canvas.drawCircle(
+      offsetInCanvas.translate(-radius * 0.28, -radius * 0.28),
+      math.max(1.1, radius * 0.32),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.62)
+        ..style = PaintingStyle.fill,
+    );
+  }
+
+  @override
+  Size getSize(FlSpot spot) => Size.square(haloRadius * 2);
+
+  @override
+  Color get mainColor => color;
+
+  @override
+  FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) => b;
+
+  @override
+  List<Object?> get props => [
+    color,
+    surfaceColor,
+    haloColor,
+    radius,
+    haloRadius,
+    haloAlpha,
+    strokeWidth,
+  ];
 }
 
 class _TrainingDonutChart extends StatelessWidget {
@@ -1961,7 +2160,7 @@ class _TrainingEnergyOrbState extends State<_TrainingEnergyOrb>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Text(
-                              widget.total.toString(),
+                              (selectedPoint?.value ?? widget.total).toString(),
                               style: TextStyle(
                                 color: cs.onSurface,
                                 fontSize: widget.compact ? 22 : 26,
@@ -1969,7 +2168,7 @@ class _TrainingEnergyOrbState extends State<_TrainingEnergyOrb>
                               ),
                             ),
                             Text(
-                              selectedPoint?.label ?? 'treinos',
+                              selectedPoint?.label ?? 'Total',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -2047,102 +2246,185 @@ class _TrainingEnergyOrbPainter extends CustomPainter {
     final total = points.fold<int>(0, (sum, point) => sum + point.value);
     if (total <= 0) return;
 
+    final visibleProgress = progress.clamp(0.0, 1.0).toDouble();
+    final dominantIndex = points.indexWhere(
+      (point) => point.value == points.map((p) => p.value).reduce(math.max),
+    );
+    final activeIndex = selectedIndex ?? dominantIndex;
+    final outerRadius = shortest * 0.455;
+    final ringRadius = shortest * 0.342;
+    final innerRingRadius = shortest * 0.262;
+    final ringRect = Rect.fromCircle(center: center, radius: ringRadius);
+    final innerRingRect = Rect.fromCircle(
+      center: center,
+      radius: innerRingRadius,
+    );
+
     final haloPaint =
         Paint()
           ..shader = RadialGradient(
             colors: [
-              colorScheme.primary.withValues(alpha: 0.20 + pulse * 0.06),
-              colorScheme.secondary.withValues(alpha: 0.08),
+              colorScheme.primary.withValues(alpha: 0.18 + pulse * 0.04),
+              colorScheme.secondary.withValues(alpha: 0.095),
+              colorScheme.surface.withValues(alpha: 0.02),
               Colors.transparent,
             ],
-            stops: const [0.0, 0.55, 1.0],
-          ).createShader(
-            Rect.fromCircle(center: center, radius: shortest * 0.48),
-          );
-    canvas.drawCircle(center, shortest * 0.48, haloPaint);
+            stops: const [0.0, 0.38, 0.66, 1.0],
+          ).createShader(Rect.fromCircle(center: center, radius: outerRadius));
+    canvas.drawCircle(center, outerRadius, haloPaint);
+
+    final outerGuidePaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.1
+          ..color = colorScheme.primary.withValues(alpha: 0.16 + pulse * 0.04);
+    final innerGuidePaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1
+          ..color = colorScheme.onSurface.withValues(alpha: 0.055);
+    canvas.drawCircle(center, shortest * 0.425, outerGuidePaint);
+    canvas.drawCircle(center, shortest * 0.245, innerGuidePaint);
 
     final ghostPaint =
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 14
+          ..strokeWidth = 15
           ..strokeCap = StrokeCap.round
-          ..color = colorScheme.onSurface.withValues(alpha: 0.055);
-    final ringRect = Rect.fromCircle(center: center, radius: shortest * 0.34);
+          ..color = colorScheme.onSurface.withValues(alpha: 0.052);
     canvas.drawArc(ringRect, -math.pi / 2, math.pi * 2, false, ghostPaint);
 
+    final innerGhostPaint =
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 4.2
+          ..strokeCap = StrokeCap.round
+          ..color = colorScheme.primary.withValues(alpha: 0.10);
+    canvas.drawArc(
+      innerRingRect,
+      -math.pi * 0.72,
+      math.pi * 1.44 * visibleProgress,
+      false,
+      innerGhostPaint,
+    );
+
     var start = -math.pi / 2;
-    final visibleProgress = progress.clamp(0.0, 1.0).toDouble();
     for (var i = 0; i < points.length; i++) {
       final point = points[i];
-      final sweep = (point.value / total) * math.pi * 2 * visibleProgress;
-      if (sweep <= 0) continue;
-      final selected =
-          selectedIndex == i || (selectedIndex == null && point.isHighlighted);
+      final fullSweep = (point.value / total) * math.pi * 2;
+      final sweep = fullSweep * visibleProgress;
+      if (sweep <= 0) {
+        start += fullSweep;
+        continue;
+      }
+
+      final selected = selectedIndex == i;
+      final dominant = i == dominantIndex;
+      final isActive = i == activeIndex;
       final baseColor = _trainingChartSliceColor(colorScheme, i);
+      final stroke =
+          selected
+              ? 19.5
+              : dominant
+              ? 17.5
+              : 13.5;
+      final dimAlpha = selectedIndex != null && !selected ? 0.36 : 1.0;
+
+      if (isActive) {
+        final glowPaint =
+            Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = stroke + 9
+              ..strokeCap = StrokeCap.round
+              ..color = baseColor.withValues(alpha: 0.13 + pulse * 0.04)
+              ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+        canvas.drawArc(
+          ringRect,
+          start + 0.034,
+          math.max(0.0, sweep - 0.068),
+          false,
+          glowPaint,
+        );
+      }
+
       final paint =
           Paint()
             ..style = PaintingStyle.stroke
-            ..strokeWidth = selected ? 18 : 13
+            ..strokeWidth = stroke
             ..strokeCap = StrokeCap.round
             ..shader = SweepGradient(
               startAngle: start,
-              endAngle: start + sweep,
+              endAngle: start + fullSweep,
               colors: [
-                baseColor.withValues(alpha: selected ? 0.96 : 0.70),
-                colorScheme.secondary.withValues(alpha: selected ? 0.92 : 0.58),
-                colorScheme.primary.withValues(alpha: selected ? 0.98 : 0.76),
+                baseColor.withValues(alpha: 0.70 * dimAlpha),
+                colorScheme.secondary.withValues(alpha: 0.88 * dimAlpha),
+                colorScheme.primary.withValues(alpha: 0.96 * dimAlpha),
+                Colors.white.withValues(
+                  alpha: (isActive ? 0.62 : 0.24) * dimAlpha,
+                ),
               ],
+              stops: const [0.0, 0.54, 0.88, 1.0],
             ).createShader(ringRect);
 
       canvas.drawArc(
         ringRect,
-        start + 0.025,
-        math.max(0.0, sweep - 0.05),
+        start + 0.034,
+        math.max(0.0, sweep - 0.068),
         false,
         paint,
       );
 
-      if (selected) {
-        final endAngle = start + sweep;
-        final pointOffset = Offset(
-          center.dx + math.cos(endAngle) * shortest * 0.34,
-          center.dy + math.sin(endAngle) * shortest * 0.34,
+      final markerAngle = start + sweep;
+      if (isActive && visibleProgress > 0.72) {
+        final markerOffset = Offset(
+          center.dx + math.cos(markerAngle) * ringRadius,
+          center.dy + math.sin(markerAngle) * ringRadius,
         );
         final nodePaint =
             Paint()
-              ..color = colorScheme.primary.withValues(alpha: 0.95)
+              ..color = colorScheme.primary.withValues(alpha: 0.88)
               ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
-        canvas.drawCircle(pointOffset, 5.5 + pulse * 1.5, nodePaint);
+        canvas.drawCircle(markerOffset, 5.4 + pulse * 1.1, nodePaint);
+        canvas.drawCircle(
+          markerOffset,
+          2.3,
+          Paint()..color = Colors.white.withValues(alpha: 0.78),
+        );
       }
 
-      start += sweep;
+      start += fullSweep;
     }
 
-    final orbitPaint =
+    final sweepPaint =
         Paint()
           ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.2
+          ..strokeWidth = 1.4
+          ..strokeCap = StrokeCap.round
           ..color = colorScheme.secondary.withValues(
-            alpha: 0.22 + pulse * 0.07,
+            alpha: 0.20 + pulse * 0.08,
           );
-    canvas.drawCircle(center, shortest * 0.42, orbitPaint);
-
-    final diagonalPaint =
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1
-          ..color = colorScheme.primary.withValues(alpha: 0.16);
     canvas.drawArc(
-      Rect.fromCenter(
-        center: center,
-        width: shortest * 0.74,
-        height: shortest * 0.30,
-      ),
-      math.pi * 0.08,
-      math.pi * 1.36,
+      Rect.fromCircle(center: center, radius: shortest * 0.414),
+      -math.pi / 2 + pulse * math.pi * 0.18,
+      math.pi * 0.46,
       false,
-      diagonalPaint,
+      sweepPaint,
     );
+
+    for (var i = 0; i < math.min(3, points.length); i++) {
+      final angle =
+          -math.pi / 2 + (math.pi * 2 / math.max(1, points.length)) * i;
+      final radius = shortest * (0.405 + i * 0.014);
+      final particleOffset = Offset(
+        center.dx + math.cos(angle + pulse * 0.08) * radius,
+        center.dy + math.sin(angle + pulse * 0.08) * radius,
+      );
+      canvas.drawCircle(
+        particleOffset,
+        1.4 + (i == 0 ? pulse * 0.4 : 0),
+        Paint()..color = colorScheme.secondary.withValues(alpha: 0.22),
+      );
+    }
   }
 
   @override
@@ -2351,112 +2633,137 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
       0,
       (max, point) => point.value > max ? point.value : max,
     );
-    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1).toDouble();
+    final maxY = maxValue < 3 ? 3.0 : (maxValue + 1.25).toDouble();
     final progress = revealProgress.clamp(0.0, 1.0).toDouble();
 
     return LayoutBuilder(
       builder: (context, constraints) {
         final labelEvery = _labelEvery(points.length, constraints.maxWidth);
+        final barWidth = _barWidth(points.length, constraints.maxWidth);
 
-        return RepaintBoundary(
-          child: BarChart(
-            BarChartData(
-              minY: 0,
-              maxY: maxY,
-              alignment: BarChartAlignment.spaceAround,
-              gridData: FlGridData(
-                drawVerticalLine: false,
-                horizontalInterval: 1,
-                getDrawingHorizontalLine:
-                    (_) => FlLine(
-                      color: cs.onSurface.withValues(alpha: 0.08),
-                      strokeWidth: 1,
+        return Semantics(
+          label: 'Volume de treinos por periodo',
+          child: RepaintBoundary(
+            child: BarChart(
+              BarChartData(
+                minY: 0,
+                maxY: maxY,
+                alignment: BarChartAlignment.spaceAround,
+                gridData: FlGridData(
+                  drawVerticalLine: false,
+                  horizontalInterval: 1,
+                  getDrawingHorizontalLine:
+                      (_) => FlLine(
+                        color: cs.onSurface.withValues(alpha: 0.065),
+                        strokeWidth: 1,
+                        dashArray: const [5, 6],
+                      ),
+                ),
+                borderData: FlBorderData(
+                  show: true,
+                  border: Border(
+                    bottom: BorderSide(
+                      color: cs.onSurface.withValues(alpha: 0.12),
                     ),
-              ),
-              borderData: FlBorderData(show: false),
-              barTouchData: _barTouchData(cs, points),
-              titlesData: FlTitlesData(
-                topTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                rightTitles: const AxisTitles(
-                  sideTitles: SideTitles(showTitles: false),
-                ),
-                leftTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 30,
-                    interval: 1,
-                    getTitlesWidget: (value, _) {
-                      final intValue = value.toInt();
-                      if (value != intValue || intValue < 0) {
-                        return const SizedBox.shrink();
-                      }
-                      return Text(
-                        intValue.toString(),
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.62),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      );
-                    },
                   ),
                 ),
-                bottomTitles: AxisTitles(
-                  sideTitles: SideTitles(
-                    showTitles: true,
-                    reservedSize: 32,
-                    getTitlesWidget: (value, _) {
-                      final index = value.toInt();
-                      if (index < 0 || index >= points.length) {
-                        return const SizedBox.shrink();
-                      }
-                      final shouldShow =
-                          index == points.length - 1 || index % labelEvery == 0;
-                      if (!shouldShow) return const SizedBox.shrink();
-                      return Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Text(
-                          points[index].label,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                barTouchData: _barTouchData(cs, points),
+                titlesData: FlTitlesData(
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 30,
+                      interval: 1,
+                      getTitlesWidget: (value, _) {
+                        final intValue = value.toInt();
+                        if (value != intValue || intValue < 0) {
+                          return const SizedBox.shrink();
+                        }
+                        return Text(
+                          intValue.toString(),
                           style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.66),
-                            fontSize: 9,
-                            fontWeight: FontWeight.w800,
+                            color: cs.onSurface.withValues(alpha: 0.58),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 32,
+                      getTitlesWidget: (value, _) {
+                        final index = value.toInt();
+                        if (index < 0 || index >= points.length) {
+                          return const SizedBox.shrink();
+                        }
+                        final shouldShow =
+                            index == points.length - 1 ||
+                            index % labelEvery == 0;
+                        if (!shouldShow) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Text(
+                            points[index].label,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.66),
+                              fontSize: 9,
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                barGroups: [
+                  for (var i = 0; i < points.length; i++)
+                    BarChartGroupData(
+                      x: i,
+                      showingTooltipIndicators:
+                          _selectedIndex == i ? const [0] : const [],
+                      barRods: [
+                        BarChartRodData(
+                          toY: points[i].value.toDouble() * progress,
+                          width: barWidth,
+                          borderRadius: const BorderRadius.vertical(
+                            top: Radius.circular(9),
+                            bottom: Radius.circular(2),
+                          ),
+                          gradient: _barGradient(cs, points[i], i),
+                          borderSide: BorderSide(
+                            color: _barBorderColor(cs, points[i], i),
+                            width: 1.1,
+                          ),
+                          backDrawRodData: BackgroundBarChartRodData(
+                            show: true,
+                            toY: maxY,
+                            gradient: LinearGradient(
+                              begin: Alignment.bottomCenter,
+                              end: Alignment.topCenter,
+                              colors: [
+                                cs.onSurface.withValues(alpha: 0.030),
+                                cs.onSurface.withValues(alpha: 0.070),
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
+                      ],
+                    ),
+                ],
               ),
-              barGroups: [
-                for (var i = 0; i < points.length; i++)
-                  BarChartGroupData(
-                    x: i,
-                    showingTooltipIndicators:
-                        _selectedIndex == i ? const [0] : const [],
-                    barRods: [
-                      BarChartRodData(
-                        toY: points[i].value.toDouble() * progress,
-                        width: _barWidth(points.length, constraints.maxWidth),
-                        borderRadius: const BorderRadius.vertical(
-                          top: Radius.circular(7),
-                        ),
-                        color: _barColor(cs, points[i], i),
-                        backDrawRodData: BackgroundBarChartRodData(
-                          show: true,
-                          toY: maxY,
-                          color: cs.onSurface.withValues(alpha: 0.045),
-                        ),
-                      ),
-                    ],
-                  ),
-              ],
+              duration: Duration.zero,
             ),
-            duration: Duration.zero,
           ),
         );
       },
@@ -2476,8 +2783,17 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
       touchTooltipData: BarTouchTooltipData(
         fitInsideHorizontally: true,
         fitInsideVertically: true,
-        tooltipRoundedRadius: 10,
-        tooltipPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        tooltipRoundedRadius: 12,
+        tooltipMargin: 12,
+        maxContentWidth: 150,
+        tooltipPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+        tooltipBorder: BorderSide(color: cs.primary.withValues(alpha: 0.24)),
+        getTooltipColor:
+            (_) => Color.lerp(
+              cs.inverseSurface,
+              cs.primary,
+              0.08,
+            )!.withValues(alpha: 0.94),
         getTooltipItem: (group, groupIndex, rod, rodIndex) {
           if (groupIndex < 0 || groupIndex >= points.length) {
             return null;
@@ -2502,15 +2818,46 @@ class _TrainingBarChartState extends State<_TrainingBarChart> {
     );
   }
 
-  Color _barColor(ColorScheme cs, TrainingChartPoint point, int index) {
+  LinearGradient _barGradient(
+    ColorScheme cs,
+    TrainingChartPoint point,
+    int index,
+  ) {
     final selectedIndex = _selectedIndex;
     final isSelected = selectedIndex == index;
     final isDimmed = selectedIndex != null && !isSelected;
-    if (isSelected) return cs.tertiary;
+    final isSpecial = isSelected || point.isHighlighted;
+    final topColor =
+        isSelected
+            ? cs.tertiary
+            : isSpecial
+            ? cs.secondary
+            : cs.primary;
+    final bottomColor = Color.lerp(cs.surface, cs.primary, 0.32)!;
+    final alpha = isDimmed ? 0.42 : 1.0;
+
+    return LinearGradient(
+      begin: Alignment.bottomCenter,
+      end: Alignment.topCenter,
+      colors: [
+        bottomColor.withValues(alpha: 0.58 * alpha),
+        cs.primary.withValues(alpha: 0.78 * alpha),
+        topColor.withValues(alpha: 0.96 * alpha),
+        Colors.white.withValues(alpha: isSpecial ? 0.72 * alpha : 0.34 * alpha),
+      ],
+      stops: const [0.0, 0.62, 0.90, 1.0],
+    );
+  }
+
+  Color _barBorderColor(ColorScheme cs, TrainingChartPoint point, int index) {
+    final selectedIndex = _selectedIndex;
+    final isSelected = selectedIndex == index;
+    final isDimmed = selectedIndex != null && !isSelected;
+    if (isSelected) return cs.tertiary.withValues(alpha: 0.78);
     if (point.isHighlighted) {
-      return cs.secondary.withValues(alpha: isDimmed ? 0.48 : 1);
+      return cs.secondary.withValues(alpha: isDimmed ? 0.28 : 0.58);
     }
-    return cs.primary.withValues(alpha: isDimmed ? 0.34 : 0.78);
+    return cs.primary.withValues(alpha: isDimmed ? 0.18 : 0.38);
   }
 
   int _labelEvery(int count, double width) {

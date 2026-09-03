@@ -223,47 +223,65 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                       keyboardType: TextInputType.phone,
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: DropdownButtonFormField<BeltColor>(
-                            initialValue: vm.belt,
-                            decoration: const InputDecoration(
-                              labelText: 'Faixa',
-                              prefixIcon: Icon(Icons.horizontal_rule),
-                            ),
-                            items:
-                                beltSelectionOrder
-                                    .map(
-                                      (belt) => DropdownMenuItem(
-                                        value: belt,
-                                        child: Text(_beltLabel(belt)),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final beltField = DropdownButtonFormField<BeltColor>(
+                          initialValue: vm.belt,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Faixa',
+                            prefixIcon: Icon(Icons.horizontal_rule),
+                          ),
+                          items:
+                              beltSelectionOrder
+                                  .map(
+                                    (belt) => DropdownMenuItem(
+                                      value: belt,
+                                      child: Text(
+                                        _beltLabel(belt),
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                    )
-                                    .toList(),
-                            onChanged: vm.isLoading ? null : vm.updateBelt,
+                                    ),
+                                  )
+                                  .toList(),
+                          onChanged: vm.isLoading ? null : vm.updateBelt,
+                        );
+                        final degreeField = DropdownButtonFormField<int>(
+                          key: ValueKey('${vm.belt.name}-${vm.degree}'),
+                          initialValue: vm.degree,
+                          isExpanded: true,
+                          decoration: const InputDecoration(
+                            labelText: 'Grau',
+                            prefixIcon: Icon(Icons.star_outline),
                           ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: DropdownButtonFormField<int>(
-                            key: ValueKey('${vm.belt.name}-${vm.degree}'),
-                            initialValue: vm.degree,
-                            decoration: const InputDecoration(
-                              labelText: 'Grau',
-                              prefixIcon: Icon(Icons.star_outline),
+                          items: List.generate(
+                            vm.maxDegree + 1,
+                            (index) => DropdownMenuItem(
+                              value: index,
+                              child: Text(index.toString()),
                             ),
-                            items: List.generate(
-                              vm.maxDegree + 1,
-                              (index) => DropdownMenuItem(
-                                value: index,
-                                child: Text(index.toString()),
-                              ),
-                            ),
-                            onChanged: vm.isLoading ? null : vm.updateDegree,
                           ),
-                        ),
-                      ],
+                          onChanged: vm.isLoading ? null : vm.updateDegree,
+                        );
+
+                        if (constraints.maxWidth < 420) {
+                          return Column(
+                            children: [
+                              beltField,
+                              const SizedBox(height: 12),
+                              degreeField,
+                            ],
+                          );
+                        }
+
+                        return Row(
+                          children: [
+                            Expanded(flex: 2, child: beltField),
+                            const SizedBox(width: 12),
+                            Expanded(child: degreeField),
+                          ],
+                        );
+                      },
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(

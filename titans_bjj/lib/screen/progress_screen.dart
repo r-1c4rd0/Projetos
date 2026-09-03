@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
@@ -816,7 +817,7 @@ class _ConsistencyChartCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    viewModel.title,
+                    'Constelação de consistência',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -892,7 +893,7 @@ class _ConsistencyChartCard extends StatelessWidget {
                 points.length;
 
     return _ProgressChartViewModel(
-      title: 'Regularidade de treino',
+      title: 'Pulso de evolução',
       subtitle:
           'Sess\u00f5es registradas dentro do recorte selecionado. O gr\u00e1fico mostra regularidade, n\u00e3o gradua\u00e7\u00e3o.',
       periodLabel: title,
@@ -1170,14 +1171,24 @@ class _ProgressAreaChartState extends State<_ProgressAreaChart> {
     required int? selectedIndex,
   }) {
     final cs = Theme.of(context).colorScheme;
+    final glowColor = Color.lerp(cs.primary, cs.secondary, 0.34)!;
 
     return LineChartBarData(
       spots: spots,
       isCurved: true,
+      curveSmoothness: 0.28,
       preventCurveOverShooting: true,
-      barWidth: compact ? 2.8 : 3.5,
-      color: cs.primary,
+      barWidth: compact ? 3.0 : 3.8,
+      gradient: LinearGradient(
+        colors: [
+          cs.primary.withValues(alpha: 0.90),
+          glowColor,
+          cs.secondary.withValues(alpha: 0.92),
+        ],
+      ),
+      shadow: Shadow(color: glowColor.withValues(alpha: 0.28), blurRadius: 10),
       isStrokeCapRound: true,
+      isStrokeJoinRound: true,
       dotData: FlDotData(
         show: true,
         checkToShowDot: (spot, _) {
@@ -1203,16 +1214,25 @@ class _ProgressAreaChartState extends State<_ProgressAreaChart> {
                   : highlighted || current
                   ? cs.secondary
                   : cs.primary;
-          return FlDotCirclePainter(
+          final isSpecial = selected || highlighted || current;
+          return _ProgressPulseDotPainter(
+            color: color,
+            surfaceColor: cs.surface,
+            haloColor: isSpecial ? color : glowColor,
             radius:
                 selected
-                    ? 5.4
-                    : highlighted || current
-                    ? 4.6
+                    ? 5.6
+                    : isSpecial
+                    ? 4.8
                     : 3.2,
-            color: color,
-            strokeWidth: selected ? 2.4 : 2,
-            strokeColor: cs.surface,
+            haloRadius:
+                selected
+                    ? 11
+                    : isSpecial
+                    ? 9
+                    : 6.5,
+            haloAlpha: selected ? 0.30 : 0.18,
+            strokeWidth: selected ? 2.2 : 1.7,
           );
         },
       ),
@@ -1222,9 +1242,11 @@ class _ProgressAreaChartState extends State<_ProgressAreaChart> {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            cs.primary.withValues(alpha: 0.24),
-            cs.primary.withValues(alpha: 0.03),
+            glowColor.withValues(alpha: 0.20),
+            cs.primary.withValues(alpha: 0.055),
+            Colors.transparent,
           ],
+          stops: const [0.0, 0.62, 1.0],
         ),
       ),
     );
@@ -1345,6 +1367,68 @@ class _ProgressAreaChartState extends State<_ProgressAreaChart> {
   }
 }
 
+class _ProgressPulseDotPainter extends FlDotPainter {
+  final Color color;
+  final Color surfaceColor;
+  final Color haloColor;
+  final double radius;
+  final double haloRadius;
+  final double haloAlpha;
+  final double strokeWidth;
+
+  const _ProgressPulseDotPainter({
+    required this.color,
+    required this.surfaceColor,
+    required this.haloColor,
+    required this.radius,
+    required this.haloRadius,
+    required this.haloAlpha,
+    required this.strokeWidth,
+  });
+
+  @override
+  void draw(Canvas canvas, FlSpot spot, Offset offsetInCanvas) {
+    canvas.drawCircle(
+      offsetInCanvas,
+      haloRadius,
+      Paint()
+        ..color = haloColor.withValues(alpha: haloAlpha)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+    );
+    canvas.drawCircle(
+      offsetInCanvas,
+      radius + strokeWidth,
+      Paint()..color = surfaceColor.withValues(alpha: 0.94),
+    );
+    canvas.drawCircle(offsetInCanvas, radius, Paint()..color = color);
+    canvas.drawCircle(
+      offsetInCanvas.translate(-radius * 0.28, -radius * 0.28),
+      math.max(1.0, radius * 0.30),
+      Paint()..color = Colors.white.withValues(alpha: 0.58),
+    );
+  }
+
+  @override
+  Size getSize(FlSpot spot) => Size.square(haloRadius * 2);
+
+  @override
+  Color get mainColor => color;
+
+  @override
+  FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) => b;
+
+  @override
+  List<Object?> get props => [
+    color,
+    surfaceColor,
+    haloColor,
+    radius,
+    haloRadius,
+    haloAlpha,
+    strokeWidth,
+  ];
+}
+
 class _ConsistencyHeatmapCard extends StatelessWidget {
   final _ConsistencyHeatmapViewModel viewModel;
 
@@ -1365,7 +1449,7 @@ class _ConsistencyHeatmapCard extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(
-                    viewModel.title,
+                    'Constelação de consistência',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -1669,14 +1753,15 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
     final color = _cellColor(cs, day.intensityLevel);
     final borderColor =
         isSelected
-            ? cs.primary.withValues(alpha: 0.92)
+            ? cs.primary.withValues(alpha: 0.94)
             : day.isToday
-            ? cs.secondary.withValues(alpha: 0.86)
-            : cs.onSurface.withValues(alpha: day.isOutsideRange ? 0.05 : 0.08);
+            ? cs.secondary.withValues(alpha: 0.88)
+            : cs.onSurface.withValues(alpha: day.isOutsideRange ? 0.05 : 0.10);
     final opacity =
-        (0.36 + (animationProgress * 0.64)).clamp(0.0, 1.0).toDouble();
+        (0.34 + (animationProgress * 0.66)).clamp(0.0, 1.0).toDouble();
     final scale =
-        (0.72 + (animationProgress * 0.28)).clamp(0.0, 1.0).toDouble();
+        (0.70 + (animationProgress * 0.30)).clamp(0.0, 1.0).toDouble();
+    final glowAlpha = _glowAlpha(day.intensityLevel, isSelected, day.isToday);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
@@ -1697,23 +1782,49 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
                 width: size,
                 height: size,
                 decoration: BoxDecoration(
-                  color: color,
-                  borderRadius: BorderRadius.circular(4),
+                  shape: BoxShape.circle,
+                  gradient: RadialGradient(
+                    center: const Alignment(-0.35, -0.38),
+                    radius: 0.95,
+                    colors: [
+                      Colors.white.withValues(
+                        alpha: day.intensityLevel == 0 ? 0.05 : 0.38,
+                      ),
+                      color,
+                      color.withValues(
+                        alpha: day.intensityLevel == 0 ? 0.24 : 0.88,
+                      ),
+                    ],
+                    stops: const [0.0, 0.44, 1.0],
+                  ),
                   border: Border.all(
                     color: borderColor,
-                    width: isSelected || day.isToday ? 1.5 : 1,
+                    width: isSelected || day.isToday ? 1.6 : 1,
                   ),
                   boxShadow:
-                      isSelected
-                          ? [
+                      glowAlpha <= 0
+                          ? null
+                          : [
                             BoxShadow(
-                              color: cs.primary.withValues(alpha: 0.18),
-                              blurRadius: 10,
-                              spreadRadius: 1,
+                              color: color.withValues(alpha: glowAlpha),
+                              blurRadius: isSelected ? 12 : 8,
+                              spreadRadius: isSelected ? 1.2 : 0.2,
                             ),
-                          ]
-                          : null,
+                          ],
                 ),
+                child:
+                    day.intensityLevel <= 0
+                        ? null
+                        : Center(
+                          child: Container(
+                            width: math.max(2.4, size * 0.22),
+                            height: math.max(2.4, size * 0.22),
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.white.withValues(alpha: 0.48),
+                            ),
+                          ),
+                        ),
               ),
             ),
           ),
@@ -1728,16 +1839,36 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
     return '$day/$month/${date.year}';
   }
 
+  static double _glowAlpha(int intensity, bool selected, bool today) {
+    if (selected) return 0.28;
+    if (today) return 0.18;
+    if (intensity >= 3) return 0.16;
+    if (intensity == 2) return 0.10;
+    return 0;
+  }
+
   static Color _cellColor(ColorScheme cs, int intensity) {
     switch (intensity) {
       case 0:
-        return cs.surfaceContainerHighest.withValues(alpha: 0.20);
+        return cs.surfaceContainerHighest.withValues(alpha: 0.24);
       case 1:
-        return cs.primary.withValues(alpha: 0.28);
+        return Color.lerp(
+          cs.primary,
+          cs.surface,
+          0.34,
+        )!.withValues(alpha: 0.48);
       case 2:
-        return cs.primary.withValues(alpha: 0.52);
+        return Color.lerp(
+          cs.primary,
+          cs.secondary,
+          0.20,
+        )!.withValues(alpha: 0.72);
       case 3:
-        return cs.primary.withValues(alpha: 0.76);
+        return Color.lerp(
+          cs.primary,
+          cs.secondary,
+          0.42,
+        )!.withValues(alpha: 0.92);
       default:
         return cs.primary;
     }
@@ -2088,6 +2219,21 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
         Stack(
           alignment: Alignment.center,
           children: [
+            Container(
+              width: ringSize + 22,
+              height: ringSize + 22,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: RadialGradient(
+                  colors: [
+                    beltColor.withValues(alpha: 0.18),
+                    cs.primary.withValues(alpha: 0.06),
+                    Colors.transparent,
+                  ],
+                  stops: const [0.0, 0.58, 1.0],
+                ),
+              ),
+            ),
             SizedBox(
               width: ringSize,
               height: ringSize,
@@ -2103,8 +2249,24 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
               height: innerSize,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: beltColor.withValues(alpha: 0.11),
-                border: Border.all(color: beltColor.withValues(alpha: 0.28)),
+                gradient: RadialGradient(
+                  center: const Alignment(-0.34, -0.38),
+                  radius: 0.98,
+                  colors: [
+                    Colors.white.withValues(alpha: 0.12),
+                    beltColor.withValues(alpha: 0.14),
+                    cs.surface.withValues(alpha: 0.72),
+                  ],
+                  stops: const [0.0, 0.48, 1.0],
+                ),
+                border: Border.all(color: beltColor.withValues(alpha: 0.32)),
+                boxShadow: [
+                  BoxShadow(
+                    color: beltColor.withValues(alpha: 0.16),
+                    blurRadius: 18,
+                    spreadRadius: 1,
+                  ),
+                ],
               ),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -2158,8 +2320,8 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
         const SizedBox(height: 16),
         Text(
           hasOfficialRule
-              ? 'Evolução baseada nos treinos registrados nesta faixa.'
-              : 'Referência de graduação infantil pendente. Acompanhe a evolução com o professor.',
+              ? 'Sua evolução está em construção com base nos treinos registrados.'
+              : 'Referência infantil pendente. Acompanhe a evolução com o professor.',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: compact ? TextAlign.center : TextAlign.start,
@@ -2459,7 +2621,7 @@ class _ProgressDetailsSectionState extends State<_ProgressDetailsSection>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Detalhes e métricas complementares',
+                            'Leitura da evolução',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -2470,8 +2632,8 @@ class _ProgressDetailsSectionState extends State<_ProgressDetailsSection>
                           const SizedBox(height: 2),
                           Text(
                             _expanded
-                                ? 'Toque para recolher'
-                                : 'Toque para expandir',
+                                ? 'Recolher detalhes'
+                                : 'Abrir consistência, volume e marcos',
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(

@@ -17,6 +17,7 @@ import 'package:titans_bjj/screen/event_screen.dart';
 import 'screen/master_panel_screen.dart';
 import 'screen/nutrition_screen.dart';
 import 'screen/progress_screen.dart';
+import 'screen/splash_screen.dart';
 import 'screen/training_screen.dart';
 // 🔒 Seleção de aluno (mestre → console do aluno)
 import 'service/selected_student.dart';
@@ -89,7 +90,7 @@ class _TitansAppState extends State<TitansApp> {
               );
             },
 
-            home: AuthGate(app: const HomeShell()),
+            home: SplashScreen(child: AuthGate(app: const HomeShell())),
           ),
         );
       },
