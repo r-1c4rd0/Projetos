@@ -62,21 +62,7 @@ class UserProgressProfile {
 
   static BeltColor _beltFromString(String s) {
     final normalized = s.trim().toLowerCase().replaceFirst('beltcolor.', '');
-    const aliases = {
-      'branca': BeltColor.white,
-      'azul': BeltColor.blue,
-      'roxa': BeltColor.purple,
-      'marrom': BeltColor.brown,
-      'preta': BeltColor.black,
-    };
-
-    final alias = aliases[normalized];
-    if (alias != null) return alias;
-
-    return BeltColor.values.firstWhere(
-      (b) => b.name == normalized,
-      orElse: () => BeltColor.white,
-    );
+    return beltColorFromString(normalized);
   }
 
   static DateTime _dt(dynamic v) {
@@ -121,20 +107,20 @@ class UserProgressProfile {
   }
 
   Map<String, dynamic> toMap() => {
-        'beltStartAt': Timestamp.fromDate(beltStartAt),
-        'currentBelt': currentBelt.name,
-        'currentDegree': currentDegree,
-        if (estimatedSessionsInBelt != null)
-          'estimatedSessionsInBelt': estimatedSessionsInBelt,
-        if (totalTrainingSessions != null)
-          'totalTrainingSessions': totalTrainingSessions,
-        if (monthTrainingSessions != null)
-          'monthTrainingSessions': monthTrainingSessions,
-        if (yearTrainingSessions != null)
-          'yearTrainingSessions': yearTrainingSessions,
-        if (recentTrainingSessions != null)
-          'recentTrainingSessions': recentTrainingSessions,
-        if (recentTrainingFrequency != null)
-          'recentTrainingFrequency': recentTrainingFrequency,
-      };
+    'beltStartAt': Timestamp.fromDate(beltStartAt),
+    'currentBelt': currentBelt.name,
+    'currentDegree': currentDegree,
+    if (estimatedSessionsInBelt != null)
+      'estimatedSessionsInBelt': estimatedSessionsInBelt,
+    if (totalTrainingSessions != null)
+      'totalTrainingSessions': totalTrainingSessions,
+    if (monthTrainingSessions != null)
+      'monthTrainingSessions': monthTrainingSessions,
+    if (yearTrainingSessions != null)
+      'yearTrainingSessions': yearTrainingSessions,
+    if (recentTrainingSessions != null)
+      'recentTrainingSessions': recentTrainingSessions,
+    if (recentTrainingFrequency != null)
+      'recentTrainingFrequency': recentTrainingFrequency,
+  };
 }

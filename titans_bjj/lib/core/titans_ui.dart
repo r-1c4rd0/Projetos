@@ -73,9 +73,41 @@ class TitansUI {
   static const beltBlack = Color(0xFFE6E6E6);
 
   static Color beltColor(String belt) {
-    switch (belt) {
+    switch (belt.trim().toLowerCase().replaceFirst('beltcolor.', '')) {
       case 'white':
         return Colors.white.withValues(alpha: 0.9);
+      case 'graywhite':
+      case 'gray_white':
+        return const Color(0xFFB8BEC8);
+      case 'gray':
+        return const Color(0xFF858D99);
+      case 'grayblack':
+      case 'gray_black':
+        return const Color(0xFF69717D);
+      case 'yellowwhite':
+      case 'yellow_white':
+        return const Color(0xFFE8D782);
+      case 'yellow':
+        return const Color(0xFFE0B93F);
+      case 'yellowblack':
+      case 'yellow_black':
+        return const Color(0xFFC49E2C);
+      case 'orangewhite':
+      case 'orange_white':
+        return const Color(0xFFE5A16E);
+      case 'orange':
+        return const Color(0xFFE27B32);
+      case 'orangeblack':
+      case 'orange_black':
+        return const Color(0xFFC45D20);
+      case 'greenwhite':
+      case 'green_white':
+        return const Color(0xFF91B99A);
+      case 'green':
+        return const Color(0xFF4F9661);
+      case 'greenblack':
+      case 'green_black':
+        return const Color(0xFF347044);
       case 'blue':
         return neonBlue;
       case 'purple':
@@ -93,19 +125,75 @@ class TitansUI {
     switch (belt?.trim().toLowerCase().replaceFirst('beltcolor.', '')) {
       case 'white':
       case 'branca':
-        return 'branca';
+      case 'branco':
+        return 'Branca';
+      case 'graywhite':
+      case 'gray_white':
+      case 'cinza_branca':
+      case 'cinza/branca':
+        return 'Cinza/Branca';
+      case 'gray':
+      case 'cinza':
+        return 'Cinza';
+      case 'grayblack':
+      case 'gray_black':
+      case 'cinza_preta':
+      case 'cinza/preta':
+        return 'Cinza/Preta';
+      case 'yellowwhite':
+      case 'yellow_white':
+      case 'amarela_branca':
+      case 'amarela/branca':
+        return 'Amarela/Branca';
+      case 'yellow':
+      case 'amarela':
+      case 'amarelo':
+        return 'Amarela';
+      case 'yellowblack':
+      case 'yellow_black':
+      case 'amarela_preta':
+      case 'amarela/preta':
+        return 'Amarela/Preta';
+      case 'orangewhite':
+      case 'orange_white':
+      case 'laranja_branca':
+      case 'laranja/branca':
+        return 'Laranja/Branca';
+      case 'orange':
+      case 'laranja':
+        return 'Laranja';
+      case 'orangeblack':
+      case 'orange_black':
+      case 'laranja_preta':
+      case 'laranja/preta':
+        return 'Laranja/Preta';
+      case 'greenwhite':
+      case 'green_white':
+      case 'verde_branca':
+      case 'verde/branca':
+        return 'Verde/Branca';
+      case 'green':
+      case 'verde':
+        return 'Verde';
+      case 'greenblack':
+      case 'green_black':
+      case 'verde_preta':
+      case 'verde/preta':
+        return 'Verde/Preta';
       case 'blue':
       case 'azul':
-        return 'azul';
+        return 'Azul';
       case 'purple':
       case 'roxa':
-        return 'roxa';
+      case 'roxo':
+        return 'Roxa';
       case 'brown':
       case 'marrom':
-        return 'marrom';
+        return 'Marrom';
       case 'black':
       case 'preta':
-        return 'preta';
+      case 'preto':
+        return 'Preta';
       default:
         return 'n\u00e3o informada';
     }

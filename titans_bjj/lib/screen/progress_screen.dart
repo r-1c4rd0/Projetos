@@ -470,7 +470,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                         prefixIcon: Icon(Icons.horizontal_rule),
                       ),
                       items:
-                          BeltColor.values
+                          beltSelectionOrder
                               .map(
                                 (belt) => DropdownMenuItem(
                                   value: belt,
@@ -608,7 +608,9 @@ class _BeltProgressCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final pctText = '${(progress.percentToNextBelt * 100).toStringAsFixed(0)}%';
     final sessionLabel =
-        '${progress.sessionsInCurrentBelt}/${progress.sessionsRequiredCurrentBelt} sess\u00f5es na faixa atual';
+        progress.hasOfficialRule
+            ? '${progress.sessionsInCurrentBelt}/${progress.sessionsRequiredCurrentBelt} sess\u00f5es na faixa atual'
+            : '${progress.sessionsInCurrentBelt} treinos registrados nesta faixa';
 
     return TitansBeltStatusCard(
       belt: progress.belt,
@@ -2032,6 +2034,7 @@ class _ProgressBeltHero extends StatelessWidget {
             degree: progress.degree,
             maxDegree: progress.maxDegree,
             sessionLabel: sessionLabel,
+            hasOfficialRule: progress.hasOfficialRule,
             percent: percent,
             pctText: pctText,
             beltColor: beltColor,
@@ -2050,6 +2053,7 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
   final int degree;
   final int maxDegree;
   final String sessionLabel;
+  final bool hasOfficialRule;
   final double percent;
   final String pctText;
   final Color beltColor;
@@ -2061,6 +2065,7 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
     required this.degree,
     required this.maxDegree,
     required this.sessionLabel,
+    required this.hasOfficialRule,
     required this.percent,
     required this.pctText,
     required this.beltColor,
@@ -2151,7 +2156,9 @@ class _ProgressBeltHeroIntegrated extends StatelessWidget {
         ),
         const SizedBox(height: 16),
         Text(
-          'Evolução baseada nos treinos registrados nesta faixa.',
+          hasOfficialRule
+              ? 'Evolução baseada nos treinos registrados nesta faixa.'
+              : 'Referência de graduação infantil pendente. Acompanhe a evolução com o professor.',
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
           textAlign: compact ? TextAlign.center : TextAlign.start,
@@ -2283,7 +2290,10 @@ class _ProgressCompactMetrics extends StatelessWidget {
           TitansCompactMetricCard(
             label: 'NA FAIXA',
             value: progress.sessionsInCurrentBelt.toString(),
-            subtitle: '/${progress.sessionsRequiredCurrentBelt}',
+            subtitle:
+                progress.hasOfficialRule
+                    ? '/${progress.sessionsRequiredCurrentBelt}'
+                    : 'registrados',
             color: beltColor,
           ),
           TitansCompactMetricCard(
@@ -2685,6 +2695,7 @@ class _BeltProgress {
   final double percentToNextBelt;
   final int sessionsInCurrentBelt;
   final int sessionsRequiredCurrentBelt;
+  final bool hasOfficialRule;
 
   const _BeltProgress({
     required this.belt,
@@ -2693,6 +2704,7 @@ class _BeltProgress {
     required this.percentToNextBelt,
     required this.sessionsInCurrentBelt,
     required this.sessionsRequiredCurrentBelt,
+    required this.hasOfficialRule,
   });
 
   factory _BeltProgress.fromSummary(BeltProgressSummary summary) {
@@ -2703,6 +2715,7 @@ class _BeltProgress {
       percentToNextBelt: summary.percentToNextBelt,
       sessionsInCurrentBelt: summary.sessionsInCurrentBelt,
       sessionsRequiredCurrentBelt: summary.sessionsRequiredCurrentBelt,
+      hasOfficialRule: summary.hasOfficialRule,
     );
   }
 }

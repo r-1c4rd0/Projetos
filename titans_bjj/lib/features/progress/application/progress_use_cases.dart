@@ -32,13 +32,16 @@ class GetBeltProgressSummary {
     final degree = athlete.degree.clamp(0, maxDeg).toInt();
     final estimated = profile.estimatedSessionsInBelt;
     final requiredByRules = rules.requiredSessions(belt);
+    final hasOfficialRule = rules.hasExplicitRule(belt);
     final safeFallback = sessionsInBelt > 0 ? sessionsInBelt : maxDeg;
     final sessionsRequired =
         (requiredByRules > 0 ? requiredByRules : (estimated ?? safeFallback))
             .clamp(1, 1 << 30)
             .toInt();
     final percent =
-        (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
+        hasOfficialRule
+            ? (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble()
+            : 0.0;
 
     return BeltProgressSummary(
       belt: belt,
@@ -47,6 +50,7 @@ class GetBeltProgressSummary {
       percentToNextBelt: percent,
       sessionsInCurrentBelt: sessionsInBelt,
       sessionsRequiredCurrentBelt: sessionsRequired,
+      hasOfficialRule: hasOfficialRule,
     );
   }
 }

@@ -1,7 +1,9 @@
 import 'dart:async';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../core/theme_controller.dart';
 import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../features/home/application/home_dashboard_use_cases.dart';
@@ -431,7 +433,11 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (isAthleteSelfView) ...[
-                                    const _AthleteMinimalHeader(),
+                                    _AthleteMinimalHeader(
+                                      onToggleTheme: themeController.toggle,
+                                      onSignOut:
+                                          () => FirebaseAuth.instance.signOut(),
+                                    ),
                                     const SizedBox(height: 12),
                                     _AthleteHomeCockpitHero(
                                       cs: cs,
@@ -442,7 +448,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                               ? null
                                               : lastSessions.first,
                                       onRegisterTraining: openQuickLog,
-                                      onOpenTraining: openTraining,
                                     ),
                                     const SizedBox(height: 12),
                                     _AthleteMinimalMetricsCard(
@@ -465,8 +470,20 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           beltProgress.sessionsInBelt,
                                       sessionsRequired:
                                           beltProgress.sessionsRequired,
+                                      hasOfficialRule:
+                                          beltProgress.hasOfficialRule,
                                     ),
                                   ] else ...[
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: _AthleteHomeAccountMenu(
+                                        onToggleTheme: themeController.toggle,
+                                        onSignOut:
+                                            () =>
+                                                FirebaseAuth.instance.signOut(),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
                                     LayoutBuilder(
                                       builder: (context, _) {
                                         debugPrint(
@@ -488,6 +505,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                               beltProgress.sessionsInBelt,
                                           sessionsRequired:
                                               beltProgress.sessionsRequired,
+                                          hasOfficialRule:
+                                              beltProgress.hasOfficialRule,
                                           onEditProfile:
                                               canEditTarget
                                                   ? () {
@@ -626,8 +645,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           _RecentActivityTimelineCard(
                                             cs: cs,
                                             items: lastSessions,
-                                            onOpenTraining: openTraining,
                                             compact: true,
+                                            onOpenTraining: openTraining,
                                           ),
                                         ],
                                       ] else ...[
@@ -830,7 +849,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         prefixIcon: Icon(Icons.horizontal_rule),
                       ),
                       items:
-                          BeltColor.values
+                          beltSelectionOrder
                               .map(
                                 (belt) => DropdownMenuItem(
                                   value: belt,
@@ -1083,9 +1102,12 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
             : (requiredByRules > 0 ? requiredByRules : safeFallback)
                 .clamp(1, 1 << 30)
                 .toInt();
+    final hasOfficialRule = rules.hasExplicitRule(belt);
 
     final progressInBelt =
-        (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble();
+        hasOfficialRule
+            ? (sessionsInBelt / sessionsRequired).clamp(0.0, 1.0).toDouble()
+            : 0.0;
 
     return _BeltProgress(
       belt: belt,
@@ -1093,6 +1115,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
       maxDegree: maxDeg,
       sessionsInBelt: sessionsInBelt,
       sessionsRequired: sessionsRequired,
+      hasOfficialRule: hasOfficialRule,
       percentToNextBelt: progressInBelt,
     );
   }
@@ -1164,6 +1187,7 @@ class _BeltProgress {
   final int maxDegree;
   final int sessionsInBelt;
   final int sessionsRequired;
+  final bool hasOfficialRule;
   final double percentToNextBelt;
 
   const _BeltProgress({
@@ -1172,6 +1196,7 @@ class _BeltProgress {
     required this.maxDegree,
     required this.sessionsInBelt,
     required this.sessionsRequired,
+    required this.hasOfficialRule,
     required this.percentToNextBelt,
   });
 }
@@ -1200,18 +1225,7 @@ String _beltLabel(BeltColor belt) {
 }
 
 Color _beltProgressRingColor(BeltColor belt) {
-  switch (belt) {
-    case BeltColor.white:
-      return Colors.white.withValues(alpha: 0.92);
-    case BeltColor.blue:
-      return TitansUI.neonBlue;
-    case BeltColor.purple:
-      return TitansUI.neonPurple;
-    case BeltColor.brown:
-      return const Color(0xFF8D6E63);
-    case BeltColor.black:
-      return const Color(0xFF2B2F38);
-  }
+  return TitansUI.beltColor(belt.name);
 }
 
 class _AthleteCard extends StatelessWidget {
@@ -1224,6 +1238,7 @@ class _AthleteCard extends StatelessWidget {
   final double percentToNext;
   final int sessionsInBelt;
   final int sessionsRequired;
+  final bool hasOfficialRule;
   final VoidCallback? onEditProfile;
   final VoidCallback? onEditGraduation;
 
@@ -1237,6 +1252,7 @@ class _AthleteCard extends StatelessWidget {
     required this.percentToNext,
     required this.sessionsInBelt,
     required this.sessionsRequired,
+    required this.hasOfficialRule,
     this.onEditProfile,
     this.onEditGraduation,
   });
@@ -1247,7 +1263,9 @@ class _AthleteCard extends StatelessWidget {
     final ringColor = _beltProgressRingColor(belt);
     final identity = email.isEmpty ? 'ID ${_shortUid(uid)}' : email;
     final sessionLabel =
-        '$sessionsInBelt/$sessionsRequired treinos na faixa atual';
+        hasOfficialRule
+            ? '$sessionsInBelt/$sessionsRequired treinos na faixa atual'
+            : '$sessionsInBelt treinos registrados nesta faixa';
     final hasActions = onEditProfile != null || onEditGraduation != null;
 
     return _GlassCard(
@@ -1267,6 +1285,7 @@ class _AthleteCard extends StatelessWidget {
                 degree: degree,
                 maxDegree: maxDegree,
                 sessionsRequired: sessionsRequired,
+                hasOfficialRule: hasOfficialRule,
               );
 
               if (constraints.maxWidth < 420) {
@@ -1346,6 +1365,7 @@ class _StudentSnapshotInfo extends StatelessWidget {
   final int degree;
   final int maxDegree;
   final int sessionsRequired;
+  final bool hasOfficialRule;
 
   const _StudentSnapshotInfo({
     required this.cs,
@@ -1355,6 +1375,7 @@ class _StudentSnapshotInfo extends StatelessWidget {
     required this.degree,
     required this.maxDegree,
     required this.sessionsRequired,
+    required this.hasOfficialRule,
   });
 
   @override
@@ -1392,11 +1413,12 @@ class _StudentSnapshotInfo extends StatelessWidget {
               color: TitansUI.beltColor(belt.name),
               icon: Icons.military_tech_outlined,
             ),
-            _InsightBadge(
-              label: 'Ref. $sessionsRequired treinos',
-              color: TitansUI.technicalBlue,
-              icon: Icons.flag_outlined,
-            ),
+            if (hasOfficialRule)
+              _InsightBadge(
+                label: 'Ref. $sessionsRequired treinos',
+                color: TitansUI.technicalBlue,
+                icon: Icons.flag_outlined,
+              ),
             _DegreeDots(degree: degree, maxDegree: maxDegree, cs: cs),
           ],
         ),
@@ -1405,31 +1427,99 @@ class _StudentSnapshotInfo extends StatelessWidget {
   }
 }
 
+enum _AthleteHomeAccountAction { theme, signOut }
+
+class _AthleteHomeAccountMenu extends StatelessWidget {
+  final VoidCallback onToggleTheme;
+  final VoidCallback onSignOut;
+
+  const _AthleteHomeAccountMenu({
+    required this.onToggleTheme,
+    required this.onSignOut,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<_AthleteHomeAccountAction>(
+      tooltip: 'Conta',
+      icon: const Icon(Icons.account_circle_outlined),
+      onSelected: (action) {
+        switch (action) {
+          case _AthleteHomeAccountAction.theme:
+            onToggleTheme();
+            break;
+          case _AthleteHomeAccountAction.signOut:
+            onSignOut();
+            break;
+        }
+      },
+      itemBuilder:
+          (context) => const [
+            PopupMenuItem(
+              value: _AthleteHomeAccountAction.theme,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.brightness_6_outlined),
+                title: Text('Tema'),
+              ),
+            ),
+            PopupMenuItem(
+              value: _AthleteHomeAccountAction.signOut,
+              child: ListTile(
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                leading: Icon(Icons.logout_rounded),
+                title: Text('Sair'),
+              ),
+            ),
+          ],
+    );
+  }
+}
+
 class _AthleteMinimalHeader extends StatelessWidget {
-  const _AthleteMinimalHeader();
+  final VoidCallback onToggleTheme;
+  final VoidCallback onSignOut;
+
+  const _AthleteMinimalHeader({
+    required this.onToggleTheme,
+    required this.onSignOut,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Column(
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'TITANS BJJ',
-          style: TextStyle(
-            color: cs.primary,
-            fontSize: 11,
-            fontWeight: FontWeight.w900,
-            letterSpacing: 0,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'TITANS BJJ',
+                style: TextStyle(
+                  color: cs.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Início',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 2),
-        Text(
-          'Início',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+        _AthleteHomeAccountMenu(
+          onToggleTheme: onToggleTheme,
+          onSignOut: onSignOut,
         ),
       ],
     );
@@ -1553,6 +1643,7 @@ class _AthleteMinimalIdentityCard extends StatelessWidget {
   final double percentToNext;
   final int sessionsInBelt;
   final int sessionsRequired;
+  final bool hasOfficialRule;
 
   const _AthleteMinimalIdentityCard({
     required this.cs,
@@ -1565,6 +1656,7 @@ class _AthleteMinimalIdentityCard extends StatelessWidget {
     required this.percentToNext,
     required this.sessionsInBelt,
     required this.sessionsRequired,
+    required this.hasOfficialRule,
   });
 
   @override
@@ -1621,7 +1713,9 @@ class _AthleteMinimalIdentityCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  '$sessionsInBelt/$sessionsRequired treinos na faixa atual',
+                  hasOfficialRule
+                      ? '$sessionsInBelt/$sessionsRequired treinos na faixa atual'
+                      : '$sessionsInBelt treinos registrados nesta faixa',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
@@ -1681,7 +1775,6 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
   final NextTrainingRecommendation nextTraining;
   final TrainingSession? lastSession;
   final VoidCallback onRegisterTraining;
-  final VoidCallback onOpenTraining;
 
   const _AthleteHomeCockpitHero({
     required this.cs,
@@ -1689,7 +1782,6 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
     required this.nextTraining,
     required this.lastSession,
     required this.onRegisterTraining,
-    required this.onOpenTraining,
   });
 
   @override
@@ -1807,49 +1899,26 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
           const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
-              final stackButtons = constraints.maxWidth < 360;
-              final primary = FilledButton.icon(
-                onPressed: onRegisterTraining,
-                icon: const Icon(Icons.add_rounded, size: 18),
-                label: const Text('Registrar treino'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: TitansUI.actionGold,
-                  foregroundColor: Colors.black,
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
+              return SizedBox(
+                width:
+                    constraints.maxWidth < 360
+                        ? double.infinity
+                        : constraints.maxWidth.clamp(180.0, 260.0),
+                child: FilledButton.icon(
+                  onPressed: onRegisterTraining,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Registro rápido'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: TitansUI.actionGold,
+                    foregroundColor: Colors.black,
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
                   ),
                 ),
-              );
-              final secondary = OutlinedButton.icon(
-                onPressed: onOpenTraining,
-                icon: const Icon(Icons.list_alt_outlined, size: 18),
-                label: const Text('Treinos'),
-                style: OutlinedButton.styleFrom(
-                  visualDensity: VisualDensity.compact,
-                  minimumSize: const Size(0, 38),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
-                ),
-              );
-
-              if (stackButtons) {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [primary, const SizedBox(height: 8), secondary],
-                );
-              }
-
-              return Row(
-                children: [
-                  Expanded(child: primary),
-                  const SizedBox(width: 8),
-                  secondary,
-                ],
               );
             },
           ),
@@ -4902,14 +4971,14 @@ _GameMapInsightSignalViewModel? _firstGameMapSignal(
 class _RecentActivityTimelineCard extends StatelessWidget {
   final ColorScheme cs;
   final List<TrainingSession> items;
-  final VoidCallback onOpenTraining;
   final bool compact;
+  final VoidCallback onOpenTraining;
 
   const _RecentActivityTimelineCard({
     required this.cs,
     required this.items,
-    required this.onOpenTraining,
     this.compact = false,
+    required this.onOpenTraining,
   });
 
   @override

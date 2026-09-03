@@ -498,18 +498,7 @@ class _ConsoleBodyState extends State<_ConsoleBody> {
   }
 
   String _beltName(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return 'branca';
-      case BeltColor.blue:
-        return 'azul';
-      case BeltColor.purple:
-        return 'roxa';
-      case BeltColor.brown:
-        return 'marrom';
-      case BeltColor.black:
-        return 'preta';
-    }
+    return TitansUI.beltLabel(belt.name).toLowerCase();
   }
 }
 

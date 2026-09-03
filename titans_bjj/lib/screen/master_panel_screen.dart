@@ -1571,33 +1571,11 @@ class _StudentCard extends StatelessWidget {
   }
 
   static Color beltUiColor(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return Colors.white.withValues(alpha: 0.95);
-      case BeltColor.blue:
-        return TitansUI.neonBlue;
-      case BeltColor.purple:
-        return TitansUI.neonPurple;
-      case BeltColor.brown:
-        return const Color(0xFF8D6E63);
-      case BeltColor.black:
-        return Colors.black;
-    }
+    return TitansUI.beltColor(belt.name);
   }
 
   static String beltName(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return 'Branca';
-      case BeltColor.blue:
-        return 'Azul';
-      case BeltColor.purple:
-        return 'Roxa';
-      case BeltColor.brown:
-        return 'Marrom';
-      case BeltColor.black:
-        return 'Preta';
-    }
+    return TitansUI.beltLabel(belt.name);
   }
 }
 

@@ -233,7 +233,7 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                               prefixIcon: Icon(Icons.horizontal_rule),
                             ),
                             items:
-                                BeltColor.values
+                                beltSelectionOrder
                                     .map(
                                       (belt) => DropdownMenuItem(
                                         value: belt,
@@ -436,18 +436,7 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
   }
 
   static String _beltLabel(BeltColor belt) {
-    switch (belt) {
-      case BeltColor.white:
-        return 'Branca';
-      case BeltColor.blue:
-        return 'Azul';
-      case BeltColor.purple:
-        return 'Roxa';
-      case BeltColor.brown:
-        return 'Marrom';
-      case BeltColor.black:
-        return 'Preta';
-    }
+    return TitansUI.beltLabel(belt.name);
   }
 }
 

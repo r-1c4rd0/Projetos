@@ -56,8 +56,6 @@ class _GameMapScreenState extends State<GameMapScreen> {
   late final GetTechnicalEvidenceSummary _getTechnicalEvidenceSummary =
       const GetTechnicalEvidenceSummary();
 
-  _GameMapViewMode _selectedMapMode = _GameMapViewMode.cluster;
-
   @override
   void initState() {
     super.initState();
@@ -165,123 +163,68 @@ class _GameMapScreenState extends State<GameMapScreen> {
           );
           final radarSummary = _getTechnicalRadarSummary(sessions);
           final technicalEvidence = _getTechnicalEvidenceSummary(sessions);
-          return ListView(
-            padding:
-                widget.embedded
-                    ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
-                    : TitansUI.listPadding(context),
-            children: [
-              if (!widget.embedded) ...[
-                _HeaderCard(colorScheme: cs, targetName: widget.targetName),
-                const SizedBox(height: 12),
-              ],
-              StreamBuilder<List<CoachEvaluation>>(
-                stream: _coachEvaluationsStream,
-                builder: (context, evaluationSnapshot) {
-                  final coachEvaluationCount = _coachEvaluatedTechniqueCount(
-                    evaluationSnapshot.data ?? const <CoachEvaluation>[],
-                  );
-                  final technicalRadar =
-                      _TechnicalRadarPreviewViewModel.fromSummary(
-                        radarSummary,
-                        coachEvaluationCount: coachEvaluationCount,
-                      );
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      TitansTechnicalRadar(
-                        subtitle: technicalRadar.subtitle,
-                        stateLabel: technicalRadar.stateLabel,
-                        evidences: technicalRadar.evidences,
-                        axisEvidence: technicalRadar.axisEvidence,
-                        classifiedEvidenceCount:
-                            technicalRadar.classifiedEvidenceCount,
-                        awaitingClassificationCount:
-                            technicalRadar.awaitingClassificationCount,
-                        showMetrics: false,
-                      ),
-                      const SizedBox(height: 12),
-                      _GameMapHeroMetricStrip(
-                        stats: stats,
-                        onOpenSkills: () => _openSkillsScreen(actor),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              _GameMapExpandableSection(
-                key: const ValueKey('game-map-technical-map'),
-                title: 'Mapa t�cnico',
-                subtitle: _subtitleForMapMode(
-                  _selectedMapMode,
-                  visualMap,
-                  positionAxisMatrix,
-                  evidenceDistribution,
-                ),
-                initiallyExpanded: true,
-                child: _GameMapTechnicalMapPanel(
-                  selectedMode: _selectedMapMode,
-                  onModeChanged:
-                      (mode) => setState(() => _selectedMapMode = mode),
-                  visualMap: visualMap,
-                  positionAxisMatrix: positionAxisMatrix,
-                  evidenceDistribution: evidenceDistribution,
-                ),
-              ),
-              const SizedBox(height: 12),
-              _GameMapExpandableSection(
-                key: const ValueKey('game-map-client-reading'),
-                title: 'Evid�ncias t�cnicas',
-                subtitle:
-                    'Um resumo simples do que já apareceu nos seus treinos.',
-                child: _TechnicalEvidencePanel(
-                  items: technicalEvidence,
-                  radarSummary: radarSummary,
-                  stats: stats,
-                ),
-              ),
-              const SizedBox(height: 12),
-              StreamBuilder<List<CoachEvaluation>>(
-                stream: _coachEvaluationsStream,
-                builder: (context, evaluationSnapshot) {
-                  final coachEvaluations =
-                      evaluationSnapshot.data ?? const <CoachEvaluation>[];
-                  return _GameMapExpandableSection(
-                    key: const ValueKey('game-map-coach-evaluation'),
-                    title: 'Avalia��o do professor',
-                    subtitle:
-                        'A avaliação humana complementa as evidências dos treinos.',
-                    child: _CoachEvaluationPanel(
-                      items: coachEvaluations,
-                      techniques: technicalEvidence,
-                      canEdit: canEditCoachEvaluation,
-                      isLoading:
-                          evaluationSnapshot.connectionState ==
-                          ConnectionState.waiting,
-                      onRegister:
-                          actor == null
-                              ? null
-                              : () => _openCoachEvaluationSheet(
-                                actor: actor,
-                                techniques: technicalEvidence,
-                                evaluations: coachEvaluations,
-                              ),
-                    ),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
 
-              _GameMapExpandableSection(
-                key: const ValueKey('game-map-rtca-evidence'),
-                title: 'Repert�rio registrado',
-                subtitle:
-                    'Evidências por eixo (Retenção, Transição, Controle, Ataque).',
-                initiallyExpanded: false,
-                child: _RtcaEvidencePanel(viewModel: rtcaEvidence),
-              ),
-            ],
+          return StreamBuilder<List<CoachEvaluation>>(
+            stream: _coachEvaluationsStream,
+            builder: (context, evaluationSnapshot) {
+              final coachEvaluations =
+                  evaluationSnapshot.data ?? const <CoachEvaluation>[];
+              final coachEvaluatedCount = _coachEvaluatedTechniqueCount(
+                coachEvaluations,
+              );
+
+              final technicalRadar =
+                  _TechnicalRadarPreviewViewModel.fromSummary(
+                    radarSummary,
+                    coachEvaluationCount: coachEvaluatedCount,
+                  );
+
+              return ListView(
+                padding:
+                    widget.embedded
+                        ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
+                        : TitansUI.listPadding(context),
+                children: [
+                  if (!widget.embedded) ...[
+                    _HeaderCard(colorScheme: cs, targetName: widget.targetName),
+                    const SizedBox(height: 12),
+                  ],
+                  TitansTechnicalRadar(
+                    subtitle: technicalRadar.subtitle,
+                    stateLabel: technicalRadar.stateLabel,
+                    evidences: technicalRadar.evidences,
+                    axisEvidence: technicalRadar.axisEvidence,
+                    classifiedEvidenceCount:
+                        technicalRadar.classifiedEvidenceCount,
+                    awaitingClassificationCount:
+                        technicalRadar.awaitingClassificationCount,
+                    showMetrics: false,
+                  ),
+                  const SizedBox(height: 12),
+                  _GameMapClientReadingSection(
+                    stats: stats,
+                    radarSummary: radarSummary,
+                    visualMap: visualMap,
+                    positionAxisMatrix: positionAxisMatrix,
+                    evidenceDistribution: evidenceDistribution,
+                    rtcaEvidence: rtcaEvidence,
+                    technicalEvidence: technicalEvidence,
+                    coachEvaluations: coachEvaluations,
+                    canEditCoachEvaluation: canEditCoachEvaluation,
+                    actor: actor,
+                    onOpenCoachEvaluationSheet:
+                        actor == null
+                            ? null
+                            : () => _openCoachEvaluationSheet(
+                              actor: actor,
+                              techniques: technicalEvidence,
+                              evaluations: coachEvaluations,
+                            ),
+                    onOpenSkills: () => _openSkillsScreen(actor),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
@@ -313,6 +256,1600 @@ class _GameMapScreenState extends State<GameMapScreen> {
       appBar: appBar,
       floatingActionButton: floatingActionButton,
       body: body,
+    );
+  }
+}
+
+// Leitura do jogo - Client-first unified section below radar
+class _GameMapClientReadingSection extends StatelessWidget {
+  final _GameMapStats stats;
+  final TechnicalRadarSummary radarSummary;
+  final _GameMapVisualViewModel visualMap;
+  final _PositionAxisMatrixViewModel positionAxisMatrix;
+  final _EvidenceDistributionViewModel evidenceDistribution;
+  final _RtcaEvidenceViewModel rtcaEvidence;
+  final List<TechnicalEvidenceSummary> technicalEvidence;
+  final List<CoachEvaluation> coachEvaluations;
+  final bool canEditCoachEvaluation;
+  final AppUser? actor;
+  final VoidCallback? onOpenCoachEvaluationSheet;
+  final VoidCallback onOpenSkills;
+
+  const _GameMapClientReadingSection({
+    required this.stats,
+    required this.radarSummary,
+    required this.visualMap,
+    required this.positionAxisMatrix,
+    required this.evidenceDistribution,
+    required this.rtcaEvidence,
+    required this.technicalEvidence,
+    required this.coachEvaluations,
+    required this.canEditCoachEvaluation,
+    required this.actor,
+    required this.onOpenCoachEvaluationSheet,
+    required this.onOpenSkills,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final topAxis = radarSummary.topAxis;
+    final topAxisLabel = topAxis?.displayLabel ?? '—';
+    final needsReviewCount =
+        coachEvaluations.where((e) => e.needsReview).length;
+    final topPositions = _getTopPositions(positionAxisMatrix);
+    final topTechniques = _getTopTechniques(technicalEvidence);
+    final axisBarsData = _getAxisBarsData(radarSummary);
+
+    return TitansCard(
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: cs.primary.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 20,
+                  color: cs.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Leitura do jogo',
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      'Resumo unificado do seu jogo baseado nos registros',
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.6),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // Mini boxes row
+          _ClientReadingMiniBoxes(
+            stats: stats,
+            topAxisLabel: topAxisLabel,
+            needsReviewCount: needsReviewCount,
+            coachEvaluationsCount: coachEvaluations.length,
+          ),
+          const SizedBox(height: 12),
+          // Mini charts row
+          _ClientReadingMiniCharts(
+            axisBarsData: axisBarsData,
+            topPositions: topPositions,
+            topTechniques: topTechniques,
+          ),
+          const SizedBox(height: 12),
+          // Discrete actions
+          _ClientReadingActions(
+            visualMap: visualMap,
+            technicalEvidence: technicalEvidence,
+            rtcaEvidence: rtcaEvidence,
+            canEditCoachEvaluation: canEditCoachEvaluation,
+            onOpenCoachEvaluationSheet: onOpenCoachEvaluationSheet,
+            onOpenSkills: onOpenSkills,
+            positionAxisMatrix: positionAxisMatrix,
+            evidenceDistribution: evidenceDistribution,
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<_TopPositionItem> _getTopPositions(_PositionAxisMatrixViewModel matrix) {
+    final items = <_TopPositionItem>[];
+    for (final row in matrix.rows.take(5)) {
+      final topAxis = _topAxisForRow(row);
+      items.add(
+        _TopPositionItem(
+          position: row.position,
+          count: row.sessionCount,
+          countLabel: row.countLabel,
+          topAxis: topAxis?.displayLabel,
+        ),
+      );
+    }
+    return items;
+  }
+
+  List<_TopTechniqueItem> _getTopTechniques(
+    List<TechnicalEvidenceSummary> evidence,
+  ) {
+    final sorted = List<TechnicalEvidenceSummary>.from(evidence)
+      ..sort((a, b) => b.evidenceCount.compareTo(a.evidenceCount));
+    return sorted
+        .take(5)
+        .map(
+          (e) => _TopTechniqueItem(
+            name: e.techniqueName,
+            count: e.evidenceCount,
+            positions: e.positions.take(2).toList(),
+          ),
+        )
+        .toList();
+  }
+
+  List<_AxisBarData> _getAxisBarsData(TechnicalRadarSummary summary) {
+    const axes = <TechnicalRadarAxis>[
+      TechnicalRadarAxis.attack,
+      TechnicalRadarAxis.retention,
+      TechnicalRadarAxis.transition,
+      TechnicalRadarAxis.control,
+    ];
+    var maxValue = 0;
+    for (final axis in axes) {
+      final count = summary.axisEvidence[axis] ?? 0;
+      if (count > maxValue) maxValue = count;
+    }
+    return axes
+        .map(
+          (axis) => _AxisBarData(
+            axis: axis,
+            count: summary.axisEvidence[axis] ?? 0,
+            maxCount: maxValue,
+          ),
+        )
+        .toList();
+  }
+
+  TechnicalRadarAxis? _topAxisForRow(_PositionAxisMatrixRow row) {
+    TechnicalRadarAxis? selected;
+    var selectedCount = 0;
+    for (final cell in row.cells) {
+      if (cell.sessionCount > selectedCount) {
+        selected = cell.axis;
+        selectedCount = cell.sessionCount;
+      }
+    }
+    return selectedCount == 0 ? null : selected;
+  }
+}
+
+class _ClientReadingMiniBoxes extends StatelessWidget {
+  final _GameMapStats stats;
+  final String topAxisLabel;
+  final int needsReviewCount;
+  final int coachEvaluationsCount;
+
+  const _ClientReadingMiniBoxes({
+    required this.stats,
+    required this.topAxisLabel,
+    required this.needsReviewCount,
+    required this.coachEvaluationsCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniBox(
+            label: 'Posições',
+            value: stats.positions.toString(),
+            icon: Icons.place_outlined,
+            color: cs.primary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniBox(
+            label: 'Técnicas',
+            value: stats.techniques.toString(),
+            icon: Icons.sports_mma_outlined,
+            color: TitansUI.successGreen,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniBox(
+            label: 'Eixo principal',
+            value: topAxisLabel,
+            icon: Icons.radar_outlined,
+            color: TitansUI.actionGold,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniBox(
+            label:
+                coachEvaluationsCount > 0 ? 'Observações' : 'Sem observações',
+            value:
+                needsReviewCount > 0
+                    ? '$needsReviewCount p/ revisar'
+                    : 'Em dia',
+            icon: Icons.rate_review_outlined,
+            color:
+                needsReviewCount > 0
+                    ? TitansUI.alertRed
+                    : TitansUI.successGreen,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _MiniBox({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientReadingMiniCharts extends StatelessWidget {
+  final List<_AxisBarData> axisBarsData;
+  final List<_TopPositionItem> topPositions;
+  final List<_TopTechniqueItem> topTechniques;
+
+  const _ClientReadingMiniCharts({
+    required this.axisBarsData,
+    required this.topPositions,
+    required this.topTechniques,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Axis bars
+        Text(
+          'Registros por eixo',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.58),
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (int i = 0; i < axisBarsData.length; i++) ...[
+          _AxisMiniBar(data: axisBarsData[i]),
+          if (i < axisBarsData.length - 1) const SizedBox(height: 6),
+        ],
+        const SizedBox(height: 12),
+        // Top positions & techniques side by side
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _TopListMiniChart(
+                title: 'Top posições',
+                items:
+                    topPositions
+                        .map(
+                          (e) => _TopListItem(
+                            label: e.position,
+                            count: e.count,
+                            countLabel: e.countLabel,
+                            subtitle: e.topAxis,
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _TopListMiniChart(
+                title: 'Top técnicas',
+                items:
+                    topTechniques
+                        .map(
+                          (e) => _TopListItem(
+                            label: e.name,
+                            count: e.count,
+                            countLabel: TrainingAggregator.sessionCountLabel(
+                              e.count,
+                            ),
+                            subtitle: e.positions.join(', '),
+                          ),
+                        )
+                        .toList(),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _AxisMiniBar extends StatelessWidget {
+  final _AxisBarData data;
+
+  const _AxisMiniBar({required this.data});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _axisColor(context, data.axis);
+    final fraction =
+        data.maxCount <= 0 ? 0.0 : (data.count / data.maxCount).clamp(0.0, 1.0);
+    final active = data.count > 0;
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 78,
+          child: Text(
+            data.axis.displayLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: active ? 0.78 : 0.44),
+              fontSize: 11,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: Stack(
+              children: [
+                Container(
+                  height: 5,
+                  color: cs.onSurface.withValues(alpha: 0.08),
+                ),
+                FractionallySizedBox(
+                  widthFactor: fraction.toDouble(),
+                  child: Container(
+                    height: 5,
+                    color:
+                        active ? color : cs.onSurface.withValues(alpha: 0.14),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 28,
+          child: Text(
+            data.count.toString(),
+            maxLines: 1,
+            textAlign: TextAlign.end,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: active ? color : cs.onSurface.withValues(alpha: 0.42),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TopListMiniChart extends StatelessWidget {
+  final String title;
+  final List<_TopListItem> items;
+
+  const _TopListMiniChart({required this.title, required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.58),
+            fontSize: 11,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (items.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+            ),
+            child: Text(
+              'Sem dados',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.5),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          )
+        else
+          Column(
+            children: [
+              for (int i = 0; i < items.length; i++) ...[
+                _TopListRow(item: items[i], rank: i + 1),
+                if (i < items.length - 1) const SizedBox(height: 6),
+              ],
+            ],
+          ),
+      ],
+    );
+  }
+}
+
+class _TopListItem {
+  final String label;
+  final int count;
+  final String countLabel;
+  final String? subtitle;
+
+  const _TopListItem({
+    required this.label,
+    required this.count,
+    required this.countLabel,
+    this.subtitle,
+  });
+}
+
+class _TopListRow extends StatelessWidget {
+  final _TopListItem item;
+  final int rank;
+
+  const _TopListRow({required this.item, required this.rank});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = rank <= 3 ? TitansUI.actionGold : cs.primary;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withValues(alpha: 0.14)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 20,
+            alignment: Alignment.center,
+            child: Text(
+              '#$rank',
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                  ),
+                ),
+                if (item.subtitle != null && item.subtitle!.isNotEmpty)
+                  Text(
+                    item.subtitle!,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            item.countLabel,
+            style: TextStyle(
+              color: color,
+              fontSize: 12,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ClientReadingActions extends StatelessWidget {
+  final _GameMapVisualViewModel visualMap;
+  final List<TechnicalEvidenceSummary> technicalEvidence;
+  final _RtcaEvidenceViewModel rtcaEvidence;
+  final bool canEditCoachEvaluation;
+  final VoidCallback? onOpenCoachEvaluationSheet;
+  final VoidCallback onOpenSkills;
+  final _PositionAxisMatrixViewModel positionAxisMatrix;
+  final _EvidenceDistributionViewModel evidenceDistribution;
+
+  const _ClientReadingActions({
+    required this.visualMap,
+    required this.technicalEvidence,
+    required this.rtcaEvidence,
+    required this.canEditCoachEvaluation,
+    required this.onOpenCoachEvaluationSheet,
+    required this.onOpenSkills,
+    required this.positionAxisMatrix,
+    required this.evidenceDistribution,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final actions = <Widget>[];
+
+    // Explorar mapa
+    if (visualMap.nodes.isNotEmpty) {
+      actions.add(
+        _ActionChip(
+          label: 'Explorar mapa',
+          icon: Icons.account_tree_outlined,
+          color: cs.primary,
+          onTap: () => _showVisualMapBottomSheet(context),
+        ),
+      );
+    }
+
+    // Ver detalhes técnicos
+    if (technicalEvidence.isNotEmpty) {
+      actions.add(
+        _ActionChip(
+          label: 'Ver detalhes técnicos',
+          icon: Icons.fact_check_outlined,
+          color: cs.secondary,
+          onTap: () => _showAllTechnicalEvidences(context, technicalEvidence),
+        ),
+      );
+    }
+
+    // Ver repertório
+    if (rtcaEvidence.items.isNotEmpty) {
+      actions.add(
+        _ActionChip(
+          label: 'Ver repertório',
+          icon: Icons.inventory_2_outlined,
+          color: cs.tertiary,
+          onTap: () => _showRepertoireBottomSheet(context),
+        ),
+      );
+    }
+
+    // Registrar avaliação
+    if (canEditCoachEvaluation &&
+        onOpenCoachEvaluationSheet != null &&
+        technicalEvidence.isNotEmpty) {
+      actions.add(
+        _ActionChip(
+          label: 'Registrar avaliação',
+          icon: Icons.rate_review_outlined,
+          color: TitansUI.actionGold,
+          onTap: onOpenCoachEvaluationSheet!,
+        ),
+      );
+    }
+
+    // Skills CTA
+    actions.add(
+      _ActionChip(
+        label: 'Ver repertório técnico',
+        icon: Icons.psychology_alt_outlined,
+        color: cs.primary,
+        onTap: onOpenSkills,
+        isPrimary: true,
+      ),
+    );
+
+    if (actions.isEmpty) return const SizedBox.shrink();
+
+    return Wrap(spacing: 8, runSpacing: 8, children: actions);
+  }
+
+  void _showVisualMapBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder:
+          (context) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                14,
+                16,
+                16 + MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 30,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.18),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Mapa visual de posições',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: _GameMapPositionClusterGraph(viewModel: visualMap),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  void _showRepertoireBottomSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder:
+          (context) => SafeArea(
+            top: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                14,
+                16,
+                16 + MediaQuery.viewInsetsOf(context).bottom,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 30,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(999),
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.18),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Repertório registrado',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    rtcaEvidence.subtitle,
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.64),
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (
+                            int i = 0;
+                            i < rtcaEvidence.items.length;
+                            i++
+                          ) ...[
+                            _CompactEvidenceBar(
+                              label: rtcaEvidence.items[i].label,
+                              count: _extractCount(rtcaEvidence.items[i].value),
+                              maxCount: _maxCountForItems(rtcaEvidence.items),
+                              color: _colorForIndex(i, context),
+                              helper: rtcaEvidence.items[i].helper,
+                            ),
+                            if (i < rtcaEvidence.items.length - 1)
+                              const SizedBox(height: 8),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+    );
+  }
+
+  int _extractCount(String value) {
+    final match = RegExp(r'(\d+)').firstMatch(value);
+    return match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+  }
+
+  int _maxCountForItems(List<_RtcaEvidenceItem> items) {
+    int max = 0;
+    for (final item in items) {
+      final count = _extractCount(item.value);
+      if (count > max) max = count;
+    }
+    return max == 0 ? 1 : max;
+  }
+
+  Color _colorForIndex(int index, BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    switch (index) {
+      case 0:
+        return cs.primary;
+      case 1:
+        return TitansUI.successGreen;
+      case 2:
+        return TitansUI.technicalBlue;
+      case 3:
+        return TitansUI.actionGold;
+      default:
+        return cs.primary;
+    }
+  }
+}
+
+class _ActionChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  final bool isPrimary;
+
+  const _ActionChip({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+    this.isPrimary = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bgColor = isPrimary ? color : color.withValues(alpha: 0.12);
+    final borderColor = isPrimary ? color : color.withValues(alpha: 0.25);
+    final textColor = isPrimary ? cs.onPrimary : color;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: borderColor),
+            color: bgColor,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 16, color: textColor),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TopPositionItem {
+  final String position;
+  final int count;
+  final String countLabel;
+  final String? topAxis;
+
+  const _TopPositionItem({
+    required this.position,
+    required this.count,
+    required this.countLabel,
+    this.topAxis,
+  });
+}
+
+class _TopTechniqueItem {
+  final String name;
+  final int count;
+  final List<String> positions;
+
+  const _TopTechniqueItem({
+    required this.name,
+    required this.count,
+    required this.positions,
+  });
+}
+
+class _AxisBarData {
+  final TechnicalRadarAxis axis;
+  final int count;
+  final int maxCount;
+
+  const _AxisBarData({
+    required this.axis,
+    required this.count,
+    required this.maxCount,
+  });
+}
+
+// Unified Client-First Cluster for Game Map
+class _GameMapUnifiedCluster extends StatelessWidget {
+  final _GameMapVisualViewModel visualMap;
+  final _TechnicalRadarPreviewViewModel technicalRadar;
+  final _GameMapStats stats;
+  final List<TechnicalEvidenceSummary> technicalEvidence;
+  final TechnicalRadarSummary radarSummary;
+  final _RtcaEvidenceViewModel rtcaEvidence;
+  final List<CoachEvaluation> coachEvaluations;
+  final bool canEditCoachEvaluation;
+  final AppUser? actor;
+  final VoidCallback? onOpenCoachEvaluationSheet;
+  final VoidCallback onOpenSkills;
+
+  const _GameMapUnifiedCluster({
+    required this.visualMap,
+    required this.technicalRadar,
+    required this.stats,
+    required this.technicalEvidence,
+    required this.radarSummary,
+    required this.rtcaEvidence,
+    required this.coachEvaluations,
+    required this.canEditCoachEvaluation,
+    required this.actor,
+    required this.onOpenCoachEvaluationSheet,
+    required this.onOpenSkills,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Technical Radar - Visual Overview
+        TitansTechnicalRadar(
+          subtitle: technicalRadar.subtitle,
+          stateLabel: technicalRadar.stateLabel,
+          evidences: technicalRadar.evidences,
+          axisEvidence: technicalRadar.axisEvidence,
+          classifiedEvidenceCount: technicalRadar.classifiedEvidenceCount,
+          awaitingClassificationCount:
+              technicalRadar.awaitingClassificationCount,
+          showMetrics: false,
+        ),
+        const SizedBox(height: 12),
+        // Hero Metrics Strip
+        _GameMapHeroMetricStrip(stats: stats, onOpenSkills: onOpenSkills),
+        const SizedBox(height: 12),
+        // Cluster: Where am I strong / Where do I need to evolve
+        _ClusterStrengthsAndGaps(
+          visualMap: visualMap,
+          radarSummary: radarSummary,
+          stats: stats,
+        ),
+        const SizedBox(height: 12),
+        // Cluster: Evidence Summary with Mini Charts
+        _ClusterEvidenceSummary(
+          technicalEvidence: technicalEvidence,
+          radarSummary: radarSummary,
+          stats: stats,
+        ),
+        const SizedBox(height: 12),
+        // Cluster: Coach Evaluation Highlights
+        _ClusterCoachEvaluation(
+          coachEvaluations: coachEvaluations,
+          canEdit: canEditCoachEvaluation,
+          onRegister: onOpenCoachEvaluationSheet,
+        ),
+        const SizedBox(height: 12),
+        // Cluster: Repertoire Summary
+        _ClusterRepertoire(rtcaEvidence: rtcaEvidence),
+      ],
+    );
+  }
+}
+
+// Cluster: Strengths and Gaps
+class _ClusterStrengthsAndGaps extends StatelessWidget {
+  final _GameMapVisualViewModel visualMap;
+  final TechnicalRadarSummary radarSummary;
+  final _GameMapStats stats;
+
+  const _ClusterStrengthsAndGaps({
+    required this.visualMap,
+    required this.radarSummary,
+    required this.stats,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final topAxis = radarSummary.topAxis;
+    final topAxisLabel = topAxis?.displayLabel ?? '—';
+    final weakAxes =
+        radarSummary.axisEvidence.entries
+            .where((e) => e.value == 0)
+            .map((e) => e.key.displayLabel)
+            .toList();
+
+    return _ClusterCard(
+      title: 'Onde estou forte / Onde evoluir',
+      subtitle: 'Leitura baseada nos seus registros de treino',
+      icon: Icons.trending_up,
+      accent: cs.primary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Strongest axis
+          _ClusterMetricRow(
+            label: 'Eixo mais forte',
+            value: topAxisLabel,
+            icon: Icons.star_outline,
+            color: TitansUI.actionGold,
+          ),
+          const SizedBox(height: 8),
+          // Total positions/techniques
+          Row(
+            children: [
+              Expanded(
+                child: _ClusterMetricRow(
+                  label: 'Posições',
+                  value: stats.positions.toString(),
+                  icon: Icons.place_outlined,
+                  color: cs.primary,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _ClusterMetricRow(
+                  label: 'Técnicas',
+                  value: stats.techniques.toString(),
+                  icon: Icons.sports_mma_outlined,
+                  color: TitansUI.successGreen,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Axes without evidence
+          if (weakAxes.isNotEmpty) ...[
+            Text(
+              'Sem evidências: ${weakAxes.join(', ')}',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.6),
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 4),
+          ],
+          // Visual cluster mini-map
+          if (visualMap.nodes.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Mapa visual de posições',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.58),
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            _GameMapPositionClusterGraph(viewModel: visualMap),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Cluster: Evidence Summary with Mini Charts
+class _ClusterEvidenceSummary extends StatelessWidget {
+  final List<TechnicalEvidenceSummary> technicalEvidence;
+  final TechnicalRadarSummary radarSummary;
+  final _GameMapStats stats;
+
+  const _ClusterEvidenceSummary({
+    required this.technicalEvidence,
+    required this.radarSummary,
+    required this.stats,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final previewItems = technicalEvidence.take(3).toList();
+    final hasMore = technicalEvidence.length > previewItems.length;
+
+    return _ClusterCard(
+      title: 'Evidências técnicas',
+      subtitle: 'O que já apareceu nos seus treinos',
+      icon: Icons.fact_check_outlined,
+      accent: cs.secondary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Axis evidence bars
+          _TechnicalAxisEvidenceBars(axisEvidence: radarSummary.axisEvidence),
+          const SizedBox(height: 12),
+          // Recent techniques
+          if (previewItems.isNotEmpty) ...[
+            Text(
+              'Registros recentes (${technicalEvidence.length})',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.58),
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (int i = 0; i < previewItems.length; i++) ...[
+              _TechnicalEvidencePreviewTile(
+                item: previewItems[i],
+                onTap:
+                    () =>
+                        _showTechnicalEvidenceDetails(context, previewItems[i]),
+              ),
+              if (i < previewItems.length - 1) const SizedBox(height: 8),
+            ],
+            if (hasMore) ...[
+              const SizedBox(height: 8),
+              _ViewAllTechnicalEvidencesButton(
+                count: technicalEvidence.length,
+                onPressed:
+                    () =>
+                        _showAllTechnicalEvidences(context, technicalEvidence),
+              ),
+            ],
+          ] else if (technicalEvidence.isEmpty) ...[
+            Text(
+              'Registre treinos com técnica e posição para ver evidências.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+// Cluster: Coach Evaluation Highlights
+class _ClusterCoachEvaluation extends StatelessWidget {
+  final List<CoachEvaluation> coachEvaluations;
+  final bool canEdit;
+  final VoidCallback? onRegister;
+
+  const _ClusterCoachEvaluation({
+    required this.coachEvaluations,
+    required this.canEdit,
+    required this.onRegister,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final techniqueNames = <String, String>{};
+    final needsReviewCount =
+        coachEvaluations.where((e) => e.needsReview).length;
+    final lastEvaluation = _lastCoachEvaluation(coachEvaluations);
+    final previewItems = coachEvaluations.take(2).toList();
+
+    final children = <Widget>[
+      if (coachEvaluations.isEmpty)
+        Text(
+          'Avaliações do professor complementam suas evidências de treino.',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.6),
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
+        )
+      else ...[
+        // Quick metrics
+        Row(
+          children: [
+            Expanded(
+              child: _ClusterMetricRow(
+                label: 'Total',
+                value: coachEvaluations.length.toString(),
+                icon: Icons.rate_review_outlined,
+                color: cs.primary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ClusterMetricRow(
+                label: 'Revisar',
+                value: needsReviewCount.toString(),
+                icon: Icons.warning_amber_outlined,
+                color:
+                    needsReviewCount > 0
+                        ? TitansUI.alertRed
+                        : TitansUI.successGreen,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ClusterMetricRow(
+                label: 'Última',
+                value:
+                    lastEvaluation != null
+                        ? _formatShortDate(lastEvaluation.evaluatedAt)
+                        : '—',
+                icon: Icons.calendar_today_outlined,
+                color: TitansUI.actionGold,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        // Preview evaluations
+        ...previewItems
+            .map(
+              (item) => _CoachEvaluationCard(
+                evaluation: item,
+                techniqueName: techniqueNames[item.skillId] ?? item.skillId,
+              ),
+            )
+            .toList(),
+        if (coachEvaluations.length > previewItems.length) ...[
+          const SizedBox(height: 8),
+          _MiniBadge(
+            label:
+                '${coachEvaluations.length - previewItems.length} avaliações adicionais',
+            color: cs.primary,
+          ),
+        ],
+      ],
+      // Register button
+      if (canEdit && onRegister != null) ...[
+        const SizedBox(height: 12),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            onPressed: onRegister,
+            icon: const Icon(Icons.rate_review_outlined, size: 18),
+            label: const Text('Registrar avaliação'),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              minimumSize: const Size(0, 36),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+        ),
+      ],
+    ];
+
+    return _ClusterCard(
+      title: 'Avaliação do professor',
+      subtitle:
+          coachEvaluations.isEmpty
+              ? 'Nenhuma avaliação registrada ainda'
+              : '${coachEvaluations.length} avaliação${coachEvaluations.length > 1 ? 's' : ''} • ${needsReviewCount > 0 ? '$needsReviewCount para revisar' : 'todas em dia'}',
+      icon: Icons.rate_review_outlined,
+      accent: TitansUI.actionGold,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+}
+
+// Cluster: Repertoire Summary
+class _ClusterRepertoire extends StatelessWidget {
+  final _RtcaEvidenceViewModel rtcaEvidence;
+
+  const _ClusterRepertoire({required this.rtcaEvidence});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final maxCount = _maxCountForItems(rtcaEvidence.items);
+    final totalRecords = _totalCountForItems(rtcaEvidence.items);
+    final topItem = _topItemForItems(rtcaEvidence.items);
+
+    final children = <Widget>[];
+
+    // Quick metrics
+    children.add(
+      Row(
+        children: [
+          Expanded(
+            child: _ClusterMetricRow(
+              label: 'Itens',
+              value: rtcaEvidence.items.length.toString(),
+              icon: Icons.list_alt_outlined,
+              color: cs.primary,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _ClusterMetricRow(
+              label: 'Registros',
+              value: totalRecords.toString(),
+              icon: Icons.fact_check_outlined,
+              color: TitansUI.successGreen,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _ClusterMetricRow(
+              label: 'Destaque',
+              value: topItem?.label ?? '—',
+              icon: Icons.star_outline,
+              color: TitansUI.actionGold,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    children.add(const SizedBox(height: 12));
+
+    // RTCA bars
+    for (int i = 0; i < rtcaEvidence.items.length; i++) {
+      children.add(
+        Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _CompactEvidenceBar(
+              label: rtcaEvidence.items[i].label,
+              count: _extractCount(rtcaEvidence.items[i].value),
+              maxCount: maxCount,
+              color: _colorForIndex(i, context),
+              helper: rtcaEvidence.items[i].helper,
+            ),
+            if (i < rtcaEvidence.items.length - 1) const SizedBox(height: 8),
+          ],
+        ),
+      );
+    }
+
+    return _ClusterCard(
+      title: 'Repertório registrado',
+      subtitle: 'Retenção, Transição, Controle, Ataque',
+      icon: Icons.inventory_2_outlined,
+      accent: cs.tertiary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: children,
+      ),
+    );
+  }
+
+  int _extractCount(String value) {
+    final match = RegExp(r'(\d+)').firstMatch(value);
+    return match != null ? int.tryParse(match.group(1)!) ?? 0 : 0;
+  }
+
+  int _maxCountForItems(List<_RtcaEvidenceItem> items) {
+    int max = 0;
+    for (final item in items) {
+      final count = _extractCount(item.value);
+      if (count > max) max = count;
+    }
+    return max == 0 ? 1 : max;
+  }
+
+  int _totalCountForItems(List<_RtcaEvidenceItem> items) {
+    var total = 0;
+    for (final item in items) {
+      total += _extractCount(item.value);
+    }
+    return total;
+  }
+
+  _RtcaEvidenceItem? _topItemForItems(List<_RtcaEvidenceItem> items) {
+    _RtcaEvidenceItem? selected;
+    var selectedCount = 0;
+    for (final item in items) {
+      final count = _extractCount(item.value);
+      if (count > selectedCount) {
+        selected = item;
+        selectedCount = count;
+      }
+    }
+    return selected;
+  }
+
+  Color _colorForIndex(int index, BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    switch (index) {
+      case 0:
+        return cs.primary;
+      case 1:
+        return TitansUI.successGreen;
+      case 2:
+        return TitansUI.technicalBlue;
+      case 3:
+        return TitansUI.actionGold;
+      default:
+        return cs.primary;
+    }
+  }
+}
+
+// Shared Cluster Card Widget
+class _ClusterCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color accent;
+  final Widget child;
+
+  const _ClusterCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.accent,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return TitansCard(
+      radius: TitansUI.radiusSmall,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accent.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, size: 20, color: accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    Text(
+                      subtitle,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.6),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          child,
+        ],
+      ),
+    );
+  }
+}
+
+// Shared Metric Row for Cluster
+class _ClusterMetricRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final IconData icon;
+  final Color color;
+
+  const _ClusterMetricRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: color,
+              fontSize: 16,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -475,25 +2012,21 @@ class _GameMapExpandableSectionState extends State<_GameMapExpandableSection> {
               ),
             ),
           ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox(width: double.infinity),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                TitansUI.spaceMd,
-                0,
-                TitansUI.spaceMd,
-                TitansUI.spaceMd,
-              ),
-              child: widget.child,
-            ),
-            crossFadeState:
-                _expanded
-                    ? CrossFadeState.showSecond
-                    : CrossFadeState.showFirst,
+          AnimatedSize(
             duration: const Duration(milliseconds: 200),
-            sizeCurve: Curves.easeOutCubic,
-            firstCurve: Curves.easeOutCubic,
-            secondCurve: Curves.easeOutCubic,
+            curve: Curves.easeOutCubic,
+            child:
+                _expanded
+                    ? Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        TitansUI.spaceMd,
+                        0,
+                        TitansUI.spaceMd,
+                        TitansUI.spaceMd,
+                      ),
+                      child: widget.child,
+                    )
+                    : const SizedBox.shrink(),
           ),
         ],
       ),
@@ -1656,7 +3189,7 @@ class _GameMapVisualClusterCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _CompactHeader(title: 'MAPA T\u00c9CNICO VISUAL'),
+        const _CompactHeader(title: 'MAPA TÉCNICO VISUAL'),
         const SizedBox(height: 8),
         Text(
           viewModel.title,
@@ -2778,9 +4311,9 @@ class _EvidenceDistributionCard extends StatelessWidget {
           if (viewModel.isEmpty)
             TitansEmptyState(
               icon: Icons.bar_chart_rounded,
-              title: 'Sem distribui\u00e7\u00e3o registrada',
+              title: 'Sem distribuição registrada',
               message:
-                  'Registre posi\u00e7\u00f5es e t\u00e9cnicas nos treinos para visualizar a distribui\u00e7\u00e3o de evid\u00eancias.',
+                  'Registre posições e técnicas nos treinos para visualizar a distribuição de evidências.',
               compact: true,
             )
           else
@@ -3517,8 +5050,8 @@ class _RtcaEvidenceViewModel {
   }
 
   static String _techniquePlural(int count, String suffix) {
-    if (count == 1) return '1 t\u00e9cnica $suffix';
-    return '$count t\u00e9cnicas ${suffix}s';
+    if (count == 1) return '1 técnica $suffix';
+    return '$count técnicas ${suffix}s';
   }
 
   static String _dayPlural(int count) {
@@ -3527,13 +5060,13 @@ class _RtcaEvidenceViewModel {
   }
 
   static String _applicationPlural(int count) {
-    if (count == 1) return '1 aplica\u00e7\u00e3o registrada';
-    return '$count aplica\u00e7\u00f5es registradas';
+    if (count == 1) return '1 aplicação registrada';
+    return '$count aplicações registradas';
   }
 
   static String _statusForCount(int count) {
     if (count <= 0) return 'Sem registros suficientes';
-    if (count < 3) return 'Em constru\u00e7\u00e3o';
+    if (count < 3) return 'Em construção';
     return 'Registrado';
   }
 }
@@ -3577,12 +5110,12 @@ class _GameMapVisualViewModel {
   ) {
     if (entries.isEmpty) {
       return const _GameMapVisualViewModel(
-        title: 'Posi\u00e7\u00f5es e t\u00e9cnicas registradas',
+        title: 'Posições e técnicas registradas',
         subtitle: 'Baseado nos treinos registrados.',
         nodes: [],
         highlights: [],
         emptyStateLabel:
-            'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um mapa visual seguro.',
+            'Registre posição e técnica nos debriefs para gerar um mapa visual seguro.',
       );
     }
 
@@ -3610,31 +5143,30 @@ class _GameMapVisualViewModel {
     final topNode = nodes.isEmpty ? null : nodes.first;
 
     return _GameMapVisualViewModel(
-      title: 'Posi\u00e7\u00f5es e t\u00e9cnicas registradas',
+      title: 'Posições e técnicas registradas',
       subtitle:
-          'Clusters por recorr\u00eancia nos debriefs; peso visual n\u00e3o indica desempenho.',
+          'Clusters por recorrência nos debriefs; peso visual não indica desempenho.',
       nodes: nodes,
       highlights: [
         _GameMapHighlight(
-          label: 'Posi\u00e7\u00f5es',
+          label: 'Posições',
           value: entries.length.toString(),
-          helper: 'Total de posi\u00e7\u00f5es com t\u00e9cnicas registradas.',
+          helper: 'Total de posições com técnicas registradas.',
         ),
         _GameMapHighlight(
-          label: 'T\u00e9cnicas associadas',
+          label: 'Técnicas associadas',
           value: techniquesCount.toString(),
-          helper:
-              'T\u00e9cnicas vis\u00edveis nos clusters desta se\u00e7\u00e3o.',
+          helper: 'Técnicas visíveis nos clusters desta seção.',
         ),
         if (topNode != null)
           _GameMapHighlight(
             label: 'Mais registrada',
             value: topNode.position,
-            helper: 'Posi\u00e7\u00e3o com mais registros neste mapa visual.',
+            helper: 'Posição com mais registros neste mapa visual.',
           ),
       ],
       emptyStateLabel:
-          'Registre posi\u00e7\u00e3o e t\u00e9cnica nos debriefs para gerar um mapa visual seguro.',
+          'Registre posição e técnica nos debriefs para gerar um mapa visual seguro.',
     );
   }
 }
@@ -3844,22 +5376,6 @@ String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
-}
-
-String _subtitleForMapMode(
-  _GameMapViewMode mode,
-  _GameMapVisualViewModel visualMap,
-  _PositionAxisMatrixViewModel positionAxisMatrix,
-  _EvidenceDistributionViewModel evidenceDistribution,
-) {
-  switch (mode) {
-    case _GameMapViewMode.cluster:
-      return visualMap.subtitle;
-    case _GameMapViewMode.matrix:
-      return positionAxisMatrix.subtitle;
-    case _GameMapViewMode.evidence:
-      return evidenceDistribution.subtitle;
-  }
 }
 
 class _GameMapTechnicalMapSwitcher extends StatelessWidget {

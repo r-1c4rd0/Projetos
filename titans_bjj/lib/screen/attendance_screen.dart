@@ -53,54 +53,57 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     return TitansScaffold(
       scroll: false,
       appBar: AppBar(title: const Text('Presenca')),
-      floatingActionButton: _isStaff
-          ? FloatingActionButton.extended(
-              heroTag: 'attendance_fab',
-              icon: const Icon(Icons.add),
-              label: const Text('Nova aula'),
-              onPressed: _submitting ? null : _openCreateSession,
-            )
-          : null,
-      body: sessionsStream == null
-          ? const TitansStateView.loading()
-          : StreamBuilder<List<AttendanceSession>>(
-              stream: sessionsStream,
-              builder: (context, snap) {
-                if (snap.connectionState == ConnectionState.waiting &&
-                    !snap.hasData) {
-                  return const TitansStateView.loading();
-                }
+      floatingActionButton:
+          _isStaff
+              ? FloatingActionButton.extended(
+                heroTag: 'attendance_fab',
+                icon: const Icon(Icons.add),
+                label: const Text('Nova aula'),
+                onPressed: _submitting ? null : _openCreateSession,
+              )
+              : null,
+      body:
+          sessionsStream == null
+              ? const TitansStateView.loading()
+              : StreamBuilder<List<AttendanceSession>>(
+                stream: sessionsStream,
+                builder: (context, snap) {
+                  if (snap.connectionState == ConnectionState.waiting &&
+                      !snap.hasData) {
+                    return const TitansStateView.loading();
+                  }
 
-                if (snap.hasError) {
-                  return _ErrorState(message: snap.error.toString());
-                }
+                  if (snap.hasError) {
+                    return _ErrorState(message: snap.error.toString());
+                  }
 
-                final sessions = snap.data ?? const <AttendanceSession>[];
-                if (sessions.isEmpty) return _EmptyState(isStaff: _isStaff);
+                  final sessions = snap.data ?? const <AttendanceSession>[];
+                  if (sessions.isEmpty) return _EmptyState(isStaff: _isStaff);
 
-                return ListView.separated(
-                  padding: TitansUI.listPadding(context),
-                  itemCount: sessions.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final session = sessions[index];
-                    return _AttendanceSessionCard(
-                      session: session,
-                      isStaff: _isStaff,
-                      isBusy: _submitting,
-                      onTap: () => _openSessionDetails(session),
-                      onClose: session.status == AttendanceSessionStatus.open
-                          ? () => _closeSession(session)
-                          : null,
-                      onCancel:
-                          session.status == AttendanceSessionStatus.cancelled
-                              ? null
-                              : () => _cancelSession(session),
-                    );
-                  },
-                );
-              },
-            ),
+                  return ListView.separated(
+                    padding: TitansUI.listPadding(context),
+                    itemCount: sessions.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final session = sessions[index];
+                      return _AttendanceSessionCard(
+                        session: session,
+                        isStaff: _isStaff,
+                        isBusy: _submitting,
+                        onTap: () => _openSessionDetails(session),
+                        onClose:
+                            session.status == AttendanceSessionStatus.open
+                                ? () => _closeSession(session)
+                                : null,
+                        onCancel:
+                            session.status == AttendanceSessionStatus.cancelled
+                                ? null
+                                : () => _cancelSession(session),
+                      );
+                    },
+                  );
+                },
+              ),
     );
   }
 
@@ -143,22 +146,24 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => _AttendanceSessionDetailsScreen(
-          session: session,
-          currentUser: user,
-          attendanceRepository: _repository,
-          studentRepository: _studentRepository,
-        ),
+        builder:
+            (_) => _AttendanceSessionDetailsScreen(
+              session: session,
+              currentUser: user,
+              attendanceRepository: _repository,
+              studentRepository: _studentRepository,
+            ),
       ),
     );
   }
 
   Future<void> _closeSession(AttendanceSession session) async {
     await _updateStatus(
-      action: () => _repository.closeSession(
-        academyId: session.academyId,
-        sessionId: session.id,
-      ),
+      action:
+          () => _repository.closeSession(
+            academyId: session.academyId,
+            sessionId: session.id,
+          ),
       successMessage: 'Sessao fechada.',
       errorMessage: 'Nao foi possivel fechar a sessao',
     );
@@ -166,10 +171,11 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _cancelSession(AttendanceSession session) async {
     await _updateStatus(
-      action: () => _repository.cancelSession(
-        academyId: session.academyId,
-        sessionId: session.id,
-      ),
+      action:
+          () => _repository.cancelSession(
+            academyId: session.academyId,
+            sessionId: session.id,
+          ),
       successMessage: 'Sessao cancelada.',
       errorMessage: 'Nao foi possivel cancelar a sessao',
     );
@@ -196,9 +202,9 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -252,22 +258,22 @@ class _AttendanceSessionDetailsScreenState
           sessionId: widget.session.id,
         )
         .listen(
-      (checkIns) {
-        if (!mounted) return;
-        setState(() {
-          _checkIns = checkIns;
-          _loadingCheckIns = false;
-          _checkInsError = null;
-        });
-      },
-      onError: (Object error) {
-        if (!mounted) return;
-        setState(() {
-          _checkInsError = error;
-          _loadingCheckIns = false;
-        });
-      },
-    );
+          (checkIns) {
+            if (!mounted) return;
+            setState(() {
+              _checkIns = checkIns;
+              _loadingCheckIns = false;
+              _checkInsError = null;
+            });
+          },
+          onError: (Object error) {
+            if (!mounted) return;
+            setState(() {
+              _checkInsError = error;
+              _loadingCheckIns = false;
+            });
+          },
+        );
   }
 
   @override
@@ -283,14 +289,15 @@ class _AttendanceSessionDetailsScreenState
     return TitansScaffold(
       scroll: false,
       appBar: AppBar(title: const Text('Presenca da aula')),
-      floatingActionButton: _canEdit
-          ? FloatingActionButton.extended(
-              heroTag: 'attendance_checkin_fab_${session.id}',
-              icon: const Icon(Icons.person_add_alt_1_outlined),
-              label: const Text('Adicionar aluno'),
-              onPressed: _submitting ? null : _openAddStudentSheet,
-            )
-          : null,
+      floatingActionButton:
+          _canEdit
+              ? FloatingActionButton.extended(
+                heroTag: 'attendance_checkin_fab_${session.id}',
+                icon: const Icon(Icons.person_add_alt_1_outlined),
+                label: const Text('Adicionar aluno'),
+                onPressed: _submitting ? null : _openAddStudentSheet,
+              )
+              : null,
       body: _buildBody(session),
     );
   }
@@ -303,9 +310,12 @@ class _AttendanceSessionDetailsScreenState
     final error = _checkInsError;
     if (error != null) return _ErrorState(message: error.toString());
 
-    final visibleCheckIns = _isStaff
-        ? _checkIns
-        : _checkIns.where((item) => item.uid == widget.currentUser.uid).toList();
+    final visibleCheckIns =
+        _isStaff
+            ? _checkIns
+            : _checkIns
+                .where((item) => item.uid == widget.currentUser.uid)
+                .toList();
 
     return ListView(
       padding: TitansUI.listPadding(context),
@@ -323,9 +333,9 @@ class _AttendanceSessionDetailsScreenState
         const SizedBox(height: 16),
         Text(
           'Alunos presentes',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w800,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
         ),
         const SizedBox(height: 10),
         if (visibleCheckIns.isEmpty)
@@ -350,11 +360,12 @@ class _AttendanceSessionDetailsScreenState
   Future<void> _showQrCode(AttendanceSession session) async {
     if (!_canEdit) return;
 
-    final payload = _AttendanceQrPayload(
-      academyId: session.academyId,
-      sessionId: session.id,
-      generatedAt: DateTime.now().toUtc(),
-    ).encode();
+    final payload =
+        _AttendanceQrPayload(
+          academyId: session.academyId,
+          sessionId: session.id,
+          generatedAt: DateTime.now().toUtc(),
+        ).encode();
 
     await showModalBottomSheet<void>(
       context: context,
@@ -368,19 +379,18 @@ class _AttendanceSessionDetailsScreenState
               children: [
                 Text(
                   'QR Code da aula',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
                 Text(
                   'Aluno escaneia para registrar presenca',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurface
-                        .withValues(alpha: 0.72),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.72),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -409,13 +419,15 @@ class _AttendanceSessionDetailsScreenState
   }
 
   Future<void> _scanQrCode(AttendanceSession session) async {
-    if (_isStaff || session.status != AttendanceSessionStatus.open || _submitting) {
+    if (_isStaff ||
+        session.status != AttendanceSessionStatus.open ||
+        _submitting) {
       return;
     }
 
-    final rawPayload = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const _QrScannerScreen()),
-    );
+    final rawPayload = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const _QrScannerScreen()));
     if (rawPayload == null || rawPayload.trim().isEmpty) return;
 
     late final _AttendanceQrPayload payload;
@@ -459,11 +471,12 @@ class _AttendanceSessionDetailsScreenState
     final student = await showModalBottomSheet<StudentVm?>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _AddStudentSheet(
-        academyId: widget.session.academyId,
-        studentRepository: widget.studentRepository,
-        checkedUids: checkedUids,
-      ),
+      builder:
+          (_) => _AddStudentSheet(
+            academyId: widget.session.academyId,
+            studentRepository: widget.studentRepository,
+            checkedUids: checkedUids,
+          ),
     );
 
     if (student == null) return;
@@ -516,9 +529,9 @@ class _AttendanceSessionDetailsScreenState
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }
 
@@ -565,10 +578,8 @@ class _AttendanceSessionCard extends StatelessWidget {
                           session.title,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style:
-                              Theme.of(context).textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
                         ),
                         const SizedBox(height: 4),
                         Text(
@@ -607,9 +618,10 @@ class _AttendanceSessionCard extends StatelessWidget {
                   ),
                   _InfoItem(
                     icon: Icons.person_outline,
-                    label: session.instructorName.isEmpty
-                        ? session.instructorUid
-                        : session.instructorName,
+                    label:
+                        session.instructorName.isEmpty
+                            ? session.instructorUid
+                            : session.instructorName,
                   ),
                 ],
               ),
@@ -663,8 +675,8 @@ class _SessionHeader extends StatelessWidget {
                   child: Text(
                     session.title,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -685,7 +697,10 @@ class _SessionHeader extends StatelessWidget {
               spacing: 16,
               runSpacing: 8,
               children: [
-                _InfoItem(icon: Icons.school_outlined, label: session.classType),
+                _InfoItem(
+                  icon: Icons.school_outlined,
+                  label: session.classType,
+                ),
                 _InfoItem(
                   icon: Icons.schedule,
                   label:
@@ -693,9 +708,10 @@ class _SessionHeader extends StatelessWidget {
                 ),
                 _InfoItem(
                   icon: Icons.person_outline,
-                  label: session.instructorName.isEmpty
-                      ? session.instructorUid
-                      : session.instructorName,
+                  label:
+                      session.instructorName.isEmpty
+                          ? session.instructorUid
+                          : session.instructorName,
                 ),
               ],
             ),
@@ -723,9 +739,10 @@ class _QrCheckInActionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final title = isStaff ? 'Check-in por QR Code' : 'Registrar presenca';
-    final message = isStaff
-        ? 'Exiba o QR Code para os alunos presentes nesta aula.'
-        : 'Escaneie o QR Code da aula aberta para registrar sua presenca.';
+    final message =
+        isStaff
+            ? 'Exiba o QR Code para os alunos presentes nesta aula.'
+            : 'Escaneie o QR Code da aula aberta para registrar sua presenca.';
 
     return Card(
       child: Padding(
@@ -744,9 +761,8 @@ class _QrCheckInActionCard extends StatelessWidget {
                     children: [
                       Text(
                         title,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.w900,
-                            ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 4),
                       Text(
@@ -764,9 +780,11 @@ class _QrCheckInActionCard extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton.icon(
-                icon: Icon(isStaff
-                    ? Icons.qr_code_2_outlined
-                    : Icons.qr_code_scanner_outlined),
+                icon: Icon(
+                  isStaff
+                      ? Icons.qr_code_2_outlined
+                      : Icons.qr_code_scanner_outlined,
+                ),
                 label: Text(isStaff ? 'Exibir QR Code' : 'Escanear QR Code'),
                 onPressed: isBusy ? null : (isStaff ? onShowQr : onScanQr),
               ),
@@ -904,9 +922,7 @@ class _CheckInTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: ListTile(
-        leading: CircleAvatar(
-          child: Text(_initials(checkIn.studentName)),
-        ),
+        leading: CircleAvatar(child: Text(_initials(checkIn.studentName))),
         title: Text(
           checkIn.studentName,
           maxLines: 1,
@@ -915,13 +931,14 @@ class _CheckInTile extends StatelessWidget {
         subtitle: Text(
           '${_beltName(checkIn.belt)} - G${checkIn.degree} - ${_sourceLabel(checkIn.source)}',
         ),
-        trailing: canRemove
-            ? IconButton(
-                tooltip: 'Remover check-in',
-                icon: const Icon(Icons.delete_outline),
-                onPressed: onRemove,
-              )
-            : null,
+        trailing:
+            canRemove
+                ? IconButton(
+                  tooltip: 'Remover check-in',
+                  icon: const Icon(Icons.delete_outline),
+                  onPressed: onRemove,
+                )
+                : null,
       ),
     );
   }
@@ -970,9 +987,9 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
                   'Adicionar aluno',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w800,
-                      ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                 ),
               ),
               Expanded(
@@ -1001,7 +1018,9 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
                       separatorBuilder: (_, __) => const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final student = students[index];
-                        final checked = widget.checkedUids.contains(student.uid);
+                        final checked = widget.checkedUids.contains(
+                          student.uid,
+                        );
                         return Card(
                           child: ListTile(
                             enabled: !checked,
@@ -1016,12 +1035,14 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
                             subtitle: Text(
                               '${_beltName(student.belt)} - G${student.degree}',
                             ),
-                            trailing: checked
-                                ? const Icon(Icons.check_circle_outline)
-                                : const Icon(Icons.add_circle_outline),
-                            onTap: checked
-                                ? null
-                                : () => Navigator.of(context).pop(student),
+                            trailing:
+                                checked
+                                    ? const Icon(Icons.check_circle_outline)
+                                    : const Icon(Icons.add_circle_outline),
+                            onTap:
+                                checked
+                                    ? null
+                                    : () => Navigator.of(context).pop(student),
                           ),
                         );
                       },
@@ -1100,27 +1121,31 @@ class _CreateAttendanceSessionSheetState
             children: [
               Text(
                 'Nova aula',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w800,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _titleController,
                 textInputAction: TextInputAction.next,
                 decoration: const InputDecoration(labelText: 'Titulo'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Informe o titulo'
-                    : null,
+                validator:
+                    (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Informe o titulo'
+                            : null,
               ),
               const SizedBox(height: 12),
               TextFormField(
                 controller: _classTypeController,
                 textInputAction: TextInputAction.done,
                 decoration: const InputDecoration(labelText: 'Tipo de aula'),
-                validator: (value) => value == null || value.trim().isEmpty
-                    ? 'Informe o tipo de aula'
-                    : null,
+                validator:
+                    (value) =>
+                        value == null || value.trim().isEmpty
+                            ? 'Informe o tipo de aula'
+                            : null,
               ),
               const SizedBox(height: 12),
               Row(
@@ -1167,9 +1192,10 @@ class _CreateAttendanceSessionSheetState
     if (!_formKey.currentState!.validate()) return;
 
     final startsAt = _startsAt;
-    final endsAt = _endsAt.isAfter(startsAt)
-        ? _endsAt
-        : startsAt.add(const Duration(hours: 1));
+    final endsAt =
+        _endsAt.isAfter(startsAt)
+            ? _endsAt
+            : startsAt.add(const Duration(hours: 1));
 
     Navigator.of(context).pop(
       _AttendanceSessionDraft(
@@ -1216,7 +1242,9 @@ class _DateTimeField extends StatelessWidget {
         );
         if (time == null) return;
 
-        onPick(DateTime(date.year, date.month, date.day, time.hour, time.minute));
+        onPick(
+          DateTime(date.year, date.month, date.day, time.hour, time.minute),
+        );
       },
       child: InputDecorator(
         decoration: InputDecoration(labelText: label),
@@ -1249,9 +1277,10 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return TitansStateView.empty(
       title: 'Nenhuma sessao de presenca',
-      message: isStaff
-          ? 'Crie uma nova aula para registrar presencas.'
-          : 'Nenhuma aula de presenca esta aberta no momento.',
+      message:
+          isStaff
+              ? 'Crie uma nova aula para registrar presencas.'
+              : 'Nenhuma aula de presenca esta aberta no momento.',
     );
   }
 }
@@ -1282,7 +1311,10 @@ class _ErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TitansStateView.error(title: 'Erro ao carregar presenca', message: message);
+    return TitansStateView.error(
+      title: 'Erro ao carregar presenca',
+      message: message,
+    );
   }
 }
 
@@ -1315,27 +1347,17 @@ String _sourceLabel(AttendanceCheckInSource source) {
 }
 
 String _beltName(BeltColor belt) {
-  switch (belt) {
-    case BeltColor.white:
-      return 'Branca';
-    case BeltColor.blue:
-      return 'Azul';
-    case BeltColor.purple:
-      return 'Roxa';
-    case BeltColor.brown:
-      return 'Marrom';
-    case BeltColor.black:
-      return 'Preta';
-  }
+  return TitansUI.beltLabel(belt.name);
 }
 
 String _initials(String value) {
   final parts = value.trim().split(RegExp(r'\s+'));
   if (parts.isEmpty || parts.first.isEmpty) return 'A';
   final first = parts.first.characters.first;
-  final second = parts.length > 1 && parts.last.isNotEmpty
-      ? parts.last.characters.first
-      : '';
+  final second =
+      parts.length > 1 && parts.last.isNotEmpty
+          ? parts.last.characters.first
+          : '';
   return '$first$second'.toUpperCase();
 }
 

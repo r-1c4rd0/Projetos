@@ -7,6 +7,7 @@ class BeltProgressSummary {
   final double percentToNextBelt;
   final int sessionsInCurrentBelt;
   final int sessionsRequiredCurrentBelt;
+  final bool hasOfficialRule;
 
   const BeltProgressSummary({
     required this.belt,
@@ -15,6 +16,7 @@ class BeltProgressSummary {
     required this.percentToNextBelt,
     required this.sessionsInCurrentBelt,
     required this.sessionsRequiredCurrentBelt,
+    required this.hasOfficialRule,
   });
 }
 

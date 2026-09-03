@@ -786,7 +786,7 @@ class _TrainingHistoryFilterSheetState
               ),
               const SizedBox(height: 8),
               _FilterGroup(
-                title: 'Periodo',
+                title: 'Período',
                 children: [
                   for (final option in _TrainingHistoryPeriodFilter.values)
                     _filterChoice(
