@@ -51,17 +51,6 @@ extension _TrainingChartModeUi on _TrainingChartMode {
         return Icons.donut_large_rounded;
     }
   }
-
-  String get label {
-    switch (this) {
-      case _TrainingChartMode.bar:
-        return 'Barras';
-      case _TrainingChartMode.line:
-        return 'Linha';
-      case _TrainingChartMode.pie:
-        return 'Pizza';
-    }
-  }
 }
 
 class _TrainingScreenState extends State<TrainingScreen> {
@@ -1400,8 +1389,9 @@ class _TrainingPeriodInlineSelector extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final foreground = TitansUI.navSelectedForeground(context);
 
-    return Tooltip(
-      message: 'Alterar período',
+    return Semantics(
+      label: 'Alterar periodo',
+      button: true,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -1491,40 +1481,37 @@ class _TrainingChartModeSwitcher extends StatelessWidget {
   Widget build(BuildContext context) {
     final foreground = TitansUI.navSelectedForeground(context);
 
-    return Tooltip(
-      message: 'Alterar gráfico: ${selectedMode.label}',
-      child: Semantics(
-        label: 'Alterar gráfico',
-        button: true,
-        child: Material(
-          color: Colors.transparent,
-          child: InkWell(
-            onTap: () => onChanged(_nextMode(selectedMode)),
-            borderRadius: BorderRadius.circular(TitansUI.radiusPill),
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 190),
-              curve: Curves.easeOutCubic,
-              width: 36,
-              height: 32,
-              decoration: BoxDecoration(
-                color: TitansUI.navUnselectedBackground(
-                  context,
-                ).withValues(alpha: 0.50),
-                borderRadius: BorderRadius.circular(TitansUI.radiusPill),
-                border: Border.all(
-                  color: TitansUI.navBorder(context, selected: false),
-                ),
+    return Semantics(
+      label: 'Alterar grafico',
+      button: true,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onChanged(_nextMode(selectedMode)),
+          borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 190),
+            curve: Curves.easeOutCubic,
+            width: 36,
+            height: 32,
+            decoration: BoxDecoration(
+              color: TitansUI.navUnselectedBackground(
+                context,
+              ).withValues(alpha: 0.50),
+              borderRadius: BorderRadius.circular(TitansUI.radiusPill),
+              border: Border.all(
+                color: TitansUI.navBorder(context, selected: false),
               ),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 180),
-                switchInCurve: Curves.easeOutCubic,
-                switchOutCurve: Curves.easeOutCubic,
-                child: Icon(
-                  selectedMode.icon,
-                  key: ValueKey(selectedMode),
-                  size: 18,
-                  color: foreground,
-                ),
+            ),
+            child: AnimatedSwitcher(
+              duration: const Duration(milliseconds: 180),
+              switchInCurve: Curves.easeOutCubic,
+              switchOutCurve: Curves.easeOutCubic,
+              child: Icon(
+                selectedMode.icon,
+                key: ValueKey(selectedMode),
+                size: 18,
+                color: foreground,
               ),
             ),
           ),

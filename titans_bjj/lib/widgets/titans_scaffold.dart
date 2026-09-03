@@ -39,9 +39,10 @@ class TitansScaffold extends StatelessWidget {
     final media = MediaQuery.of(context);
     final defaultFabBottomOffset =
         media.viewPadding.bottom + _homeNavigationBarHeight;
-    final fabBottomOffset = floatingActionButtonMarginBottom > 0
-        ? floatingActionButtonMarginBottom
-        : avoidBottomNavigationBarOverlap && floatingActionButton != null
+    final fabBottomOffset =
+        floatingActionButtonMarginBottom > 0
+            ? floatingActionButtonMarginBottom
+            : avoidBottomNavigationBarOverlap && floatingActionButton != null
             ? defaultFabBottomOffset
             : 0.0;
 
@@ -57,9 +58,10 @@ class TitansScaffold extends StatelessWidget {
     return Scaffold(
       appBar: appBar,
       floatingActionButton: floatingActionButton,
-      floatingActionButtonLocation: fabBottomOffset > 0
-          ? _TitansFabLocation(bottomOffset: fabBottomOffset)
-          : null,
+      floatingActionButtonLocation:
+          fabBottomOffset > 0
+              ? _TitansFabLocation(bottomOffset: fabBottomOffset)
+              : null,
       backgroundColor: Colors.transparent,
       body: Container(
         decoration: BoxDecoration(
@@ -127,10 +129,7 @@ class TitansScaffold extends StatelessWidget {
                 ),
               ),
             ),
-            SafeArea(
-              bottom: false,
-              child: content,
-            ),
+            SafeArea(bottom: false, child: content),
           ],
         ),
       ),
@@ -148,11 +147,15 @@ class _TitansFabLocation extends FloatingActionButtonLocation {
     final fabSize = scaffoldGeometry.floatingActionButtonSize;
     final scaffoldSize = scaffoldGeometry.scaffoldSize;
 
-    final fabX = scaffoldGeometry.textDirection == TextDirection.rtl
-        ? TitansScaffold._fabScreenMargin
-        : scaffoldSize.width - fabSize.width - TitansScaffold._fabScreenMargin;
+    final fabX =
+        scaffoldGeometry.textDirection == TextDirection.rtl
+            ? TitansScaffold._fabScreenMargin
+            : scaffoldSize.width -
+                fabSize.width -
+                TitansScaffold._fabScreenMargin;
 
-    final fabY = scaffoldSize.height -
+    final fabY =
+        scaffoldSize.height -
         fabSize.height -
         TitansScaffold._fabScreenMargin -
         bottomOffset;

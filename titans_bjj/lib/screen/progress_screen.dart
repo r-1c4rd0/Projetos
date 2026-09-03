@@ -1680,42 +1680,39 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Tooltip(
-        message: '${day.tooltipTitle}\n${day.tooltipBody}',
-        child: Semantics(
-          button: true,
-          selected: isSelected,
-          label: '${day.dayLabel}, ${day.tooltipTitle}: ${day.tooltipBody}',
-          value: day.count.toString(),
-          hint: _semanticDate(day.date),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: onTap,
-            child: Opacity(
-              opacity: opacity,
-              child: Transform.scale(
-                scale: scale,
-                child: Container(
-                  width: size,
-                  height: size,
-                  decoration: BoxDecoration(
-                    color: color,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: borderColor,
-                      width: isSelected || day.isToday ? 1.5 : 1,
-                    ),
-                    boxShadow:
-                        isSelected
-                            ? [
-                              BoxShadow(
-                                color: cs.primary.withValues(alpha: 0.18),
-                                blurRadius: 10,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                            : null,
+      child: Semantics(
+        button: true,
+        selected: isSelected,
+        label: '${day.dayLabel}, ${day.tooltipTitle}: ${day.tooltipBody}',
+        value: day.count.toString(),
+        hint: _semanticDate(day.date),
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onTap,
+          child: Opacity(
+            opacity: opacity,
+            child: Transform.scale(
+              scale: scale,
+              child: Container(
+                width: size,
+                height: size,
+                decoration: BoxDecoration(
+                  color: color,
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(
+                    color: borderColor,
+                    width: isSelected || day.isToday ? 1.5 : 1,
                   ),
+                  boxShadow:
+                      isSelected
+                          ? [
+                            BoxShadow(
+                              color: cs.primary.withValues(alpha: 0.18),
+                              blurRadius: 10,
+                              spreadRadius: 1,
+                            ),
+                          ]
+                          : null,
                 ),
               ),
             ),
@@ -1726,19 +1723,23 @@ class _ConsistencyHeatmapCell extends StatelessWidget {
   }
 
   static String _semanticDate(DateTime date) {
-    return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')}';
+    final day = date.day.toString().padLeft(2, '0');
+    final month = date.month.toString().padLeft(2, '0');
+    return '$day/$month/${date.year}';
   }
 
-  static Color _cellColor(ColorScheme cs, int level) {
-    switch (level) {
+  static Color _cellColor(ColorScheme cs, int intensity) {
+    switch (intensity) {
+      case 0:
+        return cs.surfaceContainerHighest.withValues(alpha: 0.20);
       case 1:
-        return cs.primary.withValues(alpha: 0.34);
+        return cs.primary.withValues(alpha: 0.28);
       case 2:
-        return cs.primary.withValues(alpha: 0.56);
+        return cs.primary.withValues(alpha: 0.52);
       case 3:
-        return cs.secondary.withValues(alpha: 0.78);
+        return cs.primary.withValues(alpha: 0.76);
       default:
-        return cs.surfaceContainerHighest.withValues(alpha: 0.26);
+        return cs.primary;
     }
   }
 }

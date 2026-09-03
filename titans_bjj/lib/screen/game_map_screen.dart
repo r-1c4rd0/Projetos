@@ -3395,8 +3395,8 @@ class _GameMapHighlightChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    return Tooltip(
-      message: highlight.helper,
+    return Semantics(
+      label: highlight.helper,
       child: _MiniBadge(
         label: '${highlight.label}: ${highlight.value}',
         color: cs.secondary,
@@ -3416,9 +3416,10 @@ class _GameMapPositionClusterNode extends StatelessWidget {
     final weight = node.normalizedWeight.clamp(0.0, 1.0).toDouble();
     final accent = weight >= 0.76 ? TitansUI.actionGold : cs.primary;
 
-    return Tooltip(
-      message:
-          '${node.recurrenceCount} registros nesta posi\u00e7\u00e3o; toque para detalhes.',
+    return Semantics(
+      button: true,
+      label:
+          '${node.recurrenceCount} registros nesta posicao; toque para detalhes.',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -3491,7 +3492,7 @@ class _GameMapPositionClusterNode extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        '${node.techniques.length} t\u00e9cnicas vinculadas',
+                        '${node.techniques.length} tecnicas vinculadas',
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -3649,8 +3650,8 @@ class _GameMapTechniqueLinkChip extends StatelessWidget {
       if (link.outcomeLabel != null) link.outcomeLabel!,
     ];
 
-    return Tooltip(
-      message: details.join(' - '),
+    return Semantics(
+      label: details.join(' - '),
       child: Container(
         constraints: BoxConstraints(maxWidth: width),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -4725,8 +4726,8 @@ class _CompactEvidenceBar extends StatelessWidget {
     final fraction = maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0);
     final active = count > 0;
 
-    return Tooltip(
-      message: helper ?? '$label: $count registros',
+    return Semantics(
+      label: helper ?? '$label: $count registros',
       child: Container(
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
