@@ -109,5 +109,6 @@ Centralizar as especificacoes de produto, arquitetura, dados, design system e mi
 
 - `visual_evolution_spec.md` - Governanca para evolucao visual, QA economico, graficos, widgets visuais e actor/target.
 - `client_first_ux_guidelines.md` - Diretrizes UX client-first: camadas de informacao, linguagem, padrao visual e regras por tela.
+- `titans_visual_intelligence_system.md` - Governanca visual autoral TITANS: graficos, movimento, performance, acessibilidade e rollout por tela.
 
 Use esta spec em fases VISUAL EVOLUTION e em qualquer mudanca visual que precise preservar metricas reais, evitar dependencia nova, manter actor/target correto e validar em modo economico.

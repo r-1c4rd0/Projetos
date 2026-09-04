@@ -3,6 +3,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/startup_performance_trace.dart';
+
 class SplashScreen extends StatefulWidget {
   final Widget child;
 
@@ -13,7 +15,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   static const _standardDuration = Duration(milliseconds: 2800);
   static const _reducedMotionDuration = Duration(milliseconds: 750);
   static const _fadeOutDuration = Duration(milliseconds: 420);
@@ -24,11 +26,16 @@ class _SplashScreenState extends State<SplashScreen>
   Timer? _timer;
   bool _showSplash = true;
   bool _fadeSplash = false;
+  bool _completed = false;
   bool _scheduled = false;
+  bool _precacheStarted = false;
+  bool _childVisibleMarked = false;
 
   @override
   void initState() {
     super.initState();
+    StartupPerformanceTrace.mark('Splash initState');
+    WidgetsBinding.instance.addObserver(this);
     _controller = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2200),
@@ -38,26 +45,55 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    precacheImage(const AssetImage(_asset), context);
+    if (!_precacheStarted) {
+      _precacheStarted = true;
+      StartupPerformanceTrace.start('Splash image precache');
+      unawaited(
+        precacheImage(const AssetImage(_asset), context)
+            .then((_) {
+              StartupPerformanceTrace.end('Splash image precache');
+            })
+            .catchError((Object error, StackTrace stackTrace) {
+              StartupPerformanceTrace.end(
+                'Splash image precache',
+                detail: 'error=${error.runtimeType}',
+              );
+            }),
+      );
+    }
     if (_scheduled) return;
     _scheduled = true;
 
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     if (!reducedMotion) {
+      StartupPerformanceTrace.mark('Splash animation start');
       _controller.repeat();
+    } else {
+      StartupPerformanceTrace.mark('Splash animation skipped reduced motion');
     }
 
+    StartupPerformanceTrace.start('Splash minimum duration');
     _timer = Timer(
       reducedMotion ? _reducedMotionDuration : _standardDuration,
       () {
+        StartupPerformanceTrace.end('Splash minimum duration');
         if (!mounted) return;
+        StartupPerformanceTrace.start('Splash fade out');
         setState(() => _fadeSplash = true);
       },
     );
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    StartupPerformanceTrace.mark(
+      'Splash lifecycle ${state.name} show=$_showSplash scheduled=$_scheduled',
+    );
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
     _controller.dispose();
     super.dispose();
@@ -66,6 +102,10 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
+    if (!_childVisibleMarked) {
+      _childVisibleMarked = true;
+      StartupPerformanceTrace.mark('Splash child visible');
+    }
 
     return Stack(
       fit: StackFit.expand,
@@ -79,7 +119,11 @@ class _SplashScreenState extends State<SplashScreen>
                   reducedMotion ? _reducedFadeOutDuration : _fadeOutDuration,
               curve: Curves.easeOutCubic,
               onEnd: () {
-                if (!_fadeSplash || !mounted) return;
+                if (!_fadeSplash || _completed || !mounted) return;
+                _completed = true;
+                _controller.stop();
+                StartupPerformanceTrace.end('Splash fade out');
+                StartupPerformanceTrace.mark('Splash completed');
                 setState(() => _showSplash = false);
               },
               child: _SplashStage(controller: _controller),

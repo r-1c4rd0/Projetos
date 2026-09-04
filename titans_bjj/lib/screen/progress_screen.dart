@@ -78,6 +78,9 @@ class _ProgressScreenState extends State<ProgressScreen> {
   bool _ensuringRules = false;
   Object? _ensureError;
 
+  String? _progressCacheKey;
+  _ProgressViewModel? _progressCache;
+
   TargetProfile? _resolveTarget(BuildContext context) {
     return widget.explicitTarget ??
         TargetResolver.maybeOf(context, mode: widget.targetMode);
@@ -112,6 +115,8 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     _streamAcademyId = academyId;
     _streamUid = uid;
+    _progressCacheKey = null;
+    _progressCache = null;
     _rulesStream = _rulesRepo.watch(academyId);
     _athleteStream = _userRepo.watchUser(academyId: academyId, uid: uid);
     _profileStream = _progressRepo.watchProfile(academyId: academyId, uid: uid);
@@ -300,30 +305,16 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                 );
                               }
 
-                              final filtered = _prepareProgressSessions(
-                                trainSnap.data ?? const <TrainingSession>[],
+                              final viewModel = _buildProgressViewModel(
+                                academyId: academyId,
+                                uid: uid,
                                 rules: rules,
+                                athlete: athlete,
+                                profile: profile,
+                                sessions:
+                                    trainSnap.data ?? const <TrainingSession>[],
+                                period: _period,
                               );
-                              final metrics = _getProgressOverview(filtered);
-                              final beltProgress = _BeltProgress.fromSummary(
-                                _getBeltProgressSummary(
-                                  rules: rules,
-                                  athlete: athlete,
-                                  profile: profile,
-                                  sessions: filtered,
-                                ),
-                              );
-                              final series = _Series.fromSummary(
-                                _getProgressSeries(filtered, _period),
-                              );
-                              final totalInWindow = series.values.fold<int>(
-                                0,
-                                (a, b) => a + b,
-                              );
-                              final heatmap =
-                                  _ConsistencyHeatmapViewModel.fromSummary(
-                                    _getConsistencyHeatmap(filtered),
-                                  );
 
                               final listPadding =
                                   widget.embedded
@@ -365,7 +356,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                       ),
                                     ),
                                   _ProgressBeltHero(
-                                    progress: beltProgress,
+                                    progress: viewModel.beltProgress,
                                     onEditGraduation:
                                         canEditTarget
                                             ? () => _showGraduationDialog(
@@ -378,23 +369,23 @@ class _ProgressScreenState extends State<ProgressScreen> {
                                   ),
                                   const SizedBox(height: 10),
                                   _ProgressCompactMetrics(
-                                    progress: beltProgress,
-                                    metrics: metrics,
-                                    totalInWindow: totalInWindow,
+                                    progress: viewModel.beltProgress,
+                                    metrics: viewModel.metrics,
+                                    totalInWindow: viewModel.totalInWindow,
                                     periodTitle: _titleForPeriod(_period),
                                   ),
                                   const SizedBox(height: 10),
                                   _ProgressVisualPanel(
-                                    heatmap: heatmap,
-                                    series: series,
-                                    totalInWindow: totalInWindow,
+                                    heatmap: viewModel.heatmap,
+                                    series: viewModel.series,
+                                    totalInWindow: viewModel.totalInWindow,
                                     period: _period,
                                     periodTitle: _titleForPeriod(_period),
                                   ),
                                   const SizedBox(height: 10),
                                   _ProgressDetailsSection(
-                                    metrics: metrics,
-                                    totalInWindow: totalInWindow,
+                                    metrics: viewModel.metrics,
+                                    totalInWindow: viewModel.totalInWindow,
                                     periodTitle: _titleForPeriod(_period),
                                   ),
                                 ],
@@ -408,6 +399,97 @@ class _ProgressScreenState extends State<ProgressScreen> {
                 },
               ),
     );
+  }
+
+  _ProgressViewModel _buildProgressViewModel({
+    required String academyId,
+    required String uid,
+    required GradingRules rules,
+    required AppUser athlete,
+    required UserProgressProfile profile,
+    required List<TrainingSession> sessions,
+    required ProgressPeriod period,
+  }) {
+    final cacheKey = _progressCacheSnapshotKey(
+      academyId: academyId,
+      uid: uid,
+      rules: rules,
+      athlete: athlete,
+      profile: profile,
+      sessions: sessions,
+      period: period,
+    );
+    final cached = _progressCache;
+    if (_progressCacheKey == cacheKey && cached != null) {
+      return cached;
+    }
+
+    final filtered = _prepareProgressSessions(sessions, rules: rules);
+    final metrics = _getProgressOverview(filtered);
+    final beltProgress = _BeltProgress.fromSummary(
+      _getBeltProgressSummary(
+        rules: rules,
+        athlete: athlete,
+        profile: profile,
+        sessions: filtered,
+      ),
+    );
+    final series = _Series.fromSummary(_getProgressSeries(filtered, period));
+    final heatmap = _ConsistencyHeatmapViewModel.fromSummary(
+      _getConsistencyHeatmap(filtered),
+    );
+    final totalInWindow = series.values.fold<int>(0, (a, b) => a + b);
+
+    final viewModel = _ProgressViewModel(
+      metrics: metrics,
+      beltProgress: beltProgress,
+      series: series,
+      heatmap: heatmap,
+      totalInWindow: totalInWindow,
+    );
+    _progressCacheKey = cacheKey;
+    _progressCache = viewModel;
+    return viewModel;
+  }
+
+  String _progressCacheSnapshotKey({
+    required String academyId,
+    required String uid,
+    required GradingRules rules,
+    required AppUser athlete,
+    required UserProgressProfile profile,
+    required List<TrainingSession> sessions,
+    required ProgressPeriod period,
+  }) {
+    final buffer =
+        StringBuffer()
+          ..write(academyId)
+          ..write('|')
+          ..write(uid)
+          ..write('|')
+          ..write(period.name)
+          ..write('|')
+          ..write(rules.hashCode)
+          ..write('|')
+          ..write(athlete.belt.index)
+          ..write('|')
+          ..write(athlete.degree)
+          ..write('|')
+          ..write(profile.beltStartAt.microsecondsSinceEpoch)
+          ..write('|')
+          ..write(profile.estimatedSessionsInBelt ?? 0)
+          ..write('|')
+          ..write(sessions.length);
+
+    for (final session in sessions) {
+      buffer
+        ..write('|s:')
+        ..write(session.id)
+        ..write('@')
+        ..write(session.date.microsecondsSinceEpoch);
+    }
+
+    return buffer.toString();
   }
 
   Widget _wrapModule({
@@ -598,6 +680,22 @@ class _ProgressScreenState extends State<ProgressScreen> {
         return '\u00daltimos 5 anos';
     }
   }
+}
+
+class _ProgressViewModel {
+  final TrainingMetrics metrics;
+  final _BeltProgress beltProgress;
+  final _Series series;
+  final _ConsistencyHeatmapViewModel heatmap;
+  final int totalInWindow;
+
+  const _ProgressViewModel({
+    required this.metrics,
+    required this.beltProgress,
+    required this.series,
+    required this.heatmap,
+    required this.totalInWindow,
+  });
 }
 
 class _BeltProgressCard extends StatelessWidget {

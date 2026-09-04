@@ -378,8 +378,10 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const _ThemePreferenceSection(),
+                    if (_editSelf) ...[
+                      const SizedBox(height: 16),
+                      const _ThemePreferenceSection(),
+                    ],
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: vm.notesController,

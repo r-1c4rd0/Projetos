@@ -39,7 +39,34 @@ class GameMapScreen extends StatefulWidget {
   State<GameMapScreen> createState() => _GameMapScreenState();
 }
 
-enum _GameMapViewMode { cluster, matrix, evidence }
+Future<T?> _showGameMapSheet<T>({
+  required BuildContext context,
+  required WidgetBuilder builder,
+}) {
+  return showModalBottomSheet<T>(
+    context: context,
+    useRootNavigator: true,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (sheetContext) {
+      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.88;
+      final cs = Theme.of(sheetContext).colorScheme;
+
+      return SafeArea(
+        top: false,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Material(
+            color: cs.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+            clipBehavior: Clip.antiAlias,
+            child: builder(sheetContext),
+          ),
+        ),
+      );
+    },
+  );
+}
 
 class _GameMapScreenState extends State<GameMapScreen> {
   late final TrainingRepository _repository = TrainingRepository.instance;
@@ -76,16 +103,15 @@ class _GameMapScreenState extends State<GameMapScreen> {
   }) async {
     if (techniques.isEmpty) return;
 
-    final draft = await showModalBottomSheet<_CoachEvaluationDraft>(
+    final draft = await _showGameMapSheet<_CoachEvaluationDraft>(
       context: context,
-      isScrollControlled: true,
       builder:
-          (context) => _CoachEvaluationSheet(
+          (_) => _CoachEvaluationSheet(
             techniques: techniques,
             evaluations: evaluations,
           ),
     );
-    if (draft == null) return;
+    if (!mounted || draft == null) return;
 
     final evaluation = CoachEvaluation(
       skillId: draft.technique.skillId,
@@ -189,16 +215,26 @@ class _GameMapScreenState extends State<GameMapScreen> {
                     _HeaderCard(colorScheme: cs, targetName: widget.targetName),
                     const SizedBox(height: 12),
                   ],
-                  TitansTechnicalRadar(
-                    subtitle: technicalRadar.subtitle,
-                    stateLabel: technicalRadar.stateLabel,
-                    evidences: technicalRadar.evidences,
-                    axisEvidence: technicalRadar.axisEvidence,
-                    classifiedEvidenceCount:
-                        technicalRadar.classifiedEvidenceCount,
-                    awaitingClassificationCount:
-                        technicalRadar.awaitingClassificationCount,
-                    showMetrics: false,
+                  TitansCard(
+                    accent: cs.tertiary,
+                    child: TitansTechnicalRadar(
+                      subtitle: technicalRadar.subtitle,
+                      stateLabel: technicalRadar.stateLabel,
+                      evidences: technicalRadar.evidences,
+                      axisEvidence: technicalRadar.axisEvidence,
+                      classifiedEvidenceCount:
+                          technicalRadar.classifiedEvidenceCount,
+                      awaitingClassificationCount:
+                          technicalRadar.awaitingClassificationCount,
+                      interactive: true,
+                      showMetrics: false,
+                      contained: false,
+                      enableHolographicMode: true,
+                      enablePerspectiveControls: true,
+                      initialPerspective: TitansRadarPerspective.live,
+                      enableSweep: true,
+                      enableHudDetails: true,
+                    ),
                   ),
                   const SizedBox(height: 12),
                   _GameMapClientReadingSection(
@@ -371,6 +407,7 @@ class _GameMapClientReadingSection extends StatelessWidget {
             onOpenSkills: onOpenSkills,
             positionAxisMatrix: positionAxisMatrix,
             evidenceDistribution: evidenceDistribution,
+            coachEvaluations: coachEvaluations,
           ),
         ],
       ),
@@ -874,6 +911,7 @@ class _ClientReadingActions extends StatelessWidget {
   final VoidCallback onOpenSkills;
   final _PositionAxisMatrixViewModel positionAxisMatrix;
   final _EvidenceDistributionViewModel evidenceDistribution;
+  final List<CoachEvaluation> coachEvaluations;
 
   const _ClientReadingActions({
     required this.visualMap,
@@ -884,6 +922,7 @@ class _ClientReadingActions extends StatelessWidget {
     required this.onOpenSkills,
     required this.positionAxisMatrix,
     required this.evidenceDistribution,
+    required this.coachEvaluations,
   });
 
   @override
@@ -910,7 +949,12 @@ class _ClientReadingActions extends StatelessWidget {
           label: 'Ver detalhes técnicos',
           icon: Icons.fact_check_outlined,
           color: cs.secondary,
-          onTap: () => _showAllTechnicalEvidences(context, technicalEvidence),
+          onTap:
+              () => _showAllTechnicalEvidences(
+                context,
+                technicalEvidence,
+                coachEvaluations,
+              ),
         ),
       );
     }
@@ -958,138 +1002,102 @@ class _ClientReadingActions extends StatelessWidget {
   }
 
   void _showVisualMapBottomSheet(BuildContext context) {
-    showModalBottomSheet<void>(
+    _showGameMapSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder:
-          (context) => SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                14,
-                16,
-                16 + MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 30,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Mapa visual de posições',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Flexible(
-                    child: _GameMapPositionClusterGraph(viewModel: visualMap),
-                  ),
-                ],
-              ),
-            ),
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
+              const SizedBox(height: 16),
+              Text(
+                'Mapa visual de posi\u00e7\u00f5es',
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: _GameMapPositionClusterGraph(viewModel: visualMap),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
   void _showRepertoireBottomSheet(BuildContext context) {
-    showModalBottomSheet<void>(
+    _showGameMapSheet<void>(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder:
-          (context) => SafeArea(
-            top: false,
-            child: Padding(
-              padding: EdgeInsets.fromLTRB(
-                16,
-                14,
-                16,
-                16 + MediaQuery.viewInsetsOf(context).bottom,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Center(
-                    child: Container(
-                      width: 30,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(999),
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.18),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Repertório registrado',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    rtcaEvidence.subtitle,
-                    style: TextStyle(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.64),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (
-                            int i = 0;
-                            i < rtcaEvidence.items.length;
-                            i++
-                          ) ...[
-                            _CompactEvidenceBar(
-                              label: rtcaEvidence.items[i].label,
-                              count: _extractCount(rtcaEvidence.items[i].value),
-                              maxCount: _maxCountForItems(rtcaEvidence.items),
-                              color: _colorForIndex(i, context),
-                              helper: rtcaEvidence.items[i].helper,
-                            ),
-                            if (i < rtcaEvidence.items.length - 1)
-                              const SizedBox(height: 8),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      builder: (sheetContext) {
+        final cs = Theme.of(sheetContext).colorScheme;
+
+        return Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            14,
+            16,
+            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
+              const SizedBox(height: 16),
+              Text(
+                'Repert\u00f3rio registrado',
+                style: Theme.of(
+                  sheetContext,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                rtcaEvidence.subtitle,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.64),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (int i = 0; i < rtcaEvidence.items.length; i++) ...[
+                        _CompactEvidenceBar(
+                          label: rtcaEvidence.items[i].label,
+                          count: _extractCount(rtcaEvidence.items[i].value),
+                          maxCount: _maxCountForItems(rtcaEvidence.items),
+                          color: _colorForIndex(i, sheetContext),
+                          helper: rtcaEvidence.items[i].helper,
+                        ),
+                        if (i < rtcaEvidence.items.length - 1)
+                          const SizedBox(height: 8),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -1281,23 +1289,6 @@ class _HeaderCard extends StatelessWidget {
   }
 }
 
-class _VisualCard extends StatelessWidget {
-  final Widget child;
-  final Color? accent;
-
-  const _VisualCard({required this.child, this.accent});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final glow = accent ?? cs.primary;
-
-    return TitansAnimatedSection(
-      child: TitansPressableCard(accent: glow, child: child),
-    );
-  }
-}
-
 class _CompactHeader extends StatelessWidget {
   final String title;
 
@@ -1398,115 +1389,121 @@ class _CoachEvaluationSheetState extends State<_CoachEvaluationSheet> {
   @override
   Widget build(BuildContext context) {
     final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final maxHeight = MediaQuery.sizeOf(context).height * 0.88;
 
     return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Registrar avaliação',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 6),
-              const Text('Avaliação humana registrada pelo professor.'),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<TechnicalEvidenceSummary>(
-                initialValue: _selectedTechnique,
-                decoration: const InputDecoration(labelText: 'Técnica'),
-                items: [
-                  for (final technique in widget.techniques)
-                    DropdownMenuItem(
-                      value: technique,
-                      child: Text(technique.techniqueName),
-                    ),
-                ],
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() {
-                    _selectedTechnique = value;
-                    _knowledgeLevel = null;
-                    _drillLevel = null;
-                    _applicationLevel = null;
-                    _consistencyLevel = null;
-                    _needsReview = false;
-                    _noteController.clear();
-                    _recommendationController.clear();
-                    _applyExistingEvaluation();
-                  });
-                },
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Conhecimento',
-                value: _knowledgeLevel,
-                onChanged: (value) => setState(() => _knowledgeLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Execução em drill',
-                value: _drillLevel,
-                onChanged: (value) => setState(() => _drillLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Aplicação',
-                value: _applicationLevel,
-                onChanged: (value) => setState(() => _applicationLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Consistência',
-                value: _consistencyLevel,
-                onChanged: (value) => setState(() => _consistencyLevel = value),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Observação'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _recommendationController,
-                decoration: const InputDecoration(labelText: 'Recomendação'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Precisa revisar'),
-                value: _needsReview,
-                onChanged: (value) => setState(() => _needsReview = value),
-              ),
-              const SizedBox(height: 12),
-              Align(
-                alignment: Alignment.centerRight,
-                child: FilledButton.icon(
-                  onPressed: () {
-                    Navigator.of(context).pop(
-                      _CoachEvaluationDraft(
-                        technique: _selectedTechnique,
-                        knowledgeLevel: _knowledgeLevel,
-                        drillLevel: _drillLevel,
-                        applicationLevel: _applicationLevel,
-                        consistencyLevel: _consistencyLevel,
-                        note: _cleanSheetText(_noteController.text),
-                        recommendation: _cleanSheetText(
-                          _recommendationController.text,
-                        ),
-                        needsReview: _needsReview,
-                      ),
-                    );
-                  },
-                  icon: const Icon(Icons.save_outlined, size: 18),
-                  label: const Text('Salvar avaliação'),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxHeight),
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Registrar avaliação',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
                 ),
-              ),
-            ],
+                const SizedBox(height: 6),
+                const Text('Avaliação humana registrada pelo professor.'),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<TechnicalEvidenceSummary>(
+                  initialValue: _selectedTechnique,
+                  decoration: const InputDecoration(labelText: 'Técnica'),
+                  items: [
+                    for (final technique in widget.techniques)
+                      DropdownMenuItem(
+                        value: technique,
+                        child: Text(technique.techniqueName),
+                      ),
+                  ],
+                  onChanged: (value) {
+                    if (value == null) return;
+                    setState(() {
+                      _selectedTechnique = value;
+                      _knowledgeLevel = null;
+                      _drillLevel = null;
+                      _applicationLevel = null;
+                      _consistencyLevel = null;
+                      _needsReview = false;
+                      _noteController.clear();
+                      _recommendationController.clear();
+                      _applyExistingEvaluation();
+                    });
+                  },
+                ),
+                const SizedBox(height: 12),
+                _CoachLevelDropdown(
+                  label: 'Conhecimento',
+                  value: _knowledgeLevel,
+                  onChanged: (value) => setState(() => _knowledgeLevel = value),
+                ),
+                const SizedBox(height: 12),
+                _CoachLevelDropdown(
+                  label: 'Execução em drill',
+                  value: _drillLevel,
+                  onChanged: (value) => setState(() => _drillLevel = value),
+                ),
+                const SizedBox(height: 12),
+                _CoachLevelDropdown(
+                  label: 'Aplicação',
+                  value: _applicationLevel,
+                  onChanged:
+                      (value) => setState(() => _applicationLevel = value),
+                ),
+                const SizedBox(height: 12),
+                _CoachLevelDropdown(
+                  label: 'Consistência',
+                  value: _consistencyLevel,
+                  onChanged:
+                      (value) => setState(() => _consistencyLevel = value),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _noteController,
+                  decoration: const InputDecoration(labelText: 'Observação'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _recommendationController,
+                  decoration: const InputDecoration(labelText: 'Recomendação'),
+                  maxLines: 2,
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Precisa revisar'),
+                  value: _needsReview,
+                  onChanged: (value) => setState(() => _needsReview = value),
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: FilledButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _CoachEvaluationDraft(
+                          technique: _selectedTechnique,
+                          knowledgeLevel: _knowledgeLevel,
+                          drillLevel: _drillLevel,
+                          applicationLevel: _applicationLevel,
+                          consistencyLevel: _consistencyLevel,
+                          note: _cleanSheetText(_noteController.text),
+                          recommendation: _cleanSheetText(
+                            _recommendationController.text,
+                          ),
+                          needsReview: _needsReview,
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.save_outlined, size: 18),
+                    label: const Text('Salvar avaliação'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1555,206 +1552,6 @@ String _coachLevelLabel(CoachEvaluationLevel level) {
 String? _cleanSheetText(String value) {
   final text = value.trim();
   return text.isEmpty ? null : text;
-}
-
-class _TechnicalAxisEvidenceBar extends StatelessWidget {
-  final TechnicalRadarAxis axis;
-  final int count;
-  final int maxCount;
-
-  const _TechnicalAxisEvidenceBar({
-    required this.axis,
-    required this.count,
-    required this.maxCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = _axisColor(context, axis);
-    final fraction = maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0);
-    final active = count > 0;
-
-    return Row(
-      children: [
-        SizedBox(
-          width: 78,
-          child: Text(
-            axis.displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: active ? 0.78 : 0.44),
-              fontSize: 11,
-              fontWeight: FontWeight.w800,
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: Stack(
-              children: [
-                Container(
-                  height: 5,
-                  color: cs.onSurface.withValues(alpha: 0.08),
-                ),
-                FractionallySizedBox(
-                  widthFactor: fraction.toDouble(),
-                  child: Container(
-                    height: 5,
-                    color:
-                        active ? color : cs.onSurface.withValues(alpha: 0.14),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 28,
-          child: Text(
-            count.toString(),
-            maxLines: 1,
-            textAlign: TextAlign.end,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: active ? color : cs.onSurface.withValues(alpha: 0.42),
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _TechnicalEvidencePreviewTile extends StatelessWidget {
-  final TechnicalEvidenceSummary item;
-  final VoidCallback onTap;
-
-  const _TechnicalEvidencePreviewTile({
-    required this.item,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final positions = item.positions.take(1).join(', ');
-    final contexts = item.contexts.take(1).join(', ');
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-            border: Border.all(color: cs.secondary.withValues(alpha: 0.18)),
-            color: cs.secondary.withValues(alpha: 0.05),
-          ),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      item.techniqueName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w900,
-                        fontSize: 14,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Wrap(
-                      spacing: 10,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        _MiniBadge(
-                          label: '${item.evidenceCount} evidências',
-                          color: cs.secondary,
-                        ),
-                        if (positions.isNotEmpty)
-                          _EvidencePreviewChip(
-                            icon: Icons.place_outlined,
-                            label: positions,
-                          ),
-                        if (contexts.isNotEmpty)
-                          _EvidencePreviewChip(
-                            icon: Icons.sports_mma_outlined,
-                            label: contexts,
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 8),
-              _EvidenceDetailLine(
-                icon: Icons.calendar_today_outlined,
-                label: 'Última',
-                value: _formatShortDate(item.lastPracticedAt),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right_rounded,
-                color: cs.onSurface.withValues(alpha: 0.48),
-                size: 20,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _EvidencePreviewChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-
-  const _EvidencePreviewChip({required this.icon, required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(TitansUI.radiusPill),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.10)),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.35),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: cs.onSurface.withValues(alpha: 0.58)),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.72),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _EvidenceDetailLine extends StatelessWidget {
@@ -1968,25 +1765,6 @@ class _GameMapClusterBackdropPainter extends CustomPainter {
   }
 }
 
-class _GameMapHighlightChip extends StatelessWidget {
-  final _GameMapHighlight highlight;
-
-  const _GameMapHighlightChip({required this.highlight});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Semantics(
-      label: highlight.helper,
-      child: _MiniBadge(
-        label: '${highlight.label}: ${highlight.value}',
-        color: cs.secondary,
-      ),
-    );
-  }
-}
-
 class _GameMapPositionClusterNode extends StatelessWidget {
   final _GameMapPositionNode node;
 
@@ -2138,18 +1916,15 @@ void _showGameMapPositionDetail(
 ) {
   final cs = Theme.of(context).colorScheme;
 
-  showModalBottomSheet<void>(
+  _showGameMapSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: cs.surface,
-    builder: (context) {
-      return SafeArea(
-        child: Padding(
+    builder:
+        (sheetContext) => Padding(
           padding: EdgeInsets.only(
             left: 16,
             right: 16,
             top: 14,
-            bottom: 16 + MediaQuery.viewInsetsOf(context).bottom,
+            bottom: 16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -2162,24 +1937,25 @@ void _showGameMapPositionDetail(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _CompactHeader(
-                          title: 'DETALHE DA POSI\u00c7\u00c3O',
-                        ),
+                        const _CompactHeader(title: 'DETALHE DA POSIÇÃO'),
                         const SizedBox(height: 6),
                         Text(
                           node.position,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleLarge
+                          style: Theme.of(sheetContext).textTheme.titleLarge
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                       ],
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Fechar',
-                    onPressed: () => Navigator.of(context).pop(),
-                    icon: const Icon(Icons.close_rounded),
+                  Semantics(
+                    label: 'Fechar',
+                    button: true,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(sheetContext).pop(),
+                      icon: const Icon(Icons.close_rounded),
+                    ),
                   ),
                 ],
               ),
@@ -2193,10 +1969,7 @@ void _showGameMapPositionDetail(
                 ],
               ),
               const SizedBox(height: 10),
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * 0.58,
-                ),
+              Flexible(
                 child: SingleChildScrollView(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -2212,8 +1985,6 @@ void _showGameMapPositionDetail(
             ],
           ),
         ),
-      );
-    },
   );
 }
 
@@ -2267,324 +2038,6 @@ class _GameMapTechniqueLinkChip extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _PositionAxisStackedRow extends StatelessWidget {
-  final _PositionAxisMatrixRow row;
-
-  const _PositionAxisStackedRow({required this.row});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.16)),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.18),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  row.position,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(width: 8),
-              _MiniBadge(label: row.countLabel, color: cs.primary),
-            ],
-          ),
-          const SizedBox(height: 10),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              const gap = 8.0;
-              final cellWidth = ((constraints.maxWidth - gap) / 2).clamp(
-                120.0,
-                constraints.maxWidth,
-              );
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: [
-                  for (final cell in row.cells)
-                    SizedBox(
-                      width: cellWidth.toDouble(),
-                      child: _PositionAxisCell(row: row, cell: cell),
-                    ),
-                ],
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PositionAxisWideMatrix extends StatelessWidget {
-  final _PositionAxisMatrixViewModel viewModel;
-
-  const _PositionAxisWideMatrix({required this.viewModel});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Column(
-      children: [
-        Row(
-          children: [
-            const SizedBox(width: 150),
-            for (final axis in _PositionAxisMatrixViewModel.axes)
-              Expanded(
-                child: Text(
-                  axis.displayLabel,
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.58),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        for (final row in viewModel.rows) ...[
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              SizedBox(
-                width: 150,
-                child: Text(
-                  row.position,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              for (final cell in row.cells)
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 8),
-                    child: _PositionAxisCell(row: row, cell: cell),
-                  ),
-                ),
-            ],
-          ),
-          if (row != viewModel.rows.last) const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-}
-
-class _PositionAxisCell extends StatelessWidget {
-  final _PositionAxisMatrixRow row;
-  final _PositionAxisMatrixCell cell;
-
-  const _PositionAxisCell({required this.row, required this.cell});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = _axisColor(context, cell.axis);
-    final active = cell.sessionCount > 0;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap:
-            active ? () => _showPositionAxisDetail(context, row, cell) : null,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 68),
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(
-              color:
-                  active
-                      ? color.withValues(alpha: 0.28)
-                      : cs.onSurface.withValues(alpha: 0.07),
-            ),
-            color:
-                active
-                    ? color.withValues(alpha: 0.10)
-                    : cs.surfaceContainerHighest.withValues(alpha: 0.10),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text(
-                cell.axis.displayLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: active ? color : cs.onSurface.withValues(alpha: 0.42),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 5),
-              Text(
-                cell.countLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color:
-                      active
-                          ? cs.onSurface
-                          : cs.onSurface.withValues(alpha: 0.46),
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-void _showPositionAxisDetail(
-  BuildContext context,
-  _PositionAxisMatrixRow row,
-  _PositionAxisMatrixCell cell,
-) {
-  if (cell.sessionCount <= 0) return;
-  final cs = Theme.of(context).colorScheme;
-  final axisColor = _axisColor(context, cell.axis);
-
-  showModalBottomSheet<void>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) {
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            14,
-            16,
-            16 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 30,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: cs.onSurface.withValues(alpha: 0.18),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                row.position,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _MiniBadge(
-                    label:
-                        'Eixo t\u00e9cnico inferido: ${cell.axis.displayLabel}',
-                    color: axisColor,
-                  ),
-                  _MiniBadge(label: cell.countLabel, color: cs.primary),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Inferido por posi\u00e7\u00e3o e t\u00e9cnica registradas nos treinos. Leitura visual baseada apenas em registros reais.',
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Flexible(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      for (final detail in cell.details) ...[
-                        _PositionAxisTechniqueDetail(detail: detail),
-                        const SizedBox(height: 8),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    },
-  );
-}
-
-class _PositionAxisTechniqueDetail extends StatelessWidget {
-  final _PositionAxisTechniqueDetailItem detail;
-
-  const _PositionAxisTechniqueDetail({required this.detail});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.16),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              detail.technique,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w900),
-            ),
-          ),
-          const SizedBox(width: 8),
-          _MiniBadge(label: detail.countLabel, color: cs.primary),
-        ],
       ),
     );
   }
@@ -2783,195 +2236,6 @@ Color _axisColor(BuildContext context, TechnicalRadarAxis axis) {
       return TitansUI.actionGold;
     case TechnicalRadarAxis.unclassified:
       return cs.onSurface.withValues(alpha: 0.46);
-  }
-}
-
-class _EvidenceDistributionCard extends StatelessWidget {
-  final _EvidenceDistributionViewModel viewModel;
-
-  const _EvidenceDistributionCard({required this.viewModel});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return _VisualCard(
-      accent: TitansUI.technicalBlue,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _CompactHeader(title: 'REGISTROS POR EIXO'),
-          const SizedBox(height: 8),
-          Text(
-            'Distribuição das evidências por eixo técnico',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            viewModel.subtitle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.64),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (viewModel.isEmpty)
-            TitansEmptyState(
-              icon: Icons.bar_chart_rounded,
-              title: 'Sem distribuição registrada',
-              message:
-                  'Registre posições e técnicas nos treinos para visualizar a distribuição de evidências.',
-              compact: true,
-            )
-          else
-            _EvidenceDistributionGroup(
-              title: 'Registros por eixo',
-              items: viewModel.axisItems,
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EvidenceDistributionGroup extends StatelessWidget {
-  final String title;
-  final List<_EvidenceDistributionItem> items;
-
-  const _EvidenceDistributionGroup({required this.title, required this.items});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: cs.onSurface.withValues(alpha: 0.72),
-            fontSize: 12,
-            fontWeight: FontWeight.w900,
-          ),
-        ),
-        const SizedBox(height: 8),
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final twoColumns = constraints.maxWidth >= 620;
-            final itemWidth =
-                twoColumns
-                    ? ((constraints.maxWidth - 10) / 2).clamp(220.0, 360.0)
-                    : constraints.maxWidth;
-
-            return Wrap(
-              spacing: 10,
-              runSpacing: 10,
-              children: [
-                for (final item in items)
-                  SizedBox(
-                    width: itemWidth.toDouble(),
-                    child: _EvidenceDistributionBar(item: item),
-                  ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-  }
-}
-
-class _EvidenceDistributionBar extends StatelessWidget {
-  final _EvidenceDistributionItem item;
-
-  const _EvidenceDistributionBar({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final value = item.count;
-    final maxValue = item.maxCount <= 0 ? 1 : item.maxCount;
-    final fraction = (value / maxValue).clamp(0.0, 1.0).toDouble();
-    final active = value > 0;
-    final color = item.color(context);
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color:
-              active
-                  ? color.withValues(alpha: 0.24)
-                  : cs.onSurface.withValues(alpha: 0.07),
-        ),
-        color:
-            active
-                ? color.withValues(alpha: 0.08)
-                : cs.surfaceContainerHighest.withValues(alpha: 0.10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                item.countLabel,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: active ? color : cs.onSurface.withValues(alpha: 0.48),
-                  fontSize: 11,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 7,
-              color: active ? color : cs.onSurface.withValues(alpha: 0.16),
-              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-            ),
-          ),
-          if (item.helper != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              item.helper!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.50),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 }
 
@@ -3759,93 +3023,6 @@ String _formatShortDate(DateTime date) {
   return '$day/$month';
 }
 
-class _GameMapTechnicalMapSwitcher extends StatelessWidget {
-  final _GameMapViewMode selected;
-  final ValueChanged<_GameMapViewMode> onChanged;
-
-  const _GameMapTechnicalMapSwitcher({
-    required this.selected,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        for (final mode in _GameMapViewMode.values)
-          _GameMapModeChip(
-            label: _modeLabel(mode),
-            selected: selected == mode,
-            onTap: () => onChanged(mode),
-          ),
-      ],
-    );
-  }
-
-  String _modeLabel(_GameMapViewMode mode) {
-    switch (mode) {
-      case _GameMapViewMode.cluster:
-        return 'Visual';
-      case _GameMapViewMode.matrix:
-        return 'Por posição';
-      case _GameMapViewMode.evidence:
-        return 'Por eixo';
-    }
-  }
-}
-
-class _GameMapModeChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  const _GameMapModeChip({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final color = selected ? cs.primary : cs.onSurface.withValues(alpha: 0.48);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(TitansUI.radiusPill),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 160),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(TitansUI.radiusPill),
-            border: Border.all(
-              color: selected ? color : cs.onSurface.withValues(alpha: 0.12),
-            ),
-            color:
-                selected
-                    ? color.withValues(alpha: 0.12)
-                    : cs.surfaceContainerHighest.withValues(alpha: 0.35),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? color : cs.onSurface.withValues(alpha: 0.72),
-              fontSize: 11,
-              fontWeight: selected ? FontWeight.w900 : FontWeight.w800,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 void _showTechnicalEvidenceDetails(
   BuildContext context,
   TechnicalEvidenceSummary item,
@@ -3856,177 +3033,588 @@ void _showTechnicalEvidenceDetails(
   final outcomes = item.outcomes.take(3).join(', ');
   final sources = item.sourceTypes.take(3).join(', ');
 
-  showModalBottomSheet<void>(
+  _showGameMapSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) {
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            14,
-            16,
-            16 + MediaQuery.viewInsetsOf(context).bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 30,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: cs.onSurface.withValues(alpha: 0.18),
-                  ),
+    builder:
+        (sheetContext) => SingleChildScrollView(
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(
+              16,
+              14,
+              16,
+              16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _GameMapSheetHandle(
+                  color: cs.onSurface.withValues(alpha: 0.18),
                 ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                item.techniqueName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _MiniBadge(
-                    label: '${item.evidenceCount} evidências',
-                    color: cs.secondary,
-                  ),
-                  if (positions.isNotEmpty)
-                    _MiniBadge(label: 'Posição: $positions', color: cs.primary),
-                  if (contexts.isNotEmpty)
+                const SizedBox(height: 16),
+                Text(
+                  item.techniqueName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(
+                    sheetContext,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
                     _MiniBadge(
-                      label: 'Contexto: $contexts',
-                      color: TitansUI.technicalBlue,
+                      label: '${item.evidenceCount} evidências',
+                      color: cs.secondary,
                     ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _EvidenceDetailLine(
-                icon: Icons.calendar_today_outlined,
-                label: 'Última prática',
-                value: _formatShortDate(item.lastPracticedAt),
-              ),
-              if (positions.isNotEmpty)
+                    if (positions.isNotEmpty)
+                      _MiniBadge(
+                        label: 'Posição: $positions',
+                        color: cs.primary,
+                      ),
+                    if (contexts.isNotEmpty)
+                      _MiniBadge(
+                        label: 'Contexto: $contexts',
+                        color: TitansUI.technicalBlue,
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 16),
                 _EvidenceDetailLine(
-                  icon: Icons.place_outlined,
-                  label: 'Posições',
-                  value: item.positions.join(', '),
+                  icon: Icons.calendar_today_outlined,
+                  label: 'Última prática',
+                  value: _formatShortDate(item.lastPracticedAt),
                 ),
-              if (contexts.isNotEmpty)
-                _EvidenceDetailLine(
-                  icon: Icons.sports_mma_outlined,
-                  label: 'Contextos',
-                  value: item.contexts.join(', '),
+                if (positions.isNotEmpty)
+                  _EvidenceDetailLine(
+                    icon: Icons.place_outlined,
+                    label: 'Posições',
+                    value: item.positions.join(', '),
+                  ),
+                if (contexts.isNotEmpty)
+                  _EvidenceDetailLine(
+                    icon: Icons.sports_mma_outlined,
+                    label: 'Contextos',
+                    value: item.contexts.join(', '),
+                  ),
+                if (outcomes.isNotEmpty)
+                  _EvidenceDetailLine(
+                    icon: Icons.check_circle_outline,
+                    label: 'Resultados',
+                    value: item.outcomes.join(', '),
+                  ),
+                if (sources.isNotEmpty)
+                  _EvidenceDetailLine(
+                    icon: Icons.source_outlined,
+                    label: 'Fontes',
+                    value: item.sourceTypes.join(', '),
+                  ),
+                const SizedBox(height: 12),
+                Text(
+                  'Dados baseados nos treinos registrados. Sem nota ou desempenho.',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.62),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
-              if (outcomes.isNotEmpty)
-                _EvidenceDetailLine(
-                  icon: Icons.check_circle_outline,
-                  label: 'Resultados',
-                  value: item.outcomes.join(', '),
-                ),
-              if (sources.isNotEmpty)
-                _EvidenceDetailLine(
-                  icon: Icons.source_outlined,
-                  label: 'Fontes',
-                  value: item.sourceTypes.join(', '),
-                ),
-              const SizedBox(height: 12),
-              Text(
-                'Dados baseados nos treinos registrados. Sem nota ou desempenho.',
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      );
-    },
   );
 }
 
 void _showAllTechnicalEvidences(
   BuildContext context,
   List<TechnicalEvidenceSummary> items,
+  List<CoachEvaluation> evaluations,
 ) {
-  final cs = Theme.of(context).colorScheme;
-
-  showModalBottomSheet<void>(
+  final parentContext = context;
+  _showGameMapSheet<void>(
     context: context,
-    isScrollControlled: true,
-    backgroundColor: cs.surface,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: (context) {
-      return SafeArea(
-        top: false,
-        child: Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            14,
-            16,
-            16 + MediaQuery.viewInsetsOf(context).bottom,
+    builder:
+        (_) => _EvidenceCenterSheet(
+          items: items,
+          evaluations: evaluations,
+          parentContext: parentContext,
+        ),
+  );
+}
+
+class _EvidenceCenterSheet extends StatefulWidget {
+  final List<TechnicalEvidenceSummary> items;
+  final List<CoachEvaluation> evaluations;
+  final BuildContext parentContext;
+
+  const _EvidenceCenterSheet({
+    required this.items,
+    required this.evaluations,
+    required this.parentContext,
+  });
+
+  @override
+  State<_EvidenceCenterSheet> createState() => _EvidenceCenterSheetState();
+}
+
+class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
+  TechnicalRadarAxis? _axisFilter;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final evaluatedIds = widget.evaluations.map((e) => e.skillId).toSet();
+    final filteredItems =
+        widget.items.where((item) {
+            if (_axisFilter == null) return true;
+            return _axisForTechnicalEvidence(item) == _axisFilter;
+          }).toList()
+          ..sort(_compareEvidenceItems);
+    final totalEvidences = widget.items.fold<int>(
+      0,
+      (sum, item) => sum + item.evidenceCount,
+    );
+    final lastEvidence =
+        widget.items.isEmpty
+            ? null
+            : widget.items
+                .map((item) => item.lastPracticedAt)
+                .reduce((a, b) => a.isAfter(b) ? a : b);
+    final axisCounts = _axisEvidenceCounts(widget.items);
+    final maxAxisCount = axisCounts.values.fold<int>(
+      0,
+      (max, count) => count > max ? count : max,
+    );
+    final topPosition = _topEvidencePosition(widget.items);
+    final topTechnique =
+        widget.items.isEmpty
+            ? null
+            : widget.items.reduce(
+              (a, b) => _compareEvidenceItems(a, b) <= 0 ? a : b,
+            );
+
+    return ListView(
+      padding: EdgeInsets.fromLTRB(
+        16,
+        14,
+        16,
+        16 + MediaQuery.viewInsetsOf(context).bottom,
+      ),
+      children: [
+        _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
+        const SizedBox(height: 16),
+        Text(
+          'Central de Evidências',
+          style: Theme.of(
+            context,
+          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _MiniBadge(
+              label: '$totalEvidences evidências',
+              color: cs.secondary,
+            ),
+            _MiniBadge(
+              label: '${widget.items.length} técnicas',
+              color: cs.primary,
+            ),
+            if (lastEvidence != null)
+              _MiniBadge(
+                label: 'Última ${_formatShortDate(lastEvidence)}',
+                color: TitansUI.actionGold,
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _EvidenceAxisFilterChip(
+              label: 'Todas',
+              selected: _axisFilter == null,
+              color: cs.primary,
+              onTap: () => setState(() => _axisFilter = null),
+            ),
+            for (final axis in _evidenceCenterAxes)
+              _EvidenceAxisFilterChip(
+                label: axis.displayLabel,
+                selected: _axisFilter == axis,
+                color: _axisColor(context, axis),
+                onTap: () => setState(() => _axisFilter = axis),
+              ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        _EvidenceCenterSummary(
+          axisCounts: axisCounts,
+          maxAxisCount: maxAxisCount == 0 ? 1 : maxAxisCount,
+          topPosition: topPosition,
+          topTechnique: topTechnique?.techniqueName,
+        ),
+        const SizedBox(height: 16),
+        if (filteredItems.isEmpty)
+          Text(
+            'Nenhuma evidência neste filtro.',
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.62),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          )
+        else
+          for (int i = 0; i < filteredItems.length; i++) ...[
+            _EvidenceCenterCard(
+              item: filteredItems[i],
+              axis: _axisForTechnicalEvidence(filteredItems[i]),
+              evaluated: evaluatedIds.contains(filteredItems[i].skillId),
+              onTap: () {
+                final item = filteredItems[i];
+                Navigator.of(context).pop();
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (!widget.parentContext.mounted) return;
+                  _showTechnicalEvidenceDetails(widget.parentContext, item);
+                });
+              },
+            ),
+            if (i < filteredItems.length - 1) const SizedBox(height: 8),
+          ],
+      ],
+    );
+  }
+}
+
+class _GameMapSheetHandle extends StatelessWidget {
+  final Color color;
+
+  const _GameMapSheetHandle({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 30,
+        height: 4,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(999),
+          color: color,
+        ),
+      ),
+    );
+  }
+}
+
+class _EvidenceAxisFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _EvidenceAxisFilterChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(999),
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(999),
+            color:
+                selected
+                    ? color.withValues(alpha: 0.16)
+                    : cs.surfaceContainerHighest.withValues(alpha: 0.22),
+            border: Border.all(
+              color:
+                  selected
+                      ? color.withValues(alpha: 0.38)
+                      : cs.outline.withValues(alpha: 0.12),
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: selected ? color : cs.onSurface.withValues(alpha: 0.68),
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EvidenceCenterSummary extends StatelessWidget {
+  final Map<TechnicalRadarAxis, int> axisCounts;
+  final int maxAxisCount;
+  final String? topPosition;
+  final String? topTechnique;
+
+  const _EvidenceCenterSummary({
+    required this.axisCounts,
+    required this.maxAxisCount,
+    required this.topPosition,
+    required this.topTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        border: Border.all(color: cs.secondary.withValues(alpha: 0.14)),
+        color: cs.secondary.withValues(alpha: 0.05),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final axis in _evidenceCenterAxes) ...[
+            _EvidenceCenterAxisBar(
+              axis: axis,
+              count: axisCounts[axis] ?? 0,
+              maxCount: maxAxisCount,
+            ),
+            if (axis != _evidenceCenterAxes.last) const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Center(
-                child: Container(
-                  width: 30,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(999),
-                    color: cs.onSurface.withValues(alpha: 0.18),
-                  ),
+              _MiniBadge(
+                label: 'Top posição: ${topPosition ?? 'sem dados'}',
+                color: cs.primary,
+              ),
+              _MiniBadge(
+                label: 'Top técnica: ${topTechnique ?? 'sem dados'}',
+                color: TitansUI.actionGold,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceCenterAxisBar extends StatelessWidget {
+  final TechnicalRadarAxis axis;
+  final int count;
+  final int maxCount;
+
+  const _EvidenceCenterAxisBar({
+    required this.axis,
+    required this.count,
+    required this.maxCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _axisColor(context, axis);
+    final fraction = maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0);
+
+    return Row(
+      children: [
+        SizedBox(
+          width: 74,
+          child: Text(
+            axis.displayLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 8,
+              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 24,
+          child: Text(
+            '$count',
+            textAlign: TextAlign.right,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EvidenceCenterCard extends StatelessWidget {
+  final TechnicalEvidenceSummary item;
+  final TechnicalRadarAxis axis;
+  final bool evaluated;
+  final VoidCallback onTap;
+
+  const _EvidenceCenterCard({
+    required this.item,
+    required this.axis,
+    required this.evaluated,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final color = _axisColor(context, axis);
+    final position =
+        item.positions.isEmpty ? 'Sem posição' : item.positions.first;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 92),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+            border: Border.all(color: color.withValues(alpha: 0.18)),
+            color: color.withValues(alpha: 0.055),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      item.techniqueName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 6,
+                      children: [
+                        _MiniBadge(label: position, color: cs.primary),
+                        _MiniBadge(label: axis.displayLabel, color: color),
+                        _MiniBadge(
+                          label: '${item.evidenceCount} registros',
+                          color: cs.secondary,
+                        ),
+                        _MiniBadge(
+                          label: evaluated ? 'Avaliada' : 'Sem avaliação',
+                          color:
+                              evaluated
+                                  ? TitansUI.successGreen
+                                  : cs.onSurface.withValues(alpha: 0.52),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Todas as evidências técnicas (${items.length})',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: ListView.separated(
-                  shrinkWrap: true,
-                  itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 8),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return _TechnicalEvidencePreviewTile(
-                      item: item,
-                      onTap: () {
-                        Navigator.of(context).pop();
-                        _showTechnicalEvidenceDetails(context, item);
-                      },
-                    );
-                  },
-                ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: cs.onSurface.withValues(alpha: 0.48),
+                size: 20,
               ),
             ],
           ),
         ),
-      );
-    },
-  );
+      ),
+    );
+  }
+}
+
+const _evidenceCenterAxes = <TechnicalRadarAxis>[
+  TechnicalRadarAxis.retention,
+  TechnicalRadarAxis.transition,
+  TechnicalRadarAxis.control,
+  TechnicalRadarAxis.attack,
+];
+
+TechnicalRadarAxis _axisForTechnicalEvidence(TechnicalEvidenceSummary item) {
+  if (item.skillId.startsWith('custom.')) {
+    return TechnicalRadarAxis.unclassified;
+  }
+  final identity =
+      JiuJitsuTaxonomy.resolveSkillIdentity(item.techniqueName) ??
+      JiuJitsuTaxonomy.resolveSkillIdentity(item.normalizedTechniqueName);
+  if (identity == null) return TechnicalRadarAxis.unclassified;
+  return JiuJitsuTaxonomy.technicalRadarAxisForCategory(identity.category);
+}
+
+Map<TechnicalRadarAxis, int> _axisEvidenceCounts(
+  List<TechnicalEvidenceSummary> items,
+) {
+  final counts = <TechnicalRadarAxis, int>{
+    for (final axis in _evidenceCenterAxes) axis: 0,
+  };
+  for (final item in items) {
+    final axis = _axisForTechnicalEvidence(item);
+    if (!counts.containsKey(axis)) continue;
+    counts[axis] = (counts[axis] ?? 0) + item.evidenceCount;
+  }
+  return counts;
+}
+
+String? _topEvidencePosition(List<TechnicalEvidenceSummary> items) {
+  final counts = <String, int>{};
+  for (final item in items) {
+    for (final position in item.positions) {
+      counts[position] = (counts[position] ?? 0) + item.evidenceCount;
+    }
+  }
+  if (counts.isEmpty) return null;
+  final entries =
+      counts.entries.toList()..sort((a, b) {
+        final countCompare = b.value.compareTo(a.value);
+        if (countCompare != 0) return countCompare;
+        return a.key.compareTo(b.key);
+      });
+  return entries.first.key;
+}
+
+int _compareEvidenceItems(
+  TechnicalEvidenceSummary a,
+  TechnicalEvidenceSummary b,
+) {
+  final countCompare = b.evidenceCount.compareTo(a.evidenceCount);
+  if (countCompare != 0) return countCompare;
+  return b.lastPracticedAt.compareTo(a.lastPracticedAt);
 }

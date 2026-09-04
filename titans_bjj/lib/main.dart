@@ -2,6 +2,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 
 import 'auth_gate.dart';
+import 'core/startup_performance_trace.dart';
 import 'core/theme_controller.dart';
 import 'core/titans_theme.dart';
 import 'core/titans_ui.dart';
@@ -31,8 +32,13 @@ final SelectedStudentController selectedStudentController =
     SelectedStudentController();
 
 Future<void> main() async {
+  StartupPerformanceTrace.mark('main start');
   WidgetsFlutterBinding.ensureInitialized();
+  StartupPerformanceTrace.mark('widgets binding ready');
+  StartupPerformanceTrace.start('firebase initialize');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  StartupPerformanceTrace.end('firebase initialize');
+  StartupPerformanceTrace.mark('runApp called');
   runApp(const TitansApp());
 }
 
@@ -43,19 +49,27 @@ class TitansApp extends StatefulWidget {
   State<TitansApp> createState() => _TitansAppState();
 }
 
-class _TitansAppState extends State<TitansApp> {
+class _TitansAppState extends State<TitansApp> with WidgetsBindingObserver {
   late final SessionLifecycleService _sessionLifecycleService;
 
   @override
   void initState() {
     super.initState();
+    StartupPerformanceTrace.mark('TitansApp initState');
+    WidgetsBinding.instance.addObserver(this);
     _sessionLifecycleService = SessionLifecycleService(
       selectedStudentController: selectedStudentController,
     )..register();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    StartupPerformanceTrace.mark('AppLifecycleState.${state.name}');
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _sessionLifecycleService.dispose();
     super.dispose();
   }

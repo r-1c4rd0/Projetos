@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import 'config/app_config.dart';
+import 'core/startup_performance_trace.dart';
 import 'model/academy_membership.dart';
 import 'model/app_user.dart';
 import 'screen/login_screen.dart';
@@ -22,25 +23,31 @@ class AuthGate extends StatefulWidget {
 
 class _AuthGateState extends State<AuthGate> {
   late final Stream<User?> _authStateChanges;
+  int _buildCount = 0;
 
   @override
   void initState() {
     super.initState();
+    StartupPerformanceTrace.mark('AuthGate initState');
     _authStateChanges = FirebaseAuth.instance.authStateChanges();
   }
 
   @override
   Widget build(BuildContext context) {
+    _buildCount += 1;
+    StartupPerformanceTrace.mark('AuthGate build #$_buildCount');
     return StreamBuilder<User?>(
       stream: _authStateChanges,
       builder: (context, authSnap) {
         if (authSnap.connectionState == ConnectionState.waiting) {
+          StartupPerformanceTrace.mark('authStateChanges waiting');
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (authSnap.hasError) {
+          StartupPerformanceTrace.mark('authStateChanges error');
           return _ErrorScreen(
             title: 'Erro no authStateChanges()',
             error: authSnap.error,
@@ -48,12 +55,17 @@ class _AuthGateState extends State<AuthGate> {
         }
 
         final firebaseUser = authSnap.data;
-        if (firebaseUser == null) return const LoginScreen();
+        if (firebaseUser == null) {
+          StartupPerformanceTrace.mark('Home/Login returned: Login');
+          return const LoginScreen();
+        }
+        StartupPerformanceTrace.mark('authStateChanges user received');
 
         return AnimatedBuilder(
           animation: SessionLockController.instance,
           builder: (context, _) {
             if (SessionLockController.instance.locked) {
+              StartupPerformanceTrace.mark('Home/Login returned: Login unlock');
               return const LoginScreen(unlockOnly: true);
             }
 
@@ -86,7 +98,7 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   @override
   void initState() {
     super.initState();
-    _sessionFuture = _loadSession();
+    _sessionFuture = _startSessionLoad('init');
   }
 
   @override
@@ -94,18 +106,28 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.firebaseUser.uid != widget.firebaseUser.uid ||
         oldWidget.firebaseUser.email != widget.firebaseUser.email) {
+      StartupPerformanceTrace.mark('AuthGate user changed');
       _selectedAcademyId = null;
-      _sessionFuture = _loadSession();
+      _sessionFuture = _startSessionLoad('user changed');
     }
   }
 
-  Future<_ResolvedUserSession> _loadSession() async {
+  Future<_ResolvedUserSession> _startSessionLoad(String reason) {
+    StartupPerformanceTrace.start('AuthGate session load: $reason');
+    return _loadSession(reason);
+  }
+
+  Future<_ResolvedUserSession> _loadSession(String reason) async {
     final memberships = await _loadMemberships();
     final activeMemberships = memberships
         .where((membership) => membership.isActive)
         .toList(growable: false);
 
     if (activeMemberships.length > 1 && _selectedAcademyId == null) {
+      StartupPerformanceTrace.mark(
+        'AuthGate resolved destination: academy selection',
+      );
+      StartupPerformanceTrace.end('AuthGate session load: $reason');
       return _ResolvedUserSession.needsSelection(activeMemberships);
     }
 
@@ -115,6 +137,7 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
 
     await _acceptPendingInviteIfAvailable(activeAcademyId);
 
+    StartupPerformanceTrace.start('ensureUserDoc');
     final appUser = await UserRepository.instance
         .ensureUserDoc(
           uid: widget.firebaseUser.uid,
@@ -122,6 +145,9 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
           academyId: activeAcademyId,
         )
         .timeout(const Duration(seconds: 12));
+    StartupPerformanceTrace.end('ensureUserDoc');
+    StartupPerformanceTrace.mark('AuthGate resolved destination: app');
+    StartupPerformanceTrace.end('AuthGate session load: $reason');
 
     return _ResolvedUserSession(
       user: appUser,
@@ -132,14 +158,24 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   }
 
   Future<List<AcademyMembership>> _loadMemberships() async {
+    StartupPerformanceTrace.start('membership load');
     try {
-      return await AcademyMembershipRepository.instance
+      final memberships = await AcademyMembershipRepository.instance
           .listMemberships(widget.firebaseUser.uid)
           .timeout(const Duration(seconds: 8));
+      StartupPerformanceTrace.end(
+        'membership load',
+        detail: 'count=${memberships.length}',
+      );
+      return memberships;
     } on FirebaseException catch (error) {
       if (error.code == 'permission-denied' || error.code == 'unavailable') {
         debugPrint(
           '[MULTI_ACADEMY] memberships fallback code=${error.code} message=${error.message}',
+        );
+        StartupPerformanceTrace.end(
+          'membership load',
+          detail: 'fallback=${error.code}',
         );
         return const <AcademyMembership>[];
       }
@@ -165,17 +201,31 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   }
 
   void _selectAcademy(AcademyMembership membership) {
+    if (!mounted) return;
     setState(() {
       _selectedAcademyId = membership.academyId;
-      _sessionFuture = _loadSession();
+      _sessionFuture = _startSessionLoad('academy selected');
     });
   }
 
   Future<void> _acceptPendingInviteIfAvailable(String activeAcademyId) async {
+    StartupPerformanceTrace.start('invite check');
     final inviteRepo = InviteRepository.instance;
     final email = widget.firebaseUser.email ?? '';
-    if (inviteRepo.normalizeEmail(email).isEmpty) return;
-    if (!inviteRepo.canAcceptInvites) return;
+    if (inviteRepo.normalizeEmail(email).isEmpty) {
+      StartupPerformanceTrace.end(
+        'invite check',
+        detail: 'skipped=empty-email',
+      );
+      return;
+    }
+    if (!inviteRepo.canAcceptInvites) {
+      StartupPerformanceTrace.end(
+        'invite check',
+        detail: 'skipped=unavailable',
+      );
+      return;
+    }
 
     try {
       final invite = await inviteRepo
@@ -183,35 +233,47 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
           .first
           .timeout(const Duration(seconds: 6), onTimeout: () => null);
 
-      if (invite == null) return;
+      if (invite == null) {
+        StartupPerformanceTrace.end('invite check', detail: 'none');
+        return;
+      }
 
       await inviteRepo.acceptInviteForCurrentUser(
         academyId: activeAcademyId,
         inviteId: invite.id,
         firebaseUser: widget.firebaseUser,
       );
+      StartupPerformanceTrace.end('invite check', detail: 'accepted');
     } on FirebaseException catch (error) {
       debugPrint(
         '[AUTH_INVITE] skipped code=${error.code} message=${error.message}',
       );
+      StartupPerformanceTrace.end(
+        'invite check',
+        detail: 'error=${error.code}',
+      );
     } catch (error, stackTrace) {
       debugPrint('[AUTH_INVITE] skipped error=$error');
       debugPrintStack(stackTrace: stackTrace);
+      StartupPerformanceTrace.end('invite check', detail: 'error');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    StartupPerformanceTrace.mark('AuthenticatedApp build');
     return FutureBuilder<_ResolvedUserSession>(
       future: _sessionFuture,
       builder: (context, sessionSnap) {
         if (sessionSnap.connectionState == ConnectionState.waiting) {
+          StartupPerformanceTrace.mark('AuthGate session waiting');
           return const Scaffold(
             body: Center(child: CircularProgressIndicator()),
           );
         }
 
         if (sessionSnap.hasError) {
+          StartupPerformanceTrace.mark('AuthGate session error');
           final err = sessionSnap.error?.toString() ?? '';
           final isOfflineFirestore =
               err.contains('client is offline') ||
@@ -223,6 +285,9 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
               email: widget.firebaseUser.email ?? '',
               academyId: _lastResolvedAcademyId,
               role: UserRole.athlete,
+            );
+            StartupPerformanceTrace.mark(
+              'AuthGate resolved destination: app offline fallback',
             );
             return UserScope(
               user: appUser,
@@ -246,6 +311,9 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
         }
 
         if (session.needsAcademySelection) {
+          StartupPerformanceTrace.mark(
+            'Home/Login returned: academy selection',
+          );
           return _AcademySelectorScreen(
             memberships: session.memberships,
             onSelected: _selectAcademy,
@@ -260,6 +328,7 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
           );
         }
 
+        StartupPerformanceTrace.mark('Home/Login returned: Home');
         return UserScope(
           user: appUser,
           activeAcademyId: session.activeAcademyId,
