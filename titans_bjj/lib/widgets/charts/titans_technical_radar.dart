@@ -20,18 +20,18 @@ class TitansTechnicalRadarEvidence {
   });
 }
 
-/// Radar tÃ©cnico com vida contÃ­nua: varredura (sweep) rotativa, pulso no
-/// preenchimento, foco por eixo ao toque e comparaÃ§Ã£o "fantasma" com um
-/// perÃ­odo anterior.
+/// Radar técnico com vida contínua: varredura (sweep) rotativa, pulso no
+/// preenchimento, foco por eixo ao toque e comparação "fantasma" com um
+/// período anterior.
 ///
-/// CompatÃ­vel com o widget original â€” todos os parÃ¢metros novos tÃªm
-/// default e nÃ£o quebram quem jÃ¡ instancia `TitansTechnicalRadar` sem eles.
+/// Compatível com o widget original — todos os parâmetros novos têm
+/// default e não quebram quem já instancia `TitansTechnicalRadar` sem eles.
 ///
-/// Nota de performance: `enableSweep` mantÃ©m uma animaÃ§Ã£o rodando
+/// Nota de performance: `enableSweep` mantém uma animação rodando
 /// indefinidamente enquanto o widget estiver montado. Em uma lista com
-/// vÃ¡rios radares ao mesmo tempo (ex: dashboard com um card por aluno),
-/// desligue com `enableSweep: false` e deixe ligado sÃ³ na tela de detalhe
-/// (Game Map / SkillDetail), onde hÃ¡ um radar sÃ³ na tela.
+/// vários radares ao mesmo tempo (ex: dashboard com um card por aluno),
+/// desligue com `enableSweep: false` e deixe ligado só na tela de detalhe
+/// (Game Map / SkillDetail), onde há um radar só na tela.
 enum TitansTechnicalRadarVariant { full, compact, homePreview }
 
 enum TitansRadarPerspective {
@@ -160,8 +160,8 @@ class TitansTechnicalRadar extends StatefulWidget {
   final List<TitansTechnicalRadarEvidence> evidences;
   final Map<TechnicalRadarAxis, int> axisEvidence;
 
-  /// EvidÃªncias do perÃ­odo anterior, para o polÃ­gono fantasma tracejado.
-  /// Se null, o fantasma nÃ£o Ã© desenhado.
+  /// Evidências do período anterior, para o polígono fantasma tracejado.
+  /// Se null, o fantasma não é desenhado.
   final Map<TechnicalRadarAxis, int>? previousAxisEvidence;
 
   final int classifiedEvidenceCount;
@@ -179,23 +179,23 @@ class TitansTechnicalRadar extends StatefulWidget {
   final bool enablePerspectiveControls;
   final TitansRadarPerspective initialPerspective;
 
-  /// Liga a varredura rotativa contÃ­nua e o pulso de glow. Desligue em
+  /// Liga a varredura rotativa contínua e o pulso de glow. Desligue em
   /// contextos de lista (ver nota de performance acima).
   final bool enableSweep;
 
   /// Liga detalhes extras de HUD: scanlines sutis, reticles nos cantos,
   /// trilha "cometa" no eixo dominante e um ping de radar ao focar um
-  /// eixo. 100% opt-in â€” desligado por padrÃ£o para nÃ£o alterar a
-  /// aparÃªncia de quem jÃ¡ usa o widget. Recomendado junto de
-  /// `enableHolographicMode: true`, mas funciona sem ele tambÃ©m
+  /// eixo. 100% opt-in — desligado por padrão para não alterar a
+  /// aparência de quem já usa o widget. Recomendado junto de
+  /// `enableHolographicMode: true`, mas funciona sem ele também
   /// (nesse caso fica mais sutil, sem a trilha 3D).
   final bool enableHudDetails;
 
   const TitansTechnicalRadar({
     super.key,
-    this.title = 'Radar TÃ©cnico',
-    this.subtitle = 'EvidÃªncias tÃ©cnicas registradas por eixo.',
-    this.stateLabel = 'Perfil tÃ©cnico em formaÃ§Ã£o',
+    this.title = 'Radar Técnico',
+    this.subtitle = 'Evidências técnicas registradas por eixo.',
+    this.stateLabel = 'Perfil técnico em formação',
     this.evidences = const [],
     this.axisEvidence = const {},
     this.previousAxisEvidence,
@@ -223,7 +223,7 @@ class TitansTechnicalRadar extends StatefulWidget {
 class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     with TickerProviderStateMixin {
   late final AnimationController _entrance;
-  late final AnimationController _loop; // sweep + pulse contÃ­nuos
+  late final AnimationController _loop; // sweep + pulse contínuos
   late final AnimationController _focusPing; // anel de radar ao focar eixo
   int? _focusedAxisIndex;
   late TitansRadarPerspective _perspective;
@@ -570,18 +570,18 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
           const SizedBox(height: 10),
           _RadarLegend(
             items: [
-              _RadarLegendItem(color: cs.tertiary, label: 'EvidÃªncias'),
+              _RadarLegendItem(color: cs.tertiary, label: 'Evidências'),
               if (effectivePreviousAxisEvidence != null)
                 _RadarLegendItem(
                   color: cs.onSurface.withValues(alpha: 0.4),
-                  label: 'PerÃ­odo anterior',
+                  label: 'Período anterior',
                 ),
               if (widget.evidences.any(
                 (item) => item.label.toLowerCase().contains('avalia'),
               ))
                 _RadarLegendItem(
                   color: cs.secondary,
-                  label: 'AvaliaÃ§Ãµes registradas',
+                  label: 'Avaliações registradas',
                 ),
             ],
           ),
@@ -595,7 +595,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
         if (widget.showSafetyCopy) ...[
           const SizedBox(height: 8),
           Text(
-            'NÃ£o representa nota ou desempenho.',
+            'Não representa nota ou desempenho.',
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
@@ -622,7 +622,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
   }
 }
 
-/// Detalhe compacto mostrado abaixo do radar quando um eixo estÃ¡ focado.
+/// Detalhe compacto mostrado abaixo do radar quando um eixo está focado.
 class _RadarPerspectiveSelector extends StatelessWidget {
   final TitansRadarPerspective selected;
   final ValueChanged<TitansRadarPerspective> onChanged;
@@ -940,7 +940,7 @@ class _RadarFocusDetail extends StatelessWidget {
             ),
           ),
           Text(
-            '$value evidÃªncias',
+            '$value evidências',
             style: TextStyle(
               color: color,
               fontSize: 13,
@@ -969,7 +969,7 @@ class _RadarEmptyCenterLabel extends StatelessWidget {
           border: Border.all(color: cs.outline.withValues(alpha: 0.18)),
         ),
         child: Text(
-          'Sem evidÃªncias classificadas',
+          'Sem evidências classificadas',
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -1198,7 +1198,7 @@ class _RadarEvidenceDistribution extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'DISTRIBUIÃ‡ÃƒO DAS EVIDÃŠNCIAS',
+          'DISTRIBUIÇÃO DAS EVIDÊNCIAS',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -1219,7 +1219,7 @@ class _RadarEvidenceDistribution extends StatelessWidget {
         ],
         const SizedBox(height: 10),
         Text(
-          '$classifiedEvidenceCount classificadas Â· $awaitingClassificationCount aguardando classificaÃ§Ã£o',
+          '$classifiedEvidenceCount classificadas · $awaitingClassificationCount aguardando classificação',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -1373,7 +1373,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
   final TitansRadarCamera camera;
   final bool enableHudDetails;
 
-  /// 0..1 â€” progresso do anel de "ping" desde que um eixo foi focado.
+  /// 0..1 — progresso do anel de "ping" desde que um eixo foi focado.
   final double focusPingValue;
 
   const _TechnicalRadarEvidencePainter(
@@ -1522,8 +1522,8 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     );
   }
 
-  /// Brackets de mira nos 4 cantos da Ã¡rea do widget â€” reforÃ§a a leitura
-  /// de "interface tÃ¡tica" sem competir com os dados. EstÃ¡tico e barato.
+  /// Brackets de mira nos 4 cantos da área do widget — reforça a leitura
+  /// de "interface tática" sem competir com os dados. Estático e barato.
   void _paintCornerReticles(Canvas canvas, Size size) {
     const inset = 6.0;
     const arm = 12.0;
@@ -1545,8 +1545,8 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     bracket(Offset(size.width - inset, size.height - inset), -1, -1);
   }
 
-  /// Linhas horizontais finas sobre o disco do radar â€” textura de tela
-  /// hologrÃ¡fica. Alpha bem baixo para nÃ£o brigar com o conteÃºdo.
+  /// Linhas horizontais finas sobre o disco do radar — textura de tela
+  /// holográfica. Alpha bem baixo para não brigar com o conteúdo.
   void _paintScanlines(Canvas canvas, Offset center, double radius) {
     canvas.save();
     canvas.clipPath(
@@ -1569,9 +1569,9 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     canvas.restore();
   }
 
-  /// Trilha "cometa" atrÃ¡s do vÃ©rtice de maior evidÃªncia: 3 ecos
-  /// decrescentes ao longo da direÃ§Ã£o do eixo, dando sensaÃ§Ã£o de
-  /// varredura contÃ­nua naquele ponto.
+  /// Trilha "cometa" atrás do vértice de maior evidência: 3 ecos
+  /// decrescentes ao longo da direção do eixo, dando sensação de
+  /// varredura contínua naquele ponto.
   void _paintDominantTrail(
     Canvas canvas,
     Offset center,
@@ -1605,7 +1605,7 @@ class _TechnicalRadarEvidencePainter extends CustomPainter {
     }
   }
 
-  /// Anel de radar que nasce no vÃ©rtice focado e se expande com fade â€”
+  /// Anel de radar que nasce no vértice focado e se expande com fade —
   /// disparado uma vez por foco via `focusPingValue` (0 a 1).
   void _paintFocusPing(
     Canvas canvas,

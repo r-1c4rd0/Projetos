@@ -614,10 +614,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         onOpenSkills: openSkills,
                                       ),
                                       const SizedBox(height: 12),
-                                      _HomeTechnicalRadarSlot(
+                                      _HomeIntelligenceDeck(
                                         cs: cs,
+                                        dashboard: homeViewModel,
                                         radar: technicalRadar,
+                                        beltProgress: beltProgress,
                                         onOpenMap: openGameMap,
+                                        onOpenTraining: openTraining,
                                       ),
                                       const SizedBox(height: 12),
                                       _CoachActiveLiteModules(
@@ -645,10 +648,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       ),
                                     ] else ...[
                                       if (isAthleteSelfView) ...[
-                                        _HomeTechnicalRadarSlot(
+                                        _HomeIntelligenceDeck(
                                           cs: cs,
+                                          dashboard: homeViewModel,
                                           radar: technicalRadar,
+                                          beltProgress: beltProgress,
                                           onOpenMap: openGameMap,
+                                          onOpenTraining: openTraining,
                                           onRegisterTraining:
                                               openRegisterTraining,
                                         ),
@@ -686,10 +692,13 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           onOpenSkills: openSkills,
                                         ),
                                         const SizedBox(height: 12),
-                                        _HomeTechnicalRadarSlot(
+                                        _HomeIntelligenceDeck(
                                           cs: cs,
+                                          dashboard: homeViewModel,
                                           radar: technicalRadar,
+                                          beltProgress: beltProgress,
                                           onOpenMap: openGameMap,
+                                          onOpenTraining: openTraining,
                                           onRegisterTraining:
                                               openRegisterTraining,
                                         ),
@@ -1345,8 +1354,8 @@ class _AthleteCard extends StatelessWidget {
           if (hasActions) ...[
             const SizedBox(height: 12),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 if (onEditProfile != null)
                   OutlinedButton.icon(
@@ -2571,8 +2580,8 @@ class _CoachTechnicalFocusCard extends StatelessWidget {
           if (!compact) ...[
             const SizedBox(height: 12),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 OutlinedButton.icon(
                   onPressed: onOpenEvidence,
@@ -2749,13 +2758,243 @@ class _HomeTechnicalRadarViewModel {
   }
 }
 
-class _HomeTechnicalRadarSlot extends StatelessWidget {
+class _HomeIntelligenceDeck extends StatefulWidget {
+  final ColorScheme cs;
+  final _HomeDashboardViewModel dashboard;
+  final _HomeTechnicalRadarViewModel radar;
+  final _BeltProgress beltProgress;
+  final VoidCallback onOpenMap;
+  final VoidCallback onOpenTraining;
+  final VoidCallback? onRegisterTraining;
+
+  const _HomeIntelligenceDeck({
+    required this.cs,
+    required this.dashboard,
+    required this.radar,
+    required this.beltProgress,
+    required this.onOpenMap,
+    required this.onOpenTraining,
+    this.onRegisterTraining,
+  });
+
+  @override
+  State<_HomeIntelligenceDeck> createState() => _HomeIntelligenceDeckState();
+}
+
+class _HomeIntelligenceDeckState extends State<_HomeIntelligenceDeck> {
+  int _index = 0;
+
+  static const _pages = [
+    _HomeDeckPageMeta(label: 'Radar', icon: Icons.radar_outlined),
+    _HomeDeckPageMeta(label: 'Treinos', icon: Icons.show_chart_rounded),
+    _HomeDeckPageMeta(
+      label: 'Progresso',
+      icon: Icons.workspace_premium_outlined,
+    ),
+    _HomeDeckPageMeta(
+      label: 'Repert\u00f3rio',
+      icon: Icons.account_tree_outlined,
+    ),
+  ];
+
+  void _goTo(int index) {
+    if (index == _index) return;
+    setState(() => _index = index.clamp(0, _pages.length - 1));
+  }
+
+  void _next() => _goTo((_index + 1) % _pages.length);
+
+  void _previous() => _goTo((_index - 1 + _pages.length) % _pages.length);
+
+  @override
+  Widget build(BuildContext context) {
+    final reduceMotion =
+        MediaQuery.of(context).disableAnimations ||
+        MediaQuery.of(context).accessibleNavigation;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onHorizontalDragEnd: (details) {
+            final velocity = details.primaryVelocity ?? 0;
+            if (velocity < -120) _next();
+            if (velocity > 120) _previous();
+          },
+          child: AnimatedSwitcher(
+            duration:
+                reduceMotion
+                    ? Duration.zero
+                    : const Duration(milliseconds: 220),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeOutCubic,
+            transitionBuilder: (child, animation) {
+              if (reduceMotion) return child;
+              final curved = CurvedAnimation(
+                parent: animation,
+                curve: Curves.easeOutCubic,
+                reverseCurve: Curves.easeInCubic,
+              );
+              return FadeTransition(
+                opacity: curved,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(0.02, 0.03),
+                    end: Offset.zero,
+                  ).animate(curved),
+                  child: ScaleTransition(
+                    scale: Tween<double>(begin: 0.992, end: 1).animate(curved),
+                    child: child,
+                  ),
+                ),
+              );
+            },
+            child: KeyedSubtree(
+              key: ValueKey<int>(_index),
+              child: _buildPage(context),
+            ),
+          ),
+        ),
+        const SizedBox(height: 10),
+        _HomeDeckIndicator(
+          pages: _pages,
+          selectedIndex: _index,
+          onSelect: _goTo,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPage(BuildContext context) {
+    switch (_index) {
+      case 0:
+        return _HomeRadarInsight(
+          cs: widget.cs,
+          radar: widget.radar,
+          onOpenMap: widget.onOpenMap,
+          onRegisterTraining: widget.onRegisterTraining,
+        );
+      case 1:
+        return _HomeTrainingInsight(
+          cs: widget.cs,
+          metrics: widget.dashboard.metrics,
+          recentSessions: widget.dashboard.recentSessions,
+          lastSession:
+              widget.dashboard.lastSessions.isEmpty
+                  ? null
+                  : widget.dashboard.lastSessions.first,
+          onOpenTraining: widget.onOpenTraining,
+          onRegisterTraining: widget.onRegisterTraining,
+        );
+      case 2:
+        return _HomeProgressInsight(
+          cs: widget.cs,
+          beltProgress: widget.beltProgress,
+          metrics: widget.dashboard.metrics,
+          frequency: widget.dashboard.frequency,
+        );
+      default:
+        return _HomeConsistencyInsight(
+          cs: widget.cs,
+          frequency: widget.dashboard.frequency,
+          gameMap: widget.dashboard.gameMapLite,
+          skillMatrix: widget.dashboard.skillMatrix,
+          onOpenMap: widget.onOpenMap,
+        );
+    }
+  }
+}
+
+class _HomeDeckPageMeta {
+  final String label;
+  final IconData icon;
+
+  const _HomeDeckPageMeta({required this.label, required this.icon});
+}
+
+class _HomeDeckIndicator extends StatelessWidget {
+  final List<_HomeDeckPageMeta> pages;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  const _HomeDeckIndicator({
+    required this.pages,
+    required this.selectedIndex,
+    required this.onSelect,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 7,
+      runSpacing: 7,
+      children: [
+        for (var i = 0; i < pages.length; i++)
+          InkWell(
+            borderRadius: BorderRadius.circular(999),
+            onTap: () => onSelect(i),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 160),
+              curve: Curves.easeOutCubic,
+              padding: EdgeInsets.symmetric(
+                horizontal: selectedIndex == i ? 10 : 8,
+                vertical: 6,
+              ),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                color:
+                    selectedIndex == i
+                        ? cs.primary.withValues(alpha: 0.14)
+                        : cs.onSurface.withValues(alpha: 0.045),
+                border: Border.all(
+                  color:
+                      selectedIndex == i
+                          ? cs.primary.withValues(alpha: 0.34)
+                          : cs.onSurface.withValues(alpha: 0.08),
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    pages[i].icon,
+                    size: 13,
+                    color:
+                        selectedIndex == i
+                            ? cs.primary
+                            : cs.onSurface.withValues(alpha: 0.58),
+                  ),
+                  if (selectedIndex == i) ...[
+                    const SizedBox(width: 6),
+                    Text(
+                      pages[i].label,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.82),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HomeRadarInsight extends StatelessWidget {
   final ColorScheme cs;
   final _HomeTechnicalRadarViewModel radar;
   final VoidCallback onOpenMap;
   final VoidCallback? onRegisterTraining;
 
-  const _HomeTechnicalRadarSlot({
+  const _HomeRadarInsight({
     required this.cs,
     required this.radar,
     required this.onOpenMap,
@@ -2788,6 +3027,546 @@ class _HomeTechnicalRadarSlot extends StatelessWidget {
   }
 }
 
+class _HomeTrainingInsight extends StatelessWidget {
+  final ColorScheme cs;
+  final HomeTrainingMetrics metrics;
+  final List<TrainingSession> recentSessions;
+  final TrainingSession? lastSession;
+  final VoidCallback onOpenTraining;
+  final VoidCallback? onRegisterTraining;
+
+  const _HomeTrainingInsight({
+    required this.cs,
+    required this.metrics,
+    required this.recentSessions,
+    required this.lastSession,
+    required this.onOpenTraining,
+    this.onRegisterTraining,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final lastTrainingLabel =
+        lastSession == null
+            ? 'Sem treino recente'
+            : _formatShortDate(lastSession!.date);
+    final hasRecent = recentSessions.isNotEmpty;
+
+    return _GlassCard(
+      accent: TitansUI.successGreen.withValues(alpha: 0.34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HomeDeckHeader(
+            title: 'COCKPIT T\u00c9CNICO',
+            subtitle: 'Ritmo de treino',
+            badgeLabel: '${metrics.recent} em 30 dias',
+            badgeIcon: Icons.show_chart_rounded,
+            accent: TitansUI.successGreen,
+          ),
+          const SizedBox(height: 14),
+          _HomeTrainingTimeline(
+            sessions: recentSessions,
+            accent: TitansUI.successGreen,
+          ),
+          const SizedBox(height: 14),
+          _HomeDeckInsightLine(
+            icon: Icons.calendar_month_outlined,
+            accent: TitansUI.successGreen,
+            text:
+                hasRecent
+                    ? 'Voc\u00ea treinou ${metrics.recent} vezes nos \u00faltimos 30 dias. \u00daltimo treino: $lastTrainingLabel.'
+                    : 'Registre treinos para construir essa leitura.',
+          ),
+          const SizedBox(height: 12),
+          _HomeRadarCta(
+            label:
+                onRegisterTraining == null ? 'Ver treinos' : 'Registrar treino',
+            icon:
+                onRegisterTraining == null
+                    ? Icons.fitness_center_outlined
+                    : Icons.add_task_outlined,
+            onPressed: onRegisterTraining ?? onOpenTraining,
+            filled: onRegisterTraining != null,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeProgressInsight extends StatelessWidget {
+  final ColorScheme cs;
+  final _BeltProgress beltProgress;
+  final HomeTrainingMetrics metrics;
+  final int frequency;
+
+  const _HomeProgressInsight({
+    required this.cs,
+    required this.beltProgress,
+    required this.metrics,
+    required this.frequency,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final ringColor = _beltProgressRingColor(beltProgress.belt);
+    final ruleLabel =
+        beltProgress.hasOfficialRule
+            ? '${beltProgress.sessionsInBelt}/${beltProgress.sessionsRequired} sess\u00f5es na faixa'
+            : '${beltProgress.sessionsInBelt} sess\u00f5es registradas';
+
+    return _GlassCard(
+      accent: ringColor.withValues(alpha: 0.34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HomeDeckHeader(
+            title: 'COCKPIT T\u00c9CNICO',
+            subtitle: 'Progresso de faixa',
+            badgeLabel:
+                '${_beltLabel(beltProgress.belt)} · ${beltProgress.degree}\u00ba grau',
+            badgeIcon: Icons.workspace_premium_outlined,
+            accent: ringColor,
+          ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              _BeltProgressRing(
+                colorScheme: cs,
+                value: beltProgress.percentToNextBelt,
+                color: ringColor,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _HomeProgressMiniBar(
+                      label: ruleLabel,
+                      value: beltProgress.percentToNextBelt,
+                      color: ringColor,
+                    ),
+                    const SizedBox(height: 10),
+                    _HomeDeckInsightLine(
+                      icon: Icons.insights_outlined,
+                      accent: ringColor,
+                      text:
+                          'Base real: ${metrics.total} treinos totais e $frequency% de regularidade em 8 semanas.',
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          _HomeDeckPassiveCta(
+            icon: Icons.workspace_premium_outlined,
+            text: 'Leitura de progresso exibida aqui sem abrir nova rota.',
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeConsistencyInsight extends StatelessWidget {
+  final ColorScheme cs;
+  final int frequency;
+  final List<GameMapEntry> gameMap;
+  final List<SkillMatrixCategoryEntry> skillMatrix;
+  final VoidCallback onOpenMap;
+
+  const _HomeConsistencyInsight({
+    required this.cs,
+    required this.frequency,
+    required this.gameMap,
+    required this.skillMatrix,
+    required this.onOpenMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final topPosition = _topGameMapPosition(gameMap);
+    final topTechnique = _topSkillMatrixTechnique(skillMatrix);
+    final totalTechniques = skillMatrix.fold<int>(
+      0,
+      (sum, entry) => sum + entry.techniquesCount,
+    );
+
+    return _GlassCard(
+      accent: cs.secondary.withValues(alpha: 0.34),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _HomeDeckHeader(
+            title: 'COCKPIT T\u00c9CNICO',
+            subtitle: 'Consist\u00eancia e repert\u00f3rio',
+            badgeLabel: '$frequency% em 8 semanas',
+            badgeIcon: Icons.account_tree_outlined,
+            accent: cs.secondary,
+          ),
+          const SizedBox(height: 14),
+          _HomeConsistencyConstellation(
+            gameMap: gameMap,
+            skillMatrix: skillMatrix,
+            accent: cs.secondary,
+          ),
+          const SizedBox(height: 14),
+          _HomeDeckInsightLine(
+            icon: Icons.hub_outlined,
+            accent: cs.secondary,
+            text:
+                topPosition == null && topTechnique == null
+                    ? 'Repert\u00f3rio em forma\u00e7\u00e3o. Registre posi\u00e7\u00e3o e t\u00e9cnica para construir essa leitura.'
+                    : 'Mais presente: ${topPosition ?? topTechnique}. Repert\u00f3rio com $totalTechniques t\u00e9cnicas registradas.',
+          ),
+          const SizedBox(height: 12),
+          _HomeRadarCta(
+            label: 'Explorar mapa',
+            icon: Icons.map_outlined,
+            onPressed: onOpenMap,
+            filled: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HomeDeckHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final String badgeLabel;
+  final IconData badgeIcon;
+  final Color accent;
+
+  const _HomeDeckHeader({
+    required this.title,
+    required this.subtitle,
+    required this.badgeLabel,
+    required this.badgeIcon,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _SectionHeaderCompact(title: title),
+              const SizedBox(height: 4),
+              Text(
+                subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.72),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 10),
+        _InsightBadge(label: badgeLabel, color: accent, icon: badgeIcon),
+      ],
+    );
+  }
+}
+
+class _HomeTrainingTimeline extends StatelessWidget {
+  final List<TrainingSession> sessions;
+  final Color accent;
+
+  const _HomeTrainingTimeline({required this.sessions, required this.accent});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final items = sessions.take(8).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: accent.withValues(alpha: 0.07),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child:
+          items.isEmpty
+              ? Text(
+                'Dados em forma\u00e7\u00e3o',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.66),
+                  fontWeight: FontWeight.w800,
+                ),
+              )
+              : Row(
+                children: [
+                  for (var i = 0; i < items.length; i++) ...[
+                    Expanded(
+                      child: _HomeTrainingTimelineNode(
+                        session: items[items.length - 1 - i],
+                        accent: accent,
+                      ),
+                    ),
+                    if (i != items.length - 1)
+                      Container(
+                        width: 10,
+                        height: 2,
+                        color: cs.onSurface.withValues(alpha: 0.10),
+                      ),
+                  ],
+                ],
+              ),
+    );
+  }
+}
+
+class _HomeTrainingTimelineNode extends StatelessWidget {
+  final TrainingSession session;
+  final Color accent;
+
+  const _HomeTrainingTimelineNode({
+    required this.session,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 16,
+          height: 16,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: accent.withValues(alpha: 0.22),
+            border: Border.all(color: accent.withValues(alpha: 0.72)),
+          ),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _formatShortDate(session.date),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.62),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeProgressMiniBar extends StatelessWidget {
+  final String label;
+  final double value;
+  final Color color;
+
+  const _HomeProgressMiniBar({
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final safeValue = value.clamp(0.0, 1.0).toDouble();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: safeValue,
+            minHeight: 7,
+            backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+            valueColor: AlwaysStoppedAnimation<Color>(color),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeConsistencyConstellation extends StatelessWidget {
+  final List<GameMapEntry> gameMap;
+  final List<SkillMatrixCategoryEntry> skillMatrix;
+  final Color accent;
+
+  const _HomeConsistencyConstellation({
+    required this.gameMap,
+    required this.skillMatrix,
+    required this.accent,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final positions = gameMap.take(4).toList();
+    final techniques =
+        <SkillMatrixTechniqueEntry>[
+          for (final entry in skillMatrix) ...entry.techniques.take(2),
+        ].take(5).toList();
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: accent.withValues(alpha: 0.07),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+      ),
+      child:
+          positions.isEmpty && techniques.isEmpty
+              ? Text(
+                'Dados em forma\u00e7\u00e3o',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.66),
+                  fontWeight: FontWeight.w800,
+                ),
+              )
+              : Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  for (final entry in positions)
+                    _InsightBadge(
+                      label: entry.position,
+                      color: accent,
+                      icon: Icons.place_outlined,
+                    ),
+                  for (final technique in techniques)
+                    _InsightBadge(
+                      label: technique.technique,
+                      color: cs.primary,
+                      icon: Icons.bubble_chart_outlined,
+                      muted: true,
+                    ),
+                ],
+              ),
+    );
+  }
+}
+
+class _HomeDeckInsightLine extends StatelessWidget {
+  final IconData icon;
+  final Color accent;
+  final String text;
+
+  const _HomeDeckInsightLine({
+    required this.icon,
+    required this.accent,
+    required this.text,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18, color: accent),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.76),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              height: 1.25,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HomeDeckPassiveCta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _HomeDeckPassiveCta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: cs.onSurface.withValues(alpha: 0.045),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, size: 17, color: cs.onSurface.withValues(alpha: 0.62)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.66),
+                fontSize: 12,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+String? _topGameMapPosition(List<GameMapEntry> entries) {
+  if (entries.isEmpty) return null;
+  final ordered = List<GameMapEntry>.from(entries)
+    ..sort((a, b) => b.sessionsCount.compareTo(a.sessionsCount));
+  return ordered.first.position;
+}
+
+String? _topSkillMatrixTechnique(List<SkillMatrixCategoryEntry> entries) {
+  final techniques = <SkillMatrixTechniqueEntry>[
+    for (final entry in entries) ...entry.techniques,
+  ];
+  if (techniques.isEmpty) return null;
+  techniques.sort((a, b) => b.sessionsCount.compareTo(a.sessionsCount));
+  return techniques.first.technique;
+}
+
 class _HomeTechnicalRadarInitialCard extends StatelessWidget {
   final ColorScheme cs;
   final VoidCallback onOpenMap;
@@ -2811,7 +3590,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
             badgeLabel: 'Inicial',
             badgeIcon: Icons.radar_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 560;
@@ -2840,7 +3619,7 @@ class _HomeTechnicalRadarInitialCard extends StatelessWidget {
               );
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _HomeRadarCta(
             label:
                 onRegisterTraining == null
@@ -2879,7 +3658,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
             badgeLabel: 'Base: ${radar.sessionLabel}',
             badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 560;
@@ -2898,7 +3677,7 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     radarVisual,
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     radarDetails,
                   ],
                 );
@@ -2907,14 +3686,14 @@ class _HomeTechnicalRadarSummaryCard extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(flex: 5, child: radarVisual),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 6, child: radarDetails),
+                  Expanded(flex: 7, child: radarVisual),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 5, child: radarDetails),
                 ],
               );
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _HomeRadarCta(
             label: 'Explorar mapa técnico',
             icon: Icons.map_outlined,
@@ -2950,7 +3729,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
             badgeLabel: 'Base: ${radar.sessionLabel}',
             badgeIcon: Icons.fitness_center_outlined,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
           LayoutBuilder(
             builder: (context, constraints) {
               final compact = constraints.maxWidth < 560;
@@ -2969,7 +3748,7 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     radarVisual,
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     radarDetails,
                   ],
                 );
@@ -2978,14 +3757,14 @@ class _HomeTechnicalRadarCard extends StatelessWidget {
               return Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  Expanded(flex: 5, child: radarVisual),
-                  const SizedBox(width: 18),
-                  Expanded(flex: 6, child: radarDetails),
+                  Expanded(flex: 7, child: radarVisual),
+                  const SizedBox(width: 14),
+                  Expanded(flex: 5, child: radarDetails),
                 ],
               );
             },
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
           _HomeRadarCta(
             label: 'Explorar mapa técnico',
             icon: Icons.map_outlined,
@@ -3079,7 +3858,7 @@ class _HomeEmbeddedTechnicalRadar extends StatelessWidget {
     final data = radar;
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 336),
+        constraints: const BoxConstraints(maxWidth: 360),
         child: TitansTechnicalRadar(
           variant: TitansTechnicalRadarVariant.homePreview,
           interactive: false,
@@ -3179,21 +3958,21 @@ class _HomeRadarEmptyInsightStack extends StatelessWidget {
           icon: Icons.auto_awesome_outlined,
           accent: cs.secondary,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         _HomeRadarInsightBlock(
           label: 'Base técnica',
           value: 'sem treinos analisados',
           icon: Icons.fitness_center_outlined,
           accent: cs.primary,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         _HomeRadarInsightBlock(
           label: 'Evidências',
           value: '0 classificadas',
           icon: Icons.radar_outlined,
           accent: cs.tertiary,
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         _HomeRadarInsightBlock(
           label: 'Próximo passo',
           value: 'Registre treinos para construir sua leitura técnica.',
@@ -3221,11 +4000,9 @@ class _HomeRadarInsightStack extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final useTwoColumns = constraints.maxWidth >= 430;
+        final useTwoColumns = constraints.maxWidth >= 390;
         final itemWidth =
-            useTwoColumns
-                ? (constraints.maxWidth - 8) / 2
-                : constraints.maxWidth;
+            useTwoColumns ? (constraints.maxWidth - 6) / 2 : constraints.maxWidth;
         final awaiting =
             radar.awaitingClassificationCount > 0
                 ? radar.awaitingEvidenceLabel
@@ -3242,12 +4019,12 @@ class _HomeRadarInsightStack extends StatelessWidget {
               accent: cs.secondary,
               emphasized: true,
               maxValueLines: 1,
-              maxSupportingLines: compact ? 3 : 2,
+              maxSupportingLines: 1,
             ),
             const SizedBox(height: 8),
             Wrap(
-              spacing: 8,
-              runSpacing: 8,
+              spacing: 6,
+              runSpacing: 6,
               children: [
                 SizedBox(
                   width: itemWidth,
@@ -3266,7 +4043,7 @@ class _HomeRadarInsightStack extends StatelessWidget {
                     supporting: awaiting,
                     icon: Icons.radar_outlined,
                     accent: cs.tertiary,
-                    maxSupportingLines: 2,
+                    maxSupportingLines: 1,
                   ),
                 ),
               ],
@@ -3277,7 +4054,7 @@ class _HomeRadarInsightStack extends StatelessWidget {
               value: radar.nextStepLabel,
               icon: Icons.route_outlined,
               accent: cs.secondary,
-              maxValueLines: compact ? 3 : 2,
+              maxValueLines: compact ? 2 : 1,
             ),
           ],
         );
@@ -3311,54 +4088,79 @@ class _HomeRadarInsightBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Container(
-      padding: const EdgeInsets.all(12),
+      constraints: const BoxConstraints(minHeight: 54),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: accent.withValues(alpha: 0.22)),
-        color: accent.withValues(alpha: emphasized ? 0.12 : 0.07),
+        border: Border.all(color: accent.withValues(alpha: 0.18)),
+        color: accent.withValues(alpha: emphasized ? 0.10 : 0.055),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: accent),
-              const SizedBox(width: 7),
-              Expanded(
-                child: Text(
+          Container(
+            width: 28,
+            height: 28,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(7),
+              color: accent.withValues(alpha: 0.11),
+            ),
+            child: Icon(icon, size: 14, color: accent),
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
                   label,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.58),
-                    fontSize: 11,
+                    color: cs.onSurface.withValues(alpha: 0.56),
+                    fontSize: 10,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            maxLines: maxValueLines,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: emphasized ? accent : cs.onSurface.withValues(alpha: 0.90),
-              fontSize: emphasized ? 18 : 14,
-              fontWeight: FontWeight.w900,
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  maxLines: maxValueLines,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color:
+                        emphasized ? accent : cs.onSurface.withValues(alpha: 0.90),
+                    fontSize: emphasized ? 15 : 13,
+                    fontWeight: FontWeight.w900,
+                    height: 1.1,
+                  ),
+                ),
+                if (supporting != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    supporting!,
+                    maxLines: maxSupportingLines,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.58),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      height: 1.1,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
-          if (supporting != null) ...[
-            const SizedBox(height: 5),
-            Text(
-              supporting!,
-              maxLines: maxSupportingLines,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.66),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
+          if (emphasized) ...[
+            const SizedBox(width: 8),
+            Container(
+              width: 6,
+              height: 34,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                color: accent.withValues(alpha: 0.64),
               ),
             ),
           ],

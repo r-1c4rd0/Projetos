@@ -42,6 +42,7 @@ class GameMapScreen extends StatefulWidget {
 Future<T?> _showGameMapSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
+  bool draggable = false,
 }) {
   return showModalBottomSheet<T>(
     context: context,
@@ -49,9 +50,34 @@ Future<T?> _showGameMapSheet<T>({
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (sheetContext) {
-      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.88;
       final cs = Theme.of(sheetContext).colorScheme;
 
+      if (draggable) {
+        return DraggableScrollableSheet(
+          expand: false,
+          initialChildSize: 0.86,
+          minChildSize: 0.55,
+          maxChildSize: 0.94,
+          builder: (draggableContext, scrollController) {
+            return SafeArea(
+              top: false,
+              child: Material(
+                color: cs.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: PrimaryScrollController(
+                  controller: scrollController,
+                  child: builder(draggableContext),
+                ),
+              ),
+            );
+          },
+        );
+      }
+
+      final maxHeight = MediaQuery.sizeOf(sheetContext).height * 0.88;
       return SafeArea(
         top: false,
         child: ConstrainedBox(
@@ -1004,6 +1030,7 @@ class _ClientReadingActions extends StatelessWidget {
   void _showVisualMapBottomSheet(BuildContext context) {
     _showGameMapSheet<void>(
       context: context,
+      draggable: true,
       builder: (sheetContext) {
         final cs = Theme.of(sheetContext).colorScheme;
 
@@ -1029,6 +1056,7 @@ class _ClientReadingActions extends StatelessWidget {
               const SizedBox(height: 16),
               Flexible(
                 child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(bottom: 4),
                   child: _GameMapPositionClusterGraph(viewModel: visualMap),
                 ),
               ),
@@ -1615,98 +1643,135 @@ class _GameMapPositionClusterGraph extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final isCompact = width < 420;
+        final availableWidth = constraints.maxWidth;
+        final contentWidth =
+            (availableWidth >= 760 ? 680.0 : availableWidth.clamp(0.0, 680.0))
+                .toDouble();
+        final useTwoColumns = contentWidth >= 520;
         final nodeWidth =
-            (isCompact
-                    ? ((width - 8) / 2).clamp(124.0, 164.0)
-                    : width >= 720
-                    ? ((width - 20) / 3).clamp(156.0, 220.0)
-                    : ((width - 10) / 2).clamp(144.0, 204.0))
+            (useTwoColumns ? ((contentWidth - 10) / 2) : contentWidth)
                 .toDouble();
 
-        return Container(
-          width: double.infinity,
-          padding: EdgeInsets.all(isCompact ? 10 : 14),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: cs.primary.withValues(alpha: 0.12)),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                cs.primary.withValues(alpha: 0.05),
-                cs.secondary.withValues(alpha: 0.03),
-                cs.surfaceContainerHighest.withValues(alpha: 0.10),
-              ],
+        return Align(
+          alignment: Alignment.topCenter,
+          child: Container(
+            width: contentWidth,
+            clipBehavior: Clip.antiAlias,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.10)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  cs.primary.withValues(alpha: 0.035),
+                  cs.surface,
+                  cs.surfaceContainerHighest.withValues(alpha: 0.10),
+                ],
+              ),
             ),
-          ),
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: IgnorePointer(
-                  child: CustomPaint(
-                    painter: _GameMapClusterBackdropPainter(
-                      primary: cs.primary,
-                      secondary: cs.secondary,
-                      lineColor: cs.onSurface.withValues(alpha: 0.12),
+            child: Stack(
+              children: [
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: CustomPaint(
+                      painter: _GameMapClusterBackdropPainter(
+                        primary: cs.primary,
+                        secondary: cs.secondary,
+                        lineColor: cs.onSurface.withValues(alpha: 0.045),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: cs.primary.withValues(alpha: 0.08),
-                          border: Border.all(
-                            color: cs.primary.withValues(alpha: 0.18),
-                          ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _GameMapPositionMapSummary(
+                      highlights: viewModel.highlights,
+                    ),
+                    const SizedBox(height: 12),
+                    if (viewModel.nodes.isEmpty)
+                      Text(
+                        viewModel.emptyStateLabel,
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.66),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w700,
                         ),
-                        child: Icon(
-                          Icons.account_tree_outlined,
-                          color: cs.primary,
-                        ),
+                      )
+                    else
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          for (final node in viewModel.nodes)
+                            SizedBox(
+                              width: nodeWidth,
+                              child: _GameMapPositionClusterNode(node: node),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          'Toque em uma posi\u00e7\u00e3o para abrir as t\u00e9cnicas e evid\u00eancias vinculadas.',
-                          maxLines: isCompact ? 2 : 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.66),
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Wrap(
-                    spacing: isCompact ? 8 : 10,
-                    runSpacing: isCompact ? 8 : 10,
-                    children: [
-                      for (final node in viewModel.nodes)
-                        SizedBox(
-                          width: nodeWidth,
-                          child: _GameMapPositionClusterNode(node: node),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ],
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
+    );
+  }
+}
+
+class _GameMapPositionMapSummary extends StatelessWidget {
+  final List<_GameMapHighlight> highlights;
+
+  const _GameMapPositionMapSummary({required this.highlights});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in highlights.take(3))
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: cs.onSurface.withValues(alpha: 0.045),
+              border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.56),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  item.value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1724,37 +1789,27 @@ class _GameMapClusterBackdropPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width * 0.5, size.height * 0.54);
-    final radius = (size.shortestSide * 0.32).clamp(48.0, 118.0).toDouble();
+    final center = Offset(size.width * 0.86, size.height * 0.12);
+    final radius = (size.shortestSide * 0.42).clamp(64.0, 150.0).toDouble();
     final linePaint =
         Paint()
           ..color = lineColor
-          ..strokeWidth = 1
+          ..strokeWidth = 0.8
           ..style = PaintingStyle.stroke;
     final glowPaint =
         Paint()
           ..shader = RadialGradient(
             colors: [
-              primary.withValues(alpha: 0.18),
-              secondary.withValues(alpha: 0.08),
+              primary.withValues(alpha: 0.055),
+              secondary.withValues(alpha: 0.028),
               Colors.transparent,
             ],
-          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.6));
+          ).createShader(Rect.fromCircle(center: center, radius: radius * 1.4));
 
-    canvas.drawCircle(center, radius * 1.6, glowPaint);
-    for (var i = 1; i <= 3; i++) {
-      canvas.drawCircle(center, radius * i / 3, linePaint);
+    canvas.drawCircle(center, radius * 1.4, glowPaint);
+    for (var i = 1; i <= 2; i++) {
+      canvas.drawCircle(center, radius * i / 2, linePaint);
     }
-    canvas.drawLine(
-      Offset(center.dx - radius * 1.35, center.dy),
-      Offset(center.dx + radius * 1.35, center.dy),
-      linePaint,
-    );
-    canvas.drawLine(
-      Offset(center.dx, center.dy - radius),
-      Offset(center.dx, center.dy + radius),
-      linePaint,
-    );
   }
 
   @override
@@ -1775,30 +1830,34 @@ class _GameMapPositionClusterNode extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final weight = node.normalizedWeight.clamp(0.0, 1.0).toDouble();
     final accent = weight >= 0.76 ? TitansUI.actionGold : cs.primary;
+    final techniqueCountLabel =
+        node.techniques.length == 1
+            ? '1 técnica'
+            : '${node.techniques.length} técnicas';
 
     return Semantics(
       button: true,
       label:
-          '${node.recurrenceCount} registros nesta posicao; toque para detalhes.',
+          '${node.recurrenceCount} registros nesta posi\u00e7\u00e3o; toque para detalhes.',
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: () => _showGameMapPositionDetail(context, node),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 180),
+            duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
-            constraints: const BoxConstraints(minHeight: 104),
-            padding: const EdgeInsets.all(10),
+            constraints: const BoxConstraints(minHeight: 92),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 9),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: accent.withValues(alpha: 0.26)),
-              color: TitansUI.subtleFillColor(context, alpha: 0.30),
+              border: Border.all(color: accent.withValues(alpha: 0.22)),
+              color: TitansUI.subtleFillColor(context, alpha: 0.24),
               boxShadow: [
                 BoxShadow(
-                  color: accent.withValues(alpha: 0.08 + (weight * 0.06)),
-                  blurRadius: 10,
-                  offset: const Offset(0, 5),
+                  color: accent.withValues(alpha: 0.05 + (weight * 0.04)),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
                 ),
               ],
             ),
@@ -1807,7 +1866,6 @@ class _GameMapPositionClusterNode extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _GameMapNodeOrb(weight: weight, color: accent),
                     const SizedBox(width: 8),
@@ -1822,9 +1880,11 @@ class _GameMapPositionClusterNode extends StatelessWidget {
                         ),
                       ),
                     ),
+                    const SizedBox(width: 6),
+                    _MiniBadge(label: techniqueCountLabel, color: accent),
                   ],
                 ),
-                const SizedBox(height: 10),
+                const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
@@ -1833,39 +1893,31 @@ class _GameMapPositionClusterNode extends StatelessWidget {
                     _MiniBadge(label: node.categoryLabel, color: cs.primary),
                   ],
                 ),
-                const SizedBox(height: 12),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(999),
-                  child: Container(
-                    height: 4,
-                    width: double.infinity,
-                    color: cs.onSurface.withValues(alpha: 0.08),
-                    alignment: Alignment.centerLeft,
-                    child: FractionallySizedBox(
-                      widthFactor: weight,
-                      child: Container(color: accent.withValues(alpha: 0.78)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 7),
+                const SizedBox(height: 9),
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        '${node.techniques.length} tecnicas vinculadas',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.62),
-                          fontSize: 10,
-                          fontWeight: FontWeight.w800,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: Container(
+                          height: 4,
+                          width: double.infinity,
+                          color: cs.onSurface.withValues(alpha: 0.08),
+                          alignment: Alignment.centerLeft,
+                          child: FractionallySizedBox(
+                            widthFactor: weight,
+                            child: Container(
+                              color: accent.withValues(alpha: 0.78),
+                            ),
+                          ),
                         ),
                       ),
                     ),
+                    const SizedBox(width: 8),
                     Icon(
-                      Icons.expand_more_rounded,
+                      Icons.chevron_right_rounded,
                       size: 18,
-                      color: accent.withValues(alpha: 0.92),
+                      color: accent.withValues(alpha: 0.9),
                     ),
                   ],
                 ),
@@ -1937,7 +1989,9 @@ void _showGameMapPositionDetail(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const _CompactHeader(title: 'DETALHE DA POSIÇÃO'),
+                        const _CompactHeader(
+                          title: 'DETALHE DA POSI\u00c7\u00c3O',
+                        ),
                         const SizedBox(height: 6),
                         Text(
                           node.position,
@@ -3135,6 +3189,7 @@ void _showAllTechnicalEvidences(
   final parentContext = context;
   _showGameMapSheet<void>(
     context: context,
+    draggable: true,
     builder:
         (_) => _EvidenceCenterSheet(
           items: items,
@@ -3160,11 +3215,15 @@ class _EvidenceCenterSheet extends StatefulWidget {
 }
 
 class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
+  static const int _previewLimit = 5;
+
   TechnicalRadarAxis? _axisFilter;
+  bool _showFullList = false;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final scrollController = PrimaryScrollController.maybeOf(context);
     final evaluatedIds = widget.evaluations.map((e) => e.skillId).toSet();
     final filteredItems =
         widget.items.where((item) {
@@ -3187,15 +3246,19 @@ class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
       0,
       (max, count) => count > max ? count : max,
     );
-    final topPosition = _topEvidencePosition(widget.items);
-    final topTechnique =
-        widget.items.isEmpty
-            ? null
-            : widget.items.reduce(
-              (a, b) => _compareEvidenceItems(a, b) <= 0 ? a : b,
-            );
+    final topTechniques = filteredItems.take(5).toList();
+    final maxFilteredCount =
+        filteredItems.isEmpty
+            ? 1
+            : filteredItems.first.evidenceCount.clamp(1, 999999).toInt();
+    final visibleItems =
+        _showFullList
+            ? filteredItems
+            : filteredItems.take(_previewLimit).toList();
+    final hiddenItems = filteredItems.length - visibleItems.length;
 
     return ListView(
+      controller: scrollController,
       padding: EdgeInsets.fromLTRB(
         16,
         14,
@@ -3205,31 +3268,10 @@ class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
       children: [
         _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
         const SizedBox(height: 16),
-        Text(
-          'Central de Evidências',
-          style: Theme.of(
-            context,
-          ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            _MiniBadge(
-              label: '$totalEvidences evidências',
-              color: cs.secondary,
-            ),
-            _MiniBadge(
-              label: '${widget.items.length} técnicas',
-              color: cs.primary,
-            ),
-            if (lastEvidence != null)
-              _MiniBadge(
-                label: 'Última ${_formatShortDate(lastEvidence)}',
-                color: TitansUI.actionGold,
-              ),
-          ],
+        _EvidenceCenterHeader(
+          totalEvidences: totalEvidences,
+          techniqueCount: widget.items.length,
+          lastEvidence: lastEvidence,
         ),
         const SizedBox(height: 16),
         Wrap(
@@ -3240,14 +3282,22 @@ class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
               label: 'Todas',
               selected: _axisFilter == null,
               color: cs.primary,
-              onTap: () => setState(() => _axisFilter = null),
+              onTap:
+                  () => setState(() {
+                    _axisFilter = null;
+                    _showFullList = false;
+                  }),
             ),
             for (final axis in _evidenceCenterAxes)
               _EvidenceAxisFilterChip(
                 label: axis.displayLabel,
                 selected: _axisFilter == axis,
                 color: _axisColor(context, axis),
-                onTap: () => setState(() => _axisFilter = axis),
+                onTap:
+                    () => setState(() {
+                      _axisFilter = axis;
+                      _showFullList = false;
+                    }),
               ),
           ],
         ),
@@ -3255,38 +3305,61 @@ class _EvidenceCenterSheetState extends State<_EvidenceCenterSheet> {
         _EvidenceCenterSummary(
           axisCounts: axisCounts,
           maxAxisCount: maxAxisCount == 0 ? 1 : maxAxisCount,
-          topPosition: topPosition,
-          topTechnique: topTechnique?.techniqueName,
+          selectedAxis: _axisFilter,
+        ),
+        const SizedBox(height: 16),
+        _EvidenceCenterTopTechniques(
+          items: topTechniques,
+          maxCount: maxFilteredCount,
+          evaluatedIds: evaluatedIds,
+          onOpen: _openEvidenceDetail,
         ),
         const SizedBox(height: 16),
         if (filteredItems.isEmpty)
-          Text(
-            'Nenhuma evidência neste filtro.',
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.62),
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-            ),
+          const TitansEmptyState(
+            icon: Icons.auto_graph_outlined,
+            title: 'Evidências em formação',
+            message: 'Registre treinos para construir sua leitura técnica.',
+            compact: true,
+            showCard: false,
           )
-        else
-          for (int i = 0; i < filteredItems.length; i++) ...[
+        else ...[
+          _EvidenceSectionLabel(
+            title: _showFullList ? 'Lista completa' : 'Evidências recentes',
+            subtitle:
+                _showFullList
+                    ? '${filteredItems.length} técnicas neste filtro.'
+                    : 'Preview compacto; a lista completa fica sob demanda.',
+          ),
+          const SizedBox(height: 10),
+          for (int i = 0; i < visibleItems.length; i++) ...[
             _EvidenceCenterCard(
-              item: filteredItems[i],
-              axis: _axisForTechnicalEvidence(filteredItems[i]),
-              evaluated: evaluatedIds.contains(filteredItems[i].skillId),
-              onTap: () {
-                final item = filteredItems[i];
-                Navigator.of(context).pop();
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  if (!widget.parentContext.mounted) return;
-                  _showTechnicalEvidenceDetails(widget.parentContext, item);
-                });
-              },
+              item: visibleItems[i],
+              axis: _axisForTechnicalEvidence(visibleItems[i]),
+              evaluated: evaluatedIds.contains(visibleItems[i].skillId),
+              maxCount: maxFilteredCount,
+              onTap: () => _openEvidenceDetail(visibleItems[i]),
             ),
-            if (i < filteredItems.length - 1) const SizedBox(height: 8),
+            if (i < visibleItems.length - 1) const SizedBox(height: 8),
           ],
+          if (hiddenItems > 0) ...[
+            const SizedBox(height: 12),
+            _EvidenceShowMoreButton(
+              hiddenCount: hiddenItems,
+              onTap: () => setState(() => _showFullList = true),
+            ),
+          ],
+        ],
       ],
     );
+  }
+
+  void _openEvidenceDetail(TechnicalEvidenceSummary item) {
+    Navigator.of(context).pop();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!widget.parentContext.mounted) return;
+      _showTechnicalEvidenceDetails(widget.parentContext, item);
+    });
   }
 }
 
@@ -3305,6 +3378,294 @@ class _GameMapSheetHandle extends StatelessWidget {
           borderRadius: BorderRadius.circular(999),
           color: color,
         ),
+      ),
+    );
+  }
+}
+
+class _EvidenceCenterHeader extends StatelessWidget {
+  final int totalEvidences;
+  final int techniqueCount;
+  final DateTime? lastEvidence;
+
+  const _EvidenceCenterHeader({
+    required this.totalEvidences,
+    required this.techniqueCount,
+    required this.lastEvidence,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.14),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Central de Evidências',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Leitura técnica baseada nos seus registros.',
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.64),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniBadge(
+                label: '$totalEvidences evidências',
+                color: cs.secondary,
+              ),
+              _MiniBadge(label: '$techniqueCount técnicas', color: cs.primary),
+              if (lastEvidence != null)
+                _MiniBadge(
+                  label: 'Última ${_formatShortDate(lastEvidence!)}',
+                  color: TitansUI.actionGold,
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceSectionLabel extends StatelessWidget {
+  final String title;
+  final String subtitle;
+
+  const _EvidenceSectionLabel({required this.title, required this.subtitle});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          subtitle,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.56),
+            fontSize: 11,
+            fontWeight: FontWeight.w700,
+            height: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EvidenceCenterTopTechniques extends StatelessWidget {
+  final List<TechnicalEvidenceSummary> items;
+  final int maxCount;
+  final Set<String> evaluatedIds;
+  final ValueChanged<TechnicalEvidenceSummary> onOpen;
+
+  const _EvidenceCenterTopTechniques({
+    required this.items,
+    required this.maxCount,
+    required this.evaluatedIds,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
+        color: cs.primary.withValues(alpha: 0.045),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _EvidenceSectionLabel(
+            title: 'Top técnicas',
+            subtitle: 'Mais recorrentes no filtro atual, por contagem real.',
+          ),
+          const SizedBox(height: 10),
+          if (items.isEmpty)
+            Text(
+              'Sem técnicas neste filtro.',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.58),
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            )
+          else
+            for (int i = 0; i < items.length; i++) ...[
+              _EvidenceTopTechniqueRow(
+                item: items[i],
+                maxCount: maxCount,
+                evaluated: evaluatedIds.contains(items[i].skillId),
+                onTap: () => onOpen(items[i]),
+              ),
+              if (i < items.length - 1) const SizedBox(height: 8),
+            ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EvidenceTopTechniqueRow extends StatelessWidget {
+  final TechnicalEvidenceSummary item;
+  final int maxCount;
+  final bool evaluated;
+  final VoidCallback onTap;
+
+  const _EvidenceTopTechniqueRow({
+    required this.item,
+    required this.maxCount,
+    required this.evaluated,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final axis = _axisForTechnicalEvidence(item);
+    final color = _axisColor(context, axis);
+    final position =
+        item.positions.isEmpty ? 'Sem posição' : item.positions.first;
+    final fraction =
+        maxCount <= 0 ? 0.0 : (item.evidenceCount / maxCount).clamp(0.0, 1.0);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    item.techniqueName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$position · Última ${_formatShortDate(item.lastPracticedAt)}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.54),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: fraction,
+                      minHeight: 3,
+                      backgroundColor: cs.onSurface.withValues(alpha: 0.06),
+                      valueColor: AlwaysStoppedAnimation<Color>(color),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '${item.evidenceCount}',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  evaluated ? 'Avaliada' : axis.displayLabel,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.48),
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _EvidenceShowMoreButton extends StatelessWidget {
+  final int hiddenCount;
+  final VoidCallback onTap;
+
+  const _EvidenceShowMoreButton({
+    required this.hiddenCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.unfold_more_rounded, size: 16),
+      label: Text('Mostrar mais $hiddenCount'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: cs.primary,
+        side: BorderSide(color: cs.primary.withValues(alpha: 0.24)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -3364,14 +3725,12 @@ class _EvidenceAxisFilterChip extends StatelessWidget {
 class _EvidenceCenterSummary extends StatelessWidget {
   final Map<TechnicalRadarAxis, int> axisCounts;
   final int maxAxisCount;
-  final String? topPosition;
-  final String? topTechnique;
+  final TechnicalRadarAxis? selectedAxis;
 
   const _EvidenceCenterSummary({
     required this.axisCounts,
     required this.maxAxisCount,
-    required this.topPosition,
-    required this.topTechnique,
+    required this.selectedAxis,
   });
 
   @override
@@ -3388,29 +3747,21 @@ class _EvidenceCenterSummary extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const _EvidenceSectionLabel(
+            title: 'Resumo por eixo',
+            subtitle:
+                'Barras proporcionais às evidências carregadas nesta central.',
+          ),
+          const SizedBox(height: 10),
           for (final axis in _evidenceCenterAxes) ...[
             _EvidenceCenterAxisBar(
               axis: axis,
               count: axisCounts[axis] ?? 0,
               maxCount: maxAxisCount,
+              selected: selectedAxis == axis,
             ),
             if (axis != _evidenceCenterAxes.last) const SizedBox(height: 8),
           ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniBadge(
-                label: 'Top posição: ${topPosition ?? 'sem dados'}',
-                color: cs.primary,
-              ),
-              _MiniBadge(
-                label: 'Top técnica: ${topTechnique ?? 'sem dados'}',
-                color: TitansUI.actionGold,
-              ),
-            ],
-          ),
         ],
       ),
     );
@@ -3421,11 +3772,13 @@ class _EvidenceCenterAxisBar extends StatelessWidget {
   final TechnicalRadarAxis axis;
   final int count;
   final int maxCount;
+  final bool selected;
 
   const _EvidenceCenterAxisBar({
     required this.axis,
     required this.count,
     required this.maxCount,
+    required this.selected,
   });
 
   @override
@@ -3434,43 +3787,57 @@ class _EvidenceCenterAxisBar extends StatelessWidget {
     final color = _axisColor(context, axis);
     final fraction = maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0);
 
-    return Row(
-      children: [
-        SizedBox(
-          width: 74,
-          child: Text(
-            axis.displayLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w900),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 8,
-              backgroundColor: cs.onSurface.withValues(alpha: 0.08),
-              valueColor: AlwaysStoppedAnimation<Color>(color),
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: selected ? 8 : 0,
+        vertical: selected ? 6 : 0,
+      ),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: selected ? color.withValues(alpha: 0.08) : Colors.transparent,
+      ),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 74,
+            child: Text(
+              axis.displayLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+                color: selected ? color : cs.onSurface,
+              ),
             ),
           ),
-        ),
-        const SizedBox(width: 8),
-        SizedBox(
-          width: 24,
-          child: Text(
-            '$count',
-            textAlign: TextAlign.right,
-            style: TextStyle(
-              color: color,
-              fontSize: 11,
-              fontWeight: FontWeight.w900,
+          const SizedBox(width: 8),
+          Expanded(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                value: fraction,
+                minHeight: selected ? 9 : 7,
+                backgroundColor: cs.onSurface.withValues(alpha: 0.08),
+                valueColor: AlwaysStoppedAnimation<Color>(color),
+              ),
             ),
           ),
-        ),
-      ],
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 24,
+            child: Text(
+              '$count',
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: color,
+                fontSize: 11,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -3479,12 +3846,14 @@ class _EvidenceCenterCard extends StatelessWidget {
   final TechnicalEvidenceSummary item;
   final TechnicalRadarAxis axis;
   final bool evaluated;
+  final int maxCount;
   final VoidCallback onTap;
 
   const _EvidenceCenterCard({
     required this.item,
     required this.axis,
     required this.evaluated,
+    required this.maxCount,
     required this.onTap,
   });
 
@@ -3494,6 +3863,8 @@ class _EvidenceCenterCard extends StatelessWidget {
     final color = _axisColor(context, axis);
     final position =
         item.positions.isEmpty ? 'Sem posição' : item.positions.first;
+    final fraction =
+        maxCount <= 0 ? 0.0 : (item.evidenceCount / maxCount).clamp(0.0, 1.0);
 
     return Material(
       color: Colors.transparent,
@@ -3501,7 +3872,7 @@ class _EvidenceCenterCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
         onTap: onTap,
         child: Container(
-          constraints: const BoxConstraints(minHeight: 92),
+          constraints: const BoxConstraints(minHeight: 86),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
@@ -3520,11 +3891,11 @@ class _EvidenceCenterCard extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 6,
                       runSpacing: 6,
@@ -3541,6 +3912,35 @@ class _EvidenceCenterCard extends StatelessWidget {
                               evaluated
                                   ? TitansUI.successGreen
                                   : cs.onSurface.withValues(alpha: 0.52),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(999),
+                            child: LinearProgressIndicator(
+                              value: fraction,
+                              minHeight: 3,
+                              backgroundColor: cs.onSurface.withValues(
+                                alpha: 0.06,
+                              ),
+                              valueColor: AlwaysStoppedAnimation<Color>(color),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Última ${_formatShortDate(item.lastPracticedAt)}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.48),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ],
                     ),
@@ -3591,23 +3991,6 @@ Map<TechnicalRadarAxis, int> _axisEvidenceCounts(
     counts[axis] = (counts[axis] ?? 0) + item.evidenceCount;
   }
   return counts;
-}
-
-String? _topEvidencePosition(List<TechnicalEvidenceSummary> items) {
-  final counts = <String, int>{};
-  for (final item in items) {
-    for (final position in item.positions) {
-      counts[position] = (counts[position] ?? 0) + item.evidenceCount;
-    }
-  }
-  if (counts.isEmpty) return null;
-  final entries =
-      counts.entries.toList()..sort((a, b) {
-        final countCompare = b.value.compareTo(a.value);
-        if (countCompare != 0) return countCompare;
-        return a.key.compareTo(b.key);
-      });
-  return entries.first.key;
 }
 
 int _compareEvidenceItems(
