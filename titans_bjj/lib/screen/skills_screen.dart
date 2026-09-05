@@ -612,23 +612,23 @@ class _SkillsMatrixNodeCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(12),
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.all(10),
+          padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.14),
+            borderRadius: BorderRadius.circular(12),
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.12),
             border: Border.all(
-              color: accent.withValues(alpha: selected ? 0.45 : 0.18),
+              color: accent.withValues(alpha: selected ? 0.4 : 0.15),
             ),
             boxShadow: [
               if (selected)
                 BoxShadow(
-                  color: accent.withValues(alpha: 0.12),
-                  blurRadius: 14,
-                  offset: const Offset(0, 6),
+                  color: accent.withValues(alpha: 0.1),
+                  blurRadius: 12,
+                  offset: const Offset(0, 4),
                 ),
             ],
           ),
@@ -639,76 +639,93 @@ class _SkillsMatrixNodeCard extends StatelessWidget {
               Row(
                 children: [
                   Container(
-                    width: 24,
-                    height: 24,
+                    width: 22,
+                    height: 22,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: accent.withValues(alpha: 0.10),
-                      border: Border.all(color: accent.withValues(alpha: 0.22)),
+                      color: accent.withValues(alpha: 0.08),
+                      border: Border.all(color: accent.withValues(alpha: 0.18)),
                     ),
-                    child: Icon(node.icon, size: 14, color: accent),
+                    child: Icon(node.icon, size: 12, color: accent),
                   ),
-                  const SizedBox(width: 6),
+                  const SizedBox(width: 5),
                   Expanded(
                     child: Text(
-                      node.primaryValue,
-                      textAlign: TextAlign.end,
+                      node.title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        color: accent,
-                        fontSize: 14,
+                        color: cs.onSurface,
                         fontWeight: FontWeight.w900,
+                        fontSize: 12,
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    node.primaryValue,
+                    style: TextStyle(
+                      color: accent,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                node.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 13,
-                ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      _compactSubtitle(node),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.52),
+                        fontSize: 9,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  _TechniqueChip(label: node.statusLabel, compact: true),
+                ],
               ),
-              const SizedBox(height: 3),
-              Text(
-                node.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: cs.onSurface.withValues(alpha: 0.58),
-                  fontSize: 10,
-                  height: 1.15,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               _EvidenceBar(
                 label: node.evidenceLabel,
                 value: node.evidenceCount,
                 maxValue: maxEvidence,
                 color: accent,
               ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 4,
-                runSpacing: 4,
-                children: [
-                  _TechniqueChip(label: node.statusLabel),
-                  if (node.preview.isNotEmpty)
-                    _TechniqueChip(label: node.preview.first),
-                ],
+              const SizedBox(height: 4),
+              if (node.preview.isNotEmpty)
+                _TechniqueChip(label: node.preview.first, compact: true),
+              const SizedBox(height: 2),
+              Align(
+                alignment: Alignment.centerRight,
+                child: Icon(
+                  Icons.chevron_right_rounded,
+                  color: cs.onSurface.withValues(alpha: 0.35),
+                  size: 14,
+                ),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  String _compactSubtitle(_SkillsMatrixNode node) {
+    final parts = <String>[];
+    if (node.techniques.isNotEmpty) {
+      parts.add('${node.techniques.length} téc.');
+    }
+    if (node.evidenceCount > 0) {
+      parts.add(node.evidenceLabel);
+    }
+    return parts.join(' · ');
   }
 }
 
@@ -755,11 +772,14 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final maxTechniqueEvidence = node.techniques.fold<int>(
-      1,
-      (max, technique) => technique.count > max ? technique.count : max,
-    );
+    final techniques = node.techniques;
+    final totalTechniques = techniques.length;
+    final totalSessions = techniques.fold<int>(0, (sum, t) => sum + t.count);
+    final lastTrained =
+        techniques.isNotEmpty
+            ? techniques.map((t) => t.lastRegisteredLabel).first
+            : 'Sem registros';
+    final topTechnique = techniques.isNotEmpty ? techniques.first.name : '—';
 
     return TitansCard(
       accent: TitansUI.actionGold,
@@ -768,70 +788,777 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
+          _PositionDetailHeader(node: node),
+          const SizedBox(height: 10),
+          _PositionSummaryMetrics(
+            totalTechniques: totalTechniques,
+            totalSessions: totalSessions,
+            lastTrained: lastTrained,
+            topTechnique: topTechnique,
+          ),
+          if (techniques.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _TopTechniquesPreview(
+              techniques: techniques.take(4).toList(),
+              onOpenTechnique: onOpenTechnique,
+            ),
+          ],
+          if (_hasDistributionData(techniques)) ...[
+            const SizedBox(height: 10),
+            _TechniqueDistribution(techniques: techniques),
+          ],
+          if (techniques.length > 4) ...[
+            const SizedBox(height: 10),
+            _ViewAllTechniquesCta(
+              count: techniques.length - 4,
+              onTap:
+                  () =>
+                      _openAllTechniques(context, techniques, onOpenTechnique),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  bool _hasDistributionData(List<_SkillsMatrixTechnique> techniques) {
+    final categories = techniques.map((t) => t.detail).toSet();
+    return categories.length > 1;
+  }
+
+  void _openAllTechniques(
+    BuildContext context,
+    List<_SkillsMatrixTechnique> techniques,
+    ValueChanged<_SkillNavigationTarget> onOpenTechnique,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) => _AllTechniquesBottomSheet(
+            techniques: techniques,
+            positionTitle: node.title,
+            onOpenTechnique: onOpenTechnique,
+          ),
+    );
+  }
+}
+
+class _PositionDetailHeader extends StatelessWidget {
+  final _SkillsMatrixNode node;
+
+  const _PositionDetailHeader({required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 28,
+          height: 28,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: node.accent.withValues(alpha: 0.1),
+            border: Border.all(color: node.accent.withValues(alpha: 0.2)),
+          ),
+          child: Icon(node.icon, size: 14, color: node.accent),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      node.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              Text(
+                node.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 1),
+              Text(
+                _compactSubtitle(node),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.52),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 6),
+        _TechniqueChip(label: node.statusLabel, compact: true),
+      ],
+    );
+  }
+
+  String _compactSubtitle(_SkillsMatrixNode node) {
+    final parts = <String>[];
+    if (node.techniques.isNotEmpty) {
+      parts.add('${node.techniques.length} téc.');
+    }
+    if (node.evidenceCount > 0) {
+      parts.add(node.evidenceLabel);
+    }
+    return parts.join(' · ');
+  }
+}
+
+class _PositionSummaryMetrics extends StatelessWidget {
+  final int totalTechniques;
+  final int totalSessions;
+  final String lastTrained;
+  final String topTechnique;
+
+  const _PositionSummaryMetrics({
+    required this.totalTechniques,
+    required this.totalSessions,
+    required this.lastTrained,
+    required this.topTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Row(
+      children: [
+        Expanded(
+          child: _MiniMetricBox(
+            label: 'TÉCNICAS',
+            value: totalTechniques.toString(),
+            color: cs.primary,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniMetricBox(
+            label: 'SESSÕES',
+            value: totalSessions.toString(),
+            color: TitansUI.technicalBlue,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniMetricBox(
+            label: 'ÚLTIMA',
+            value: lastTrained.replaceAll('Último registro ', ''),
+            color: Colors.amber,
+            isText: true,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: _MiniMetricBox(
+            label: 'PRINCIPAL',
+            value: topTechnique,
+            color: TitansUI.success,
+            isText: true,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MiniMetricBox extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color color;
+  final bool isText;
+
+  const _MiniMetricBox({
+    required this.label,
+    required this.value,
+    required this.color,
+    this.isText = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.5),
+              fontSize: 8,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: isText ? cs.onSurface.withValues(alpha: 0.8) : color,
+              fontSize: isText ? 10 : 14,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TopTechniquesPreview extends StatelessWidget {
+  final List<_SkillsMatrixTechnique> techniques;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
+
+  const _TopTechniquesPreview({
+    required this.techniques,
+    required this.onOpenTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final maxCount = techniques.fold<int>(
+      1,
+      (max, t) => t.count > max ? t.count : max,
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Técnicas mais presentes',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.5),
+                fontSize: 9,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        ...techniques.asMap().entries.map((entry) {
+          final index = entry.key;
+          final technique = entry.value;
+          return _TopTechniqueRow(
+            rank: index + 1,
+            name: technique.name,
+            count: technique.count,
+            lastRegistered: technique.lastRegisteredLabel,
+            maxCount: maxCount,
+            color: _rankColor(index),
+            onTap: () => onOpenTechnique(technique.target),
+          );
+        }),
+      ],
+    );
+  }
+
+  Color _rankColor(int index) {
+    switch (index) {
+      case 0:
+        return Colors.amber;
+      case 1:
+        return const Color(0xFFB0BEC5);
+      case 2:
+        return const Color(0xFFCD7F32);
+      default:
+        return TitansUI.technicalBlue;
+    }
+  }
+}
+
+class _TopTechniqueRow extends StatelessWidget {
+  final int rank;
+  final String name;
+  final int count;
+  final String lastRegistered;
+  final int maxCount;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _TopTechniqueRow({
+    required this.rank,
+    required this.name,
+    required this.count,
+    required this.lastRegistered,
+    required this.maxCount,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fraction =
+        maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0).toDouble();
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.1),
+          border: Border.all(color: cs.onSurface.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: color.withValues(alpha: 0.15),
+                border: Border.all(color: color.withValues(alpha: 0.3)),
+              ),
+              child: Center(
+                child: Text(
+                  '$rank',
+                  style: TextStyle(
+                    color: color,
+                    fontSize: 9,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 1),
+                  Row(
+                    children: [
+                      Text(
+                        '$count sessões',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.5),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        lastRegistered.replaceAll('Último registro ', ''),
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.4),
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 48,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 3,
+                  color: color,
+                  backgroundColor: cs.onSurface.withValues(alpha: 0.05),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: cs.onSurface.withValues(alpha: 0.35),
+              size: 14,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TechniqueDistribution extends StatelessWidget {
+  final List<_SkillsMatrixTechnique> techniques;
+
+  const _TechniqueDistribution({required this.techniques});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    final categoryCounts = <String, int>{};
+    for (final t in techniques) {
+      final cat = t.detail.isNotEmpty ? t.detail : 'Sem categoria';
+      categoryCounts[cat] = (categoryCounts[cat] ?? 0) + t.count;
+    }
+
+    final sortedEntries =
+        categoryCounts.entries.toList()
+          ..sort((a, b) => b.value.compareTo(a.value));
+
+    final maxCount = sortedEntries.isNotEmpty ? sortedEntries.first.value : 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Distribuição por categoria',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.5),
+            fontSize: 9,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        const SizedBox(height: 6),
+        ...sortedEntries.take(4).map((entry) {
+          final fraction =
+              maxCount <= 0
+                  ? 0.0
+                  : (entry.value / maxCount).clamp(0.0, 1.0).toDouble();
+          return Container(
+            margin: const EdgeInsets.only(bottom: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  flex: 3,
+                  child: Text(
+                    entry.key,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.7),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 5,
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(999),
+                    child: LinearProgressIndicator(
+                      value: fraction,
+                      minHeight: 3,
+                      color: TitansUI.technicalBlue,
+                      backgroundColor: cs.onSurface.withValues(alpha: 0.05),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '${entry.value}',
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.6),
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }),
+      ],
+    );
+  }
+}
+
+class _ViewAllTechniquesCta extends StatelessWidget {
+  final int count;
+  final VoidCallback onTap;
+
+  const _ViewAllTechniquesCta({required this.count, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(8),
+          color: cs.primary.withValues(alpha: 0.06),
+          border: Border.all(color: cs.primary.withValues(alpha: 0.12)),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.expand_more_rounded,
+              color: cs.primary.withValues(alpha: 0.7),
+              size: 16,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'Ver todas as $count técnicas',
+              style: TextStyle(
+                color: cs.primary,
+                fontSize: 11,
+                fontWeight: FontWeight.w800,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AllTechniquesBottomSheet extends StatelessWidget {
+  final List<_SkillsMatrixTechnique> techniques;
+  final String positionTitle;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
+
+  const _AllTechniquesBottomSheet({
+    required this.techniques,
+    required this.positionTitle,
+    required this.onOpenTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final maxCount = techniques.fold<int>(
+      1,
+      (max, t) => t.count > max ? t.count : max,
+    );
+
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.7,
+        ),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'Técnicas — $positionTitle',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      node.subtitle,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.58),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  ),
+                  Text(
+                    '${techniques.length} técnicas',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shrinkWrap: true,
+                itemCount: techniques.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 4),
+                itemBuilder: (context, index) {
+                  final technique = techniques[index];
+                  return _AllTechniqueRow(
+                    rank: index + 1,
+                    name: technique.name,
+                    count: technique.count,
+                    detail: technique.detail,
+                    lastRegistered: technique.lastRegisteredLabel,
+                    maxCount: maxCount,
+                    onTap: () {
+                      Navigator.pop(context);
+                      onOpenTechnique(technique.target);
+                    },
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AllTechniqueRow extends StatelessWidget {
+  final int rank;
+  final String name;
+  final int count;
+  final String detail;
+  final String lastRegistered;
+  final int maxCount;
+  final VoidCallback onTap;
+
+  const _AllTechniqueRow({
+    required this.rank,
+    required this.name,
+    required this.count,
+    required this.detail,
+    required this.lastRegistered,
+    required this.maxCount,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fraction =
+        maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0).toDouble();
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+          color: cs.surfaceContainerHighest.withValues(alpha: 0.1),
+          border: Border.all(color: cs.onSurface.withValues(alpha: 0.05)),
+        ),
+        child: Row(
+          children: [
+            Text(
+              '$rank',
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.4),
+                fontSize: 12,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w900,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      if (detail.isNotEmpty) ...[
+                        Text(
+                          detail,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: cs.onSurface.withValues(alpha: 0.5),
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                      Text(
+                        '$count sessões',
+                        style: TextStyle(
+                          color: cs.onSurface.withValues(alpha: 0.5),
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 1),
+                  Text(
+                    lastRegistered.replaceAll('Último registro ', ''),
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.4),
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            SizedBox(
+              width: 60,
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(999),
+                child: LinearProgressIndicator(
+                  value: fraction,
+                  minHeight: 4,
+                  color: TitansUI.actionGold,
+                  backgroundColor: cs.onSurface.withValues(alpha: 0.05),
                 ),
               ),
-              const SizedBox(width: 6),
-              _TechniqueChip(label: node.statusLabel),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _EvidenceBar(
-            label: node.evidenceLabel,
-            value: node.evidenceCount,
-            maxValue: node.evidenceCount.clamp(1, 999999).toInt(),
-            color: TitansUI.actionGold,
-          ),
-          if (node.preview.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 5,
-              runSpacing: 5,
-              children: [
-                for (final name in node.preview.take(4))
-                  _TechniqueChip(label: name),
-              ],
+            ),
+            const SizedBox(width: 8),
+            Icon(
+              Icons.chevron_right_rounded,
+              color: cs.onSurface.withValues(alpha: 0.35),
+              size: 16,
             ),
           ],
-          const SizedBox(height: 10),
-          for (final technique in node.techniques)
-            _TechniqueMiniRow(
-              name: technique.name,
-              count: technique.count,
-              detail: technique.detail,
-              evidenceLabel: technique.evidenceLabel,
-              lastRegisteredLabel: technique.lastRegisteredLabel,
-              maxCount: maxTechniqueEvidence,
-              onTap: () => onOpenTechnique(technique.target),
-            ),
-        ],
+        ),
       ),
     );
   }
@@ -1149,124 +1876,36 @@ class _EvidenceBar extends StatelessWidget {
   }
 }
 
-class _TechniqueMiniRow extends StatelessWidget {
-  final String name;
-  final int count;
-  final String detail;
-  final String evidenceLabel;
-  final String lastRegisteredLabel;
-  final int maxCount;
-  final VoidCallback onTap;
-
-  const _TechniqueMiniRow({
-    required this.name,
-    required this.count,
-    required this.detail,
-    required this.evidenceLabel,
-    required this.lastRegisteredLabel,
-    required this.maxCount,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return InkWell(
-      borderRadius: BorderRadius.circular(10),
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 6),
-        padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-          color: TitansUI.navUnselectedBackground(context),
-          border: Border.all(color: cs.onSurface.withValues(alpha: 0.06)),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w900,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    detail,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.54),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 1),
-                  Text(
-                    lastRegisteredLabel,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.42),
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  _EvidenceBar(
-                    label: evidenceLabel,
-                    value: count,
-                    maxValue: maxCount,
-                    color: TitansUI.actionGold,
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 6),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: cs.onSurface.withValues(alpha: 0.52),
-              size: 16,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _TechniqueChip extends StatelessWidget {
   final String label;
+  final bool compact;
 
-  const _TechniqueChip({required this.label});
+  const _TechniqueChip({required this.label, this.compact = false});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final horizontalPadding = compact ? 6.0 : 7.0;
+    final verticalPadding = compact ? 2.0 : 3.0;
+    final fontSize = compact ? 9.0 : 10.0;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: EdgeInsets.symmetric(
+        horizontal: horizontalPadding,
+        vertical: verticalPadding,
+      ),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
-        color: cs.primary.withValues(alpha: 0.08),
-        border: Border.all(color: cs.primary.withValues(alpha: 0.16)),
+        color: cs.primary.withValues(alpha: 0.06),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.12)),
       ),
       child: Text(
         label,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
-          color: cs.onSurface.withValues(alpha: 0.72),
-          fontSize: 10,
+          color: cs.onSurface.withValues(alpha: 0.68),
+          fontSize: fontSize,
           fontWeight: FontWeight.w800,
         ),
       ),

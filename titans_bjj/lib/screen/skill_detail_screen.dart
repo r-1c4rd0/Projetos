@@ -143,6 +143,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
           const SizedBox(height: 12),
           _RecommendationCard(vm: vm),
           const SizedBox(height: 12),
+          _EvidenceReadingCard(vm: vm),
+          const SizedBox(height: 12),
           Align(
             alignment: Alignment.centerLeft,
             child: TextButton.icon(
@@ -165,6 +167,10 @@ class _SkillDetailHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final topPosition =
+        vm.positionCounts.isNotEmpty
+            ? vm.positionCounts.keys.first
+            : vm.preferredPosition;
 
     return TitansCard(
       accent: cs.primary,
@@ -172,29 +178,34 @@ class _SkillDetailHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: cs.primary.withValues(alpha: 0.12),
-              border: Border.all(color: cs.primary.withValues(alpha: 0.35)),
+              color: cs.primary.withValues(alpha: 0.1),
+              border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
             ),
-            child: Icon(Icons.psychology_alt_outlined, color: cs.primary),
+            child: Icon(
+              Icons.psychology_alt_outlined,
+              color: cs.primary,
+              size: 20,
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
                   vm.displayName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 2),
                 Text(
                   vm.categoryLabel,
                   maxLines: 1,
@@ -202,21 +213,72 @@ class _SkillDetailHeader extends StatelessWidget {
                   style: TextStyle(
                     color: cs.primary,
                     fontWeight: FontWeight.w800,
+                    fontSize: 12,
                   ),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   'Evidências registradas nos treinos.',
                   style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.68),
+                    color: cs.onSurface.withValues(alpha: 0.6),
                     fontWeight: FontWeight.w700,
+                    fontSize: 11,
                   ),
                 ),
+                if (vm.lastPracticedAt != null || topPosition != null) ...[
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 2,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      if (vm.lastPracticedAt != null)
+                        _HeaderMeta(
+                          icon: Icons.schedule_outlined,
+                          text: 'Última: ${vm.lastPracticedLabel}',
+                        ),
+                      if (topPosition != null)
+                        _HeaderMeta(
+                          icon: Icons.account_tree_outlined,
+                          text: topPosition,
+                        ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+class _HeaderMeta extends StatelessWidget {
+  final IconData icon;
+  final String text;
+
+  const _HeaderMeta({required this.icon, required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 11, color: cs.onSurface.withValues(alpha: 0.45)),
+        const SizedBox(width: 3),
+        Text(
+          text,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.55),
+            fontSize: 10,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -236,57 +298,43 @@ class _EvidenceSummaryCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _DetailEyebrow('RESUMO DE EVIDÊNCIAS'),
-          const SizedBox(height: 12),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 430;
-              return GridView.count(
-                crossAxisCount: compact ? 2 : 4,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: compact ? 1.28 : 1.18,
-                children: [
-                  TitansMetricCard(
-                    label: 'Registros',
-                    value: vm.evidenceCount.toString(),
-                    icon: Icons.fact_check_outlined,
-                    color: cs.primary,
-                  ),
-                  TitansMetricCard(
-                    label: 'Sessões',
-                    value: vm.sessionCount.toString(),
-                    icon: Icons.event_note_outlined,
-                    color: cs.secondary,
-                  ),
-                  TitansMetricCard(
-                    label: 'Última vez',
-                    value: vm.lastPracticedLabel,
-                    icon: Icons.schedule_outlined,
-                    color: Colors.lightGreenAccent,
-                  ),
-                  TitansMetricCard(
-                    label: 'Contextos',
-                    value: vm.contextCount.toString(),
-                    icon: Icons.account_tree_outlined,
-                    color: Colors.amber,
-                  ),
-                ],
-              );
-            },
+          const SizedBox(height: 8),
+          TitansCompactMetricGrid(
+            spacing: 8,
+            children: [
+              TitansCompactMetricCard(
+                label: 'REGISTROS',
+                value: vm.evidenceCount.toString(),
+                color: cs.primary,
+              ),
+              TitansCompactMetricCard(
+                label: 'SESSÕES',
+                value: vm.sessionCount.toString(),
+                color: cs.secondary,
+              ),
+              TitansCompactMetricCard(
+                label: 'ÚLTIMA',
+                value: vm.lastPracticedLabel,
+                color: Colors.lightGreenAccent,
+              ),
+              TitansCompactMetricCard(
+                label: 'CONTEXTOS',
+                value: vm.contextCount.toString(),
+                color: Colors.amber,
+              ),
+            ],
           ),
           if (vm.resultLabels.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _ChipWrap(labels: vm.resultLabels),
           ],
           if (vm.evidenceCount > 0 && vm.evidenceCount < 3) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
               'Pouca evidência registrada. Mais treinos ajudam a formar uma leitura mais consistente.',
               style: TextStyle(
                 color: cs.onSurface.withValues(alpha: 0.66),
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -304,14 +352,38 @@ class _PositionsContextCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final entries = vm.positionCounts.entries.toList();
+    final maxCount = entries.isNotEmpty ? entries.first.value : 1;
+    final displayEntries = entries.take(3).toList();
+    final hasMore = entries.length > 3;
+
     return TitansCard(
       accent: Colors.lightGreenAccent,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _DetailEyebrow('POSIÇÕES E CONTEXTOS'),
-          const SizedBox(height: 12),
-          if (vm.positionCounts.isEmpty)
+          Row(
+            children: [
+              const _DetailEyebrow('POSIÇÕES E CONTEXTOS'),
+              const Spacer(),
+              if (hasMore)
+                TextButton(
+                  onPressed:
+                      () => _showAllPositions(context, entries, maxCount),
+                  child: Text(
+                    'Ver todas (${entries.length})',
+                    style: TextStyle(
+                      color: cs.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          if (entries.isEmpty)
             const TitansStateView.empty(
               title: 'Sem posição suficiente',
               message:
@@ -321,20 +393,206 @@ class _PositionsContextCard extends StatelessWidget {
           else
             Column(
               children: [
-                for (final entry in vm.positionCounts.entries) ...[
-                  _CountLine(label: entry.key, value: entry.value),
-                  if (entry.key != vm.positionCounts.keys.last)
-                    const SizedBox(height: 8),
+                for (var i = 0; i < displayEntries.length; i++) ...[
+                  _PositionBar(
+                    label: displayEntries[i].key,
+                    count: displayEntries[i].value,
+                    maxCount: maxCount,
+                    color: _positionColor(i),
+                  ),
+                  if (i != displayEntries.length - 1) const SizedBox(height: 6),
                 ],
               ],
             ),
           if (vm.contextLabels.isNotEmpty) ...[
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             _ChipWrap(labels: vm.contextLabels),
           ],
         ],
       ),
     );
+  }
+
+  Color _positionColor(int index) {
+    switch (index) {
+      case 0:
+        return Colors.amber;
+      case 1:
+        return const Color(0xFFB0BEC5);
+      case 2:
+        return const Color(0xFFCD7F32);
+      default:
+        return TitansUI.technicalBlue;
+    }
+  }
+
+  void _showAllPositions(
+    BuildContext context,
+    List<MapEntry<String, int>> entries,
+    int maxCount,
+  ) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder:
+          (context) =>
+              _AllPositionsBottomSheet(entries: entries, maxCount: maxCount),
+    );
+  }
+}
+
+class _PositionBar extends StatelessWidget {
+  final String label;
+  final int count;
+  final int maxCount;
+  final Color color;
+
+  const _PositionBar({
+    required this.label,
+    required this.count,
+    required this.maxCount,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final fraction =
+        maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0).toDouble();
+
+    return Row(
+      children: [
+        Expanded(
+          flex: 3,
+          child: Text(
+            label,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          flex: 5,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: fraction,
+              minHeight: 4,
+              color: color,
+              backgroundColor: cs.onSurface.withValues(alpha: 0.05),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '${count}x',
+          style: TextStyle(
+            color: cs.onSurface.withValues(alpha: 0.6),
+            fontSize: 10,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AllPositionsBottomSheet extends StatelessWidget {
+  final List<MapEntry<String, int>> entries;
+  final int maxCount;
+
+  const _AllPositionsBottomSheet({
+    required this.entries,
+    required this.maxCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.6,
+        ),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    'Posições e contextos',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${entries.length} posições',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shrinkWrap: true,
+                itemCount: entries.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final entry = entries[index];
+                  final color = _positionColor(index);
+
+                  return _PositionBar(
+                    label: entry.key,
+                    count: entry.value,
+                    maxCount: maxCount,
+                    color: color,
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _positionColor(int index) {
+    switch (index) {
+      case 0:
+        return Colors.amber;
+      case 1:
+        return const Color(0xFFB0BEC5);
+      case 2:
+        return const Color(0xFFCD7F32);
+      default:
+        return TitansUI.technicalBlue;
+    }
   }
 }
 
@@ -346,14 +604,34 @@ class _SkillHistoryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    const previewCount = 8;
+    final displayHistory = vm.history.take(previewCount).toList();
+    final hasMore = vm.history.length > previewCount;
 
     return TitansCard(
       accent: cs.primary,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const _DetailEyebrow('HISTÓRICO'),
-          const SizedBox(height: 12),
+          Row(
+            children: [
+              const _DetailEyebrow('HISTÓRICO'),
+              const Spacer(),
+              if (hasMore)
+                TextButton(
+                  onPressed: () => _showFullHistory(context, vm.history),
+                  child: Text(
+                    'Ver completo (${vm.history.length})',
+                    style: TextStyle(
+                      color: cs.primary,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
           if (vm.history.isEmpty)
             const TitansStateView.empty(
               title: 'Sem evidência registrada',
@@ -364,14 +642,102 @@ class _SkillHistoryCard extends StatelessWidget {
           else
             Column(
               children: [
-                for (var i = 0; i < vm.history.length; i++) ...[
-                  _HistoryRow(item: vm.history[i]),
-                  if (i != vm.history.length - 1)
-                    Divider(color: cs.onSurface.withValues(alpha: 0.08)),
+                for (var i = 0; i < displayHistory.length; i++) ...[
+                  _HistoryRow(item: displayHistory[i]),
+                  if (i != displayHistory.length - 1)
+                    Divider(
+                      color: cs.onSurface.withValues(alpha: 0.06),
+                      height: 1,
+                    ),
                 ],
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  void _showFullHistory(BuildContext context, List<_SkillHistoryItem> history) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _FullHistoryBottomSheet(history: history),
+    );
+  }
+}
+
+class _FullHistoryBottomSheet extends StatelessWidget {
+  final List<_SkillHistoryItem> history;
+
+  const _FullHistoryBottomSheet({required this.history});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return SafeArea(
+      child: Container(
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 12),
+              decoration: BoxDecoration(
+                color: cs.onSurface.withValues(alpha: 0.2),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                children: [
+                  Text(
+                    'Histórico completo',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(
+                    '${history.length} registros',
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.5),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: ListView.separated(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                shrinkWrap: true,
+                itemCount: history.length,
+                separatorBuilder:
+                    (_, __) => Divider(
+                      color: cs.onSurface.withValues(alpha: 0.06),
+                      height: 1,
+                    ),
+                itemBuilder: (context, index) {
+                  return _HistoryRow(item: history[index]);
+                },
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
@@ -744,30 +1110,85 @@ class _RecommendationCard extends StatelessWidget {
   }
 }
 
-class _CountLine extends StatelessWidget {
-  final String label;
-  final int value;
+class _EvidenceReadingCard extends StatelessWidget {
+  final _SkillDetailViewModel vm;
 
-  const _CountLine({required this.label, required this.value});
+  const _EvidenceReadingCard({required this.vm});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final insights = _buildInsights();
 
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900),
+    if (insights.isEmpty) return const SizedBox.shrink();
+
+    return TitansCard(
+      accent: cs.tertiary,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const _DetailEyebrow('LEITURA DE EVIDÊNCIAS'),
+          const SizedBox(height: 8),
+          ...insights.map(
+            (insight) => Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.insights_outlined,
+                    size: 13,
+                    color: cs.onSurface.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      insight,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.7),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        height: 1.3,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
-        const SizedBox(width: 10),
-        _SmallPill(label: '${value}x', color: cs.primary),
-      ],
+        ],
+      ),
     );
+  }
+
+  List<String> _buildInsights() {
+    final insights = <String>[];
+
+    if (vm.evidenceCount > 0) {
+      insights.add('${vm.evidenceCount} registros associados a esta técnica.');
+    }
+
+    if (vm.lastPracticedAt != null) {
+      insights.add('Último registro em ${vm.lastPracticedLabel}.');
+    }
+
+    if (vm.positionCounts.isNotEmpty) {
+      final topPosition = vm.positionCounts.keys.first;
+      final topCount = vm.positionCounts.values.first;
+      if (vm.positionCounts.length == 1) {
+        insights.add('Aparece exclusivamente em $topPosition ($topCount×).');
+      } else {
+        insights.add(
+          'Mais frequente em $topPosition ($topCount× de ${vm.evidenceCount}).',
+        );
+      }
+    }
+
+    if (vm.contextLabels.isNotEmpty) {
+      insights.add('Contextos: ${vm.contextLabels.take(3).join(', ')}.');
+    }
+
+    return insights.take(4).toList();
   }
 }
 
@@ -825,14 +1246,13 @@ class _ChipWrap extends StatelessWidget {
 
 class _SmallPill extends StatelessWidget {
   final String label;
-  final Color? color;
 
-  const _SmallPill({required this.label, this.color});
+  const _SmallPill({required this.label});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final accent = color ?? cs.primary;
+    final accent = cs.primary;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
@@ -887,6 +1307,7 @@ class _SkillDetailViewModel {
   final List<String> resultLabels;
   final List<_SkillHistoryItem> history;
   final CoachEvaluation? evaluation;
+  final String? preferredPosition;
 
   const _SkillDetailViewModel({
     required this.skillId,
@@ -900,6 +1321,7 @@ class _SkillDetailViewModel {
     required this.resultLabels,
     required this.history,
     required this.evaluation,
+    required this.preferredPosition,
   });
 
   String get categoryLabel => category.label;
@@ -1006,6 +1428,7 @@ class _SkillDetailViewModel {
       resultLabels: results.toList()..sort(),
       history: history,
       evaluation: evaluation,
+      preferredPosition: preferredPosition,
     );
   }
 }
