@@ -190,6 +190,9 @@ class TitansTechnicalRadar extends StatefulWidget {
   /// `enableHolographicMode: true`, mas funciona sem ele também
   /// (nesse caso fica mais sutil, sem a trilha 3D).
   final bool enableHudDetails;
+  final TechnicalRadarAxis? initialFocusedAxis;
+  final ValueChanged<TechnicalRadarAxis?>? onFocusedAxisChanged;
+  final bool allowFocusClear;
 
   const TitansTechnicalRadar({
     super.key,
@@ -214,6 +217,9 @@ class TitansTechnicalRadar extends StatefulWidget {
     this.initialPerspective = TitansRadarPerspective.holographic,
     this.enableSweep = true,
     this.enableHudDetails = false,
+    this.initialFocusedAxis,
+    this.onFocusedAxisChanged,
+    this.allowFocusClear = true,
   });
 
   @override
@@ -245,6 +251,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
       duration: const Duration(milliseconds: 520),
     );
     _perspective = widget.initialPerspective;
+    _focusedAxisIndex = _axisIndexOf(widget.initialFocusedAxis);
   }
 
   @override
@@ -276,8 +283,12 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
         !widget.enablePerspectiveControls) {
       _perspective = widget.initialPerspective;
     }
+    if (widget.initialFocusedAxis != oldWidget.initialFocusedAxis) {
+      _focusedAxisIndex = _axisIndexOf(widget.initialFocusedAxis);
+    }
     if (!widget.interactive && _focusedAxisIndex != null) {
       _focusedAxisIndex = null;
+      widget.onFocusedAxisChanged?.call(null);
     }
   }
 
@@ -287,6 +298,12 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     _loop.dispose();
     _focusPing.dispose();
     super.dispose();
+  }
+
+  int? _axisIndexOf(TechnicalRadarAxis? axis) {
+    if (axis == null) return null;
+    final index = _axisOrder.indexOf(axis);
+    return index < 0 ? null : index;
   }
 
   void _setPerspective(TitansRadarPerspective perspective) {
@@ -308,6 +325,7 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
         _perspective = TitansRadarPerspective.axisFocus;
       }
     });
+    widget.onFocusedAxisChanged?.call(_axisOrder[index]);
     if (widget.enableHudDetails) {
       _focusPing
         ..stop()
@@ -381,7 +399,10 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     final center = Offset(size / 2, size / 2);
     final local = details.localPosition - center;
     if (local.distance > radius * 1.35) {
-      if (_focusedAxisIndex != null) setState(() => _focusedAxisIndex = null);
+      if (widget.allowFocusClear && _focusedAxisIndex != null) {
+        setState(() => _focusedAxisIndex = null);
+        widget.onFocusedAxisChanged?.call(null);
+      }
       return;
     }
     var angle = math.atan2(local.dy, local.dx) + math.pi / 2;
@@ -389,7 +410,10 @@ class _TitansTechnicalRadarState extends State<TitansTechnicalRadar>
     final step = 2 * math.pi / _axisOrder.length;
     final index = (angle / step).round() % _axisOrder.length;
     if (_focusedAxisIndex == index) {
-      setState(() => _focusedAxisIndex = null);
+      if (widget.allowFocusClear) {
+        setState(() => _focusedAxisIndex = null);
+        widget.onFocusedAxisChanged?.call(null);
+      }
       return;
     }
     _focusAxis(index);
