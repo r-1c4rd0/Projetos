@@ -66,6 +66,11 @@ service cloud.firestore {
         && academyUserDoc(academyId, uid).data.academyId == academyId;
     }
 
+    function isAcademyAthlete(academyId, uid) {
+      return isAcademyUser(academyId, uid)
+        && academyUserDoc(academyId, uid).data.role == 'athlete';
+    }
+
     function keepsSameAcademyId(academyId) {
       return request.resource.data.academyId == academyId
         && (!resource.data.keys().hasAny(['academyId']) || resource.data.academyId == academyId);
@@ -361,10 +366,10 @@ service cloud.firestore {
           allow get, list: if (isSelf(uid) && isAcademyMember(academyId))
             || isAcademyStaff(academyId);
           allow create: if isAcademyStaff(academyId)
-            && isAcademyUser(academyId, uid)
+            && isAcademyAthlete(academyId, uid)
             && coachEvaluationPayload(academyId, uid);
           allow update: if isAcademyStaff(academyId)
-            && isAcademyUser(academyId, uid)
+            && isAcademyAthlete(academyId, uid)
             && coachEvaluationUpdatePayload(academyId, uid);
           allow delete: if false;
         }
