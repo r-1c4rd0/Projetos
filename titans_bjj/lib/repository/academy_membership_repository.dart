@@ -31,4 +31,21 @@ class AcademyMembershipRepository {
 
     return memberships;
   }
+
+  Future<MembershipQuerySnapshot> loadMembershipSnapshot(String uid) async {
+    try {
+      final memberships = await listMemberships(uid);
+      return MembershipQuerySnapshot.confirmed(memberships);
+    } on FirebaseException catch (error, stackTrace) {
+      if (error.code == 'permission-denied') {
+        return MembershipQuerySnapshot.permissionDenied(error);
+      }
+      if (error.code == 'unavailable') {
+        return MembershipQuerySnapshot.unavailable(error);
+      }
+      return MembershipQuerySnapshot.failed(error, stackTrace);
+    } catch (error, stackTrace) {
+      return MembershipQuerySnapshot.failed(error, stackTrace);
+    }
+  }
 }

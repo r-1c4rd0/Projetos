@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../core/startup_performance_trace.dart';
+import '../core/titans_theme.dart';
 
 class SplashScreen extends StatefulWidget {
   final Widget child;
@@ -16,14 +17,12 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  static const _standardDuration = Duration(milliseconds: 2800);
-  static const _reducedMotionDuration = Duration(milliseconds: 750);
-  static const _fadeOutDuration = Duration(milliseconds: 420);
-  static const _reducedFadeOutDuration = Duration(milliseconds: 180);
-  static const _asset = 'assets/tela_inicial.png';
+  static const _entryDuration = Duration(milliseconds: 520);
+  static const _fadeOutDuration = Duration(milliseconds: 260);
+  static const _reducedFadeOutDuration = Duration(milliseconds: 120);
+  static const _asset = 'assets/logo_icon.png';
 
   late final AnimationController _controller;
-  Timer? _timer;
   bool _showSplash = true;
   bool _fadeSplash = false;
   bool _completed = false;
@@ -36,10 +35,16 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     StartupPerformanceTrace.mark('Splash initState');
     WidgetsBinding.instance.addObserver(this);
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2200),
-    );
+    _controller = AnimationController(vsync: this, duration: _entryDuration)
+      ..addStatusListener(_handleAnimationStatus);
+  }
+
+  void _handleAnimationStatus(AnimationStatus status) {
+    if (status != AnimationStatus.completed || _fadeSplash || !mounted) {
+      return;
+    }
+    StartupPerformanceTrace.start('Splash fade out');
+    setState(() => _fadeSplash = true);
   }
 
   @override
@@ -67,21 +72,15 @@ class _SplashScreenState extends State<SplashScreen>
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     if (!reducedMotion) {
       StartupPerformanceTrace.mark('Splash animation start');
-      _controller.repeat();
+      _controller.forward(from: 0);
     } else {
       StartupPerformanceTrace.mark('Splash animation skipped reduced motion');
-    }
-
-    StartupPerformanceTrace.start('Splash minimum duration');
-    _timer = Timer(
-      reducedMotion ? _reducedMotionDuration : _standardDuration,
-      () {
-        StartupPerformanceTrace.end('Splash minimum duration');
-        if (!mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || _fadeSplash) return;
         StartupPerformanceTrace.start('Splash fade out');
         setState(() => _fadeSplash = true);
-      },
-    );
+      });
+    }
   }
 
   @override
@@ -94,7 +93,7 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    _timer?.cancel();
+    _controller.removeStatusListener(_handleAnimationStatus);
     _controller.dispose();
     super.dispose();
   }
@@ -143,86 +142,148 @@ class _SplashStage extends StatelessWidget {
   Widget build(BuildContext context) {
     final reducedMotion = MediaQuery.disableAnimationsOf(context);
     final cs = Theme.of(context).colorScheme;
+    final tc = titansColors(context);
 
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: tc.background,
       body: RepaintBoundary(
         child: AnimatedBuilder(
           animation: controller,
           builder: (context, _) {
-            final progress = reducedMotion ? 0.0 : controller.value;
-            final pulse = 0.5 + math.sin(progress * math.pi * 2) * 0.5;
-            final scale = reducedMotion ? 1.0 : 1.015 + pulse * 0.012;
+            final progress = reducedMotion ? 1.0 : controller.value;
+            final eased = Curves.easeOutCubic.transform(progress.clamp(0, 1));
+            final scale = reducedMotion ? 1.0 : 0.985 + eased * 0.015;
+            final opacity = reducedMotion ? 1.0 : eased.clamp(0.0, 1.0);
 
-            return Stack(
-              fit: StackFit.expand,
-              children: [
-                Transform.scale(
-                  scale: scale,
-                  child: Image.asset(
-                    _SplashScreenState._asset,
-                    fit: BoxFit.cover,
-                    alignment: Alignment.center,
-                    errorBuilder:
-                        (context, error, stackTrace) => _SplashAssetFallback(
-                          primary: cs.primary,
-                          secondary: cs.secondary,
-                        ),
-                  ),
+            return DecoratedBox(
+              decoration: BoxDecoration(
+                color: tc.background,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    tc.background,
+                    Color.lerp(tc.background, cs.secondary, 0.08)!,
+                    Color.lerp(tc.background, cs.tertiary, 0.05)!,
+                    tc.background,
+                  ],
+                  stops: const [0, 0.38, 0.72, 1],
                 ),
-                DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: RadialGradient(
-                      center: const Alignment(0, -0.08),
-                      radius: 0.95,
-                      colors: [
-                        Colors.transparent,
-                        Colors.black.withValues(alpha: 0.10),
-                        Colors.black.withValues(alpha: 0.56),
-                      ],
-                      stops: const [0.0, 0.58, 1.0],
-                    ),
-                  ),
-                ),
-                CustomPaint(
-                  painter: _SplashEnergyPainter(
-                    progress: progress,
-                    primary: cs.primary,
-                    secondary: cs.secondary,
-                  ),
-                ),
-                SafeArea(
-                  child: Align(
-                    alignment: const Alignment(0, 0.72),
-                    child: Opacity(
-                      opacity: reducedMotion ? 0.88 : 0.72 + pulse * 0.20,
-                      child: Container(
-                        width: 92,
-                        height: 3,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(99),
-                          gradient: LinearGradient(
-                            colors: [
-                              Colors.transparent,
-                              cs.primary.withValues(alpha: 0.86),
-                              cs.secondary.withValues(alpha: 0.62),
-                              Colors.transparent,
-                            ],
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: cs.primary.withValues(alpha: 0.34),
-                              blurRadius: 16,
-                            ),
-                          ],
-                        ),
+              ),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: RadialGradient(
+                        center: const Alignment(-0.9, -0.95),
+                        radius: 1.15,
+                        colors: [
+                          tc.accent.withValues(alpha: 0.10),
+                          cs.secondary.withValues(alpha: 0.045),
+                          Colors.transparent,
+                        ],
+                        stops: const [0, 0.42, 1],
                       ),
                     ),
                   ),
-                ),
-              ],
+                  Opacity(
+                    opacity: 0.045,
+                    child: CustomPaint(
+                      painter: _SplashDotGridPainter(
+                        color: tc.textPrimary.withValues(alpha: 0.75),
+                      ),
+                    ),
+                  ),
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      final shortest = math.min(
+                        constraints.maxWidth,
+                        constraints.maxHeight,
+                      );
+                      final logoSize = (shortest * 0.32).clamp(120.0, 190.0);
+                      final dpr = MediaQuery.devicePixelRatioOf(context);
+                      final decodePx =
+                          (logoSize * dpr).round().clamp(1, 512).toInt();
+
+                      return Center(
+                        child: Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            _SplashGoldGlow(
+                              progress: eased,
+                              color: tc.accent,
+                              size: logoSize * 1.82,
+                              reducedMotion: reducedMotion,
+                            ),
+                            Opacity(
+                              opacity: opacity,
+                              child: Transform.scale(
+                                scale: scale,
+                                child: Semantics(
+                                  label: 'Titans BJJ',
+                                  image: true,
+                                  child: Image.asset(
+                                    _SplashScreenState._asset,
+                                    width: logoSize,
+                                    height: logoSize,
+                                    cacheWidth: decodePx,
+                                    cacheHeight: decodePx,
+                                    fit: BoxFit.contain,
+                                    filterQuality: FilterQuality.high,
+                                    errorBuilder:
+                                        (context, error, stackTrace) =>
+                                            _SplashAssetFallback(
+                                              primary: cs.primary,
+                                              secondary: cs.secondary,
+                                            ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
             );
           },
+        ),
+      ),
+    );
+  }
+}
+
+class _SplashGoldGlow extends StatelessWidget {
+  final double progress;
+  final Color color;
+  final double size;
+  final bool reducedMotion;
+
+  const _SplashGoldGlow({
+    required this.progress,
+    required this.color,
+    required this.size,
+    required this.reducedMotion,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final intensity = reducedMotion ? 0.52 : 0.30 + progress * 0.22;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: RadialGradient(
+          colors: [
+            color.withValues(alpha: intensity),
+            color.withValues(alpha: intensity * 0.28),
+            Colors.transparent,
+          ],
+          stops: const [0, 0.42, 1],
         ),
       ),
     );
@@ -260,63 +321,26 @@ class _SplashAssetFallback extends StatelessWidget {
   }
 }
 
-class _SplashEnergyPainter extends CustomPainter {
-  final double progress;
-  final Color primary;
-  final Color secondary;
+class _SplashDotGridPainter extends CustomPainter {
+  final Color color;
 
-  const _SplashEnergyPainter({
-    required this.progress,
-    required this.primary,
-    required this.secondary,
-  });
+  const _SplashDotGridPainter({required this.color});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = size.center(Offset.zero);
-    final shortest = math.min(size.width, size.height);
-    final sweepRect = Rect.fromCircle(center: center, radius: shortest * 0.42);
+    final paint = Paint()..color = color;
+    const step = 22.0;
+    const radius = 1.0;
 
-    final sweep =
-        Paint()
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = 1.3
-          ..shader = SweepGradient(
-            transform: GradientRotation(progress * math.pi * 2),
-            colors: [
-              Colors.transparent,
-              primary.withValues(alpha: 0.08),
-              primary.withValues(alpha: 0.30),
-              secondary.withValues(alpha: 0.16),
-              Colors.transparent,
-            ],
-          ).createShader(sweepRect);
-
-    canvas.drawCircle(center, shortest * 0.36, sweep);
-    canvas.drawCircle(center, shortest * 0.48, sweep..strokeWidth = 0.7);
-
-    final verticalGlow =
-        Paint()
-          ..shader = LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.transparent,
-              primary.withValues(alpha: 0.10),
-              Colors.transparent,
-            ],
-          ).createShader(Offset.zero & size);
-
-    canvas.drawRect(
-      Rect.fromLTWH(size.width * 0.48, 0, size.width * 0.04, size.height),
-      verticalGlow,
-    );
+    for (double y = 0; y < size.height; y += step) {
+      for (double x = 0; x < size.width; x += step) {
+        canvas.drawCircle(Offset(x, y), radius, paint);
+      }
+    }
   }
 
   @override
-  bool shouldRepaint(covariant _SplashEnergyPainter oldDelegate) {
-    return oldDelegate.progress != progress ||
-        oldDelegate.primary != primary ||
-        oldDelegate.secondary != secondary;
+  bool shouldRepaint(covariant _SplashDotGridPainter oldDelegate) {
+    return oldDelegate.color != color;
   }
 }

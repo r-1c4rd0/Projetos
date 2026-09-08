@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'auth_gate.dart';
 import 'core/startup_performance_trace.dart';
 import 'core/theme_controller.dart';
-import 'core/titans_theme.dart';
 import 'core/titans_ui.dart';
 import 'firebase_options.dart';
 import 'model/academy_models.dart';
@@ -35,6 +34,9 @@ Future<void> main() async {
   StartupPerformanceTrace.mark('main start');
   WidgetsFlutterBinding.ensureInitialized();
   StartupPerformanceTrace.mark('widgets binding ready');
+  StartupPerformanceTrace.start('theme preference load');
+  await themeController.load();
+  StartupPerformanceTrace.end('theme preference load');
   StartupPerformanceTrace.start('firebase initialize');
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   StartupPerformanceTrace.end('firebase initialize');
@@ -86,9 +88,8 @@ class _TitansAppState extends State<TitansApp> with WidgetsBindingObserver {
             title: 'Titans BJJ',
             debugShowCheckedModeBanner: false,
 
-            theme: buildTitansLightTheme(),
-            darkTheme: buildTitansDarkTheme(),
-            themeMode: themeController.mode,
+            theme: themeController.theme,
+            themeMode: ThemeMode.light,
 
             // Dica: melhora consistência de paddings e evita “quebras” estranhas na web
             builder: (context, child) {

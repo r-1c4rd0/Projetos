@@ -7,6 +7,7 @@ import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../features/training/application/training_use_cases.dart';
 import '../features/training/domain/training_models.dart';
+import '../main.dart';
 import '../model/app_user.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
@@ -307,7 +308,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
         'target.academyId=${target?.academyId}',
       );
       return _wrapModule(
-        appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
+        appBar: AppBar(
+          leading: _mainScreenLeading(context),
+          title: Text(widget.titleOverride ?? 'Treinos'),
+        ),
         body:
             widget.targetMode == TargetMode.selectedStudent
                 ? const TitansStateView.noStudent(
@@ -332,7 +336,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
     );
 
     return _wrapModule(
-      appBar: AppBar(title: Text(widget.titleOverride ?? 'Treinos')),
+      appBar: AppBar(
+        leading: _mainScreenLeading(context),
+        title: Text(widget.titleOverride ?? 'Treinos'),
+      ),
       floatingActionButton: null,
       body: StreamBuilder<List<TrainingSession>>(
         stream: _sessionsStream,
@@ -476,6 +483,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
         },
       ),
     );
+  }
+
+  Widget? _mainScreenLeading(BuildContext context) {
+    if (widget.embedded || Navigator.of(context).canPop()) return null;
+    return const AppLogoLeading();
   }
 
   Widget _wrapModule({
@@ -3124,7 +3136,7 @@ class _TrainingCompactMetricsAndActions extends StatelessWidget {
                   OutlinedButton.icon(
                     onPressed: onAddTraining,
                     icon: const Icon(Icons.add, size: 18),
-                    label: const Text('+ Treino'),
+                    label: const Text('Treino completo'),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(

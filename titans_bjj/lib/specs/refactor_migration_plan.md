@@ -61,8 +61,15 @@ features/<feature>/
 - Mapear fluxo `AuthGate`, `UserScope`, `SelectedStudentScope`, session lock e biometria.
 - Criar contrato explicito de usuario, role, academia ativa e aluno selecionado.
 - Eliminar uso conceitual de `academyId` default, mantendo fallback temporario se necessario.
-- AUTH-REAL-USERS — Onboarding real de atletas e professores convidados (P0 antes de uso real em academia): prever diagnostico do cadastro atual; modelo de convite; aceite com criacao/vinculo de conta Firebase Auth propria; regras Firestore/Auth; migracao de atletas sem login; UX no Painel do Mestre com status Ativo/Pendente/Sem acesso/Expirado.
+- AUTH-REAL-USERS - Onboarding real de atletas e professores convidados (P0 antes de uso real em academia): prever diagnostico do cadastro atual; modelo de convite; aceite com criacao/vinculo de conta Firebase Auth propria; regras Firestore/Auth; migracao de atletas sem login; UX no Painel do Mestre com status Ativo/Pendente/Sem acesso/Expirado.
+- PERSONAL-MODE-CONTEXT-CONTRACT-001 - Fechar contrato documental de `Personal Workspace`, `Academy Workspace`, membership ativa e `actor/target` antes de qualquer implementacao.
+- Sequencia para Personal Mode: auditar AuthGate/memberships/invite/rules; impedir bootstrap de sobrescrever dado real; corrigir provisioning de convite; criar `WorkspaceContext`/`TargetContext`; migrar uma fatia vertical de treino/progresso pessoal; so depois remover fallback silencioso de `defaultAcademyId`.
 - Definir Firestore Rules esperadas para admin/professor/athlete.
+- TITANS-FREEMIUM-ENTITLEMENTS-SPEC-001 - Documentar Free, Titans Plus, cortesia administrativa e separacao entre autorizacao e entitlements antes de qualquer paywall.
+- MEMBERSHIP-AND-PLATFORM-AUTHORITY-AUDIT-001 - Auditar autorizacao atual, membership ativa, roles de academia e autoridade de plataforma para cortesia antes de endurecer rules ou integrar billing.
+- MEMBERSHIP-AUTHORITY-SNAPSHOT-001 - Criar snapshot explicito da consulta de membership e impedir que erro/indisponibilidade acionem fallback, bootstrap ou contexto de academia.
+- MEMBERSHIP-PROVISIONING-COMPATIBILITY-001 - Provisionar membership no aceite confiavel de convite, sem backfill amplo e sem alterar rules.
+- MEMBERSHIP-BACKFILL-INVENTORY-001 - Criar inventario read-only de usuarios sem membership e evidencias de vinculo, sem executar backfill.
 - Aceite: usuario autenticado sempre possui estado claro de perfil, role, academia ativa e, quando convidado, vinculo real entre conta Auth e cadastro da academia.
 
 ### Fase 2: fonte unica de graduacao

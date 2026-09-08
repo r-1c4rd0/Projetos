@@ -7,6 +7,7 @@ import '../model/app_user.dart';
 class UserScope extends InheritedWidget {
   final AppUser user;
   final String activeAcademyId;
+  final MembershipQuerySnapshot membershipSnapshot;
   final List<AcademyMembership> memberships;
   final AcademyMembership? activeMembership;
 
@@ -14,10 +15,13 @@ class UserScope extends InheritedWidget {
     super.key,
     required this.user,
     String? activeAcademyId,
+    MembershipQuerySnapshot? membershipSnapshot,
     this.memberships = const [],
     this.activeMembership,
     required super.child,
-  }) : activeAcademyId = activeAcademyId ?? user.academyId;
+  }) : activeAcademyId = activeAcademyId ?? user.academyId,
+       membershipSnapshot =
+           membershipSnapshot ?? MembershipQuerySnapshot.confirmed(memberships);
 
   /// Lanca erro claro quando nao existe UserScope acima.
   static AppUser of(BuildContext context) {
@@ -56,6 +60,7 @@ class UserScope extends InheritedWidget {
   bool updateShouldNotify(UserScope oldWidget) {
     return oldWidget.user != user ||
         oldWidget.activeAcademyId != activeAcademyId ||
+        oldWidget.membershipSnapshot != membershipSnapshot ||
         oldWidget.memberships != memberships ||
         oldWidget.activeMembership != activeMembership;
   }
@@ -65,6 +70,7 @@ class UserScope extends InheritedWidget {
 class UserSession extends StatelessWidget {
   final AppUser user;
   final String? activeAcademyId;
+  final MembershipQuerySnapshot? membershipSnapshot;
   final List<AcademyMembership> memberships;
   final AcademyMembership? activeMembership;
   final Widget child;
@@ -73,6 +79,7 @@ class UserSession extends StatelessWidget {
     super.key,
     required this.user,
     this.activeAcademyId,
+    this.membershipSnapshot,
     this.memberships = const [],
     this.activeMembership,
     required this.child,
@@ -83,6 +90,7 @@ class UserSession extends StatelessWidget {
     return UserScope(
       user: user,
       activeAcademyId: activeAcademyId,
+      membershipSnapshot: membershipSnapshot,
       memberships: memberships,
       activeMembership: activeMembership,
       child: child,

@@ -163,6 +163,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
         );
         return _wrapModule(
           appBar: AppBar(
+            leading: _mainScreenLeading(context),
             title: Text(widget.titleOverride ?? 'Nutri\u00e7\u00e3o'),
           ),
           body:
@@ -207,7 +208,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
 
     return _wrapModule(
       appBar: AppBar(
-        leading: widget.showLeading ? const AppLogoLeading() : null,
+        leading: _mainScreenLeading(context),
         title: Text(widget.titleOverride ?? 'Nutri\u00e7\u00e3o'),
       ),
       floatingActionButton:
@@ -245,6 +246,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
             children: [
               _NutritionHeader(
                 title: widget.titleOverride ?? 'Nutri\u00e7\u00e3o',
+                showTitle: widget.embedded,
               ),
               const SizedBox(height: 12),
               if (isReadOnlyStudentView) ...[
@@ -264,6 +266,9 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   }
 
                   final profile = profSnap.data;
+                  final showMealSectionAddAction =
+                      widget.embedded ||
+                      MediaQuery.sizeOf(context).width >= 720;
                   final dashboard = _getNutritionDashboardSummary(
                     profile: profile,
                     meals: meals,
@@ -300,9 +305,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
                   return _NutritionCompactDashboard(
                     statusCard: _NutritionDashboardStatusCard(
                       dashboard: dashboard,
-                      canEditNutrition: canEditNutrition,
-                      onEditProfile: _editProfile,
-                      onAddMeal: _addMeal,
                     ),
                     profileArea: profileArea,
                     weeklyChart: _DailyCaloriesChart(
@@ -312,6 +314,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
                     mealsSection: _NutritionMealsSection(
                       mealLog: dashboard.mealLog,
                       canEditNutrition: canEditNutrition,
+                      showAddMealAction: showMealSectionAddAction,
                       onAddMeal: _addMeal,
                     ),
                     safetyCopy: const _NutritionInfoCard(
@@ -328,6 +331,15 @@ class _NutritionScreenState extends State<NutritionScreen> {
         },
       ),
     );
+  }
+
+  Widget? _mainScreenLeading(BuildContext context) {
+    if (!widget.showLeading ||
+        widget.embedded ||
+        Navigator.of(context).canPop()) {
+      return null;
+    }
+    return const AppLogoLeading();
   }
 
   Widget _wrapModule({
@@ -463,16 +475,8 @@ class _NutritionCompactDashboard extends StatelessWidget {
 
 class _NutritionDashboardStatusCard extends StatelessWidget {
   final NutritionDashboardSummary dashboard;
-  final bool canEditNutrition;
-  final VoidCallback onEditProfile;
-  final VoidCallback onAddMeal;
 
-  const _NutritionDashboardStatusCard({
-    required this.dashboard,
-    required this.canEditNutrition,
-    required this.onEditProfile,
-    required this.onAddMeal,
-  });
+  const _NutritionDashboardStatusCard({required this.dashboard});
 
   @override
   Widget build(BuildContext context) {
@@ -581,25 +585,6 @@ class _NutritionDashboardStatusCard extends StatelessWidget {
               ),
             ],
           ),
-          if (canEditNutrition) ...[
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                FilledButton.icon(
-                  onPressed: onAddMeal,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Adicionar refei\u00e7\u00e3o'),
-                ),
-                OutlinedButton.icon(
-                  onPressed: onEditProfile,
-                  icon: const Icon(Icons.edit_outlined),
-                  label: const Text('Editar perfil'),
-                ),
-              ],
-            ),
-          ],
         ],
       ),
     );
@@ -625,7 +610,7 @@ class _NutritionUnavailableView extends StatelessWidget {
     return ListView(
       padding: padding,
       children: [
-        _NutritionHeader(title: title),
+        _NutritionHeader(title: title, showTitle: embedded),
         const SizedBox(height: 12),
         const _NutritionInfoCard(
           icon: Icons.info_outline,
@@ -647,8 +632,9 @@ class _NutritionUnavailableView extends StatelessWidget {
 
 class _NutritionHeader extends StatelessWidget {
   final String title;
+  final bool showTitle;
 
-  const _NutritionHeader({required this.title});
+  const _NutritionHeader({required this.title, required this.showTitle});
 
   @override
   Widget build(BuildContext context) {
@@ -661,15 +647,17 @@ class _NutritionHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          const SizedBox(height: 4),
+          if (showTitle) ...[
+            Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            const SizedBox(height: 4),
+          ],
           Text(
             'Registro alimentar e energia para apoiar sua rotina de treinos.',
             style: TextStyle(color: muted),
@@ -945,11 +933,13 @@ class _NutritionEnergyCard extends StatelessWidget {
 class _NutritionMealsSection extends StatelessWidget {
   final MealLogSummary mealLog;
   final bool canEditNutrition;
+  final bool showAddMealAction;
   final VoidCallback onAddMeal;
 
   const _NutritionMealsSection({
     required this.mealLog,
     required this.canEditNutrition,
+    required this.showAddMealAction,
     required this.onAddMeal,
   });
 
@@ -969,7 +959,7 @@ class _NutritionMealsSection extends StatelessWidget {
                 title: 'Meal Log',
                 subtitle: 'Registros agrupados por dia, sem meta alimentar.',
               ),
-              if (canEditNutrition && !mealLog.isEmpty)
+              if (canEditNutrition && showAddMealAction && !mealLog.isEmpty)
                 FilledButton.icon(
                   onPressed: onAddMeal,
                   icon: const Icon(Icons.add),
@@ -987,8 +977,11 @@ class _NutritionMealsSection extends StatelessWidget {
                       ? 'Adicione registros alimentares para acompanhar sua rotina.'
                       : 'Nenhuma refei\u00e7\u00e3o foi registrada para este usu\u00e1rio.',
               actionLabel:
-                  canEditNutrition ? 'Adicionar refei\u00e7\u00e3o' : null,
-              onAction: canEditNutrition ? onAddMeal : null,
+                  canEditNutrition && showAddMealAction
+                      ? 'Adicionar refei\u00e7\u00e3o'
+                      : null,
+              onAction:
+                  canEditNutrition && showAddMealAction ? onAddMeal : null,
               variant:
                   canEditNutrition
                       ? TitansEmptyStateVariant.action
@@ -1354,6 +1347,7 @@ class _MealSheetState extends State<_MealSheet> {
   DateTime _date = DateTime.now();
   String _mealType = 'Almo\u00e7o';
   String _query = '';
+  int _visibleFoodCount = 8;
   final List<FoodItem> _selected = [];
 
   int get _selectedKcal =>
@@ -1459,22 +1453,59 @@ class _MealSheetState extends State<_MealSheet> {
                 decoration: const InputDecoration(
                   labelText: 'Buscar alimento (ex: arroz, frango...)',
                 ),
-                onChanged: (value) => setState(() => _query = value),
+                onChanged:
+                    (value) => setState(() {
+                      _query = value;
+                      _visibleFoodCount = 8;
+                    }),
               ),
               const SizedBox(height: 8),
-              for (final food in results.take(8))
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    food.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text('Calorias: ${food.kcal} kcal'),
-                  trailing: IconButton(
-                    tooltip: 'Adicionar alimento',
-                    icon: const Icon(Icons.add),
-                    onPressed: () => setState(() => _selected.add(food)),
+              Text(
+                'Exibindo ${results.take(_visibleFoodCount).length} de ${results.length} alimentos encontrados.',
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.62),
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 6),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
+                  itemCount: results.take(_visibleFoodCount).length,
+                  itemBuilder: (context, index) {
+                    final food = results[index];
+                    return ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      title: Text(
+                        food.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text('Calorias: ${food.kcal} kcal'),
+                      trailing: IconButton(
+                        tooltip: 'Adicionar alimento',
+                        icon: const Icon(Icons.add),
+                        onPressed: () => setState(() => _selected.add(food)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+              if (results.length > _visibleFoodCount)
+                Align(
+                  alignment: Alignment.center,
+                  child: TextButton.icon(
+                    onPressed: () => setState(() => _visibleFoodCount += 8),
+                    icon: const Icon(Icons.expand_more, size: 18),
+                    label: Text(
+                      'Carregar mais (${results.length - _visibleFoodCount})',
+                    ),
                   ),
                 ),
               const Divider(),

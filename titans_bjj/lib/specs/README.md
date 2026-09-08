@@ -9,6 +9,9 @@ Este arquivo e o indice oficial das specs do Titans BJJ. Qualquer agente deve le
 - `design_system_spec.md` - Design system base e personalizacao por academia.
 - `auth_session_spec.md` - Auth, sessao, roles, biometria, session lock, escopos e roadmap AUTH-REAL-USERS.
 - `multi_academy_spec.md` - Multi-academia, memberships e academia ativa.
+- `personal_mode_context_spec.md` - Contrato de Personal privado, Academy Workspace, membership ativa e actor/target.
+- `freemium_entitlements_spec.md` - Contrato Free, Titans Plus, cortesia administrativa e politica de acesso.
+- `membership_platform_authority_audit.md` - Auditoria de membership ativa, roles de academia e autoridade administrativa de plataforma.
 - `graduation_spec.md` - Fonte unica de graduacao por modalidade.
 - `training_spec.md` - Treinos, sessoes e agregacoes.
 - `progress_spec.md` - Progresso, indicadores e status futuro.
@@ -76,6 +79,9 @@ Centralizar as especificacoes de produto, arquitetura, dados, design system e mi
 - Estrutura por camadas genericas dificulta ownership por dominio.
 - Algumas regras de negocio parecem distribuídas entre telas, services e repositories.
 - Multi-academia ainda nao esta consolidada como fronteira de dados.
+- Personal privado ainda precisa ficar separado de academia/coaching com `type: "personal"`.
+- Membership ativa ainda nao e a fronteira unica de autorizacao em rules/runtime.
+- Entitlements comerciais ainda nao possuem integracao com autoridade administrativa de plataforma.
 - Graduacao pode existir em mais de uma fonte.
 - Visual nao possui contrato unico personalizavel por academia.
 

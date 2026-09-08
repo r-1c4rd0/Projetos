@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -10,6 +12,7 @@ import 'screen/login_screen.dart';
 import 'repository/academy_membership_repository.dart';
 import 'repository/invite_repository.dart';
 import 'repository/user_repository.dart';
+import 'service/membership_session_resolver.dart';
 import 'service/session_lock_controller.dart';
 import 'service/user_session.dart';
 
@@ -91,9 +94,13 @@ class _AuthenticatedApp extends StatefulWidget {
 }
 
 class _AuthenticatedAppState extends State<_AuthenticatedApp> {
+  static const MembershipSessionResolver _membershipResolver =
+      MembershipSessionResolver();
+
   late Future<_ResolvedUserSession> _sessionFuture;
   String? _selectedAcademyId;
   String _lastResolvedAcademyId = AppConfig.resolveActiveAcademyId();
+  int _sessionGeneration = 0;
 
   @override
   void initState() {
@@ -113,38 +120,64 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
   }
 
   Future<_ResolvedUserSession> _startSessionLoad(String reason) {
+    final request = MembershipSessionAttempt(
+      uid: widget.firebaseUser.uid,
+      email: widget.firebaseUser.email ?? '',
+      generation: ++_sessionGeneration,
+    );
     StartupPerformanceTrace.start('AuthGate session load: $reason');
-    return _loadSession(reason);
+    return _loadSession(reason, request);
   }
 
-  Future<_ResolvedUserSession> _loadSession(String reason) async {
-    final memberships = await _loadMemberships();
-    final activeMemberships = memberships
-        .where((membership) => membership.isActive)
-        .toList(growable: false);
+  Future<_ResolvedUserSession> _loadSession(
+    String reason,
+    MembershipSessionAttempt request,
+  ) async {
+    final membershipSnapshot = await _loadMembershipSnapshot(request.uid);
+    _assertFresh(request);
 
-    if (activeMemberships.length > 1 && _selectedAcademyId == null) {
+    final membershipResolution = _membershipResolver.resolve(
+      snapshot: membershipSnapshot,
+      selectedAcademyId: _selectedAcademyId,
+    );
+
+    if (membershipResolution.blocksAcademyContext) {
+      StartupPerformanceTrace.mark(
+        'AuthGate resolved destination: membership error',
+      );
+      StartupPerformanceTrace.end('AuthGate session load: $reason');
+      return _ResolvedUserSession.membershipBlocked(membershipSnapshot);
+    }
+
+    if (membershipResolution.kind ==
+        MembershipSessionResolutionKind.academySelectionRequired) {
       StartupPerformanceTrace.mark(
         'AuthGate resolved destination: academy selection',
       );
       StartupPerformanceTrace.end('AuthGate session load: $reason');
-      return _ResolvedUserSession.needsSelection(activeMemberships);
+      return _ResolvedUserSession.needsSelection(
+        membershipSnapshot,
+        membershipResolution.activeMemberships,
+      );
     }
 
-    final activeMembership = _resolveActiveMembership(activeMemberships);
-    final activeAcademyId = activeMembership?.academyId ?? _fallbackAcademyId();
+    final activeMembership = membershipResolution.activeMembership;
+    final activeAcademyId =
+        activeMembership?.academyId ?? _fallbackAcademyIdForConfirmedAbsence();
     _lastResolvedAcademyId = activeAcademyId;
 
     await _acceptPendingInviteIfAvailable(activeAcademyId);
+    _assertFresh(request);
 
     StartupPerformanceTrace.start('ensureUserDoc');
     final appUser = await UserRepository.instance
         .ensureUserDoc(
-          uid: widget.firebaseUser.uid,
-          email: widget.firebaseUser.email ?? '',
+          uid: request.uid,
+          email: request.email,
           academyId: activeAcademyId,
         )
         .timeout(const Duration(seconds: 12));
+    _assertFresh(request);
     StartupPerformanceTrace.end('ensureUserDoc');
     StartupPerformanceTrace.mark('AuthGate resolved destination: app');
     StartupPerformanceTrace.end('AuthGate session load: $reason');
@@ -152,52 +185,51 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
     return _ResolvedUserSession(
       user: appUser,
       activeAcademyId: activeAcademyId,
-      memberships: memberships,
+      membershipSnapshot: membershipSnapshot,
+      memberships: membershipSnapshot.memberships,
       activeMembership: activeMembership,
     );
   }
 
-  Future<List<AcademyMembership>> _loadMemberships() async {
+  Future<MembershipQuerySnapshot> _loadMembershipSnapshot(String uid) async {
     StartupPerformanceTrace.start('membership load');
-    try {
-      final memberships = await AcademyMembershipRepository.instance
-          .listMemberships(widget.firebaseUser.uid)
-          .timeout(const Duration(seconds: 8));
-      StartupPerformanceTrace.end(
-        'membership load',
-        detail: 'count=${memberships.length}',
-      );
-      return memberships;
-    } on FirebaseException catch (error) {
-      if (error.code == 'permission-denied' || error.code == 'unavailable') {
-        debugPrint(
-          '[MULTI_ACADEMY] memberships fallback code=${error.code} message=${error.message}',
+    final snapshot = await AcademyMembershipRepository.instance
+        .loadMembershipSnapshot(uid)
+        .timeout(
+          const Duration(seconds: 8),
+          onTimeout:
+              () => MembershipQuerySnapshot.unavailable(
+                TimeoutException('membership load timeout'),
+              ),
         );
-        StartupPerformanceTrace.end(
-          'membership load',
-          detail: 'fallback=${error.code}',
-        );
-        return const <AcademyMembership>[];
-      }
-      rethrow;
-    }
+
+    StartupPerformanceTrace.end(
+      'membership load',
+      detail:
+          'status=${snapshot.status.name} count=${snapshot.memberships.length}',
+    );
+    return snapshot;
   }
 
-  AcademyMembership? _resolveActiveMembership(
-    List<AcademyMembership> activeMemberships,
-  ) {
-    if (activeMemberships.isEmpty) return null;
-    final selectedAcademyId = _selectedAcademyId;
-    if (selectedAcademyId != null) {
-      for (final membership in activeMemberships) {
-        if (membership.academyId == selectedAcademyId) return membership;
-      }
-    }
-    return activeMemberships.first;
-  }
-
-  String _fallbackAcademyId() {
+  String _fallbackAcademyIdForConfirmedAbsence() {
     return AppConfig.resolveActiveAcademyId();
+  }
+
+  void _retrySession() {
+    if (!mounted) return;
+    setState(() {
+      _sessionFuture = _startSessionLoad('retry');
+    });
+  }
+
+  void _assertFresh(MembershipSessionAttempt request) {
+    if (!request.matches(
+      currentUid: widget.firebaseUser.uid,
+      currentEmail: widget.firebaseUser.email ?? '',
+      currentGeneration: _sessionGeneration,
+    )) {
+      throw const _StaleSessionLoadException();
+    }
   }
 
   void _selectAcademy(AcademyMembership membership) {
@@ -273,6 +305,12 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
         }
 
         if (sessionSnap.hasError) {
+          if (sessionSnap.error is _StaleSessionLoadException) {
+            return const Scaffold(
+              body: Center(child: CircularProgressIndicator()),
+            );
+          }
+
           StartupPerformanceTrace.mark('AuthGate session error');
           final err = sessionSnap.error?.toString() ?? '';
           final isOfflineFirestore =
@@ -292,6 +330,9 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
             return UserScope(
               user: appUser,
               activeAcademyId: _lastResolvedAcademyId,
+              membershipSnapshot: MembershipQuerySnapshot.unavailable(
+                sessionSnap.error ?? 'offline',
+              ),
               child: widget.app,
             );
           }
@@ -299,14 +340,27 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
           return _ErrorScreen(
             title: 'Erro ao criar/ler academies/{academyId}/users/{uid}',
             error: sessionSnap.error,
+            onRetry: _retrySession,
           );
         }
 
         final session = sessionSnap.data;
         if (session == null) {
-          return const _ErrorScreen(
+          return _ErrorScreen(
             title: 'Usuario nao carregou',
             error: 'ensureUserDoc retornou null',
+            onRetry: _retrySession,
+          );
+        }
+
+        if (session.hasMembershipError) {
+          StartupPerformanceTrace.mark('Home/Login returned: membership error');
+          return _ErrorScreen(
+            title: _membershipErrorTitle(session.membershipSnapshot.status),
+            error:
+                session.membershipSnapshot.error ??
+                'Nao foi possivel confirmar o vinculo com academia.',
+            onRetry: _retrySession,
           );
         }
 
@@ -322,9 +376,10 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
 
         final appUser = session.user;
         if (appUser == null) {
-          return const _ErrorScreen(
+          return _ErrorScreen(
             title: 'Usuario nao carregou',
             error: 'sessao sem AppUser resolvido',
+            onRetry: _retrySession,
           );
         }
 
@@ -332,6 +387,7 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
         return UserScope(
           user: appUser,
           activeAcademyId: session.activeAcademyId,
+          membershipSnapshot: session.membershipSnapshot,
           memberships: session.memberships,
           activeMembership: session.activeMembership,
           child: widget.app,
@@ -339,11 +395,33 @@ class _AuthenticatedAppState extends State<_AuthenticatedApp> {
       },
     );
   }
+
+  String _membershipErrorTitle(MembershipQueryStatus status) {
+    switch (status) {
+      case MembershipQueryStatus.permissionDenied:
+        return 'Sem permissao para confirmar memberships';
+      case MembershipQueryStatus.unavailable:
+        return 'Memberships indisponiveis no momento';
+      case MembershipQueryStatus.loading:
+      case MembershipQueryStatus.confirmedEmpty:
+      case MembershipQueryStatus.confirmedActive:
+      case MembershipQueryStatus.error:
+        return 'Erro ao confirmar memberships';
+    }
+  }
+}
+
+class _StaleSessionLoadException implements Exception {
+  const _StaleSessionLoadException();
+
+  @override
+  String toString() => 'Carga de sessao descartada por troca de usuario.';
 }
 
 class _ResolvedUserSession {
   final AppUser? user;
   final String? activeAcademyId;
+  final MembershipQuerySnapshot membershipSnapshot;
   final List<AcademyMembership> memberships;
   final AcademyMembership? activeMembership;
 
@@ -351,18 +429,30 @@ class _ResolvedUserSession {
       user == null &&
       activeAcademyId == null &&
       activeMembership == null &&
-      memberships.length > 1;
+      memberships.length > 1 &&
+      !hasMembershipError;
+
+  bool get hasMembershipError => membershipSnapshot.isIndeterminate;
 
   const _ResolvedUserSession({
     required this.user,
     required this.activeAcademyId,
+    required this.membershipSnapshot,
     required this.memberships,
     required this.activeMembership,
   });
 
-  const _ResolvedUserSession.needsSelection(this.memberships)
+  const _ResolvedUserSession.needsSelection(
+    this.membershipSnapshot,
+    this.memberships,
+  ) : user = null,
+      activeAcademyId = null,
+      activeMembership = null;
+
+  const _ResolvedUserSession.membershipBlocked(this.membershipSnapshot)
     : user = null,
       activeAcademyId = null,
+      memberships = const <AcademyMembership>[],
       activeMembership = null;
 }
 
@@ -424,8 +514,9 @@ class _AcademySelectorScreen extends StatelessWidget {
 class _ErrorScreen extends StatelessWidget {
   final String title;
   final Object? error;
+  final VoidCallback? onRetry;
 
-  const _ErrorScreen({required this.title, required this.error});
+  const _ErrorScreen({required this.title, required this.error, this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -445,6 +536,13 @@ class _ErrorScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
+                if (onRetry != null) ...[
+                  FilledButton(
+                    onPressed: onRetry,
+                    child: const Text('Tentar novamente'),
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 FilledButton(
                   onPressed: () async {
                     SessionLockController.instance.reset();

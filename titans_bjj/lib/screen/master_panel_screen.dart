@@ -696,6 +696,8 @@ class _StudentsGridState extends State<_StudentsGrid> {
               sliver: SliverToBoxAdapter(
                 child: _TeacherAttentionCard(
                   items: summary.attentionItems,
+                  showListWhenExpanded:
+                      _statusFilter != _RosterStatusFilter.needsAttention,
                   onOpen: widget.onOpen,
                 ),
               ),
@@ -722,7 +724,7 @@ class _StudentsGridState extends State<_StudentsGrid> {
                 ),
                 sliver: SliverGrid(
                   gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: 520,
+                    maxCrossAxisExtent: 460,
                     mainAxisSpacing: TitansUI.spaceSm,
                     crossAxisSpacing: TitansUI.spaceSm,
                     childAspectRatio: ratio,
@@ -1155,102 +1157,236 @@ class _RosterBeltFilterChip extends StatelessWidget {
   }
 }
 
-class _TeacherAttentionCard extends StatelessWidget {
+class _TeacherAttentionCard extends StatefulWidget {
   final List<_AttentionQueueItem> items;
+  final bool showListWhenExpanded;
   final ValueChanged<_StudentAccessEntry> onOpen;
 
-  const _TeacherAttentionCard({required this.items, required this.onOpen});
+  const _TeacherAttentionCard({
+    required this.items,
+    required this.showListWhenExpanded,
+    required this.onOpen,
+  });
+
+  @override
+  State<_TeacherAttentionCard> createState() => _TeacherAttentionCardState();
+}
+
+class _TeacherAttentionCardState extends State<_TeacherAttentionCard>
+    with SingleTickerProviderStateMixin {
+  bool _expanded = false;
+
+  void _toggleExpanded() {
+    setState(() => _expanded = !_expanded);
+  }
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final visibleItems = items.take(4).toList();
-    final hiddenCount = items.length - visibleItems.length;
+    final visibleItems = widget.items.take(4).toList();
+    final hiddenCount = widget.items.length - visibleItems.length;
+    final preview = _previewLabel(widget.items);
+    final hasItems = widget.items.isNotEmpty;
 
     return TitansCard(
       padding: const EdgeInsets.all(TitansUI.spaceSm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(
-                items.isEmpty
-                    ? Icons.check_circle_outline
-                    : Icons.assignment_late_outlined,
-                color:
-                    items.isEmpty ? TitansUI.successGreen : TitansUI.actionGold,
-                size: 18,
-              ),
-              const SizedBox(width: TitansUI.spaceXs),
-              Expanded(
-                child: Text(
-                  'Precisa de atenção',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
-                ),
-              ),
-              _AttentionCounter(count: items.length),
-            ],
-          ),
-          const SizedBox(height: 3),
-          Text(
-            'Pendências objetivas de cadastro, acesso ou graduação.',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: cs.onSurface.withValues(alpha: 0.58),
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: TitansUI.spaceXs),
-          if (items.isEmpty)
-            const _AttentionEmptyState()
-          else
-            LayoutBuilder(
-              builder: (context, constraints) {
-                final twoColumns = constraints.maxWidth >= 560;
-                final itemWidth =
-                    twoColumns
-                        ? (constraints.maxWidth - TitansUI.spaceXs) / 2
-                        : constraints.maxWidth;
-
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      spacing: TitansUI.spaceXs,
-                      runSpacing: TitansUI.spaceXs,
+          Focus(
+            child: CallbackShortcuts(
+              bindings: <ShortcutActivator, VoidCallback>{
+                const SingleActivator(LogicalKeyboardKey.enter):
+                    _toggleExpanded,
+                const SingleActivator(LogicalKeyboardKey.space):
+                    _toggleExpanded,
+              },
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(TitansRadius.md),
+                  onTap: _toggleExpanded,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: TitansUI.spaceXs,
+                      vertical: TitansUI.spaceXs,
+                    ),
+                    child: Row(
                       children: [
-                        for (final item in visibleItems)
-                          SizedBox(
-                            width: itemWidth,
-                            child: _AttentionQueueTile(
-                              item: item,
-                              onOpen: () => onOpen(item.entry),
-                            ),
+                        Icon(
+                          hasItems
+                              ? Icons.assignment_late_outlined
+                              : Icons.check_circle_outline,
+                          color:
+                              hasItems
+                                  ? TitansUI.actionGold
+                                  : TitansUI.successGreen,
+                          size: 18,
+                        ),
+                        const SizedBox(width: TitansUI.spaceXs),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      'Precisa de atenção',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall?.copyWith(
+                                        fontWeight: FontWeight.w900,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: TitansUI.spaceXs),
+                                  _AttentionCounter(count: widget.items.length),
+                                ],
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                hasItems
+                                    ? preview
+                                    : 'Nenhum cadastro pendente no momento.',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: cs.onSurface.withValues(alpha: 0.58),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
                           ),
+                        ),
+                        const SizedBox(width: TitansUI.spaceXs),
+                        AnimatedRotation(
+                          turns: _expanded ? 0.5 : 0,
+                          duration: const Duration(milliseconds: 160),
+                          curve: Curves.easeOutCubic,
+                          child: Icon(
+                            Icons.keyboard_arrow_down_rounded,
+                            color: cs.onSurface.withValues(alpha: 0.68),
+                          ),
+                        ),
                       ],
                     ),
-                    if (hiddenCount > 0) ...[
-                      const SizedBox(height: TitansUI.spaceXs),
-                      Text(
-                        '+$hiddenCount cadastros aparecem no filtro Atenção.',
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.56),
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ],
-                );
-              },
+                  ),
+                ),
+              ),
             ),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 180),
+            curve: Curves.easeOutCubic,
+            alignment: Alignment.topCenter,
+            child:
+                _expanded
+                    ? AnimatedOpacity(
+                      opacity: 1,
+                      duration: const Duration(milliseconds: 140),
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: TitansUI.spaceXs),
+                        child:
+                            hasItems
+                                ? _AttentionExpandedBody(
+                                  items: visibleItems,
+                                  hiddenCount: hiddenCount,
+                                  showList: widget.showListWhenExpanded,
+                                  onOpen: widget.onOpen,
+                                )
+                                : const _AttentionEmptyState(),
+                      ),
+                    )
+                    : const SizedBox.shrink(),
+          ),
         ],
       ),
+    );
+  }
+
+  String _previewLabel(List<_AttentionQueueItem> items) {
+    if (items.isEmpty) return '';
+    final names = items
+        .take(3)
+        .map((item) => item.entry.displayStudent.name.trim())
+        .where((name) => name.isNotEmpty)
+        .join(', ');
+    final remaining = items.length - 3;
+    if (remaining > 0) return '$names +$remaining';
+    return names;
+  }
+}
+
+class _AttentionExpandedBody extends StatelessWidget {
+  final List<_AttentionQueueItem> items;
+  final int hiddenCount;
+  final bool showList;
+  final ValueChanged<_StudentAccessEntry> onOpen;
+
+  const _AttentionExpandedBody({
+    required this.items,
+    required this.hiddenCount,
+    required this.showList,
+    required this.onOpen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    if (!showList) {
+      return Text(
+        'A lista completa já está aplicada pelo filtro Atenção abaixo.',
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.62),
+          fontSize: 11,
+          fontWeight: FontWeight.w800,
+        ),
+      );
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final twoColumns = constraints.maxWidth >= 560;
+        final itemWidth =
+            twoColumns
+                ? (constraints.maxWidth - TitansUI.spaceXs) / 2
+                : constraints.maxWidth;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              spacing: TitansUI.spaceXs,
+              runSpacing: TitansUI.spaceXs,
+              children: [
+                for (final item in items)
+                  SizedBox(
+                    width: itemWidth,
+                    child: _AttentionQueueTile(
+                      item: item,
+                      onOpen: () => onOpen(item.entry),
+                    ),
+                  ),
+              ],
+            ),
+            if (hiddenCount > 0) ...[
+              const SizedBox(height: TitansUI.spaceXs),
+              Text(
+                '+$hiddenCount cadastros aparecem no filtro Atenção.',
+                style: TextStyle(
+                  color: cs.onSurface.withValues(alpha: 0.56),
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }

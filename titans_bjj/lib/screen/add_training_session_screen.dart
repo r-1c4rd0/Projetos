@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
@@ -6,7 +8,6 @@ import '../model/jiu_jitsu_taxonomy_item.dart';
 import '../model/training_session.dart';
 import '../repository/jiu_jitsu_taxonomy_repository.dart';
 import '../repository/training_repository.dart';
-import '../service/jiu_jitsu_taxonomy.dart';
 import '../service/recurrence_generator.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
@@ -499,6 +500,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                             child: const Text('Cancelar'),
                           ),
                           FilledButton.icon(
+                            style: FilledButton.styleFrom(
+                              visualDensity: VisualDensity.compact,
+                            ),
                             onPressed: _saving ? null : _save,
                             icon:
                                 _saving
@@ -535,20 +539,34 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     required bool canAddToAcademy,
     required String? actorUid,
   }) async {
-    final selected = await showModalBottomSheet<_DebriefSelection>(
-      context: context,
-      isScrollControlled: true,
-      showDragHandle: true,
-      builder:
-          (context) => _DebriefSelectSheet(
-            title: title,
-            placeholder: placeholder,
-            options: options,
-            recentOptions: recentOptions,
-            currentValue: controller.text,
-            canAddToAcademy: canAddToAcademy,
-          ),
+    final sheet = TrainingDebriefSelectSheet(
+      title: title,
+      placeholder: placeholder,
+      options: options,
+      recentOptions: recentOptions,
+      currentValue: controller.text,
+      canAddToAcademy: canAddToAcademy,
     );
+    final useDialog = MediaQuery.sizeOf(context).width >= 700;
+    TrainingDebriefSelection? selected;
+    if (useDialog) {
+      selected = await showDialog<TrainingDebriefSelection>(
+        context: context,
+        builder:
+            (context) => Dialog(
+              clipBehavior: Clip.antiAlias,
+              insetPadding: const EdgeInsets.all(24),
+              child: sheet,
+            ),
+      );
+    } else {
+      selected = await showModalBottomSheet<TrainingDebriefSelection>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (context) => sheet,
+      );
+    }
 
     if (selected == null) return;
 
@@ -1267,11 +1285,14 @@ class _DebriefSelectCard extends StatelessWidget {
   }
 }
 
-class _DebriefSelection {
+class TrainingDebriefSelection {
   final String label;
   final bool addToAcademy;
 
-  const _DebriefSelection({required this.label, required this.addToAcademy});
+  const TrainingDebriefSelection({
+    required this.label,
+    required this.addToAcademy,
+  });
 }
 
 enum _TechniqueQuickFilter {
@@ -1284,7 +1305,7 @@ enum _TechniqueQuickFilter {
   other,
 }
 
-class _DebriefSelectSheet extends StatefulWidget {
+class TrainingDebriefSelectSheet extends StatefulWidget {
   final String title;
   final String placeholder;
   final List<String> options;
@@ -1292,7 +1313,8 @@ class _DebriefSelectSheet extends StatefulWidget {
   final String currentValue;
   final bool canAddToAcademy;
 
-  const _DebriefSelectSheet({
+  const TrainingDebriefSelectSheet({
+    super.key,
     required this.title,
     required this.placeholder,
     required this.options,
@@ -1302,10 +1324,12 @@ class _DebriefSelectSheet extends StatefulWidget {
   });
 
   @override
-  State<_DebriefSelectSheet> createState() => _DebriefSelectSheetState();
+  State<TrainingDebriefSelectSheet> createState() =>
+      _TrainingDebriefSelectSheetState();
 }
 
-class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
+class _TrainingDebriefSelectSheetState
+    extends State<TrainingDebriefSelectSheet> {
   late final TextEditingController _search;
   late String _selected;
   bool _addSelectedToAcademy = false;
@@ -1316,8 +1340,12 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
   bool get _isPositionSheet => widget.title.toLowerCase().contains('posição');
 
   String get _subtitle {
-    if (_isTechniqueSheet) return 'Escolha uma técnica usada neste treino';
-    if (_isPositionSheet) return 'Onde essa técnica foi trabalhada?';
+    if (_isTechniqueSheet) {
+      return 'Escolha uma técnica usada neste treino';
+    }
+    if (_isPositionSheet) {
+      return 'Onde essa técnica foi trabalhada?';
+    }
     return 'Escolha uma opção para continuar';
   }
 
@@ -1492,41 +1520,55 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
             (_matchesSearch(_selected, query) &&
                 _matchesTechniqueFilter(_selected)));
     final valueToConfirm = selectedIsVisible ? _selected : '';
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
+    final media = MediaQuery.of(context);
+    final bottomInset = media.viewInsets.bottom;
+    final availableHeight = math.max(
+      220.0,
+      media.size.height - bottomInset - media.padding.vertical - 32,
+    );
+    final compactHeight = availableHeight < 320 || media.size.height < 520;
+    final customOptionCount = showCustom ? (widget.canAddToAcademy ? 2 : 1) : 0;
+    final showEmptyResults = filtered.isEmpty && !showCustom;
+    final resultRowCount =
+        customOptionCount + filtered.length + (showEmptyResults ? 1 : 0);
 
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, 0, 16, 12 + bottomInset),
         child: ConstrainedBox(
           constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.84,
+            maxWidth: 640,
+            maxHeight: math.min(availableHeight, 680),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
+              if (!compactHeight) ...[
+                Text(
+                  widget.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                _subtitle,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: cs.onSurface.withValues(alpha: 0.68),
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 4),
+                Text(
+                  _subtitle,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface.withValues(alpha: 0.68),
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 14),
+                const SizedBox(height: 14),
+              ],
               TextField(
                 controller: _search,
                 autofocus: true,
                 decoration: InputDecoration(
                   hintText: widget.placeholder,
+                  isDense: compactHeight,
                   prefixIcon: const Icon(Icons.search),
                   filled: true,
                   fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.34),
@@ -1545,40 +1587,50 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                       _addSelectedToAcademy = false;
                     }),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: compactHeight ? 6 : 10),
               if (_isTechniqueSheet) ...[
-                SizedBox(
-                  height: 44,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsetsDirectional.only(
-                      start: 4,
-                      end: 20,
-                    ),
-                    itemCount: _TechniqueQuickFilter.values.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final filter = _TechniqueQuickFilter.values[index];
-                      final selected = _selectedTechniqueFilter == filter;
+                LayoutBuilder(
+                  builder: (context, constraints) {
+                    final useWrap = constraints.maxWidth >= 520;
+                    final chips =
+                        _TechniqueQuickFilter.values.map((filter) {
+                          final selected = _selectedTechniqueFilter == filter;
+                          return ChoiceChip(
+                            label: Text(_techniqueFilterLabel(filter)),
+                            selected: selected,
+                            onSelected:
+                                (_) => setState(() {
+                                  _selectedTechniqueFilter = filter;
+                                  _addSelectedToAcademy = false;
+                                }),
+                            visualDensity: VisualDensity.compact,
+                            labelStyle: TextStyle(
+                              fontWeight:
+                                  selected ? FontWeight.w900 : FontWeight.w700,
+                            ),
+                          );
+                        }).toList();
 
-                      return ChoiceChip(
-                        label: Text(_techniqueFilterLabel(filter)),
-                        selected: selected,
-                        onSelected:
-                            (_) => setState(() {
-                              _selectedTechniqueFilter = filter;
-                              _addSelectedToAcademy = false;
-                            }),
-                        visualDensity: VisualDensity.compact,
-                        labelStyle: TextStyle(
-                          fontWeight:
-                              selected ? FontWeight.w900 : FontWeight.w700,
+                    if (useWrap) {
+                      return Wrap(spacing: 8, runSpacing: 8, children: chips);
+                    }
+
+                    return SizedBox(
+                      height: 44,
+                      child: ListView.separated(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsetsDirectional.only(
+                          start: 4,
+                          end: 20,
                         ),
-                      );
-                    },
-                  ),
+                        itemCount: chips.length,
+                        separatorBuilder: (_, __) => const SizedBox(width: 8),
+                        itemBuilder: (context, index) => chips[index],
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: compactHeight ? 6 : 10),
               ],
               if (recentOptions.isNotEmpty) ...[
                 Text(
@@ -1588,7 +1640,7 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                     fontWeight: FontWeight.w900,
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: compactHeight ? 4 : 8),
                 SizedBox(
                   height: 44,
                   child: ListView.separated(
@@ -1623,9 +1675,10 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                     },
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: compactHeight ? 6 : 10),
               ],
-              Flexible(
+              SizedBox(
+                height: compactHeight ? 8 : 120,
                 child: DecoratedBox(
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(14),
@@ -1636,14 +1689,14 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                   ),
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(14),
-                    child: ListView(
-                      shrinkWrap: true,
+                    child: ListView.builder(
                       keyboardDismissBehavior:
                           ScrollViewKeyboardDismissBehavior.onDrag,
                       padding: const EdgeInsets.symmetric(vertical: 4),
-                      children: [
-                        if (showCustom) ...[
-                          _DebriefOptionTile(
+                      itemCount: resultRowCount,
+                      itemBuilder: (context, index) {
+                        if (showCustom && index == 0) {
+                          return _DebriefOptionTile(
                             label: 'Usar "$query"',
                             selected:
                                 _selected == query && !_addSelectedToAcademy,
@@ -1653,22 +1706,27 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                                   _selected = query;
                                   _addSelectedToAcademy = false;
                                 }),
-                          ),
-                          if (widget.canAddToAcademy)
-                            _DebriefOptionTile(
-                              label: 'Adicionar "$query" à lista da academia',
-                              selected:
-                                  _selected == query && _addSelectedToAcademy,
-                              accent: true,
-                              onTap:
-                                  () => setState(() {
-                                    _selected = query;
-                                    _addSelectedToAcademy = true;
-                                  }),
-                            ),
-                        ],
-                        for (final option in filtered)
-                          _DebriefOptionTile(
+                          );
+                        }
+                        if (showCustom &&
+                            widget.canAddToAcademy &&
+                            index == 1) {
+                          return _DebriefOptionTile(
+                            label: 'Adicionar "$query" à lista da academia',
+                            selected:
+                                _selected == query && _addSelectedToAcademy,
+                            accent: true,
+                            onTap:
+                                () => setState(() {
+                                  _selected = query;
+                                  _addSelectedToAcademy = true;
+                                }),
+                          );
+                        }
+                        final optionIndex = index - customOptionCount;
+                        if (optionIndex >= 0 && optionIndex < filtered.length) {
+                          final option = filtered[optionIndex];
+                          return _DebriefOptionTile(
                             label: option,
                             selected:
                                 JiuJitsuTaxonomy.normalizedKey(option) ==
@@ -1679,48 +1737,67 @@ class _DebriefSelectSheetState extends State<_DebriefSelectSheet> {
                                   _selected = option;
                                   _addSelectedToAcademy = false;
                                 }),
+                          );
+                        }
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 28,
                           ),
-                        if (filtered.isEmpty && !showCustom)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 28,
-                            ),
-                            child: Text(
-                              'Nenhum resultado encontrado.',
-                              textAlign: TextAlign.center,
-                              style: TextStyle(
-                                color: cs.onSurface.withValues(alpha: 0.62),
-                                fontWeight: FontWeight.w700,
-                              ),
+                          child: Text(
+                            'Nenhum resultado encontrado.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.62),
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                      ],
+                        );
+                      },
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed:
-                      valueToConfirm.trim().isEmpty
-                          ? null
-                          : () => Navigator.pop(
-                            context,
-                            _DebriefSelection(
-                              label: valueToConfirm.trim(),
-                              addToAcademy: _addSelectedToAcademy,
-                            ),
-                          ),
-                  icon: const Icon(Icons.check),
-                  label: Text(
-                    valueToConfirm.trim().isEmpty
-                        ? 'Selecione uma opção'
-                        : 'Confirmar seleção',
-                  ),
+              SizedBox(height: compactHeight ? 4 : 8),
+              Text(
+                'Exibindo ${filtered.length + customOptionCount} de ${widget.options.length + customOptionCount} opções encontradas.',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: textTheme.labelSmall?.copyWith(
+                  color: cs.onSurface.withValues(alpha: 0.56),
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
+              SizedBox(height: compactHeight ? 4 : 8),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                overflowAlignment: OverflowBarAlignment.end,
+                spacing: 8,
+                overflowSpacing: 8,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton.icon(
+                    onPressed:
+                        valueToConfirm.trim().isEmpty
+                            ? null
+                            : () => Navigator.pop(
+                              context,
+                              TrainingDebriefSelection(
+                                label: valueToConfirm.trim(),
+                                addToAcademy: _addSelectedToAcademy,
+                              ),
+                            ),
+                    icon: const Icon(Icons.check),
+                    label: Text(
+                      valueToConfirm.trim().isEmpty
+                          ? 'Selecione uma opção'
+                          : (_isTechniqueSheet ? 'Usar técnica' : 'Usar opção'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

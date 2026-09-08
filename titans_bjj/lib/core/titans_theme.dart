@@ -160,11 +160,154 @@ SegmentedButtonThemeData _segmentedButtonTheme(TitansColors ext) =>
       ),
     );
 
+ThemeData buildTitansBlackTheme() {
+  const ext = TitansColors(
+    background: Color(0xFF020304),
+    overlay: Color(0xE6000000),
+    card: Color(0xF20A0B0D),
+    elevatedSurface: Color(0xFF121416),
+    cardBorder: Color(0x33FFFFFF),
+    textPrimary: Color(0xFFF8F4EA),
+    textSecondary: Color(0xCCDCD6C9),
+    textFaint: Color(0x80DCD6C9),
+    accent: Color(0xFFE7C15C),
+    accentText: Color(0xFFE7C15C),
+    technical: Color(0xFF4D8DFF),
+    success: Color(0xFF74D680),
+    alert: Color(0xFFFF6868),
+    beltWhite: Color(0xFFF2F2F2),
+    beltBlue: Color(0xFF4D8DFF),
+    beltPurple: Color(0xFFC26DFF),
+    beltBrown: Color(0xFFB08A73),
+    beltBlack: Color(0xFFE6E6E6),
+  );
+
+  final baseScheme = ColorScheme.fromSeed(
+    seedColor: ext.accent,
+    brightness: Brightness.dark,
+  );
+
+  final scheme = baseScheme.copyWith(
+    primary: ext.accent,
+    secondary: ext.technical,
+    tertiary: ext.beltPurple,
+    surface: ext.background,
+    surfaceContainerHighest: ext.card,
+    onSurface: ext.textPrimary,
+    outline: ext.cardBorder,
+  );
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: ext.background,
+    extensions: [ext],
+    appBarTheme: AppBarTheme(
+      backgroundColor: Colors.transparent,
+      foregroundColor: ext.textPrimary,
+      elevation: 0,
+      centerTitle: false,
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: FilledButton.styleFrom(
+        foregroundColor: const Color(0xFF121212),
+        iconColor: const Color(0xFF121212),
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: OutlinedButton.styleFrom(
+        foregroundColor: ext.textPrimary,
+        iconColor: ext.textPrimary,
+        minimumSize: const Size(48, 46),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: ext.accentText,
+        iconColor: ext.accentText,
+        minimumSize: const Size(44, 44),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        textStyle: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+    ),
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
+      backgroundColor: ext.accent,
+      foregroundColor: const Color(0xFF121212),
+      extendedPadding: const EdgeInsets.symmetric(horizontal: 18),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    ),
+    listTileTheme: ListTileThemeData(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      minLeadingWidth: 36,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      titleTextStyle: TextStyle(
+        color: ext.textPrimary,
+        fontWeight: FontWeight.w800,
+        fontSize: 15,
+      ),
+      subtitleTextStyle: TextStyle(color: ext.textSecondary, fontSize: 13),
+    ),
+    navigationBarTheme: NavigationBarThemeData(
+      height: 72,
+      backgroundColor: ext.card.withValues(alpha: 0.96),
+      indicatorColor: ext.accent.withValues(alpha: 0.18),
+      shadowColor: Colors.black.withValues(alpha: 0.20),
+      surfaceTintColor: Colors.transparent,
+      labelTextStyle: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return TextStyle(
+          fontSize: 12,
+          fontWeight: selected ? FontWeight.w800 : FontWeight.w600,
+          color: selected ? ext.textPrimary : ext.textSecondary,
+        );
+      }),
+      iconTheme: WidgetStateProperty.resolveWith((states) {
+        final selected = states.contains(WidgetState.selected);
+        return IconThemeData(
+          color: selected ? ext.accent : ext.textSecondary,
+          size: selected ? 26 : 24,
+        );
+      }),
+    ),
+    chipTheme: _chipTheme(ext),
+    segmentedButtonTheme: _segmentedButtonTheme(ext),
+    cardTheme: CardThemeData(
+      color: ext.card,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(18),
+        side: BorderSide(color: ext.cardBorder),
+      ),
+    ),
+    iconTheme: IconThemeData(color: ext.textPrimary, size: 24),
+    textTheme: TextTheme(
+      titleLarge: TextStyle(
+        fontSize: 22,
+        fontWeight: FontWeight.w700,
+        color: ext.textPrimary,
+      ),
+      titleMedium: TextStyle(
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        color: ext.textPrimary,
+      ),
+      bodyMedium: TextStyle(fontSize: 14, color: ext.textSecondary),
+    ),
+  );
+}
+
 /// DARK — inalterado no que já funcionava, só ganhou chip/segmented theme
 /// e o novo campo `accentText` (aqui pode ser igual ao `accent`, porque
 /// dourado sobre fundo quase preto já tem contraste alto o suficiente
 /// pra servir como texto direto).
-ThemeData buildTitansDarkTheme() {
+ThemeData buildTitansMidnightTheme() {
   const ext = TitansColors(
     background: Color(0xFF070A0F),
     overlay: Color(0xD9000000),
@@ -303,6 +446,8 @@ ThemeData buildTitansDarkTheme() {
     ),
   );
 }
+
+ThemeData buildTitansDarkTheme() => buildTitansMidnightTheme();
 
 /// LIGHT — paleta creme/dourada mantida (é uma escolha de direção válida,
 /// não troquei por cinza neutro), mas com os ajustes de contraste abaixo:

@@ -8,6 +8,7 @@ import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../features/progress/application/progress_use_cases.dart';
 import '../features/progress/domain/progress_models.dart';
+import '../main.dart';
 import '../model/grading_rules.dart';
 import '../model/app_user.dart';
 import '../model/progress_period.dart';
@@ -159,7 +160,10 @@ class _ProgressScreenState extends State<ProgressScreen> {
       );
 
       return _wrapModule(
-        appBar: AppBar(title: Text(widget.titleOverride ?? 'Progresso')),
+        appBar: AppBar(
+          leading: _mainScreenLeading(context),
+          title: Text(widget.titleOverride ?? 'Progresso'),
+        ),
         body:
             widget.targetMode == TargetMode.selectedStudent
                 ? const TitansStateView.noStudent(
@@ -185,6 +189,7 @@ class _ProgressScreenState extends State<ProgressScreen> {
 
     return _wrapModule(
       appBar: AppBar(
+        leading: _mainScreenLeading(context),
         title: Text(widget.titleOverride ?? 'Progresso'),
         actions: [
           PopupMenuButton<ProgressPeriod>(
@@ -490,6 +495,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
 
     return buffer.toString();
+  }
+
+  Widget? _mainScreenLeading(BuildContext context) {
+    if (widget.embedded || Navigator.of(context).canPop()) return null;
+    return const AppLogoLeading();
   }
 
   Widget _wrapModule({

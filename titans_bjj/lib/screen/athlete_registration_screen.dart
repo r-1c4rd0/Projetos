@@ -1,13 +1,13 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+﻿import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../core/theme_controller.dart';
 import '../core/titans_ui.dart';
 import '../model/grading_rules.dart';
 import '../repository/athlete_registration_repository.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
+import '../widgets/titans_theme_picker.dart';
 
 enum AthleteRegistrationMode { createAthlete, editStudent, editSelf }
 
@@ -124,7 +124,7 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
     final targetUid = _targetUid;
     if (_editing && (targetUid == null || targetUid.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Aluno alvo nao informado para edicao.')),
+        const SnackBar(content: Text('Aluno alvo não informado para edição.')),
       );
       return;
     }
@@ -380,7 +380,7 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
                     ),
                     if (_editSelf) ...[
                       const SizedBox(height: 16),
-                      const _ThemePreferenceSection(),
+                      const TitansThemePreferenceSection(),
                     ],
                     const SizedBox(height: 16),
                     TextFormField(
@@ -460,90 +460,6 @@ class _AthleteRegistrationFormState extends State<_AthleteRegistrationForm> {
   }
 }
 
-class _ThemePreferenceSection extends StatelessWidget {
-  const _ThemePreferenceSection();
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return AnimatedBuilder(
-      animation: themeController,
-      builder: (context, _) {
-        final selected = <ThemeMode>{themeController.mode};
-
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
-            borderRadius: BorderRadius.circular(TitansRadius.md),
-            border: Border.all(color: cs.onSurface.withValues(alpha: 0.10)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(TitansUI.spaceMd),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Preferência visual',
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-                const SizedBox(height: TitansUI.spaceXs),
-                Text(
-                  'Escolha como o app deve aparecer para este perfil.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TitansTypography.caption(context),
-                ),
-                const SizedBox(height: TitansUI.spaceSm),
-                SegmentedButton<ThemeMode>(
-                  segments: const [
-                    ButtonSegment(
-                      value: ThemeMode.dark,
-                      icon: Icon(Icons.dark_mode_outlined),
-                      label: Text('Escuro'),
-                    ),
-                    ButtonSegment(
-                      value: ThemeMode.light,
-                      icon: Icon(Icons.light_mode_outlined),
-                      label: Text('Claro'),
-                    ),
-                  ],
-                  selected: selected,
-                  showSelectedIcon: false,
-                  onSelectionChanged:
-                      (values) => themeController.setMode(values.first),
-                  style: ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    foregroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return TitansUI.navSelectedForeground(context);
-                      }
-                      return TitansUI.navUnselectedForeground(context);
-                    }),
-                    backgroundColor: WidgetStateProperty.resolveWith((states) {
-                      if (states.contains(WidgetState.selected)) {
-                        return TitansUI.navSelectedBackground(context);
-                      }
-                      return TitansUI.navUnselectedBackground(context);
-                    }),
-                    side: WidgetStateProperty.resolveWith((states) {
-                      final color =
-                          states.contains(WidgetState.selected)
-                              ? TitansUI.navBorder(context, selected: true)
-                              : TitansUI.navBorder(context);
-                      return BorderSide(color: color);
-                    }),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
 class AthleteRegistrationViewModel extends ChangeNotifier {
   AthleteRegistrationViewModel({required this.repository});
 
@@ -609,7 +525,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
         'belt=${data?['belt']} degree=${data?['degree']}',
       );
       if (data == null) {
-        errorMessage = 'Atleta nao encontrado.';
+        errorMessage = 'Atleta não encontrado.';
         return;
       }
 
@@ -624,7 +540,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
       sex = _sexFromValue(data['sex']);
       birthDate = _dateFromValue(data['birthDate']);
     } catch (e) {
-      errorMessage = 'Nao foi possivel carregar o atleta. ${e.toString()}';
+      errorMessage = 'Não foi possível carregar o atleta. ${e.toString()}';
     } finally {
       isLoading = false;
       notifyListeners();
@@ -676,7 +592,7 @@ class AthleteRegistrationViewModel extends ChangeNotifier {
       successMessage = 'Atleta atualizado com sucesso.';
       return true;
     } catch (e) {
-      errorMessage = 'Nao foi possivel atualizar o atleta. ${e.toString()}';
+      errorMessage = 'Não foi possível atualizar o atleta. ${e.toString()}';
       return false;
     } finally {
       isLoading = false;

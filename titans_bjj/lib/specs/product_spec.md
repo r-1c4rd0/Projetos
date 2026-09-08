@@ -41,6 +41,7 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 - O UUID atual do cadastro legado deve ser tratado como `pendingProfileId`; apos aceite, o Firebase Auth UID vira identidade principal em `academies/{academyId}/users/{firebaseUser.uid}`.
 - Todo dado operacional deve pertencer a uma academia.
 - Toda regra sensivel deve ser refletida em Firestore Rules no futuro.
+- TITANS-FREEMIUM-ENTITLEMENTS-SPEC-001: registro rapido e historico proprio sao gratuitos; Titans Plus aprofunda leituras; cortesia administrativa sem vencimento automatico e concessao comercial independente de autorizacao.
 
 ## Problemas atuais
 - `academyId` default pode misturar dados.
@@ -62,6 +63,7 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 3. Corrigir fundacoes: auth, sessao, academyId e AUTH-REAL-USERS como P0 antes de uso real em academia.
 4. Migrar features de baixo risco antes das features criticas.
 5. Adicionar capacidades futuras por feature flag ou rollout controlado.
+6. Validar matriz Free/Plus por piloto antes de bloquear recursos.
 
 ## UX minima AUTH-REAL-USERS
 

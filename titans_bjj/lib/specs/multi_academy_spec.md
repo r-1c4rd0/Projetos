@@ -94,3 +94,18 @@ Regras da base:
 - Sem membership legível, o app mantém fallback legado via `AppConfig.resolveActiveAcademyId()` apenas para compatibilidade de desenvolvimento.
 - O perfil `AppUser` continua sendo o documento da academia ativa em `academies/{academyId}/users/{uid}`.
 - Esta base não cria Cloud Function, não usa Storage e não altera telas operacionais.
+
+## PERSONAL-MODE-CONTEXT-CONTRACT-001 - Personal privado e Academy Workspace
+
+Decisao documental:
+- `Personal Workspace` privado nao e uma academia e nao usa `academyId`.
+- `Academy Workspace` inclui academias formais, times, grupos e professor personal em `academies/{academyId}`.
+- O `type: "personal"` existente continua significando coaching dentro de `academies/{academyId}`; ele exige membership ativa e nao representa diario privado do aluno.
+- Sem membership ativa, nenhum usuario deve cair em `AppConfig.resolveActiveAcademyId()` como se estivesse autorizado.
+- Convite real deve vincular Auth, membership ativa e perfil em `academies/{academyId}/users/{uid}`.
+- O contrato detalhado esta em `personal_mode_context_spec.md`.
+
+Impacto para migracao:
+- Antes de remover fallback legado, criar `WorkspaceContext` explicito para Personal e Academy.
+- Repositories de academia continuam recebendo `academyId`; repositories pessoais futuros devem receber owner uid/contexto pessoal.
+- `TargetMode.self` nunca deve reaproveitar `selectedStudent`; professor/admin vendo aluno deve usar `actor != target`.

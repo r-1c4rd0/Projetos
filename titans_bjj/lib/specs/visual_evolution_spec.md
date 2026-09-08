@@ -1,4 +1,4 @@
-﻿# Visual Evolution Spec
+# Visual Evolution Spec
 
 ## Objetivo do modulo
 Definir regras de governanca para evolucao visual incremental do Titans BJJ sem criar metricas falsas, quebrar actor/target ou alterar contratos de dados fora do escopo aprovado.
@@ -91,3 +91,41 @@ Definir regras de governanca para evolucao visual incremental do Titans BJJ sem 
 - Dados exibidos sao reais ou explicitamente marcados como vazios/pendentes.
 - Validacao economica passa quando permitida.
 - Relatorio informa riscos restantes sem colar codigo completo.
+
+## TITANS-UX-COMPACT-RESPONSIVE-001
+- Escopo: ajustes compactos e responsivos em Painel do Mestre, registro de treino, seletores de debrief, eventos, nutricao e splash.
+- Painel do Mestre: card de atencao inicia recolhido, preserva contador, preview e acesso aos alunos, e evita repetir a lista quando o filtro Atencao ja esta aplicado.
+- Treino: acoes primarias mantem registro rapido e treino completo como caminhos separados.
+- Debrief: seletores longos usam lista rolavel limitada, rodape persistente e dialog central em telas largas.
+- Eventos: agenda semanal passa a filtrar a lista por dia selecionado, com calendario mensal expansivel e sem destaque duplicado do proximo evento.
+- Nutricao: lista de alimentos carregada progressivamente no cliente e card de status deixa de duplicar as acoes de refeicao/perfil.
+- Splash: usa logo leve e animacao curta, sem adicionar espera de rede, bootstrap ou dependencia nova.
+- Limites: nao altera repositories, schema, firestore.rules, membership, billing, graduacao, radar, calculos ou dados persistidos.
+- Validacao esperada: formatacao Dart, analise estatica direcionada, testes direcionados disponiveis e `git diff --check` nos arquivos alterados.
+
+## TITANS-EVENTS-UX-FINISH-001
+- Escopo: acabamento incremental da experiencia de Eventos sem alterar repositories, schema, rules, Auth, membership, Home, radar ou graduacao.
+- Entrada: tela inicia em proximos eventos agendados, mantendo Hoje destacado na semana sem aplicar filtro de dia automaticamente.
+- Navegacao: semana compacta preserva sete dias, controles anterior/proxima/Hoje e sincroniza dia, semana, mes e lista.
+- Calendario mensal: permanece recolhido por padrao, abre por acao explicita, usa grade de sete colunas e navegacao entre meses.
+- Lista: eventos sao agrupados por data, proximos seguem ordem cronologica, historico segue ordem do mais recente para o mais antigo, e listas longas sao reveladas progressivamente no cliente.
+- Estados vazios: diferenciam dia sem eventos, ausencia de proximos eventos, historico vazio e erro de carregamento.
+- Limites: nao altera dados persistidos, autorizacao, permissao de criacao, paginacao de servidor ou fluxos de detalhe existentes.
+- Validacao esperada: formatacao Dart, analise estatica direcionada, testes direcionados quando disponiveis e `git diff --check` nos arquivos alterados.
+
+## TITANS-HEADERS-ACTIONS-CONSISTENCY-001
+- Escopo: padronizacao pontual de cabecalhos em Inicio, Treinos, Progresso e Nutricao sem alterar rotas, permissions, repositories, schema, rules, calculos ou graduacao.
+- Cabecalhos: telas principais reutilizam o `AppLogoLeading` oficial quando nao ha rota de retorno; telas empilhadas preservam o botao Voltar nativo.
+- Titulos: cada tela principal mantem um titulo no AppBar; subtitulos internos continuam quando trazem contexto diferente do titulo.
+- Nutricao: o titulo interno duplicado fica oculto fora de embedded; Adicionar refeicao permanece como FAB no mobile e como acao textual da secao no desktop/embedded.
+- Acoes preservadas: Registro rapido e Treino completo continuam como fluxos separados; filtros de Progresso e demais controles seguem acessiveis.
+- Validacao esperada: formatacao Dart, analise estatica direcionada, `git diff --check` e revisao visual/responsiva quando houver ambiente local disponivel.
+
+## TITANS-SPLASH-DESIGN-CONTINUITY-001
+- Escopo: integrar a splash ao design system existente sem alterar AuthGate, bootstrap, Firebase, Home, repositories, schema, rules, membership, billing, radar ou graduacao.
+- Asset: usa `assets/logo_icon.png`, inspecionado como imagem quase quadrada com a marca completa; assets `tela_inicial*` sao composicoes verticais completas e nao foram usados como logo.
+- Visual: fundo segue tokens do tema Titans, com textura discreta de pontos e iluminacao dourada suave atras da logo, sem card, moldura ou lettering recriado.
+- Movimento: entrada curta por opacidade e escala discreta; reducao de movimento usa apresentacao estatica e fade simples; nao ha duracao minima obrigatoria adicional.
+- Integracao: o child/AuthGate continua montado por baixo da splash; a saida remove apenas a camada visual e nao navega, consulta ou inicializa servicos.
+- Pendencia nativa: Android `android/app/src/main/res/drawable/launch_background.xml` e iOS `ios/Runner/Base.lproj/LaunchScreen.storyboard` ainda usam fundo branco; ajuste nativo deve ser task separada apos QA por plataforma.
+- Validacao esperada: formatacao Dart, analise estatica direcionada, `git diff --check` e QA runtime/gravacao quando ambiente visual estiver disponivel.
