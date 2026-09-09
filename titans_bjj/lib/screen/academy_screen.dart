@@ -17,6 +17,7 @@ class _AcademyScreenState extends State<AcademyScreen> {
   final repo = AcademyRepository.instance;
   Future<AcademyProfile>? _profileFuture;
   String? _academyId;
+  bool _showStatusDetails = false;
 
   @override
   void didChangeDependencies() {
@@ -50,7 +51,7 @@ class _AcademyScreenState extends State<AcademyScreen> {
               child: Padding(
                 padding: EdgeInsets.all(20),
                 child: Text(
-                  'Não foi possível carregar a identidade visual da academia.',
+                  'Nao foi possivel carregar a identidade visual da academia.',
                   textAlign: TextAlign.center,
                 ),
               ),
@@ -59,100 +60,121 @@ class _AcademyScreenState extends State<AcademyScreen> {
 
           final profile = snapshot.data ?? AcademyProfile(name: academyId);
           final isDefault = _isDefaultAcademy(profile, academyId);
+          final pendingItems = _pendingItems(profile, academyId);
 
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              _AcademyBrandingHeader(profile: profile, academyId: academyId),
-              const SizedBox(height: 16),
-              _AcademyStatusCard(profile: profile, academyId: academyId),
-              const SizedBox(height: 16),
-              _AcademySection(
-                title: 'Identidade',
+          return Align(
+            alignment: Alignment.topCenter,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
                 children: [
-                  _StatusRow(
-                    label: 'Nome da academia',
-                    value: _displayAcademyName(profile, academyId),
+                  _AcademyCompactHero(
+                    profile: profile,
+                    academyId: academyId,
+                    pendingItems: pendingItems,
                   ),
-                  _StatusRow(
-                    label: 'Logo',
-                    value:
-                        profile.branding.logoAssetKey.isEmpty &&
-                                profile.branding.logoUrl.isEmpty
-                            ? 'Logo personalizada não configurada'
-                            : 'Logo configurada',
+                  const SizedBox(height: 12),
+                  _ConfigurationStatus(
+                    pendingItems: pendingItems,
+                    expanded: _showStatusDetails,
+                    onToggle:
+                        pendingItems.isEmpty
+                            ? null
+                            : () => setState(
+                              () => _showStatusDetails = !_showStatusDetails,
+                            ),
                   ),
-                  const _StatusRow(
-                    label: 'Descrição curta',
-                    value: 'Ainda não configurada',
+                  const SizedBox(height: 14),
+                  _AcademySection(
+                    title: 'Identidade',
+                    children: [
+                      _CompactInfoRow(
+                        label: 'Nome',
+                        value: _displayAcademyName(profile, academyId),
+                      ),
+                      _CompactInfoRow(
+                        label: 'Logo',
+                        value:
+                            profile.branding.logoAssetKey.isEmpty &&
+                                    profile.branding.logoUrl.isEmpty
+                                ? 'Padrao Titans'
+                                : 'Configurada',
+                      ),
+                      const _CompactInfoRow(
+                        label: 'Descricao',
+                        value: 'Nao adicionada',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _AcademySection(
+                    title: 'Visual',
+                    children: [
+                      _CompactInfoRow(
+                        label: 'Logo interna',
+                        value:
+                            profile.branding.logoAssetKey.isEmpty
+                                ? 'Padrao Titans'
+                                : profile.branding.logoAssetKey,
+                      ),
+                      _CompactInfoRow(
+                        label: 'Fundo do login',
+                        value:
+                            profile.branding.loginBackgroundAssetKey.isEmpty &&
+                                    profile.branding.loginBackgroundUrl.isEmpty
+                                ? 'Nao configurado'
+                                : 'Configurado',
+                      ),
+                      _CompactInfoRow(
+                        label: 'Cores',
+                        value:
+                            profile.branding.primaryColor.isEmpty &&
+                                    profile.branding.secondaryColor.isEmpty
+                                ? 'Padrao Titans'
+                                : 'Personalizadas',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  _AcademySection(
+                    title: 'Operacao',
+                    priority: true,
+                    children: [
+                      const _OperationRow(
+                        icon: Icons.groups_outlined,
+                        title: 'Alunos',
+                        description: 'Vinculados no Painel do Mestre',
+                        statusLabel: 'Gerenciar',
+                      ),
+                      _OperationRow(
+                        icon: Icons.fact_check_outlined,
+                        title: 'Presenca',
+                        description:
+                            isDefault
+                                ? 'Academia nao configurada'
+                                : 'Abrir e acompanhar chamadas',
+                        actionLabel: isDefault ? null : 'Abrir',
+                        statusLabel: isDefault ? 'Indisponivel' : null,
+                        onPressed: isDefault ? null : _openAttendance,
+                      ),
+                      const _OperationRow(
+                        icon: Icons.admin_panel_settings_outlined,
+                        title: 'Professores',
+                        description: 'Permissoes e equipe',
+                        statusLabel: 'Em breve',
+                      ),
+                      const _OperationRow(
+                        icon: Icons.mark_email_unread_outlined,
+                        title: 'Convites',
+                        description: 'Entrada por convite',
+                        statusLabel: 'Indisponivel',
+                      ),
+                    ],
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              _AcademySection(
-                title: 'Visual',
-                children: [
-                  _StatusRow(
-                    label: 'Logo interna',
-                    value:
-                        profile.branding.logoAssetKey.isEmpty
-                            ? 'Padrão Titans'
-                            : profile.branding.logoAssetKey,
-                  ),
-                  _StatusRow(
-                    label: 'Fundo do login',
-                    value:
-                        profile.branding.loginBackgroundAssetKey.isEmpty &&
-                                profile.branding.loginBackgroundUrl.isEmpty
-                            ? 'Não configurado'
-                            : 'Configurado',
-                  ),
-                  _StatusRow(
-                    label: 'Cores',
-                    value:
-                        profile.branding.primaryColor.isEmpty &&
-                                profile.branding.secondaryColor.isEmpty
-                            ? 'Padrão Titans'
-                            : 'Personalizadas',
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              _AcademySection(
-                title: 'Operação',
-                children: [
-                  const _OperationRow(
-                    icon: Icons.groups_outlined,
-                    title: 'Alunos vinculados',
-                    description: 'Gerenciados no Painel do Mestre.',
-                    statusLabel: 'Status',
-                  ),
-                  const _OperationRow(
-                    icon: Icons.admin_panel_settings_outlined,
-                    title: 'Professores e administradores',
-                    description: 'Gerenciamento ainda não disponível.',
-                    statusLabel: 'Em breve',
-                  ),
-                  _OperationRow(
-                    icon: Icons.fact_check_outlined,
-                    title: 'Presença',
-                    description:
-                        isDefault
-                            ? 'Presença requer uma academia configurada.'
-                            : 'Gerencie chamadas e check-ins.',
-                    actionLabel: isDefault ? null : 'Abrir',
-                    statusLabel: isDefault ? 'Indisponível' : null,
-                    onPressed: isDefault ? null : _openAttendance,
-                  ),
-                  const _OperationRow(
-                    icon: Icons.mark_email_unread_outlined,
-                    title: 'Convites',
-                    description: 'Fluxo ainda não habilitado.',
-                    statusLabel: 'Indisponível',
-                  ),
-                ],
-              ),
-            ],
+            ),
           );
         },
       ),
@@ -162,13 +184,13 @@ class _AcademyScreenState extends State<AcademyScreen> {
   void _openAttendance() {
     final scope = UserScope.maybeScopeOf(context);
     if (scope == null) {
-      _showMessage('Presença requer sessão ativa.');
+      _showMessage('Presenca requer sessao ativa.');
       return;
     }
 
     final academyId = scope.activeAcademyId.trim();
     if (academyId.isEmpty || academyId.toLowerCase() == 'default') {
-      _showMessage('Presença requer uma academia configurada.');
+      _showMessage('Presenca requer uma academia configurada.');
       return;
     }
 
@@ -196,65 +218,71 @@ class _AcademyScreenState extends State<AcademyScreen> {
   }
 }
 
-class _AcademyBrandingHeader extends StatelessWidget {
-  const _AcademyBrandingHeader({
+class _AcademyCompactHero extends StatelessWidget {
+  const _AcademyCompactHero({
     required this.profile,
     required this.academyId,
+    required this.pendingItems,
   });
 
   final AcademyProfile profile;
   final String academyId;
+  final List<String> pendingItems;
 
   @override
   Widget build(BuildContext context) {
     final primary = academyBrandColor(profile.branding.primaryColor);
     final secondary = academyBrandColor(profile.branding.secondaryColor);
-    final accent = primary ?? secondary;
-    final colorScheme = Theme.of(context).colorScheme;
+    final accent =
+        primary ?? secondary ?? Theme.of(context).colorScheme.primary;
+    final cs = Theme.of(context).colorScheme;
     final isDefault = _isDefaultAcademy(profile, academyId);
 
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.34),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.26)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Row(
           children: [
             CircleAvatar(
-              radius: 42,
-              backgroundColor:
-                  accent?.withValues(alpha: 0.10) ?? colorScheme.surface,
-              child: AcademyBrandLogo(branding: profile.branding, size: 46),
+              radius: 28,
+              backgroundColor: accent.withValues(alpha: 0.12),
+              child: AcademyBrandLogo(branding: profile.branding, size: 34),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     'Academia',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontWeight: FontWeight.w800,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2),
                   Text(
                     isDefault
-                        ? 'Ambiente padrão ainda não configurado'
-                        : 'Configurações e identidade da academia',
-                    style: TextStyle(
-                      color: colorScheme.onSurface.withValues(alpha: 0.72),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    _displayAcademyName(profile, academyId),
+                        ? 'Ambiente pessoal'
+                        : _displayAcademyName(profile, academyId),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+                      fontWeight: FontWeight.w900,
                     ),
                   ),
                 ],
               ),
+            ),
+            const SizedBox(width: 10),
+            _StatusDotLabel(
+              label: pendingItems.isEmpty ? 'Completa' : 'Incompleta',
+              color: pendingItems.isEmpty ? Colors.green : cs.primary,
             ),
           ],
         ),
@@ -263,56 +291,101 @@ class _AcademyBrandingHeader extends StatelessWidget {
   }
 }
 
-class _AcademyStatusCard extends StatelessWidget {
-  const _AcademyStatusCard({required this.profile, required this.academyId});
+class _ConfigurationStatus extends StatelessWidget {
+  const _ConfigurationStatus({
+    required this.pendingItems,
+    required this.expanded,
+    required this.onToggle,
+  });
 
-  final AcademyProfile profile;
-  final String academyId;
+  final List<String> pendingItems;
+  final bool expanded;
+  final VoidCallback? onToggle;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final isDefault = _isDefaultAcademy(profile, academyId);
-    final chips = <String>[
-      if (isDefault) 'Configuração incompleta',
-      if (profile.branding.isEmpty) 'Usando visual padrão Titans',
-      if (profile.branding.logoAssetKey.isEmpty &&
-          profile.branding.logoUrl.isEmpty)
-        'Logo personalizada não configurada',
-      if (profile.branding.loginBackgroundAssetKey.isEmpty &&
-          profile.branding.loginBackgroundUrl.isEmpty)
-        'Fundo de login não configurado',
-    ];
+    final complete = pendingItems.isEmpty;
+    final count = pendingItems.length;
 
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: cs.outlineVariant)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(2, 0, 2, 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              isDefault ? 'Configuração incompleta' : 'Status da academia',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children:
-                  chips
-                      .map(
-                        (label) => Chip(
-                          visualDensity: VisualDensity.compact,
-                          label: Text(label),
-                          backgroundColor: cs.primary.withValues(alpha: 0.10),
-                          side: BorderSide(
-                            color: cs.primary.withValues(alpha: 0.20),
+            InkWell(
+              onTap: onToggle,
+              borderRadius: BorderRadius.circular(8),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 4),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Configuracao',
+                            style: Theme.of(context).textTheme.labelLarge
+                                ?.copyWith(fontWeight: FontWeight.w900),
                           ),
+                          const SizedBox(height: 3),
+                          Text(
+                            complete
+                                ? 'Nenhum item pendente'
+                                : '$count ${count == 1 ? 'item pendente' : 'itens pendentes'}',
+                            style: TextStyle(
+                              color: cs.onSurface.withValues(alpha: 0.66),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    _StatusDotLabel(
+                      label: complete ? 'Completa' : 'Incompleta',
+                      color: complete ? Colors.green : cs.primary,
+                    ),
+                    if (onToggle != null) ...[
+                      const SizedBox(width: 4),
+                      AnimatedRotation(
+                        turns: expanded ? 0.5 : 0,
+                        duration: const Duration(milliseconds: 200),
+                        child: Icon(
+                          Icons.keyboard_arrow_down,
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 220),
+              curve: Curves.easeOutCubic,
+              alignment: Alignment.topCenter,
+              child:
+                  expanded
+                      ? Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Column(
+                          children:
+                              pendingItems
+                                  .map(
+                                    (item) => _CompactInfoRow(
+                                      label: item,
+                                      value: 'Pendente',
+                                      dense: true,
+                                    ),
+                                  )
+                                  .toList(),
                         ),
                       )
-                      .toList(),
+                      : const SizedBox.shrink(),
             ),
           ],
         ),
@@ -322,26 +395,48 @@ class _AcademyStatusCard extends StatelessWidget {
 }
 
 class _AcademySection extends StatelessWidget {
-  const _AcademySection({required this.title, required this.children});
+  const _AcademySection({
+    required this.title,
+    required this.children,
+    this.priority = false,
+  });
 
   final String title;
   final List<Widget> children;
+  final bool priority;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color:
+            priority
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.28)
+                : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        border:
+            priority
+                ? Border.all(color: cs.primary.withValues(alpha: 0.18))
+                : null,
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(2, priority ? 10 : 0, 2, priority ? 8 : 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: priority ? 10 : 0),
+              child: Text(
+                title.toUpperCase(),
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: cs.onSurface.withValues(alpha: 0.58),
+                  fontWeight: FontWeight.w900,
+                  letterSpacing: 0,
+                ),
+              ),
             ),
-            const SizedBox(height: 10),
+            const SizedBox(height: 6),
             ...children,
           ],
         ),
@@ -350,32 +445,44 @@ class _AcademySection extends StatelessWidget {
   }
 }
 
-class _StatusRow extends StatelessWidget {
-  const _StatusRow({required this.label, required this.value});
+class _CompactInfoRow extends StatelessWidget {
+  const _CompactInfoRow({
+    required this.label,
+    required this.value,
+    this.dense = false,
+  });
 
   final String label;
   final String value;
+  final bool dense;
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 7),
+      padding: EdgeInsets.symmetric(vertical: dense ? 5 : 8),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
+            flex: 4,
             child: Text(
               label,
-              style: TextStyle(color: cs.onSurface.withValues(alpha: 0.64)),
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.64),
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
           const SizedBox(width: 12),
           Expanded(
+            flex: 5,
             child: Text(
               value,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.w800),
             ),
           ),
         ],
@@ -406,44 +513,103 @@ class _OperationRow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final actionLabel = this.actionLabel;
     final statusLabel = this.statusLabel;
+    final actionable = actionLabel != null && onPressed != null;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Icon(icon, color: cs.onSurface.withValues(alpha: 0.70)),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: actionable ? onPressed : null,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 9, horizontal: 10),
+          child: Row(
+            children: [
+              Icon(
+                icon,
+                size: 22,
+                color: actionable ? cs.primary : cs.onSurfaceVariant,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.64),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 3),
+              ),
+              const SizedBox(width: 10),
+              if (actionable) ...[
                 Text(
-                  description,
-                  style: TextStyle(color: cs.onSurface.withValues(alpha: 0.64)),
+                  actionLabel,
+                  style: TextStyle(
+                    color: cs.primary,
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ],
-            ),
+                const SizedBox(width: 2),
+                Icon(Icons.chevron_right, color: cs.primary),
+              ] else if (statusLabel != null)
+                Text(
+                  statusLabel,
+                  style: TextStyle(
+                    color: cs.onSurface.withValues(alpha: 0.58),
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+            ],
           ),
-          const SizedBox(width: 12),
-          if (actionLabel != null && onPressed != null)
-            FilledButton(onPressed: onPressed, child: Text(actionLabel))
-          else if (statusLabel != null)
-            Chip(
-              visualDensity: VisualDensity.compact,
-              label: Text(statusLabel),
-              backgroundColor: cs.surfaceContainerHighest,
-              side: BorderSide(color: cs.outlineVariant),
-            ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _StatusDotLabel extends StatelessWidget {
+  const _StatusDotLabel({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 7,
+          height: 7,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
+        const SizedBox(width: 6),
+        Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+      ],
+    );
+  }
+}
+
+List<String> _pendingItems(AcademyProfile profile, String academyId) {
+  return <String>[
+    if (_isDefaultAcademy(profile, academyId)) 'Academia',
+    if (profile.branding.logoAssetKey.isEmpty &&
+        profile.branding.logoUrl.isEmpty)
+      'Logo',
+    if (profile.branding.loginBackgroundAssetKey.isEmpty &&
+        profile.branding.loginBackgroundUrl.isEmpty)
+      'Fundo do login',
+  ];
 }
 
 bool _isDefaultAcademy(AcademyProfile profile, String academyId) {
@@ -452,7 +618,8 @@ bool _isDefaultAcademy(AcademyProfile profile, String academyId) {
 }
 
 String _displayAcademyName(AcademyProfile profile, String academyId) {
-  return _isDefaultAcademy(profile, academyId)
-      ? 'Academia não configurada'
-      : profile.name.trim();
+  final name = profile.name.trim();
+  return _isDefaultAcademy(profile, academyId) || name.isEmpty
+      ? 'Academia nao configurada'
+      : name;
 }

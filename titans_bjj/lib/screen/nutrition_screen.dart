@@ -213,12 +213,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
       ),
       floatingActionButton:
           !widget.embedded && canEditNutrition && !_hasUnavailableNutritionData
-              ? FloatingActionButton(
+              ? FloatingActionButton.extended(
                 heroTag: 'nutrition_fab',
                 onPressed: _addMeal,
                 backgroundColor: TitansUI.actionGold,
                 foregroundColor: Colors.black,
-                child: const Icon(Icons.add),
+                icon: const Icon(Icons.add),
+                label: const Text('Registrar refei\u00e7\u00e3o'),
               )
               : null,
       body: FutureBuilder<List<MealEntry>>(
@@ -397,10 +398,13 @@ class _NutritionScreenState extends State<NutritionScreen> {
   }
 
   Future<void> _addMeal() async {
+    final recentFoods = _recentFoodsFrom(await _repo.listMealsCached());
+    if (!mounted) return;
+
     final created = await showModalBottomSheet<MealEntry?>(
       context: context,
       isScrollControlled: true,
-      builder: (_) => _MealSheet(repo: _repo),
+      builder: (_) => _MealSheet(repo: _repo, recentFoods: recentFoods),
     );
 
     if (created != null) {
@@ -423,6 +427,46 @@ class _NutritionScreenState extends State<NutritionScreen> {
     String two(int n) => n.toString().padLeft(2, '0');
     return '${two(date.day)}/${two(date.month)}/${date.year}';
   }
+}
+
+DateTime _dateOnly(DateTime date) => DateTime(date.year, date.month, date.day);
+
+bool _isSameDay(DateTime a, DateTime b) {
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+String _fmtMealTime(BuildContext context, DateTime date) {
+  return TimeOfDay.fromDateTime(date).format(context);
+}
+
+String _itemsPreview(List<FoodItem> items) {
+  if (items.isEmpty) return 'Sem alimentos informados';
+
+  final names = items.take(3).map((food) => food.name).join(', ');
+  final remaining = items.length - 3;
+  if (remaining <= 0) return names;
+
+  return '$names +$remaining';
+}
+
+String _foodEnergyLabel(FoodItem food) {
+  if (food.kcal <= 0) return 'Energia n\u00e3o informada';
+  return '${food.kcal} kcal';
+}
+
+String _normalizeFoodName(String value) => value.trim().toLowerCase();
+
+List<FoodItem> _recentFoodsFrom(List<MealEntry> meals) {
+  final byName = <String, FoodItem>{};
+  for (final meal in meals.reversed) {
+    for (final food in meal.items) {
+      final key = _normalizeFoodName(food.name);
+      if (key.isEmpty || byName.containsKey(key)) continue;
+      byName[key] = food;
+      if (byName.length >= 8) return byName.values.toList(growable: false);
+    }
+  }
+  return byName.values.toList(growable: false);
 }
 
 class _NutritionCompactDashboard extends StatelessWidget {
@@ -658,6 +702,13 @@ class _NutritionHeader extends StatelessWidget {
             ),
             const SizedBox(height: 4),
           ],
+          Text(
+            _NutritionScreenState._fmtDate(DateTime.now()),
+            style: TitansTypography.caption(
+              context,
+            ).copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 4),
           Text(
             'Registro alimentar e energia para apoiar sua rotina de treinos.',
             style: TextStyle(color: muted),
@@ -930,7 +981,7 @@ class _NutritionEnergyCard extends StatelessWidget {
   }
 }
 
-class _NutritionMealsSection extends StatelessWidget {
+class _NutritionMealsSection extends StatefulWidget {
   final MealLogSummary mealLog;
   final bool canEditNutrition;
   final bool showAddMealAction;
@@ -944,92 +995,325 @@ class _NutritionMealsSection extends StatelessWidget {
   });
 
   @override
+  State<_NutritionMealsSection> createState() => _NutritionMealsSectionState();
+}
+
+class _NutritionMealsSectionState extends State<_NutritionMealsSection> {
+  static const _collapsedHistoryCount = 3;
+  static const _expandedHistoryCount = 20;
+
+  bool _showHistory = false;
+
+  @override
   Widget build(BuildContext context) {
+    final todayMeals = _todayMeals;
+    final olderMeals = _olderMeals;
+    final latestToday = todayMeals.isEmpty ? null : todayMeals.first.date;
+    final weekCount = _weekMealCount(widget.mealLog.items);
+    final canAdd = widget.canEditNutrition && widget.showAddMealAction;
+
     return TitansCard(
-      accent: mealLog.isEmpty ? TitansUI.actionGold : TitansUI.technicalBlue,
+      accent:
+          widget.mealLog.isEmpty ? TitansUI.actionGold : TitansUI.technicalBlue,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           OverflowBar(
             alignment: MainAxisAlignment.spaceBetween,
-            spacing: 8,
-            overflowSpacing: 8,
+            spacing: TitansUI.spaceSm,
+            overflowSpacing: TitansUI.spaceSm,
             children: [
               const _SectionTitle(
-                title: 'Meal Log',
-                subtitle: 'Registros agrupados por dia, sem meta alimentar.',
+                title: 'Di\u00e1rio de hoje',
+                subtitle: 'Registro alimentar descritivo, sem meta.',
               ),
-              if (canEditNutrition && showAddMealAction && !mealLog.isEmpty)
+              if (canAdd && !widget.mealLog.isEmpty)
                 FilledButton.icon(
-                  onPressed: onAddMeal,
+                  onPressed: widget.onAddMeal,
                   icon: const Icon(Icons.add),
-                  label: const Text('Adicionar refei\u00e7\u00e3o'),
+                  label: const Text('Registrar refei\u00e7\u00e3o'),
                 ),
             ],
           ),
-          const SizedBox(height: 12),
-          if (mealLog.isEmpty)
-            TitansEmptyState(
-              icon: Icons.restaurant_outlined,
-              title: 'Sem refei\u00e7\u00f5es registradas',
-              message:
-                  canEditNutrition
-                      ? 'Adicione registros alimentares para acompanhar sua rotina.'
-                      : 'Nenhuma refei\u00e7\u00e3o foi registrada para este usu\u00e1rio.',
-              actionLabel:
-                  canEditNutrition && showAddMealAction
-                      ? 'Adicionar refei\u00e7\u00e3o'
-                      : null,
-              onAction:
-                  canEditNutrition && showAddMealAction ? onAddMeal : null,
-              variant:
-                  canEditNutrition
-                      ? TitansEmptyStateVariant.action
-                      : TitansEmptyStateVariant.neutral,
-              compact: true,
-              showCard: false,
-            )
-          else
-            ..._mealTiles(context),
+          const SizedBox(height: TitansUI.spaceSm),
+          _MealLogSummaryRail(
+            todayCount: todayMeals.length,
+            latestTime:
+                latestToday == null
+                    ? 'Sem registro'
+                    : _fmtMealTime(context, latestToday),
+            weekCount: weekCount,
+          ),
+          const SizedBox(height: TitansUI.spaceMd),
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child:
+                widget.mealLog.isEmpty
+                    ? _MealLogEmptyState(
+                      canEditNutrition: widget.canEditNutrition,
+                      canAdd: canAdd,
+                      onAddMeal: widget.onAddMeal,
+                    )
+                    : _MealLogContent(
+                      todayMeals: todayMeals,
+                      olderMeals: olderMeals,
+                      showHistory: _showHistory,
+                      onToggleHistory: _toggleHistory,
+                    ),
+          ),
         ],
       ),
     );
   }
 
-  List<Widget> _mealTiles(BuildContext context) {
-    final orderedMeals = mealLog.items;
-    final tiles = <Widget>[];
-    String? currentDayKey;
+  List<NutritionMealLogItem> get _todayMeals {
+    final now = DateTime.now();
+    return widget.mealLog.items
+        .where((item) => _isSameDay(item.date, now))
+        .toList(growable: false);
+  }
 
-    for (final item in orderedMeals) {
-      final dayKey = '${item.date.year}-${item.date.month}-${item.date.day}';
-      if (dayKey != currentDayKey) {
-        if (tiles.isNotEmpty) {
-          tiles.add(const SizedBox(height: TitansUI.spaceSm));
-        }
-        currentDayKey = dayKey;
-        tiles.add(_MealLogDayHeader(date: item.date));
-        tiles.add(const SizedBox(height: TitansUI.spaceXs));
-      } else {
-        tiles.add(const SizedBox(height: TitansUI.spaceXs));
-      }
+  List<NutritionMealLogItem> get _olderMeals {
+    final now = DateTime.now();
+    return widget.mealLog.items
+        .where((item) => !_isSameDay(item.date, now))
+        .toList(growable: false);
+  }
 
-      tiles.add(_MealLogTile(item: item));
-    }
+  void _toggleHistory() {
+    setState(() => _showHistory = !_showHistory);
+  }
 
-    return tiles;
+  int _weekMealCount(List<NutritionMealLogItem> meals) {
+    final start = _dateOnly(DateTime.now()).subtract(const Duration(days: 6));
+    return meals.where((item) => !_dateOnly(item.date).isBefore(start)).length;
   }
 }
 
-class _MealLogDayHeader extends StatelessWidget {
-  final DateTime date;
+class _MealLogSummaryRail extends StatelessWidget {
+  final int todayCount;
+  final String latestTime;
+  final int weekCount;
 
-  const _MealLogDayHeader({required this.date});
+  const _MealLogSummaryRail({
+    required this.todayCount,
+    required this.latestTime,
+    required this.weekCount,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: TitansUI.spaceSm,
+      runSpacing: TitansUI.spaceSm,
+      children: [
+        _MealLogSummaryPill(
+          icon: Icons.today_outlined,
+          label: 'Hoje',
+          value: '$todayCount',
+        ),
+        _MealLogSummaryPill(
+          icon: Icons.schedule_outlined,
+          label: '\u00daltima',
+          value: latestTime,
+        ),
+        _MealLogSummaryPill(
+          icon: Icons.calendar_view_week_outlined,
+          label: '7 dias',
+          value: '$weekCount',
+        ),
+      ],
+    );
+  }
+}
+
+class _MealLogSummaryPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+
+  const _MealLogSummaryPill({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
+    return Container(
+      constraints: const BoxConstraints(minWidth: 104, maxWidth: 156),
+      padding: const EdgeInsets.symmetric(
+        horizontal: TitansUI.spaceSm,
+        vertical: TitansUI.spaceXs,
+      ),
+      decoration: BoxDecoration(
+        color: TitansUI.elevatedSurfaceColor(context).withValues(alpha: 0.58),
+        borderRadius: BorderRadius.circular(TitansRadius.sm),
+        border: Border.all(color: cs.onSurface.withValues(alpha: 0.08)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: TitansUI.technicalBlue),
+          const SizedBox(width: TitansUI.spaceXs),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: TitansTypography.caption(context)),
+                Text(
+                  value,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MealLogEmptyState extends StatelessWidget {
+  final bool canEditNutrition;
+  final bool canAdd;
+  final VoidCallback onAddMeal;
+
+  const _MealLogEmptyState({
+    required this.canEditNutrition,
+    required this.canAdd,
+    required this.onAddMeal,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TitansEmptyState(
+      key: const ValueKey('nutrition-empty-meals'),
+      icon: Icons.restaurant_outlined,
+      title:
+          canEditNutrition
+              ? 'Seu di\u00e1rio de hoje est\u00e1 vazio.'
+              : 'Di\u00e1rio de hoje vazio.',
+      message:
+          canEditNutrition
+              ? 'Use o di\u00e1rio para manter um hist\u00f3rico do que voc\u00ea consumiu.'
+              : 'Nenhuma refei\u00e7\u00e3o foi registrada para este usu\u00e1rio hoje.',
+      actionLabel: canAdd ? 'Registrar primeira refei\u00e7\u00e3o' : null,
+      onAction: canAdd ? onAddMeal : null,
+      variant:
+          canEditNutrition
+              ? TitansEmptyStateVariant.action
+              : TitansEmptyStateVariant.neutral,
+      compact: true,
+      showCard: false,
+    );
+  }
+}
+
+class _MealLogContent extends StatelessWidget {
+  final List<NutritionMealLogItem> todayMeals;
+  final List<NutritionMealLogItem> olderMeals;
+  final bool showHistory;
+  final VoidCallback onToggleHistory;
+
+  const _MealLogContent({
+    required this.todayMeals,
+    required this.olderMeals,
+    required this.showHistory,
+    required this.onToggleHistory,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final historyLimit =
+        showHistory
+            ? _NutritionMealsSectionState._expandedHistoryCount
+            : _NutritionMealsSectionState._collapsedHistoryCount;
+    final visibleOlderMeals = olderMeals.take(historyLimit).toList();
+    final hiddenHistoryCount = olderMeals.length - visibleOlderMeals.length;
+
+    return Column(
+      key: const ValueKey('nutrition-meal-log-content'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (todayMeals.isEmpty)
+          const TitansEmptyState(
+            icon: Icons.restaurant_outlined,
+            title: 'Seu di\u00e1rio de hoje est\u00e1 vazio.',
+            message: 'Os registros anteriores continuam no hist\u00f3rico.',
+            compact: true,
+            showCard: false,
+          )
+        else
+          _MealTimelineList(items: todayMeals),
+        if (olderMeals.isNotEmpty) ...[
+          const SizedBox(height: TitansUI.spaceMd),
+          _MealLogDayHeader(label: 'Refei\u00e7\u00f5es anteriores'),
+          const SizedBox(height: TitansUI.spaceXs),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: _MealTimelineList(items: visibleOlderMeals),
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: onToggleHistory,
+              icon: Icon(
+                showHistory
+                    ? Icons.expand_less_outlined
+                    : Icons.expand_more_outlined,
+                size: 18,
+              ),
+              label: Text(
+                showHistory
+                    ? 'Ocultar hist\u00f3rico'
+                    : hiddenHistoryCount > 0
+                    ? 'Ver hist\u00f3rico ($hiddenHistoryCount)'
+                    : 'Ver hist\u00f3rico',
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MealTimelineList extends StatelessWidget {
+  final List<NutritionMealLogItem> items;
+
+  const _MealTimelineList({required this.items});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var index = 0; index < items.length; index++) ...[
+          if (index > 0) const Divider(height: 1),
+          _MealTimelineRow(
+            item: items[index],
+            onTap: () => _showMealDetail(context, items[index]),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _MealLogDayHeader extends StatelessWidget {
+  final String label;
+
+  const _MealLogDayHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     return Row(
       children: [
         Icon(
@@ -1039,7 +1323,7 @@ class _MealLogDayHeader extends StatelessWidget {
         ),
         const SizedBox(width: TitansUI.spaceXs),
         Text(
-          _NutritionScreenState._fmtDate(date),
+          label,
           style: TitansTypography.caption(
             context,
           ).copyWith(fontWeight: FontWeight.w900),
@@ -1056,92 +1340,160 @@ class _MealLogDayHeader extends StatelessWidget {
   }
 }
 
-class _MealLogTile extends StatelessWidget {
+class _MealTimelineRow extends StatelessWidget {
   final NutritionMealLogItem item;
+  final VoidCallback onTap;
 
-  const _MealLogTile({required this.item});
+  const _MealTimelineRow({required this.item, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final items = item.itemsLabel;
-    final time = TimeOfDay.fromDateTime(item.date).format(context);
-    final mealChip = TitansStatusChip(
-      label: item.mealType,
-      variant: TitansStatusChipVariant.technical,
-      icon: Icons.restaurant_menu_outlined,
-      compact: true,
-    );
-    final metaChip = TitansStatusChip(
-      label: '${_NutritionScreenState._fmtDate(item.date)} - $time',
-      variant: TitansStatusChipVariant.muted,
-      icon: Icons.schedule_outlined,
-      compact: true,
-    );
-    final kcalBlock = _MealEnergyBadge(kcal: item.totalKcal);
+    final foodCount = item.meal.items.length;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: TitansUI.elevatedSurfaceColor(context).withValues(alpha: 0.72),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(TitansRadius.sm),
-        border: Border.all(color: cs.onSurface.withValues(alpha: 0.09)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(TitansUI.spaceSm),
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final isTight = constraints.maxWidth < 330;
-            final details = Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: TitansUI.spaceXs,
-                  runSpacing: TitansUI.spaceXs,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [mealChip, metaChip],
-                ),
-                const SizedBox(height: TitansUI.spaceSm),
-                Text(
-                  items.isEmpty ? 'Registro alimentar sem itens.' : items,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.84),
-                    fontWeight: FontWeight.w700,
-                  ),
-                  maxLines: 2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: TitansUI.spaceSm),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              SizedBox(
+                width: 54,
+                child: Text(
+                  _fmtMealTime(context, item.date),
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                const SizedBox(height: TitansUI.spaceXs),
-                Text(
-                  'Registro alimentar',
-                  style: TitansTypography.caption(context),
+              ),
+              Container(
+                width: 8,
+                height: 8,
+                decoration: const BoxDecoration(
+                  color: TitansUI.technicalBlue,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: TitansUI.spaceSm),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.mealType,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _itemsPreview(item.meal.items),
+                      style: TextStyle(
+                        color: cs.onSurface.withValues(alpha: 0.68),
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              if (foodCount > 0) ...[
+                const SizedBox(width: TitansUI.spaceXs),
+                TitansStatusChip(
+                  label: '$foodCount',
+                  variant: TitansStatusChipVariant.muted,
+                  icon: Icons.restaurant_menu_outlined,
+                  compact: true,
                 ),
               ],
-            );
-
-            if (isTight) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  details,
-                  const SizedBox(height: TitansUI.spaceSm),
-                  Align(alignment: Alignment.centerLeft, child: kcalBlock),
-                ],
-              );
-            }
-
-            return Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(child: details),
-                const SizedBox(width: TitansUI.spaceSm),
-                kcalBlock,
-              ],
-            );
-          },
+              const SizedBox(width: TitansUI.spaceXs),
+              Icon(
+                Icons.chevron_right,
+                color: cs.onSurface.withValues(alpha: 0.46),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
+}
+
+class _MealDetailSheet extends StatelessWidget {
+  final NutritionMealLogItem item;
+
+  const _MealDetailSheet({required this.item});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(TitansUI.spaceMd),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SheetHandle(),
+            Text(
+              item.mealType,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: TitansUI.spaceXs),
+            Text(
+              '${_NutritionScreenState._fmtDate(item.date)} \u00e0s ${_fmtMealTime(context, item.date)}',
+              style: TitansTypography.caption(context),
+            ),
+            const SizedBox(height: TitansUI.spaceMd),
+            _MealEnergyBadge(kcal: item.totalKcal),
+            const SizedBox(height: TitansUI.spaceMd),
+            const _SectionTitle(
+              title: 'Alimentos',
+              subtitle: 'Itens registrados nesta refei\u00e7\u00e3o.',
+            ),
+            const SizedBox(height: TitansUI.spaceSm),
+            if (item.meal.items.isEmpty)
+              const Text('Registro alimentar sem itens.')
+            else
+              ...item.meal.items.map(
+                (food) => _FoodCompactRow(
+                  food: food,
+                  trailing: Text(
+                    _foodEnergyLabel(food),
+                    style: TitansTypography.caption(context),
+                    textAlign: TextAlign.end,
+                  ),
+                ),
+              ),
+            const SizedBox(height: TitansUI.spaceSm),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Fechar'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+void _showMealDetail(BuildContext context, NutritionMealLogItem item) {
+  showModalBottomSheet<void>(
+    context: context,
+    isScrollControlled: true,
+    builder: (_) => _MealDetailSheet(item: item),
+  );
 }
 
 class _MealEnergyBadge extends StatelessWidget {
@@ -1336,8 +1688,9 @@ class _DailyCaloriesChart extends StatelessWidget {
 
 class _MealSheet extends StatefulWidget {
   final NutritionRepository repo;
+  final List<FoodItem> recentFoods;
 
-  const _MealSheet({required this.repo});
+  const _MealSheet({required this.repo, required this.recentFoods});
 
   @override
   State<_MealSheet> createState() => _MealSheetState();
@@ -1355,103 +1708,63 @@ class _MealSheetState extends State<_MealSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final results = widget.repo.foodDb(_query);
+    final suggestionFoods = widget.repo.foodDb(_query);
+    final recentFoods = _filteredRecentFoods;
+    final hasQuery = _query.trim().isNotEmpty;
     final bottom = MediaQuery.of(context).viewInsets.bottom;
-    final dateField = _MealDateField(
-      label: 'Data',
-      value: _NutritionScreenState._fmtDate(_date),
-      icon: Icons.calendar_today_outlined,
-      onTap: _pickDate,
-    );
-    final timeField = _MealDateField(
-      label: 'Hora',
-      value: TimeOfDay.fromDateTime(_date).format(context),
-      icon: Icons.schedule_outlined,
-      onTap: _pickTime,
-    );
-
-    final mealTypeField = DropdownButtonFormField<String>(
-      initialValue: _mealType,
-      items: const [
-        DropdownMenuItem(value: 'Caf\u00e9', child: Text('Caf\u00e9')),
-        DropdownMenuItem(value: 'Almo\u00e7o', child: Text('Almo\u00e7o')),
-        DropdownMenuItem(value: 'Jantar', child: Text('Jantar')),
-        DropdownMenuItem(value: 'Lanche', child: Text('Lanche')),
-      ],
-      onChanged: (value) {
-        setState(() => _mealType = value ?? 'Almo\u00e7o');
-      },
-      decoration: const InputDecoration(labelText: 'Refei\u00e7\u00e3o'),
-    );
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
       child: SafeArea(
         top: false,
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(TitansUI.spaceMd),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              const _SheetHandle(),
               Text(
-                'Nova refei\u00e7\u00e3o',
-                style: Theme.of(context).textTheme.titleLarge,
+                'Registrar refei\u00e7\u00e3o',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
-              const SizedBox(height: 4),
+              const SizedBox(height: TitansUI.spaceXs),
               Text(
-                'Registro alimentar informado pelo usu\u00e1rio.',
-                style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.68),
-                ),
+                'Informe o que foi consumido, sem meta ou julgamento.',
+                style: TitansTypography.caption(context),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: TitansUI.spaceMd),
+              _MealTypeSelector(value: _mealType, onChanged: _setMealType),
+              const SizedBox(height: TitansUI.spaceSm),
+              _MealDateTimeFields(
+                date: _date,
+                onPickDate: _pickDate,
+                onPickTime: _pickTime,
+              ),
+              const SizedBox(height: TitansUI.spaceLg),
               const _SectionTitle(
-                title: 'Dados da refei\u00e7\u00e3o',
-                subtitle: 'Escolha o tipo, a data e a hora do registro.',
+                title: 'Alimentos',
+                subtitle: 'Busque uma sugest\u00e3o ou adicione manualmente.',
               ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  if (constraints.maxWidth < 390) {
-                    return Column(
-                      children: [
-                        mealTypeField,
-                        const SizedBox(height: 8),
-                        dateField,
-                        const SizedBox(height: 8),
-                        timeField,
-                      ],
-                    );
-                  }
-
-                  return Column(
-                    children: [
-                      mealTypeField,
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(child: dateField),
-                          const SizedBox(width: 8),
-                          Expanded(child: timeField),
-                        ],
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 16),
-              const _SectionTitle(
-                title: 'Energia registrada',
-                subtitle:
-                    'Registro informado pelo usu\u00e1rio, n\u00e3o prescri\u00e7\u00e3o.',
-              ),
-              const SizedBox(height: 12),
+              const SizedBox(height: TitansUI.spaceSm),
               TextField(
-                decoration: const InputDecoration(
-                  labelText: 'Buscar alimento (ex: arroz, frango...)',
+                decoration: InputDecoration(
+                  labelText: 'Buscar alimento',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon:
+                      hasQuery
+                          ? IconButton(
+                            icon: const Icon(Icons.close),
+                            onPressed: () {
+                              setState(() {
+                                _query = '';
+                                _visibleFoodCount = 8;
+                              });
+                            },
+                          )
+                          : null,
                 ),
                 onChanged:
                     (value) => setState(() {
@@ -1459,132 +1772,55 @@ class _MealSheetState extends State<_MealSheet> {
                       _visibleFoodCount = 8;
                     }),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Exibindo ${results.take(_visibleFoodCount).length} de ${results.length} alimentos encontrados.',
-                style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.62),
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                ),
+              const SizedBox(height: TitansUI.spaceSm),
+              FilledButton.tonalIcon(
+                onPressed: _addManualFood,
+                icon: const Icon(Icons.add),
+                label: const Text('Adicionar alimento manualmente'),
               ),
-              const SizedBox(height: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 240),
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  keyboardDismissBehavior:
-                      ScrollViewKeyboardDismissBehavior.onDrag,
-                  itemCount: results.take(_visibleFoodCount).length,
-                  itemBuilder: (context, index) {
-                    final food = results[index];
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(
-                        food.name,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text('Calorias: ${food.kcal} kcal'),
-                      trailing: IconButton(
-                        tooltip: 'Adicionar alimento',
-                        icon: const Icon(Icons.add),
-                        onPressed: () => setState(() => _selected.add(food)),
-                      ),
-                    );
-                  },
+              if (!hasQuery && recentFoods.isNotEmpty) ...[
+                const SizedBox(height: TitansUI.spaceMd),
+                const _SectionTitle(
+                  title: 'Recentes',
+                  subtitle: 'Itens usados nos seus registros.',
                 ),
+                const SizedBox(height: TitansUI.spaceXs),
+                _FoodSuggestionList(
+                  foods: recentFoods,
+                  onAdd: _addFood,
+                  maxHeight: 160,
+                ),
+              ],
+              const SizedBox(height: TitansUI.spaceMd),
+              _FoodSearchResults(
+                foods: suggestionFoods,
+                visibleCount: _visibleFoodCount,
+                onAdd: _addFood,
+                onLoadMore:
+                    suggestionFoods.length > _visibleFoodCount
+                        ? () => setState(() => _visibleFoodCount += 8)
+                        : null,
               ),
-              if (results.length > _visibleFoodCount)
-                Align(
-                  alignment: Alignment.center,
-                  child: TextButton.icon(
-                    onPressed: () => setState(() => _visibleFoodCount += 8),
-                    icon: const Icon(Icons.expand_more, size: 18),
-                    label: Text(
-                      'Carregar mais (${results.length - _visibleFoodCount})',
-                    ),
-                  ),
-                ),
-              const Divider(),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Energia registrada: $_selectedKcal kcal',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
-                    ),
-                  ),
-                  Text(
-                    '${_selected.length} item(ns)',
-                    style: TextStyle(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.62),
-                      fontSize: 12,
-                    ),
-                  ),
-                ],
+              const Divider(height: TitansUI.spaceLg),
+              _SelectedFoodSection(
+                selected: _selected,
+                selectedKcal: _selectedKcal,
+                onRemove: _removeFoodAt,
               ),
-              const SizedBox(height: 8),
-              if (_selected.isEmpty)
-                Text(
-                  'Adicione ao menos um alimento para salvar o registro.',
-                  style: TextStyle(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.68),
-                    fontSize: 12,
-                  ),
-                )
-              else
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children:
-                      _selected
-                          .asMap()
-                          .entries
-                          .map(
-                            (entry) => Chip(
-                              label: Text(
-                                '${entry.value.name} - ${entry.value.kcal} kcal',
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              onDeleted: () {
-                                setState(() => _selected.removeAt(entry.key));
-                              },
-                            ),
-                          )
-                          .toList(),
-                ),
-              const SizedBox(height: 16),
+              const SizedBox(height: TitansUI.spaceMd),
               OverflowBar(
                 alignment: MainAxisAlignment.end,
-                spacing: 8,
-                overflowSpacing: 8,
+                spacing: TitansUI.spaceSm,
+                overflowSpacing: TitansUI.spaceSm,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Cancelar'),
                   ),
                   FilledButton.icon(
-                    icon: const Icon(Icons.save),
-                    label: const Text('Salvar'),
-                    onPressed:
-                        _selected.isEmpty
-                            ? null
-                            : () {
-                              final entry = MealEntry(
-                                date: _date,
-                                mealType: _mealType,
-                                items: List.of(_selected),
-                              );
-                              Navigator.pop(context, entry);
-                            },
+                    icon: const Icon(Icons.save_outlined),
+                    label: const Text('Salvar refei\u00e7\u00e3o'),
+                    onPressed: _selected.isEmpty ? null : _saveMeal,
                   ),
                 ],
               ),
@@ -1593,6 +1829,50 @@ class _MealSheetState extends State<_MealSheet> {
         ),
       ),
     );
+  }
+
+  List<FoodItem> get _filteredRecentFoods {
+    final query = _normalizeFoodName(_query);
+    return widget.recentFoods
+        .where(
+          (food) =>
+              query.isEmpty || _normalizeFoodName(food.name).contains(query),
+        )
+        .take(6)
+        .toList(growable: false);
+  }
+
+  void _setMealType(String value) {
+    setState(() => _mealType = value);
+  }
+
+  void _addFood(FoodItem food) {
+    setState(() => _selected.add(food));
+  }
+
+  void _removeFoodAt(int index) {
+    setState(() => _selected.removeAt(index));
+  }
+
+  Future<void> _addManualFood() async {
+    final food = await showModalBottomSheet<FoodItem>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _ManualFoodSheet(),
+    );
+
+    if (food != null && mounted) {
+      _addFood(food);
+    }
+  }
+
+  void _saveMeal() {
+    final entry = MealEntry(
+      date: _date,
+      mealType: _mealType,
+      items: List.of(_selected),
+    );
+    Navigator.pop(context, entry);
   }
 
   Future<void> _pickDate() async {
@@ -1631,6 +1911,358 @@ class _MealSheetState extends State<_MealSheet> {
         time.minute,
       );
     });
+  }
+}
+
+class _MealTypeSelector extends StatelessWidget {
+  final String value;
+  final ValueChanged<String> onChanged;
+
+  const _MealTypeSelector({required this.value, required this.onChanged});
+
+  static const _mealTypes = [
+    'Caf\u00e9 da manh\u00e3',
+    'Almo\u00e7o',
+    'Lanche',
+    'Jantar',
+    'Outro',
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: SegmentedButton<String>(
+        segments: _mealTypes
+            .map(
+              (type) => ButtonSegment<String>(
+                value: type,
+                label: Text(type, overflow: TextOverflow.ellipsis),
+              ),
+            )
+            .toList(growable: false),
+        selected: {value},
+        onSelectionChanged: (values) => onChanged(values.first),
+        showSelectedIcon: false,
+      ),
+    );
+  }
+}
+
+class _MealDateTimeFields extends StatelessWidget {
+  final DateTime date;
+  final VoidCallback onPickDate;
+  final VoidCallback onPickTime;
+
+  const _MealDateTimeFields({
+    required this.date,
+    required this.onPickDate,
+    required this.onPickTime,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final dateField = _MealDateField(
+      label: 'Data',
+      value: _NutritionScreenState._fmtDate(date),
+      icon: Icons.calendar_today_outlined,
+      onTap: onPickDate,
+    );
+    final timeField = _MealDateField(
+      label: 'Hora',
+      value: TimeOfDay.fromDateTime(date).format(context),
+      icon: Icons.schedule_outlined,
+      onTap: onPickTime,
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        if (constraints.maxWidth < 390) {
+          return Column(
+            children: [
+              dateField,
+              const SizedBox(height: TitansUI.spaceXs),
+              timeField,
+            ],
+          );
+        }
+
+        return Row(
+          children: [
+            Expanded(child: dateField),
+            const SizedBox(width: TitansUI.spaceSm),
+            Expanded(child: timeField),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _FoodSearchResults extends StatelessWidget {
+  final List<FoodItem> foods;
+  final int visibleCount;
+  final ValueChanged<FoodItem> onAdd;
+  final VoidCallback? onLoadMore;
+
+  const _FoodSearchResults({
+    required this.foods,
+    required this.visibleCount,
+    required this.onAdd,
+    required this.onLoadMore,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleFoods = foods.take(visibleCount).toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Sugest\u00f5es (${visibleFoods.length}/${foods.length})',
+          style: TitansTypography.caption(
+            context,
+          ).copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: TitansUI.spaceXs),
+        _FoodSuggestionList(foods: visibleFoods, onAdd: onAdd, maxHeight: 220),
+        if (onLoadMore != null)
+          Align(
+            alignment: Alignment.center,
+            child: TextButton.icon(
+              onPressed: onLoadMore,
+              icon: const Icon(Icons.expand_more, size: 18),
+              label: Text('Carregar mais (${foods.length - visibleCount})'),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _FoodSuggestionList extends StatelessWidget {
+  final List<FoodItem> foods;
+  final ValueChanged<FoodItem> onAdd;
+  final double maxHeight;
+
+  const _FoodSuggestionList({
+    required this.foods,
+    required this.onAdd,
+    required this.maxHeight,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (foods.isEmpty) return const Text('Nenhum alimento encontrado.');
+
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: ListView.separated(
+        shrinkWrap: true,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        itemCount: foods.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, index) {
+          final food = foods[index];
+          return _FoodCompactRow(
+            food: food,
+            trailing: IconButton(
+              icon: const Icon(Icons.add),
+              onPressed: () => onAdd(food),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _SelectedFoodSection extends StatelessWidget {
+  final List<FoodItem> selected;
+  final int selectedKcal;
+  final ValueChanged<int> onRemove;
+
+  const _SelectedFoodSection({
+    required this.selected,
+    required this.selectedKcal,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      child:
+          selected.isEmpty
+              ? const Text(
+                key: ValueKey('selected-foods-empty'),
+                'Adicione ao menos um alimento para salvar.',
+              )
+              : Column(
+                key: const ValueKey('selected-foods-list'),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'Selecionados',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontWeight: FontWeight.w900),
+                        ),
+                      ),
+                      Text(
+                        '$selectedKcal kcal registradas',
+                        style: TitansTypography.caption(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: TitansUI.spaceXs),
+                  ...selected.asMap().entries.map(
+                    (entry) => _FoodCompactRow(
+                      food: entry.value,
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => onRemove(entry.key),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+    );
+  }
+}
+
+class _FoodCompactRow extends StatelessWidget {
+  final FoodItem food;
+  final Widget trailing;
+
+  const _FoodCompactRow({required this.food, required this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      title: Text(
+        food.name,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontWeight: FontWeight.w800),
+      ),
+      subtitle: Text(
+        _foodEnergyLabel(food),
+        style: TextStyle(color: cs.onSurface.withValues(alpha: 0.62)),
+      ),
+      trailing: trailing,
+    );
+  }
+}
+
+class _ManualFoodSheet extends StatefulWidget {
+  const _ManualFoodSheet();
+
+  @override
+  State<_ManualFoodSheet> createState() => _ManualFoodSheetState();
+}
+
+class _ManualFoodSheetState extends State<_ManualFoodSheet> {
+  final _controller = TextEditingController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.of(context).viewInsets.bottom;
+
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottom),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.all(TitansUI.spaceMd),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _SheetHandle(),
+              Text(
+                'Alimento manual',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: TitansUI.spaceSm),
+              TextField(
+                controller: _controller,
+                autofocus: true,
+                textCapitalization: TextCapitalization.sentences,
+                decoration: const InputDecoration(
+                  labelText: 'Nome do alimento',
+                ),
+                onSubmitted: (_) => _submit(),
+              ),
+              const SizedBox(height: TitansUI.spaceSm),
+              Text(
+                'Energia fica como n\u00e3o informada.',
+                style: TitansTypography.caption(context),
+              ),
+              const SizedBox(height: TitansUI.spaceMd),
+              OverflowBar(
+                alignment: MainAxisAlignment.end,
+                spacing: TitansUI.spaceSm,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Cancelar'),
+                  ),
+                  FilledButton.icon(
+                    onPressed: _submit,
+                    icon: const Icon(Icons.add),
+                    label: const Text('Adicionar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _submit() {
+    final name = _controller.text.trim();
+    if (name.isEmpty) return;
+    Navigator.pop(context, FoodItem(name, 0));
+  }
+}
+
+class _SheetHandle extends StatelessWidget {
+  const _SheetHandle();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        width: 36,
+        height: 4,
+        margin: const EdgeInsets.only(bottom: TitansUI.spaceMd),
+        decoration: BoxDecoration(
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(TitansRadius.pill),
+        ),
+      ),
+    );
   }
 }
 

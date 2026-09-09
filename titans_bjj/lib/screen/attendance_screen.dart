@@ -199,8 +199,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             academyId: session.academyId,
             sessionId: session.id,
           ),
-      successMessage: 'Sessao cancelada.',
-      errorMessage: 'Nao foi possivel cancelar a sessao',
+      successMessage: 'Sessao anulada.',
+      errorMessage: 'Nao foi possivel anular a sessao',
     );
   }
 
@@ -339,45 +339,59 @@ class _AttendanceSessionDetailsScreenState
             : _checkIns
                 .where((item) => item.uid == widget.currentUser.uid)
                 .toList();
+    final manualCount =
+        visibleCheckIns
+            .where((item) => item.source == AttendanceCheckInSource.manual)
+            .length;
+    final qrCount =
+        visibleCheckIns
+            .where((item) => item.source == AttendanceCheckInSource.qr)
+            .length;
 
-    return ListView(
-      padding: TitansUI.listPadding(context),
-      children: [
-        _SessionHeader(session: session),
-        if (session.status == AttendanceSessionStatus.open) ...[
-          const SizedBox(height: 12),
-          _QrCheckInActionCard(
-            isStaff: _isStaff,
-            isBusy: _submitting,
-            onShowQr: _isStaff ? () => _showQrCode(session) : null,
-            onScanQr: !_isStaff ? () => _scanQrCode(session) : null,
-          ),
-        ],
-        const SizedBox(height: 16),
-        Text(
-          'Lista de presenca',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
-        ),
-        const SizedBox(height: 10),
-        if (visibleCheckIns.isEmpty)
-          const _InlineEmptyState(
-            message:
-                'Nenhum aluno marcado ainda. Presenca manual disponivel para o piloto.',
-          )
-        else
-          ...visibleCheckIns.map(
-            (checkIn) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _CheckInTile(
-                checkIn: checkIn,
-                canRemove: _canEdit && !_submitting,
-                onRemove: () => _removeCheckIn(checkIn),
-              ),
+    return Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 820),
+        child: ListView(
+          padding: TitansUI.listPadding(context),
+          children: [
+            _SessionHeader(session: session),
+            const SizedBox(height: 12),
+            _MetricRail(
+              metrics: [
+                _MetricData('Marcados', visibleCheckIns.length.toString()),
+                _MetricData('Presentes', visibleCheckIns.length.toString()),
+                _MetricData('Manual', manualCount.toString()),
+                _MetricData('QR', qrCount.toString()),
+              ],
             ),
-          ),
-      ],
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                const Expanded(child: _SectionTitle('Lista de presenca')),
+                if (session.status == AttendanceSessionStatus.open)
+                  _QrCheckInActionCard(
+                    isStaff: _isStaff,
+                    isBusy: _submitting,
+                    onShowQr: _isStaff ? () => _showQrCode(session) : null,
+                    onScanQr: !_isStaff ? () => _scanQrCode(session) : null,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (visibleCheckIns.isEmpty)
+              const _InlineEmptyState(message: 'Nenhum aluno marcado ainda.')
+            else
+              ...visibleCheckIns.map(
+                (checkIn) => _CheckInTile(
+                  checkIn: checkIn,
+                  canRemove: _canEdit && !_submitting,
+                  onRemove: () => _removeCheckIn(checkIn),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -409,7 +423,7 @@ class _AttendanceSessionDetailsScreenState
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Sessao aberta. Use para check-in dos alunos presentes.',
+                  'Use este QR para check-in dos alunos presentes.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Theme.of(
@@ -571,23 +585,26 @@ class _AttendanceOverviewCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final title = openCount > 0 ? 'Chamada aberta' : 'Sem sessao aberta';
+    final hasOpen = openCount > 0;
+    final title = hasOpen ? 'Chamada aberta' : 'Sem chamada aberta';
     final message =
         isStaff
-            ? 'Escolha uma aula ou abra uma chamada para hoje.'
+            ? 'Abra uma chamada ou acompanhe as aulas recentes.'
             : 'Entre em uma chamada aberta para registrar sua presenca.';
 
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.28)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
         child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Icon(
-              openCount > 0
-                  ? Icons.fact_check_outlined
-                  : Icons.event_busy_outlined,
-              color: openCount > 0 ? cs.primary : cs.onSurfaceVariant,
+              hasOpen ? Icons.fact_check_outlined : Icons.event_busy_outlined,
+              color: hasOpen ? cs.primary : cs.onSurfaceVariant,
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -600,20 +617,22 @@ class _AttendanceOverviewCard extends StatelessWidget {
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 3),
                   Text(
                     message,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.72),
+                      color: cs.onSurface.withValues(alpha: 0.66),
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
-            Chip(
-              visualDensity: VisualDensity.compact,
-              label: Text('$openCount aberta${openCount == 1 ? '' : 's'}'),
+            const SizedBox(width: 10),
+            _CompactStatusPill(
+              label: '$openCount aberta${openCount == 1 ? '' : 's'}',
+              color: hasOpen ? cs.primary : cs.onSurfaceVariant,
             ),
           ],
         ),
@@ -642,88 +661,71 @@ class _AttendanceSessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final status = _statusLabel(session.status);
     final statusColor = _statusColor(cs, session.status);
+    final instructor =
+        session.instructorName.isEmpty
+            ? session.instructorUid
+            : session.instructorName;
 
-    return Card(
+    return Material(
+      color: cs.surfaceContainerHighest.withValues(alpha: 0.22),
+      borderRadius: BorderRadius.circular(10),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          session.title,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w800),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          session.classType,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: cs.onSurface.withValues(alpha: 0.68),
-                          ),
-                        ),
-                      ],
+                    child: Text(
+                      session.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Chip(
-                    visualDensity: VisualDensity.compact,
-                    label: Text(status),
-                    side: BorderSide(color: statusColor.withValues(alpha: 0.5)),
-                    backgroundColor: statusColor.withValues(alpha: 0.12),
-                    labelStyle: TextStyle(
-                      color: statusColor,
-                      fontWeight: FontWeight.w700,
-                    ),
+                  const SizedBox(width: 10),
+                  _CompactStatusPill(
+                    label: _statusLabel(session.status),
+                    color: statusColor,
                   ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 6),
               Wrap(
-                spacing: 16,
-                runSpacing: 8,
+                spacing: 12,
+                runSpacing: 6,
                 children: [
+                  _InfoItem(
+                    icon: Icons.school_outlined,
+                    label: session.classType,
+                  ),
                   _InfoItem(
                     icon: Icons.schedule,
                     label:
                         '${_formatDateTime(session.startsAt)} - ${_formatTime(session.endsAt)}',
                   ),
-                  _InfoItem(
-                    icon: Icons.person_outline,
-                    label:
-                        session.instructorName.isEmpty
-                            ? session.instructorUid
-                            : session.instructorName,
-                  ),
+                  _InfoItem(icon: Icons.person_outline, label: instructor),
                 ],
               ),
               if (isStaff) ...[
-                const SizedBox(height: 12),
+                const SizedBox(height: 8),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     TextButton.icon(
-                      icon: const Icon(Icons.cancel_outlined),
-                      label: const Text('Cancelar'),
+                      icon: const Icon(Icons.block_outlined),
+                      label: const Text('Anular'),
                       onPressed: isBusy ? null : onCancel,
                     ),
-                    const SizedBox(width: 8),
-                    FilledButton.icon(
+                    const SizedBox(width: 4),
+                    FilledButton.tonalIcon(
                       icon: const Icon(Icons.lock_outline),
                       label: const Text('Fechar'),
                       onPressed: isBusy ? null : onClose,
@@ -748,59 +750,58 @@ class _SessionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final statusColor = _statusColor(cs, session.status);
+    final instructor =
+        session.instructorName.isEmpty
+            ? session.instructorUid
+            : session.instructorName;
 
-    return Card(
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.30),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.28)),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Text(
-                    session.title,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'PRESENCA',
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: cs.onSurface.withValues(alpha: 0.62),
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${_relativeDayLabel(session.startsAt)} - ${_formatShortDate(session.startsAt)}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.w900,
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Chip(
-                  visualDensity: VisualDensity.compact,
-                  label: Text(_statusLabel(session.status)),
-                  side: BorderSide(color: statusColor.withValues(alpha: 0.5)),
-                  backgroundColor: statusColor.withValues(alpha: 0.12),
-                  labelStyle: TextStyle(
-                    color: statusColor,
-                    fontWeight: FontWeight.w700,
+                  const SizedBox(height: 3),
+                  Text(
+                    '${session.classType} - ${_formatTime(session.startsAt)} - $instructor',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.66),
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              children: [
-                _InfoItem(
-                  icon: Icons.school_outlined,
-                  label: session.classType,
-                ),
-                _InfoItem(
-                  icon: Icons.schedule,
-                  label:
-                      '${_formatDateTime(session.startsAt)} - ${_formatTime(session.endsAt)}',
-                ),
-                _InfoItem(
-                  icon: Icons.person_outline,
-                  label:
-                      session.instructorName.isEmpty
-                          ? session.instructorUid
-                          : session.instructorName,
-                ),
-              ],
+            const SizedBox(width: 10),
+            _CompactStatusPill(
+              label: _statusLabel(session.status),
+              color: statusColor,
             ),
           ],
         ),
@@ -824,61 +825,13 @@ class _QrCheckInActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final title = isStaff ? 'QR da chamada' : 'Registrar presenca';
-    final message =
-        isStaff
-            ? 'Sessao aberta. Use para check-in.'
-            : 'Escaneie o QR da chamada aberta.';
-
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Icon(Icons.qr_code_2_outlined, color: cs.primary),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        message,
-                        style: TextStyle(
-                          color: cs.onSurface.withValues(alpha: 0.72),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                icon: Icon(
-                  isStaff
-                      ? Icons.qr_code_2_outlined
-                      : Icons.qr_code_scanner_outlined,
-                ),
-                label: Text(isStaff ? 'Gerar QR' : 'Escanear QR'),
-                onPressed: isBusy ? null : (isStaff ? onShowQr : onScanQr),
-              ),
-            ),
-          ],
-        ),
+    final action = isStaff ? onShowQr : onScanQr;
+    return OutlinedButton.icon(
+      icon: Icon(
+        isStaff ? Icons.qr_code_2_outlined : Icons.qr_code_scanner_outlined,
       ),
+      label: Text(isStaff ? 'Check-in por QR' : 'Escanear QR'),
+      onPressed: isBusy ? null : action,
     );
   }
 }
@@ -1007,16 +960,34 @@ class _CheckInTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.42)),
+        ),
+      ),
       child: ListTile(
-        leading: CircleAvatar(child: Text(_initials(checkIn.studentName))),
+        dense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 2, vertical: 2),
+        leading: CircleAvatar(
+          radius: 18,
+          backgroundColor: cs.primary.withValues(alpha: 0.12),
+          child: Text(
+            _initials(checkIn.studentName),
+            style: TextStyle(color: cs.primary, fontWeight: FontWeight.w900),
+          ),
+        ),
         title: Text(
           checkIn.studentName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontWeight: FontWeight.w900),
         ),
         subtitle: Text(
-          '${_beltName(checkIn.belt)} - G${checkIn.degree} - ${_sourceLabel(checkIn.source)}',
+          '${_beltName(checkIn.belt)} - Grau ${checkIn.degree} - ${_sourceLabel(checkIn.source)}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
         trailing:
             canRemove
@@ -1024,7 +995,7 @@ class _CheckInTile extends StatelessWidget {
                   icon: const Icon(Icons.delete_outline),
                   onPressed: onRemove,
                 )
-                : null,
+                : _CompactStatusPill(label: 'Presente', color: Colors.green),
       ),
     );
   }
@@ -1072,7 +1043,7 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                 child: Text(
-                  'Adicionar aluno',
+                  'Marcar aluno',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -1144,6 +1115,132 @@ class _AddStudentSheetState extends State<_AddStudentSheet> {
   }
 }
 
+class _MetricData {
+  const _MetricData(this.label, this.value);
+
+  final String label;
+  final String value;
+}
+
+class _MetricRail extends StatelessWidget {
+  const _MetricRail({required this.metrics});
+
+  final List<_MetricData> metrics;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.24),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.26)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+        child: Row(
+          children: [
+            for (var i = 0; i < metrics.length; i++) ...[
+              Expanded(child: _MetricItem(metric: metrics[i])),
+              if (i != metrics.length - 1)
+                SizedBox(
+                  height: 30,
+                  child: VerticalDivider(color: cs.outlineVariant),
+                ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricItem extends StatelessWidget {
+  const _MetricItem({required this.metric});
+
+  final _MetricData metric;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          metric.value,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          metric.label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: cs.onSurface.withValues(alpha: 0.62),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text.toUpperCase(),
+      style: Theme.of(context).textTheme.labelLarge?.copyWith(
+        color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.62),
+        fontWeight: FontWeight.w900,
+        letterSpacing: 0,
+      ),
+    );
+  }
+}
+
+class _CompactStatusPill extends StatelessWidget {
+  const _CompactStatusPill({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.34)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: TextStyle(color: color, fontWeight: FontWeight.w900),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoItem extends StatelessWidget {
   const _InfoItem({required this.icon, required this.label});
 
@@ -1169,8 +1266,6 @@ class _InfoItem extends StatelessWidget {
 
 enum _ClassMode { single, recurring }
 
-enum _RecurrenceEndMode { untilDate }
-
 class _CreateAttendanceSessionSheet extends StatefulWidget {
   const _CreateAttendanceSessionSheet();
 
@@ -1190,7 +1285,6 @@ class _CreateAttendanceSessionSheetState
   DateTime _endsAt = _nextHour().add(const Duration(hours: 1));
   DateTime? _recurrenceEndsAt;
   final Set<int> _recurrenceWeekdays = <int>{};
-  _RecurrenceEndMode _recurrenceEndMode = _RecurrenceEndMode.untilDate;
 
   @override
   void dispose() {
@@ -1224,8 +1318,8 @@ class _CreateAttendanceSessionSheetState
               const SizedBox(height: 6),
               Text(
                 isSingle
-                    ? 'Aula única selecionada por padrão.'
-                    : 'Configure a repetição apenas quando quiser gerar outras ocorrências.',
+                    ? 'Aula unica por padrao.'
+                    : 'Repeticao aberta para revisao; a persistencia ainda e manual.',
                 style: TextStyle(
                   color: Theme.of(
                     context,
@@ -1236,11 +1330,11 @@ class _CreateAttendanceSessionSheetState
               TextFormField(
                 controller: _titleController,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Título'),
+                decoration: const InputDecoration(labelText: 'Titulo'),
                 validator:
                     (value) =>
                         value == null || value.trim().isEmpty
-                            ? 'Informe o título'
+                            ? 'Informe o titulo'
                             : null,
               ),
               const SizedBox(height: 12),
@@ -1255,7 +1349,7 @@ class _CreateAttendanceSessionSheetState
                             : null,
               ),
               const SizedBox(height: 16),
-              const _SheetSectionTitle('Quando será a aula?'),
+              const _SheetSectionTitle('Data'),
               const SizedBox(height: 8),
               _DateQuickSelector(
                 selectedDate: _startsAt,
@@ -1276,7 +1370,7 @@ class _CreateAttendanceSessionSheetState
                 children: [
                   Expanded(
                     child: _TimeField(
-                      label: 'Início',
+                      label: 'Inicio',
                       value: _startsAt,
                       onPick: _setStartTime,
                     ),
@@ -1292,14 +1386,14 @@ class _CreateAttendanceSessionSheetState
                 ],
               ),
               const SizedBox(height: 18),
-              const _SheetSectionTitle('Repetição'),
+              const _SheetSectionTitle('Modo'),
               const SizedBox(height: 8),
               SegmentedButton<_ClassMode>(
                 segments: const [
                   ButtonSegment(
                     value: _ClassMode.single,
                     icon: Icon(Icons.event_available_outlined),
-                    label: Text('Aula única'),
+                    label: Text('Aula unica'),
                   ),
                   ButtonSegment(
                     value: _ClassMode.recurring,
@@ -1312,31 +1406,43 @@ class _CreateAttendanceSessionSheetState
                     (value) => setState(() => _mode = value.first),
               ),
               const SizedBox(height: 12),
-              if (isSingle) ...[
-                _ScheduleSummary(
-                  title: 'Resumo da agenda',
-                  text:
-                      'Aula única\n${_formatFullDate(_startsAt)} às ${_formatTime(_startsAt)}',
-                ),
-              ] else ...[
-                _RecurrenceControls(
-                  startsAt: _startsAt,
-                  endsAt: _recurrenceEndsAt,
-                  selectedWeekdays: _recurrenceWeekdays,
-                  endMode: _recurrenceEndMode,
-                  onWeekdayToggle: _toggleRecurrenceWeekday,
-                  onPickStart: _pickStartDate,
-                  onPickEnd: _pickRecurrenceEndDate,
-                  onEndModeChanged:
-                      (value) => setState(() => _recurrenceEndMode = value),
-                ),
-                const SizedBox(height: 12),
-                _ScheduleSummary(
-                  title: 'Resumo da agenda',
-                  text: _recurrenceSummary(),
-                  warning: recurrenceMessage,
-                ),
-              ],
+              AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeOutCubic,
+                child:
+                    isSingle
+                        ? Column(
+                          key: const ValueKey('single'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _ScheduleSummary(
+                              title: 'Resumo da agenda',
+                              text:
+                                  'Aula unica - ${_formatFullDate(_startsAt)} as ${_formatTime(_startsAt)}',
+                            ),
+                          ],
+                        )
+                        : Column(
+                          key: const ValueKey('recurring'),
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            _RecurrenceControls(
+                              startsAt: _startsAt,
+                              endsAt: _recurrenceEndsAt,
+                              selectedWeekdays: _recurrenceWeekdays,
+                              onWeekdayToggle: _toggleRecurrenceWeekday,
+                              onPickEnd: _pickRecurrenceEndDate,
+                            ),
+                            const SizedBox(height: 12),
+                            _ScheduleSummary(
+                              title: 'Resumo da agenda',
+                              text: _recurrenceSummary(),
+                              warning: recurrenceMessage,
+                            ),
+                          ],
+                        ),
+              ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 icon: const Icon(Icons.fact_check_outlined),
@@ -1444,15 +1550,15 @@ class _CreateAttendanceSessionSheetState
       return 'Escolha pelo menos um dia da semana.';
     }
     if (endsAt == null) {
-      return 'Informe o término da repetição.';
+      return 'Informe o termino da repeticao.';
     }
     if (endsAt.isBefore(_dateOnly(_startsAt))) {
-      return 'O término precisa ser igual ou posterior ao início.';
+      return 'O termino precisa ser igual ou posterior ao inicio.';
     }
     if (!_hasRecurrenceOccurrence(_dateOnly(_startsAt), endsAt)) {
-      return 'A configuração não gera nenhuma aula.';
+      return 'A configuracao nao gera nenhuma aula.';
     }
-    return 'Agenda recorrente ainda não possui contrato de persistência nesta tela.';
+    return 'Agenda recorrente ainda nao possui contrato de persistencia nesta tela.';
   }
 
   bool _hasRecurrenceOccurrence(DateTime start, DateTime end) {
@@ -1469,9 +1575,9 @@ class _CreateAttendanceSessionSheetState
     final weekdays = _formatWeekdayList(_recurrenceWeekdays);
     final end = _recurrenceEndsAt;
     if (_recurrenceWeekdays.isEmpty || end == null) {
-      return 'Repetir aula\nComplete os dias da semana e o término para revisar a agenda.';
+      return 'Complete dias e termino para revisar.';
     }
-    return 'Repete toda $weekdays\nDe ${_formatShortDate(_startsAt)} até ${_formatShortDate(end)}';
+    return 'Repete toda $weekdays\nDe ${_formatShortDate(_startsAt)} ate ${_formatShortDate(end)}';
   }
 
   void _submit() {
@@ -1596,7 +1702,7 @@ class _DateQuickSelector extends StatelessWidget {
         ),
         ChoiceChip(
           avatar: const Icon(Icons.next_plan_outlined, size: 18),
-          label: const Text('Amanhã'),
+          label: const Text('Amanha'),
           selected: selected == today.add(const Duration(days: 1)),
           onSelected: (_) => onTomorrow(),
         ),
@@ -1628,8 +1734,8 @@ class _TimeField extends StatelessWidget {
         final time = await showTimePicker(
           context: context,
           initialTime: TimeOfDay.fromDateTime(value),
-          helpText: 'Escolher horário',
-          cancelText: 'Cancelar',
+          helpText: 'Escolher horario',
+
           confirmText: 'Confirmar',
         );
         if (time == null) return;
@@ -1648,90 +1754,72 @@ class _RecurrenceControls extends StatelessWidget {
     required this.startsAt,
     required this.endsAt,
     required this.selectedWeekdays,
-    required this.endMode,
     required this.onWeekdayToggle,
-    required this.onPickStart,
     required this.onPickEnd,
-    required this.onEndModeChanged,
   });
 
   final DateTime startsAt;
   final DateTime? endsAt;
   final Set<int> selectedWeekdays;
-  final _RecurrenceEndMode endMode;
   final ValueChanged<int> onWeekdayToggle;
-  final VoidCallback onPickStart;
   final VoidCallback onPickEnd;
-  final ValueChanged<_RecurrenceEndMode> onEndModeChanged;
 
   @override
   Widget build(BuildContext context) {
     const weekdays = <MapEntry<int, String>>[
-      MapEntry(DateTime.monday, 'Seg'),
-      MapEntry(DateTime.tuesday, 'Ter'),
-      MapEntry(DateTime.wednesday, 'Qua'),
-      MapEntry(DateTime.thursday, 'Qui'),
-      MapEntry(DateTime.friday, 'Sex'),
-      MapEntry(DateTime.saturday, 'Sáb'),
-      MapEntry(DateTime.sunday, 'Dom'),
+      MapEntry(DateTime.monday, 'S'),
+      MapEntry(DateTime.tuesday, 'T'),
+      MapEntry(DateTime.wednesday, 'Q'),
+      MapEntry(DateTime.thursday, 'Q'),
+      MapEntry(DateTime.friday, 'S'),
+      MapEntry(DateTime.saturday, 'S'),
+      MapEntry(DateTime.sunday, 'D'),
     ];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _FieldLabel('Frequência'),
-        const SizedBox(height: 6),
-        const Align(
-          alignment: Alignment.centerLeft,
-          child: Chip(label: Text('Semanal')),
+        Row(
+          children: [
+            const Expanded(child: _FieldLabel('Repetir')),
+            _CompactStatusPill(
+              label: 'Semanalmente',
+              color: Theme.of(context).colorScheme.primary,
+            ),
+          ],
         ),
-        const SizedBox(height: 12),
-        const _FieldLabel('Dias da semana'),
+        const SizedBox(height: 10),
+        const _FieldLabel('Dias'),
         const SizedBox(height: 6),
         Wrap(
-          spacing: 8,
-          runSpacing: 8,
+          spacing: 7,
+          runSpacing: 7,
           children: [
             for (final item in weekdays)
               FilterChip(
                 label: Text(item.value),
                 selected: selectedWeekdays.contains(item.key),
                 onSelected: (_) => onWeekdayToggle(item.key),
+                visualDensity: VisualDensity.compact,
               ),
           ],
         ),
-        const SizedBox(height: 12),
-        const _FieldLabel('Data de início'),
-        const SizedBox(height: 6),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.calendar_month_outlined),
-          label: Text(_formatDate(startsAt)),
-          onPressed: onPickStart,
-        ),
-        const SizedBox(height: 12),
-        const _FieldLabel('Término'),
-        const SizedBox(height: 6),
-        SegmentedButton<_RecurrenceEndMode>(
-          segments: const [
-            ButtonSegment(
-              value: _RecurrenceEndMode.untilDate,
-              label: Text('Até uma data'),
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            const Expanded(child: _FieldLabel('Ate')),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.event_busy_outlined),
+              label: Text(
+                endsAt == null ? 'Definir termino' : _formatDate(endsAt!),
+              ),
+              onPressed: onPickEnd,
             ),
           ],
-          selected: {endMode},
-          onSelectionChanged: (value) => onEndModeChanged(value.first),
         ),
-        const SizedBox(height: 8),
-        OutlinedButton.icon(
-          icon: const Icon(Icons.event_busy_outlined),
-          label: Text(
-            endsAt == null ? 'Definir término' : _formatDate(endsAt!),
-          ),
-          onPressed: onPickEnd,
-        ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 6),
         Text(
-          'Após X aulas não foi habilitado porque o contrato atual da tela não persiste quantidade de ocorrências.',
+          'Outros formatos ficam para um contrato futuro.',
           style: TextStyle(
             color: Theme.of(
               context,
@@ -1839,7 +1927,7 @@ class _TitansCalendarSheetState extends State<_TitansCalendarSheet> {
                 _WeekdayCell('QUA'),
                 _WeekdayCell('QUI'),
                 _WeekdayCell('SEX'),
-                _WeekdayCell('SÁB'),
+                _WeekdayCell('SAB'),
                 _WeekdayCell('DOM'),
               ],
             ),
@@ -2066,7 +2154,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TitansStateView.empty(
-      title: 'Nenhuma sessao aberta',
+      title: 'Nenhuma chamada aberta',
       message:
           isStaff
               ? 'Escolha uma data para iniciar a chamada.'
@@ -2115,7 +2203,7 @@ String _statusLabel(AttendanceSessionStatus status) {
     case AttendanceSessionStatus.closed:
       return 'Fechada';
     case AttendanceSessionStatus.cancelled:
-      return 'Cancelada';
+      return 'Anulada';
   }
 }
 
@@ -2151,6 +2239,14 @@ String _initials(String value) {
   return '$first$second'.toUpperCase();
 }
 
+String _relativeDayLabel(DateTime value) {
+  final day = _dateOnly(value);
+  final today = _dateOnly(DateTime.now());
+  if (day == today) return 'Hoje';
+  if (day == today.add(const Duration(days: 1))) return 'Amanha';
+  return _weekdayName(value.weekday);
+}
+
 String _formatDateTime(DateTime value) {
   return '${_two(value.day)}/${_two(value.month)} ${_two(value.hour)}:${_two(value.minute)}';
 }
@@ -2178,11 +2274,11 @@ String _formatWeekdayList(Set<int> weekdays) {
 String _weekdayName(int weekday) {
   const names = <int, String>{
     DateTime.monday: 'segunda',
-    DateTime.tuesday: 'terça',
+    DateTime.tuesday: 'terca',
     DateTime.wednesday: 'quarta',
     DateTime.thursday: 'quinta',
     DateTime.friday: 'sexta',
-    DateTime.saturday: 'sábado',
+    DateTime.saturday: 'sabado',
     DateTime.sunday: 'domingo',
   };
   return names[weekday] ?? 'dia escolhido';
@@ -2192,7 +2288,7 @@ String _monthName(int month) {
   const names = <int, String>{
     1: 'janeiro',
     2: 'fevereiro',
-    3: 'março',
+    3: 'marco',
     4: 'abril',
     5: 'maio',
     6: 'junho',
@@ -2203,7 +2299,7 @@ String _monthName(int month) {
     11: 'novembro',
     12: 'dezembro',
   };
-  return names[month] ?? 'mês';
+  return names[month] ?? 'mes';
 }
 
 DateTime _dateOnly(DateTime value) {
