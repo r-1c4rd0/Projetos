@@ -8,8 +8,9 @@ class TrainingRepository {
 
   final FirebaseFirestore _db;
 
-  static final TrainingRepository instance =
-      TrainingRepository._(FirebaseFirestore.instance);
+  static final TrainingRepository instance = TrainingRepository._(
+    FirebaseFirestore.instance,
+  );
 
   DocumentReference<Map<String, dynamic>> _academyRef(String academyId) {
     return _db.collection('academies').doc(academyId);
@@ -26,8 +27,10 @@ class TrainingRepository {
     required String academyId,
     required String uid,
   }) {
-    return _userRef(academyId: academyId, uid: uid)
-        .collection('training_sessions');
+    return _userRef(
+      academyId: academyId,
+      uid: uid,
+    ).collection('training_sessions');
   }
 
   DocumentReference<Map<String, dynamic>> _sessionRef({
@@ -52,11 +55,7 @@ class TrainingRepository {
     required TrainingSession session,
   }) {
     batch.set(
-      _sessionRef(
-        academyId: academyId,
-        uid: uid,
-        sessionId: session.id,
-      ),
+      _sessionRef(academyId: academyId, uid: uid, sessionId: session.id),
       session.toMap(),
       SetOptions(merge: true),
     );
@@ -86,11 +85,12 @@ class TrainingRepository {
     required String uid,
     required String sessionId,
   }) async {
-    final snap = await _sessionRef(
-      academyId: academyId,
-      uid: uid,
-      sessionId: sessionId,
-    ).get();
+    final snap =
+        await _sessionRef(
+          academyId: academyId,
+          uid: uid,
+          sessionId: sessionId,
+        ).get();
     final data = snap.data();
     if (!snap.exists || data == null) return null;
     return TrainingSession.fromDoc(snap.id, data);
@@ -100,9 +100,11 @@ class TrainingRepository {
     required String academyId,
     required String uid,
   }) async {
-    final snap = await _collectionRef(academyId: academyId, uid: uid)
-        .orderBy('date', descending: false)
-        .get();
+    final snap =
+        await _collectionRef(
+          academyId: academyId,
+          uid: uid,
+        ).orderBy('date', descending: false).get();
     return snap.docs
         .map((doc) => TrainingSession.fromDoc(doc.id, doc.data()))
         .toList();
@@ -116,9 +118,10 @@ class TrainingRepository {
         .orderBy('date', descending: false)
         .snapshots()
         .map(
-          (snap) => snap.docs
-              .map((doc) => TrainingSession.fromDoc(doc.id, doc.data()))
-              .toList(),
+          (snap) =>
+              snap.docs
+                  .map((doc) => TrainingSession.fromDoc(doc.id, doc.data()))
+                  .toList(),
         );
   }
 
@@ -176,6 +179,43 @@ class TrainingRepository {
       uid: uid,
       sessions: sessions,
     );
+  }
+
+  Future<void> updateSessionLifecycle({
+    required String academyId,
+    required String uid,
+    required String sessionId,
+    required TrainingSessionStatus status,
+    DateTime? plannedFor,
+    DateTime? effectiveDate,
+  }) async {
+    final updates = <String, dynamic>{
+      'status': status.name,
+      'updatedAt': FieldValue.serverTimestamp(),
+      'statusChangedAt': FieldValue.serverTimestamp(),
+    };
+
+    if (plannedFor != null) {
+      updates['plannedFor'] = Timestamp.fromDate(plannedFor);
+      updates['date'] = Timestamp.fromDate(plannedFor);
+    }
+
+    if (effectiveDate != null) {
+      updates['effectiveDate'] = Timestamp.fromDate(effectiveDate);
+    }
+
+    if (status == TrainingSessionStatus.completed) {
+      updates['confirmedAt'] = FieldValue.serverTimestamp();
+      if (effectiveDate != null) {
+        updates['date'] = Timestamp.fromDate(effectiveDate);
+      }
+    }
+
+    await _sessionRef(
+      academyId: academyId,
+      uid: uid,
+      sessionId: sessionId,
+    ).set(updates, SetOptions(merge: true));
   }
 
   Future<void> deleteSession({

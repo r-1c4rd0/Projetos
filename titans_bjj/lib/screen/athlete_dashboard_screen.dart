@@ -76,6 +76,7 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
   Stream<List<MealEntry>>? _nutritionMealsStream;
   String? _homeDashboardCacheKey;
   _HomeDashboardViewModel? _homeDashboardCache;
+  final Set<String> _trainingLifecycleSavingIds = <String>{};
   late final GetHomeDashboardSummary _getHomeDashboardSummary =
       const GetHomeDashboardSummary();
   late final GetTechnicalRadarSummary _getTechnicalRadarSummary =
@@ -274,12 +275,15 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                   .toList()
                               : List<TrainingSession>.from(sessions);
 
+                      final completedFiltered =
+                          TrainingAggregator.uniqueCompletedSessions(filtered);
+
                       final beltProgress = _calcBeltProgress(
                         rules: rules,
                         profile: profile,
                         belt: athlete.belt,
                         degree: athlete.degree,
-                        sessions: filtered,
+                        sessions: completedFiltered,
                       );
                       final homeViewModel = _homeDashboardViewModelFor(
                         academyId: academyId,
@@ -296,6 +300,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       final technicalRadar = homeViewModel.technicalRadar;
                       final recommendedFocus = homeViewModel.recommendedFocus;
                       final nextTraining = homeViewModel.nextTraining;
+                      final pendingConfirmation =
+                          homeViewModel.pendingConfirmation;
                       final frequency = homeViewModel.frequency;
                       final isStaffViewingStudent = _isStaffViewingStudent(
                         actor: actor,
@@ -303,7 +309,9 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                       );
                       final coachHomeState =
                           isStaffViewingStudent
-                              ? _coachStudentHomeStateFor(filtered.length)
+                              ? _coachStudentHomeStateFor(
+                                completedFiltered.length,
+                              )
                               : null;
                       final isSelfProfile =
                           widget.targetMode == TargetMode.self &&
@@ -341,12 +349,77 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
+                      Future<void> confirmPendingTraining(
+                        TrainingSession session,
+                      ) async {
+                        if (_trainingLifecycleSavingIds.contains(session.id)) {
+                          return;
+                        }
+                        setState(() {
+                          _trainingLifecycleSavingIds.add(session.id);
+                        });
+                        try {
+                          final effectiveDate = DateTime(
+                            session.date.year,
+                            session.date.month,
+                            session.date.day,
+                          );
+                          await _trainingRepo.updateSessionLifecycle(
+                            academyId: academyId,
+                            uid: uid,
+                            sessionId: session.id,
+                            status: TrainingSessionStatus.completed,
+                            effectiveDate: effectiveDate,
+                          );
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text(
+                                'Treino confirmado como realizado.',
+                              ),
+                              action: SnackBarAction(
+                                label: 'Complementar treino',
+                                onPressed:
+                                    () => Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                        builder:
+                                            (_) => AddTrainingSessionScreen(
+                                              academyId: academyId,
+                                              uid: uid,
+                                              session: session.copyWith(
+                                                status:
+                                                    TrainingSessionStatus
+                                                        .completed,
+                                                effectiveDate: effectiveDate,
+                                              ),
+                                            ),
+                                      ),
+                                    ),
+                              ),
+                            ),
+                          );
+                        } catch (error) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Erro ao confirmar treino: $error'),
+                            ),
+                          );
+                        } finally {
+                          if (mounted) {
+                            setState(() {
+                              _trainingLifecycleSavingIds.remove(session.id);
+                            });
+                          }
+                        }
+                      }
+
                       void openQuickLog() {
                         showQuickLogSheet(
                           context: context,
                           academyId: academyId,
                           uid: uid,
-                          recentSessions: filtered,
+                          recentSessions: completedFiltered,
                           canSave: canEditTarget,
                           onOpenFullForm: openRegisterTraining,
                         );
@@ -461,6 +534,18 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                           lastSessions.isEmpty
                                               ? null
                                               : lastSessions.first,
+                                      pendingConfirmation: pendingConfirmation,
+                                      confirmingPending:
+                                          pendingConfirmation != null &&
+                                          _trainingLifecycleSavingIds.contains(
+                                            pendingConfirmation.id,
+                                          ),
+                                      onConfirmPending:
+                                          pendingConfirmation == null
+                                              ? null
+                                              : () => confirmPendingTraining(
+                                                pendingConfirmation,
+                                              ),
                                       onRegisterTraining: openQuickLog,
                                     ),
                                     const SizedBox(height: 12),
@@ -690,6 +775,21 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                         _DashboardPrimaryActionCard(
                                           cs: cs,
                                           nextTraining: nextTraining,
+                                          pendingConfirmation:
+                                              pendingConfirmation,
+                                          confirmingPending:
+                                              pendingConfirmation != null &&
+                                              _trainingLifecycleSavingIds
+                                                  .contains(
+                                                    pendingConfirmation.id,
+                                                  ),
+                                          onConfirmPending:
+                                              pendingConfirmation == null
+                                                  ? null
+                                                  : () =>
+                                                      confirmPendingTraining(
+                                                        pendingConfirmation,
+                                                      ),
                                           onRegisterTraining:
                                               openRegisterTraining,
                                           onOpenTraining: openTraining,
@@ -1096,7 +1196,15 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
         ..write(':')
         ..write(session.applicationContext ?? '')
         ..write(':')
-        ..write(session.techniqueOutcome ?? '');
+        ..write(session.techniqueOutcome ?? '')
+        ..write(':')
+        ..write(session.status?.name ?? '')
+        ..write(':')
+        ..write(session.plannedFor?.microsecondsSinceEpoch ?? 0)
+        ..write(':')
+        ..write(session.effectiveDate?.microsecondsSinceEpoch ?? 0)
+        ..write(':')
+        ..write(session.confirmedAt?.microsecondsSinceEpoch ?? 0);
 
       final scoreKeys = session.scores.keys.toList()..sort();
       for (final key in scoreKeys) {
@@ -1182,6 +1290,7 @@ class _HomeDashboardViewModel {
   final _HomeTechnicalRadarViewModel technicalRadar;
   final RecommendedTrainingFocus recommendedFocus;
   final NextTrainingRecommendation nextTraining;
+  final TrainingSession? pendingConfirmation;
 
   const _HomeDashboardViewModel({
     required this.sessions,
@@ -1195,6 +1304,7 @@ class _HomeDashboardViewModel {
     required this.technicalRadar,
     required this.recommendedFocus,
     required this.nextTraining,
+    required this.pendingConfirmation,
   });
 
   factory _HomeDashboardViewModel.fromSummary(
@@ -1215,6 +1325,7 @@ class _HomeDashboardViewModel {
       ),
       recommendedFocus: summary.recommendedFocus,
       nextTraining: summary.nextTraining,
+      pendingConfirmation: summary.pendingConfirmation,
     );
   }
 }
@@ -1825,6 +1936,9 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
   final RecommendedTrainingFocus focus;
   final NextTrainingRecommendation nextTraining;
   final TrainingSession? lastSession;
+  final TrainingSession? pendingConfirmation;
+  final bool confirmingPending;
+  final Future<void> Function()? onConfirmPending;
   final VoidCallback onRegisterTraining;
 
   const _AthleteHomeCockpitHero({
@@ -1832,25 +1946,36 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
     required this.focus,
     required this.nextTraining,
     required this.lastSession,
+    required this.pendingConfirmation,
+    required this.confirmingPending,
+    required this.onConfirmPending,
     required this.onRegisterTraining,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pending = pendingConfirmation;
     final accent = _priorityColor(cs, focus.priority, nextTraining.priority);
     final title =
-        focus.hasRecommendation
+        pending != null
+            ? 'Confirmar treino de ${_formatShortDate(pending.date)}'
+            : focus.hasRecommendation
             ? focus.title
             : nextTraining.hasRecommendation
             ? nextTraining.title
             : 'Foco do treino em construção';
     final subtitle =
-        focus.hasRecommendation
+        pending != null
+            ? 'Você fez este treino?'
+            : focus.hasRecommendation
             ? focus.summary
             : nextTraining.hasRecommendation
             ? nextTraining.subtitle
             : 'Registre treinos e debriefs para alimentar seu próximo passo.';
-    final support = _supportText();
+    final support =
+        pending != null
+            ? 'Confirme a ocorrência existente sem criar outro registro.'
+            : _supportText();
     final tags =
         <String>[
           if (focus.hasRecommendation) ...focus.tags,
@@ -1956,9 +2081,31 @@ class _AthleteHomeCockpitHero extends StatelessWidget {
                         ? double.infinity
                         : constraints.maxWidth.clamp(180.0, 260.0),
                 child: FilledButton.icon(
-                  onPressed: onRegisterTraining,
-                  icon: const Icon(Icons.add_rounded, size: 18),
-                  label: const Text('Registro rápido'),
+                  onPressed:
+                      pending != null
+                          ? () => onConfirmPending?.call()
+                          : onRegisterTraining,
+                  icon:
+                      confirmingPending
+                          ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                cs.onPrimary,
+                              ),
+                            ),
+                          )
+                          : Icon(
+                            pending != null
+                                ? Icons.check_circle_outline
+                                : Icons.add_rounded,
+                            size: 18,
+                          ),
+                  label: Text(
+                    pending != null ? 'Já treinei' : 'Registro rápido',
+                  ),
                   style: FilledButton.styleFrom(
                     backgroundColor: TitansUI.actionGold,
                     foregroundColor: Colors.black,
@@ -4397,18 +4544,25 @@ class _CoachNutritionCompactCard extends StatelessWidget {
 class _DashboardPrimaryActionCard extends StatelessWidget {
   final ColorScheme cs;
   final NextTrainingRecommendation nextTraining;
+  final TrainingSession? pendingConfirmation;
+  final bool confirmingPending;
+  final Future<void> Function()? onConfirmPending;
   final VoidCallback onRegisterTraining;
   final VoidCallback onOpenTraining;
 
   const _DashboardPrimaryActionCard({
     required this.cs,
     required this.nextTraining,
+    required this.pendingConfirmation,
+    required this.confirmingPending,
+    required this.onConfirmPending,
     required this.onRegisterTraining,
     required this.onOpenTraining,
   });
 
   @override
   Widget build(BuildContext context) {
+    final pending = pendingConfirmation;
     return _GlassCard(
       accent: cs.primary.withValues(alpha: 0.32),
       child: Column(
@@ -4417,14 +4571,16 @@ class _DashboardPrimaryActionCard extends StatelessWidget {
           _SectionHeaderCompact(title: 'A\u00c7\u00c3O PRINCIPAL'),
           const SizedBox(height: 10),
           Text(
-            'Registrar treino',
+            pending == null ? 'Registrar treino' : 'Confirmar treino pendente',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 5),
           Text(
-            nextTraining.hasRecommendation
+            pending != null
+                ? 'Você fez o treino de ${_formatShortDate(pending.date)}?'
+                : nextTraining.hasRecommendation
                 ? 'Use o pr\u00f3ximo treino como guia e registre o resultado depois.'
                 : 'Registre a pr\u00f3xima sess\u00e3o para liberar recomenda\u00e7\u00f5es mais precisas.',
             maxLines: 2,
@@ -4440,9 +4596,30 @@ class _DashboardPrimaryActionCard extends StatelessWidget {
             overflowSpacing: 8,
             children: [
               FilledButton.icon(
-                onPressed: onRegisterTraining,
-                icon: const Icon(Icons.add_task_outlined),
-                label: const Text('Registrar treino'),
+                onPressed:
+                    pending != null
+                        ? () => onConfirmPending?.call()
+                        : onRegisterTraining,
+                icon:
+                    confirmingPending
+                        ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(
+                              cs.onPrimary,
+                            ),
+                          ),
+                        )
+                        : Icon(
+                          pending != null
+                              ? Icons.check_circle_outline
+                              : Icons.add_task_outlined,
+                        ),
+                label: Text(
+                  pending != null ? 'Já treinei' : 'Registrar treino',
+                ),
               ),
               OutlinedButton.icon(
                 onPressed: onOpenTraining,

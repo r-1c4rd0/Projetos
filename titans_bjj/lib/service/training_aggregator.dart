@@ -152,12 +152,22 @@ class TrainingAggregator {
     return unique;
   }
 
+  static List<TrainingSession> uniqueCompletedSessions(
+    List<TrainingSession> sessions, {
+    DateTime? now,
+  }) {
+    final resolvedNow = now ?? DateTime.now();
+    return uniqueSessions(sessions)
+        .where((session) => session.isCompleted(now: resolvedNow))
+        .toList(growable: false);
+  }
+
   static TrainingMetrics metrics(
     List<TrainingSession> sessions, {
     DateTime? now,
   }) {
-    final unique = uniqueSessions(sessions);
     final resolvedNow = now ?? DateTime.now();
+    final unique = uniqueCompletedSessions(sessions, now: resolvedNow);
     final monthStart = DateTime(resolvedNow.year, resolvedNow.month, 1);
     final yearStart = DateTime(resolvedNow.year, 1, 1);
     final recentStart = DateTime(
@@ -183,7 +193,7 @@ class TrainingAggregator {
     List<TrainingSession> sessions, {
     int limit = 100,
   }) {
-    final ordered = uniqueSessions(sessions).reversed.take(limit);
+    final ordered = uniqueCompletedSessions(sessions).reversed.take(limit);
     final evidences = <SkillEvidence>[];
 
     for (final session in ordered) {
@@ -280,8 +290,7 @@ class TrainingAggregator {
     List<TrainingSession> sessions, {
     int limit = 20,
   }) {
-    final ordered = List<TrainingSession>.from(sessions)
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final ordered = uniqueCompletedSessions(sessions).reversed.toList();
     final byPosition = <String, _GameMapPositionDraft>{};
 
     for (final session in ordered.take(limit)) {
@@ -331,8 +340,7 @@ class TrainingAggregator {
     List<TrainingSession> sessions, {
     int limit = 50,
   }) {
-    final ordered = List<TrainingSession>.from(sessions)
-      ..sort((a, b) => b.date.compareTo(a.date));
+    final ordered = uniqueCompletedSessions(sessions).reversed.toList();
     final byTechnique = <String, _SkillMatrixTechniqueDraft>{};
 
     for (final session in ordered.take(limit)) {
@@ -396,7 +404,7 @@ class TrainingAggregator {
     List<TrainingSession> sessions, {
     int recentLimit = 20,
   }) {
-    final ordered = uniqueSessions(sessions).reversed.toList();
+    final ordered = uniqueCompletedSessions(sessions).reversed.toList();
     final byTechnique = <String, _RecommendedFocusDraft>{};
 
     for (final session in ordered.take(recentLimit)) {

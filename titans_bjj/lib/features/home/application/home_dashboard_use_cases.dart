@@ -15,7 +15,12 @@ class GetHomeDashboardSummary {
   });
 
   HomeDashboardSummary call(List<TrainingSession> sessions, {DateTime? now}) {
-    final stableSessions = List<TrainingSession>.unmodifiable(sessions);
+    final resolvedNow = now ?? DateTime.now();
+    final allSessions = TrainingAggregator.uniqueSessions(sessions);
+    final stableSessions = List<TrainingSession>.unmodifiable(
+      TrainingAggregator.uniqueCompletedSessions(sessions, now: resolvedNow),
+    );
+    final pendingConfirmation = _pendingConfirmation(allSessions, resolvedNow);
     final recentSessions = List<TrainingSession>.unmodifiable(
       stableSessions.reversed.take(10),
     );
@@ -62,7 +67,20 @@ class GetHomeDashboardSummary {
         stableSessions,
         recentLimit: 20,
       ),
+      pendingConfirmation: pendingConfirmation,
     );
+  }
+
+  TrainingSession? _pendingConfirmation(
+    List<TrainingSession> sessions,
+    DateTime now,
+  ) {
+    final pending =
+        sessions
+            .where((session) => session.isAwaitingConfirmation(now: now))
+            .toList()
+          ..sort((a, b) => a.date.compareTo(b.date));
+    return pending.isEmpty ? null : pending.first;
   }
 
   int _calculateFrequency(List<TrainingSession> sessions, {DateTime? now}) {

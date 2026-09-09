@@ -26,6 +26,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final IStudentRepository _studentRepository = StudentRepository.create();
 
   AppUser? _user;
+  String? _activeAcademyId;
   Stream<List<AttendanceSession>>? _sessionsStream;
   bool _submitting = false;
 
@@ -39,11 +40,17 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   void didChangeDependencies() {
     super.didChangeDependencies();
 
-    final user = UserScope.of(context);
-    if (_user?.uid == user.uid && _user?.academyId == user.academyId) return;
+    final scope = UserScope.scopeOf(context);
+    final user = scope.user;
+    final academyId = scope.activeAcademyId.trim();
+    if (_user?.uid == user.uid && _activeAcademyId == academyId) return;
 
     _user = user;
-    _sessionsStream = _repository.watchSessions(academyId: user.academyId);
+    _activeAcademyId = academyId;
+    _sessionsStream =
+        academyId.isEmpty
+            ? Stream<List<AttendanceSession>>.value(const <AttendanceSession>[])
+            : _repository.watchSessions(academyId: academyId);
   }
 
   @override
@@ -58,7 +65,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
               ? FloatingActionButton.extended(
                 heroTag: 'attendance_fab',
                 icon: const Icon(Icons.add),
-                label: const Text('Nova aula'),
+                label: const Text('Abrir chamada'),
                 onPressed: _submitting ? null : _openCreateSession,
               )
               : null,
@@ -80,12 +87,27 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                   final sessions = snap.data ?? const <AttendanceSession>[];
                   if (sessions.isEmpty) return _EmptyState(isStaff: _isStaff);
 
+                  final openCount =
+                      sessions
+                          .where(
+                            (item) =>
+                                item.status == AttendanceSessionStatus.open,
+                          )
+                          .length;
+
                   return ListView.separated(
                     padding: TitansUI.listPadding(context),
-                    itemCount: sessions.length,
+                    itemCount: sessions.length + 1,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
-                      final session = sessions[index];
+                      if (index == 0) {
+                        return _AttendanceOverviewCard(
+                          isStaff: _isStaff,
+                          openCount: openCount,
+                        );
+                      }
+
+                      final session = sessions[index - 1];
                       return _AttendanceSessionCard(
                         session: session,
                         isStaff: _isStaff,
@@ -109,7 +131,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
 
   Future<void> _openCreateSession() async {
     final user = _user;
-    if (user == null || !_isStaff) return;
+    final academyId = _activeAcademyId?.trim() ?? '';
+    if (user == null || academyId.isEmpty || !_isStaff) return;
 
     final draft = await showModalBottomSheet<_AttendanceSessionDraft?>(
       context: context,
@@ -122,7 +145,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     setState(() => _submitting = true);
     try {
       await _repository.createSession(
-        academyId: user.academyId,
+        academyId: academyId,
         title: draft.title,
         classType: draft.classType,
         instructorUid: user.uid,
@@ -131,7 +154,7 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         endsAt: draft.endsAt,
       );
       if (!mounted) return;
-      _showMessage('Sessao criada.');
+      _showMessage('Chamada aberta.');
     } catch (error) {
       if (!mounted) return;
       _showMessage('Nao foi possivel criar a sessao: $error');
@@ -288,13 +311,13 @@ class _AttendanceSessionDetailsScreenState
 
     return TitansScaffold(
       scroll: false,
-      appBar: AppBar(title: const Text('Presenca da aula')),
+      appBar: AppBar(title: const Text('Chamada')),
       floatingActionButton:
           _canEdit
               ? FloatingActionButton.extended(
                 heroTag: 'attendance_checkin_fab_${session.id}',
                 icon: const Icon(Icons.person_add_alt_1_outlined),
-                label: const Text('Adicionar aluno'),
+                label: const Text('Marcar manualmente'),
                 onPressed: _submitting ? null : _openAddStudentSheet,
               )
               : null,
@@ -332,7 +355,7 @@ class _AttendanceSessionDetailsScreenState
         ],
         const SizedBox(height: 16),
         Text(
-          'Alunos presentes',
+          'Lista de presenca',
           style: Theme.of(
             context,
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
@@ -340,7 +363,8 @@ class _AttendanceSessionDetailsScreenState
         const SizedBox(height: 10),
         if (visibleCheckIns.isEmpty)
           const _InlineEmptyState(
-            message: 'Nenhum aluno presente nesta sessao.',
+            message:
+                'Nenhum aluno marcado ainda. Presenca manual disponivel para o piloto.',
           )
         else
           ...visibleCheckIns.map(
@@ -378,14 +402,14 @@ class _AttendanceSessionDetailsScreenState
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  'QR Code da aula',
+                  'QR da chamada',
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Aluno escaneia para registrar presenca',
+                  'Sessao aberta. Use para check-in dos alunos presentes.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: Theme.of(
@@ -532,6 +556,69 @@ class _AttendanceSessionDetailsScreenState
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+}
+
+class _AttendanceOverviewCard extends StatelessWidget {
+  const _AttendanceOverviewCard({
+    required this.isStaff,
+    required this.openCount,
+  });
+
+  final bool isStaff;
+  final int openCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final title = openCount > 0 ? 'Chamada aberta' : 'Sem sessao aberta';
+    final message =
+        isStaff
+            ? 'Escolha uma aula ou abra uma chamada para hoje.'
+            : 'Entre em uma chamada aberta para registrar sua presenca.';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              openCount > 0
+                  ? Icons.fact_check_outlined
+                  : Icons.event_busy_outlined,
+              color: openCount > 0 ? cs.primary : cs.onSurfaceVariant,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      color: cs.onSurface.withValues(alpha: 0.72),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Chip(
+              visualDensity: VisualDensity.compact,
+              label: Text('$openCount aberta${openCount == 1 ? '' : 's'}'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -738,11 +825,11 @@ class _QrCheckInActionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final title = isStaff ? 'Check-in por QR Code' : 'Registrar presenca';
+    final title = isStaff ? 'QR da chamada' : 'Registrar presenca';
     final message =
         isStaff
-            ? 'Exiba o QR Code para os alunos presentes nesta aula.'
-            : 'Escaneie o QR Code da aula aberta para registrar sua presenca.';
+            ? 'Sessao aberta. Use para check-in.'
+            : 'Escaneie o QR da chamada aberta.';
 
     return Card(
       child: Padding(
@@ -785,7 +872,7 @@ class _QrCheckInActionCard extends StatelessWidget {
                       ? Icons.qr_code_2_outlined
                       : Icons.qr_code_scanner_outlined,
                 ),
-                label: Text(isStaff ? 'Exibir QR Code' : 'Escanear QR Code'),
+                label: Text(isStaff ? 'Gerar QR' : 'Escanear QR'),
                 onPressed: isBusy ? null : (isStaff ? onShowQr : onScanQr),
               ),
             ),
@@ -934,7 +1021,6 @@ class _CheckInTile extends StatelessWidget {
         trailing:
             canRemove
                 ? IconButton(
-                  tooltip: 'Remover check-in',
                   icon: const Icon(Icons.delete_outline),
                   onPressed: onRemove,
                 )
@@ -1081,6 +1167,10 @@ class _InfoItem extends StatelessWidget {
   }
 }
 
+enum _ClassMode { single, recurring }
+
+enum _RecurrenceEndMode { untilDate }
+
 class _CreateAttendanceSessionSheet extends StatefulWidget {
   const _CreateAttendanceSessionSheet();
 
@@ -1095,8 +1185,12 @@ class _CreateAttendanceSessionSheetState
   final _titleController = TextEditingController();
   final _classTypeController = TextEditingController(text: 'BJJ');
 
+  _ClassMode _mode = _ClassMode.single;
   DateTime _startsAt = _nextHour();
   DateTime _endsAt = _nextHour().add(const Duration(hours: 1));
+  DateTime? _recurrenceEndsAt;
+  final Set<int> _recurrenceWeekdays = <int>{};
+  _RecurrenceEndMode _recurrenceEndMode = _RecurrenceEndMode.untilDate;
 
   @override
   void dispose() {
@@ -1108,6 +1202,8 @@ class _CreateAttendanceSessionSheetState
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.of(context).viewInsets.bottom;
+    final isSingle = _mode == _ClassMode.single;
+    final recurrenceMessage = _recurrenceValidationMessage();
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
@@ -1120,20 +1216,31 @@ class _CreateAttendanceSessionSheetState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(
-                'Nova aula',
+                'Abrir chamada',
                 style: Theme.of(
                   context,
                 ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                isSingle
+                    ? 'Aula única selecionada por padrão.'
+                    : 'Configure a repetição apenas quando quiser gerar outras ocorrências.',
+                style: TextStyle(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.70),
+                ),
               ),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _titleController,
                 textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Titulo'),
+                decoration: const InputDecoration(labelText: 'Título'),
                 validator:
                     (value) =>
                         value == null || value.trim().isEmpty
-                            ? 'Informe o titulo'
+                            ? 'Informe o título'
                             : null,
               ),
               const SizedBox(height: 12),
@@ -1147,38 +1254,96 @@ class _CreateAttendanceSessionSheetState
                             ? 'Informe o tipo de aula'
                             : null,
               ),
+              const SizedBox(height: 16),
+              const _SheetSectionTitle('Quando será a aula?'),
+              const SizedBox(height: 8),
+              _DateQuickSelector(
+                selectedDate: _startsAt,
+                onToday: () => _setDate(DateTime.now()),
+                onTomorrow:
+                    () => _setDate(DateTime.now().add(const Duration(days: 1))),
+                onOtherDate: _pickStartDate,
+              ),
+              const SizedBox(height: 10),
+              Text(
+                _formatFullDate(_startsAt),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+              ),
               const SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
-                    child: _DateTimeField(
-                      label: 'Inicio',
+                    child: _TimeField(
+                      label: 'Início',
                       value: _startsAt,
-                      onPick: (value) {
-                        setState(() {
-                          _startsAt = value;
-                          if (!_endsAt.isAfter(_startsAt)) {
-                            _endsAt = _startsAt.add(const Duration(hours: 1));
-                          }
-                        });
-                      },
+                      onPick: _setStartTime,
                     ),
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: _DateTimeField(
+                    child: _TimeField(
                       label: 'Fim',
                       value: _endsAt,
-                      onPick: (value) => setState(() => _endsAt = value),
+                      onPick: _setEndTime,
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 18),
+              const _SheetSectionTitle('Repetição'),
+              const SizedBox(height: 8),
+              SegmentedButton<_ClassMode>(
+                segments: const [
+                  ButtonSegment(
+                    value: _ClassMode.single,
+                    icon: Icon(Icons.event_available_outlined),
+                    label: Text('Aula única'),
+                  ),
+                  ButtonSegment(
+                    value: _ClassMode.recurring,
+                    icon: Icon(Icons.event_repeat_outlined),
+                    label: Text('Repetir aula'),
+                  ),
+                ],
+                selected: {_mode},
+                onSelectionChanged:
+                    (value) => setState(() => _mode = value.first),
+              ),
+              const SizedBox(height: 12),
+              if (isSingle) ...[
+                _ScheduleSummary(
+                  title: 'Resumo da agenda',
+                  text:
+                      'Aula única\n${_formatFullDate(_startsAt)} às ${_formatTime(_startsAt)}',
+                ),
+              ] else ...[
+                _RecurrenceControls(
+                  startsAt: _startsAt,
+                  endsAt: _recurrenceEndsAt,
+                  selectedWeekdays: _recurrenceWeekdays,
+                  endMode: _recurrenceEndMode,
+                  onWeekdayToggle: _toggleRecurrenceWeekday,
+                  onPickStart: _pickStartDate,
+                  onPickEnd: _pickRecurrenceEndDate,
+                  onEndModeChanged:
+                      (value) => setState(() => _recurrenceEndMode = value),
+                ),
+                const SizedBox(height: 12),
+                _ScheduleSummary(
+                  title: 'Resumo da agenda',
+                  text: _recurrenceSummary(),
+                  warning: recurrenceMessage,
+                ),
+              ],
               const SizedBox(height: 16),
               FilledButton.icon(
-                icon: const Icon(Icons.save_outlined),
-                label: const Text('Criar sessao'),
-                onPressed: _submit,
+                icon: const Icon(Icons.fact_check_outlined),
+                label: Text(
+                  isSingle ? 'Abrir chamada' : 'Criar aulas recorrentes',
+                ),
+                onPressed: isSingle ? _submit : null,
               ),
               const SizedBox(height: 8),
             ],
@@ -1186,6 +1351,127 @@ class _CreateAttendanceSessionSheetState
         ),
       ),
     );
+  }
+
+  Future<void> _pickStartDate() async {
+    final date = await _showTitansDatePicker(
+      context: context,
+      initialDate: _startsAt,
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    _setDate(date);
+  }
+
+  Future<void> _pickRecurrenceEndDate() async {
+    final date = await _showTitansDatePicker(
+      context: context,
+      initialDate: _recurrenceEndsAt ?? _startsAt.add(const Duration(days: 28)),
+      firstDate: _dateOnly(_startsAt),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (date == null || !mounted) return;
+    setState(() => _recurrenceEndsAt = date);
+  }
+
+  void _setDate(DateTime date) {
+    final currentDuration = _endsAt.difference(_startsAt);
+    final duration =
+        currentDuration.isNegative || currentDuration.inMinutes == 0
+            ? const Duration(hours: 1)
+            : currentDuration;
+    setState(() {
+      _startsAt = DateTime(
+        date.year,
+        date.month,
+        date.day,
+        _startsAt.hour,
+        _startsAt.minute,
+      );
+      _endsAt = _startsAt.add(duration);
+      if (_recurrenceEndsAt != null &&
+          _recurrenceEndsAt!.isBefore(_dateOnly(_startsAt))) {
+        _recurrenceEndsAt = null;
+      }
+    });
+  }
+
+  void _setStartTime(TimeOfDay value) {
+    setState(() {
+      _startsAt = DateTime(
+        _startsAt.year,
+        _startsAt.month,
+        _startsAt.day,
+        value.hour,
+        value.minute,
+      );
+      if (!_endsAt.isAfter(_startsAt)) {
+        _endsAt = _startsAt.add(const Duration(hours: 1));
+      }
+    });
+  }
+
+  void _setEndTime(TimeOfDay value) {
+    setState(() {
+      _endsAt = DateTime(
+        _startsAt.year,
+        _startsAt.month,
+        _startsAt.day,
+        value.hour,
+        value.minute,
+      );
+      if (!_endsAt.isAfter(_startsAt)) {
+        _endsAt = _startsAt.add(const Duration(hours: 1));
+      }
+    });
+  }
+
+  void _toggleRecurrenceWeekday(int weekday) {
+    setState(() {
+      if (_recurrenceWeekdays.contains(weekday)) {
+        _recurrenceWeekdays.remove(weekday);
+      } else {
+        _recurrenceWeekdays.add(weekday);
+      }
+    });
+  }
+
+  String? _recurrenceValidationMessage() {
+    if (_mode == _ClassMode.single) return null;
+    final endsAt = _recurrenceEndsAt;
+    if (_recurrenceWeekdays.isEmpty) {
+      return 'Escolha pelo menos um dia da semana.';
+    }
+    if (endsAt == null) {
+      return 'Informe o término da repetição.';
+    }
+    if (endsAt.isBefore(_dateOnly(_startsAt))) {
+      return 'O término precisa ser igual ou posterior ao início.';
+    }
+    if (!_hasRecurrenceOccurrence(_dateOnly(_startsAt), endsAt)) {
+      return 'A configuração não gera nenhuma aula.';
+    }
+    return 'Agenda recorrente ainda não possui contrato de persistência nesta tela.';
+  }
+
+  bool _hasRecurrenceOccurrence(DateTime start, DateTime end) {
+    var cursor = start;
+    final limit = _dateOnly(end);
+    while (!cursor.isAfter(limit)) {
+      if (_recurrenceWeekdays.contains(cursor.weekday)) return true;
+      cursor = cursor.add(const Duration(days: 1));
+    }
+    return false;
+  }
+
+  String _recurrenceSummary() {
+    final weekdays = _formatWeekdayList(_recurrenceWeekdays);
+    final end = _recurrenceEndsAt;
+    if (_recurrenceWeekdays.isEmpty || end == null) {
+      return 'Repetir aula\nComplete os dias da semana e o término para revisar a agenda.';
+    }
+    return 'Repete toda $weekdays\nDe ${_formatShortDate(_startsAt)} até ${_formatShortDate(end)}';
   }
 
   void _submit() {
@@ -1213,8 +1499,119 @@ class _CreateAttendanceSessionSheetState
   }
 }
 
-class _DateTimeField extends StatelessWidget {
-  const _DateTimeField({
+class _ScheduleSummary extends StatelessWidget {
+  const _ScheduleSummary({required this.text, this.title, this.warning});
+
+  final String text;
+  final String? title;
+  final String? warning;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.18)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (title != null) ...[
+              Text(
+                title!,
+                style: TextStyle(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
+            Text(
+              text,
+              style: TextStyle(
+                color: cs.onSurface.withValues(alpha: 0.78),
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            if (warning != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                warning!,
+                style: TextStyle(color: cs.error, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SheetSectionTitle extends StatelessWidget {
+  const _SheetSectionTitle(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(
+        context,
+      ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+    );
+  }
+}
+
+class _DateQuickSelector extends StatelessWidget {
+  const _DateQuickSelector({
+    required this.selectedDate,
+    required this.onToday,
+    required this.onTomorrow,
+    required this.onOtherDate,
+  });
+
+  final DateTime selectedDate;
+  final VoidCallback onToday;
+  final VoidCallback onTomorrow;
+  final VoidCallback onOtherDate;
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _dateOnly(DateTime.now());
+    final selected = _dateOnly(selectedDate);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        ChoiceChip(
+          avatar: const Icon(Icons.today_outlined, size: 18),
+          label: const Text('Hoje'),
+          selected: selected == today,
+          onSelected: (_) => onToday(),
+        ),
+        ChoiceChip(
+          avatar: const Icon(Icons.next_plan_outlined, size: 18),
+          label: const Text('Amanhã'),
+          selected: selected == today.add(const Duration(days: 1)),
+          onSelected: (_) => onTomorrow(),
+        ),
+        ActionChip(
+          avatar: const Icon(Icons.calendar_month_outlined, size: 18),
+          label: const Text('Outra data'),
+          onPressed: onOtherDate,
+        ),
+      ],
+    );
+  }
+}
+
+class _TimeField extends StatelessWidget {
+  const _TimeField({
     required this.label,
     required this.value,
     required this.onPick,
@@ -1222,36 +1619,429 @@ class _DateTimeField extends StatelessWidget {
 
   final String label;
   final DateTime value;
-  final ValueChanged<DateTime> onPick;
+  final ValueChanged<TimeOfDay> onPick;
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () async {
-        final date = await showDatePicker(
-          context: context,
-          initialDate: value,
-          firstDate: DateTime.now().subtract(const Duration(days: 30)),
-          lastDate: DateTime.now().add(const Duration(days: 365)),
-        );
-        if (date == null || !context.mounted) return;
-
         final time = await showTimePicker(
           context: context,
           initialTime: TimeOfDay.fromDateTime(value),
+          helpText: 'Escolher horário',
+          cancelText: 'Cancelar',
+          confirmText: 'Confirmar',
         );
         if (time == null) return;
-
-        onPick(
-          DateTime(date.year, date.month, date.day, time.hour, time.minute),
-        );
+        onPick(time);
       },
       child: InputDecorator(
         decoration: InputDecoration(labelText: label),
-        child: Text(_formatDateTime(value)),
+        child: Text(_formatTime(value)),
       ),
     );
   }
+}
+
+class _RecurrenceControls extends StatelessWidget {
+  const _RecurrenceControls({
+    required this.startsAt,
+    required this.endsAt,
+    required this.selectedWeekdays,
+    required this.endMode,
+    required this.onWeekdayToggle,
+    required this.onPickStart,
+    required this.onPickEnd,
+    required this.onEndModeChanged,
+  });
+
+  final DateTime startsAt;
+  final DateTime? endsAt;
+  final Set<int> selectedWeekdays;
+  final _RecurrenceEndMode endMode;
+  final ValueChanged<int> onWeekdayToggle;
+  final VoidCallback onPickStart;
+  final VoidCallback onPickEnd;
+  final ValueChanged<_RecurrenceEndMode> onEndModeChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const weekdays = <MapEntry<int, String>>[
+      MapEntry(DateTime.monday, 'Seg'),
+      MapEntry(DateTime.tuesday, 'Ter'),
+      MapEntry(DateTime.wednesday, 'Qua'),
+      MapEntry(DateTime.thursday, 'Qui'),
+      MapEntry(DateTime.friday, 'Sex'),
+      MapEntry(DateTime.saturday, 'Sáb'),
+      MapEntry(DateTime.sunday, 'Dom'),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _FieldLabel('Frequência'),
+        const SizedBox(height: 6),
+        const Align(
+          alignment: Alignment.centerLeft,
+          child: Chip(label: Text('Semanal')),
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('Dias da semana'),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final item in weekdays)
+              FilterChip(
+                label: Text(item.value),
+                selected: selectedWeekdays.contains(item.key),
+                onSelected: (_) => onWeekdayToggle(item.key),
+              ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('Data de início'),
+        const SizedBox(height: 6),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.calendar_month_outlined),
+          label: Text(_formatDate(startsAt)),
+          onPressed: onPickStart,
+        ),
+        const SizedBox(height: 12),
+        const _FieldLabel('Término'),
+        const SizedBox(height: 6),
+        SegmentedButton<_RecurrenceEndMode>(
+          segments: const [
+            ButtonSegment(
+              value: _RecurrenceEndMode.untilDate,
+              label: Text('Até uma data'),
+            ),
+          ],
+          selected: {endMode},
+          onSelectionChanged: (value) => onEndModeChanged(value.first),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.event_busy_outlined),
+          label: Text(
+            endsAt == null ? 'Definir término' : _formatDate(endsAt!),
+          ),
+          onPressed: onPickEnd,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Após X aulas não foi habilitado porque o contrato atual da tela não persiste quantidade de ocorrências.',
+          style: TextStyle(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.62),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FieldLabel extends StatelessWidget {
+  const _FieldLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(
+        context,
+      ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w800),
+    );
+  }
+}
+
+class _TitansCalendarSheet extends StatefulWidget {
+  const _TitansCalendarSheet({
+    required this.initialDate,
+    required this.firstDate,
+    required this.lastDate,
+  });
+
+  final DateTime initialDate;
+  final DateTime firstDate;
+  final DateTime lastDate;
+
+  @override
+  State<_TitansCalendarSheet> createState() => _TitansCalendarSheetState();
+}
+
+class _TitansCalendarSheetState extends State<_TitansCalendarSheet> {
+  late DateTime _visibleMonth;
+  late DateTime _selectedDate;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedDate = _dateOnly(widget.initialDate);
+    _visibleMonth = DateTime(_selectedDate.year, _selectedDate.month);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final today = _dateOnly(DateTime.now());
+    final days = _monthCells(_visibleMonth);
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Escolher data',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.chevron_left),
+                  onPressed: _canGoToPreviousMonth() ? _previousMonth : null,
+                ),
+                Expanded(
+                  child: Center(
+                    child: Text(
+                      '${_monthName(_visibleMonth.month)} ${_visibleMonth.year}',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.chevron_right),
+                  onPressed: _canGoToNextMonth() ? _nextMonth : null,
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            GridView.count(
+              crossAxisCount: 7,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 6,
+              crossAxisSpacing: 6,
+              children: const [
+                _WeekdayCell('SEG'),
+                _WeekdayCell('TER'),
+                _WeekdayCell('QUA'),
+                _WeekdayCell('QUI'),
+                _WeekdayCell('SEX'),
+                _WeekdayCell('SÁB'),
+                _WeekdayCell('DOM'),
+              ],
+            ),
+            const SizedBox(height: 6),
+            GridView.builder(
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 6,
+                crossAxisSpacing: 6,
+              ),
+              itemCount: days.length,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemBuilder: (context, index) {
+                final day = days[index];
+                if (day == null) return const SizedBox.shrink();
+                final disabled =
+                    day.isBefore(_dateOnly(widget.firstDate)) ||
+                    day.isAfter(_dateOnly(widget.lastDate));
+                final selected = day == _selectedDate;
+                final isToday = day == today;
+                return _CalendarDayButton(
+                  day: day,
+                  selected: selected,
+                  today: isToday,
+                  disabled: disabled,
+                  onPressed:
+                      disabled
+                          ? null
+                          : () => setState(() => _selectedDate = day),
+                );
+              },
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                TextButton(
+                  onPressed:
+                      today.isBefore(_dateOnly(widget.firstDate)) ||
+                              today.isAfter(_dateOnly(widget.lastDate))
+                          ? null
+                          : () => setState(() {
+                            _selectedDate = today;
+                            _visibleMonth = DateTime(today.year, today.month);
+                          }),
+                  child: const Text('Hoje'),
+                ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () => Navigator.of(context).pop(_selectedDate),
+                  child: const Text('Confirmar'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<DateTime?> _monthCells(DateTime month) {
+    final firstDay = DateTime(month.year, month.month);
+    final lastDay = DateTime(month.year, month.month + 1, 0);
+    final leadingEmptyCells = firstDay.weekday - DateTime.monday;
+    return <DateTime?>[
+      for (var i = 0; i < leadingEmptyCells; i++) null,
+      for (var day = 1; day <= lastDay.day; day++)
+        DateTime(month.year, month.month, day),
+    ];
+  }
+
+  bool _canGoToPreviousMonth() {
+    final previous = DateTime(_visibleMonth.year, _visibleMonth.month - 1);
+    final firstMonth = DateTime(widget.firstDate.year, widget.firstDate.month);
+    return !previous.isBefore(firstMonth);
+  }
+
+  bool _canGoToNextMonth() {
+    final next = DateTime(_visibleMonth.year, _visibleMonth.month + 1);
+    final lastMonth = DateTime(widget.lastDate.year, widget.lastDate.month);
+    return !next.isAfter(lastMonth);
+  }
+
+  void _previousMonth() {
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month - 1);
+    });
+  }
+
+  void _nextMonth() {
+    setState(() {
+      _visibleMonth = DateTime(_visibleMonth.year, _visibleMonth.month + 1);
+    });
+  }
+}
+
+class _WeekdayCell extends StatelessWidget {
+  const _WeekdayCell(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Text(
+        label,
+        style: Theme.of(context).textTheme.labelSmall?.copyWith(
+          fontWeight: FontWeight.w900,
+          color: Theme.of(
+            context,
+          ).colorScheme.onSurface.withValues(alpha: 0.62),
+        ),
+      ),
+    );
+  }
+}
+
+class _CalendarDayButton extends StatelessWidget {
+  const _CalendarDayButton({
+    required this.day,
+    required this.selected,
+    required this.today,
+    required this.disabled,
+    required this.onPressed,
+  });
+
+  final DateTime day;
+  final bool selected;
+  final bool today;
+  final bool disabled;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final bg =
+        selected
+            ? cs.primary
+            : today
+            ? cs.primary.withValues(alpha: 0.10)
+            : Colors.transparent;
+    final fg =
+        selected
+            ? cs.onPrimary
+            : disabled
+            ? cs.onSurface.withValues(alpha: 0.32)
+            : cs.onSurface;
+
+    return Material(
+      color: bg,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onPressed,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color:
+                  today && !selected
+                      ? cs.primary.withValues(alpha: 0.32)
+                      : Colors.transparent,
+            ),
+          ),
+          child: Center(
+            child: Text(
+              '${day.day}',
+              style: TextStyle(color: fg, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+Future<DateTime?> _showTitansDatePicker({
+  required BuildContext context,
+  required DateTime initialDate,
+  required DateTime firstDate,
+  required DateTime lastDate,
+}) {
+  return showModalBottomSheet<DateTime>(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (context) {
+      final cs = Theme.of(context).colorScheme;
+      return DecoratedBox(
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.35)),
+        ),
+        child: _TitansCalendarSheet(
+          initialDate: initialDate,
+          firstDate: firstDate,
+          lastDate: lastDate,
+        ),
+      );
+    },
+  );
 }
 
 class _AttendanceSessionDraft {
@@ -1276,11 +2066,11 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return TitansStateView.empty(
-      title: 'Nenhuma sessao de presenca',
+      title: 'Nenhuma sessao aberta',
       message:
           isStaff
-              ? 'Crie uma nova aula para registrar presencas.'
-              : 'Nenhuma aula de presenca esta aberta no momento.',
+              ? 'Escolha uma data para iniciar a chamada.'
+              : 'Nenhuma chamada aberta no momento.',
     );
   }
 }
@@ -1363,6 +2153,61 @@ String _initials(String value) {
 
 String _formatDateTime(DateTime value) {
   return '${_two(value.day)}/${_two(value.month)} ${_two(value.hour)}:${_two(value.minute)}';
+}
+
+String _formatDate(DateTime value) {
+  return '${_two(value.day)}/${_two(value.month)}/${value.year}';
+}
+
+String _formatFullDate(DateTime value) {
+  return '${_weekdayName(value.weekday)}-feira, ${value.day} de ${_monthName(value.month)} de ${value.year}';
+}
+
+String _formatShortDate(DateTime value) {
+  return '${value.day} de ${_monthName(value.month)}';
+}
+
+String _formatWeekdayList(Set<int> weekdays) {
+  final ordered = weekdays.toList()..sort();
+  final labels = ordered.map(_weekdayName).toList();
+  if (labels.isEmpty) return 'dia escolhido';
+  if (labels.length == 1) return labels.single;
+  return '${labels.take(labels.length - 1).join(', ')} e ${labels.last}';
+}
+
+String _weekdayName(int weekday) {
+  const names = <int, String>{
+    DateTime.monday: 'segunda',
+    DateTime.tuesday: 'terça',
+    DateTime.wednesday: 'quarta',
+    DateTime.thursday: 'quinta',
+    DateTime.friday: 'sexta',
+    DateTime.saturday: 'sábado',
+    DateTime.sunday: 'domingo',
+  };
+  return names[weekday] ?? 'dia escolhido';
+}
+
+String _monthName(int month) {
+  const names = <int, String>{
+    1: 'janeiro',
+    2: 'fevereiro',
+    3: 'março',
+    4: 'abril',
+    5: 'maio',
+    6: 'junho',
+    7: 'julho',
+    8: 'agosto',
+    9: 'setembro',
+    10: 'outubro',
+    11: 'novembro',
+    12: 'dezembro',
+  };
+  return names[month] ?? 'mês';
+}
+
+DateTime _dateOnly(DateTime value) {
+  return DateTime(value.year, value.month, value.day);
 }
 
 String _formatTime(DateTime value) {

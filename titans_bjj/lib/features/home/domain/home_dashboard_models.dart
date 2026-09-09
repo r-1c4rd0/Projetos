@@ -60,6 +60,7 @@ class HomeDashboardSummary {
   final HomeTechnicalRadarSummary technicalRadar;
   final RecommendedTrainingFocus recommendedFocus;
   final NextTrainingRecommendation nextTraining;
+  final TrainingSession? pendingConfirmation;
 
   const HomeDashboardSummary({
     required this.sessions,
@@ -73,5 +74,6 @@ class HomeDashboardSummary {
     required this.technicalRadar,
     required this.recommendedFocus,
     required this.nextTraining,
+    required this.pendingConfirmation,
   });
 }

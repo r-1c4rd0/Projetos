@@ -107,3 +107,65 @@ features/training/
 - Agregacao tem destino futuro claro.
 - Integracao com presenca e progresso esta prevista.
 - Nenhum treino foi alterado nesta etapa.
+## TITANS-TRAINING-LIFECYCLE-AND-CLASS-SESSION-001
+
+### Ciclo de vida individual implementado
+
+Estados minimos de `TrainingSession`:
+- `planned`: treino planejado, nÃ£o conta como realizado.
+- `completed`: treino realizado, elegÃ­vel para frequÃªncia, progresso, evidÃªncias tÃ©cnicas e Ãºltimo treino realizado.
+- `missed`: treino nÃ£o realizado, mantido no histÃ³rico sem contar como realizado.
+- `canceled`: treino cancelado, mantido no histÃ³rico sem contar como realizado.
+
+Compatibilidade legado:
+- Registro sem `status` e com data atÃ© hoje Ã© tratado como `completed` em leitura.
+- Registro sem `status` e com data futura Ã© tratado como `planned` em leitura.
+- NÃ£o hÃ¡ reclassificaÃ§Ã£o em massa nesta fase.
+
+Regras implementadas nesta fatia:
+- Cadastro rÃ¡pido cria treino `completed` na data atual.
+- Cadastro completo em data futura cria treino `planned`.
+- Cadastro completo retroativo cria treino `completed`.
+- RecorrÃªncia cria ocorrÃªncias independentes `planned`, cada uma com id prÃ³prio e `plannedFor`.
+- Indicadores e evidÃªncias usam somente sessÃµes `completed`.
+- Planejados vencidos aparecem como aguardando confirmaÃ§Ã£o por derivaÃ§Ã£o de data, sem escrita automÃ¡tica por relÃ³gio.
+- Confirmar uma ocorrÃªncia planejada marca apenas aquela sessÃ£o como `completed` e registra `confirmedAt` pelo servidor.
+- O formulario completo exige intencao explicita: `completed` para "Ja treinei" ou `planned` para "Planejar treino".
+- Entrada de registro inicia em "Ja treinei"; entrada de agendamento inicia em "Planejar treino".
+- "Ja treinei" aceita somente hoje ou passado por comparacao de dia local; data futura deve bloquear salvamento e oferecer troca para planejamento sem apagar o preenchimento.
+- "Planejar treino" preserva hoje/futuro como `planned`; no dia planejado, a ocorrencia fica elegivel para confirmacao manual.
+- Recorrencia representa repeticao planejada, nao comprovacao de realizacao.
+- Em "Ja treinei" com recorrencia, somente a data escolhida e criada como `completed`; repeticoes futuras viram `planned` e a ocorrencia inicial nao pode ser duplicada.
+- Em "Planejar treino" com recorrencia, todas as ocorrencias geradas permanecem `planned`.
+- Antes de salvar recorrencia, a UI deve mostrar resumo curto calculado pelas datas reais, como "1 treino realizado + 4 agendados".
+- A tela Treinos deve mostrar pendencias elegiveis no proprio card com "Voce fez este treino?", acao principal "Ja treinei" e acoes secundarias "Reagendar" e "Nao fiz".
+- Confirmacao em um toque atualiza o mesmo documento, preserva o identificador, nao exige tecnica/intensidade/observacao e oferece "Complementar treino" apos sucesso.
+- Confirmacao pessoal de treino planejado nao concede presenca oficial em aula coletiva.
+
+### Contrato para aula coletiva do professor - proxima task
+
+Conceitos:
+- Aula programada: ocorrÃªncia coletiva da academia, criada por professor/admin autorizado no contexto da academia.
+- PresenÃ§a: vÃ­nculo oficial entre aluno e aula programada.
+- `TrainingSession`: registro individual derivado da participaÃ§Ã£o confirmada.
+- TÃ©cnicas planejadas e tÃ©cnicas efetivamente trabalhadas devem vir do Sport Pack/taxonomia aplicÃ¡vel.
+- Resultado pessoal do aluno e avaliaÃ§Ã£o oficial do professor sÃ£o evidÃªncias distintas.
+
+Regras para implementar depois:
+- Check-in solicitado pelo aluno nÃ£o confirma presenÃ§a oficial.
+- PresenÃ§a oficial exige autoridade vÃ¡lida no Academy Workspace e membership ativa verificada no servidor.
+- Aula futura, mesmo com check-in pendente, nÃ£o gera treino realizado.
+- Aula concluÃ­da com presenÃ§a confirmada pode gerar uma Ãºnica `TrainingSession` derivada por aluno e ocorrÃªncia.
+- A sessÃ£o derivada deve referenciar explicitamente `classSessionId`, `attendanceRecordId`, `academyId`, `uid`, origem e taxonomia usada.
+- A geraÃ§Ã£o deve ser idempotente por `(academyId, classSessionId, uid)` e tolerar repetiÃ§Ã£o, concorrÃªncia e falha parcial.
+- Professor nÃ£o grava no Personal Workspace privado do aluno.
+- Aluno pode complementar o prÃ³prio debrief sem alterar presenÃ§a oficial ou dados coletivos da aula.
+- CorreÃ§Ãµes de presenÃ§a, cancelamento de aula ou remoÃ§Ã£o de aluno precisam de reconciliaÃ§Ã£o auditÃ¡vel, preservando complementos pessoais.
+- NÃ£o fundir treino manual e aula derivada somente por coincidÃªncia de data; qualquer associaÃ§Ã£o deve ser explÃ­cita.
+
+Proxima task concreta:
+1. Criar modelo/repositorio de `ClassSession` e `AttendanceRecord` sob `academies/{academyId}`.
+2. Definir ids determinÃ­sticos para sessÃ£o derivada: `class_<classSessionId>_<uid>` ou equivalente doc-safe.
+3. Implementar use case servidor/repository para concluir aula e materializar sessÃµes individuais idempotentes.
+4. Adicionar testes de membership, idempotÃªncia, falha parcial, cancelamento e complemento pessoal.
+5. Ajustar rules localmente sem deploy apenas se a escrita nova exigir permissÃ£o inexistente.

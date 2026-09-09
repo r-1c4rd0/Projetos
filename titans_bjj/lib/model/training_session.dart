@@ -4,6 +4,8 @@ enum TrainingPlace { academy, home, other }
 
 enum TrainingTechniqueSide { left, right, both, notApplicable, unknown }
 
+enum TrainingSessionStatus { planned, completed, missed, canceled }
+
 class TrainingTechniqueEntry {
   final String technique;
   final String? position;
@@ -157,6 +159,10 @@ class TrainingSession {
   final String? classType;
   final String? instructorUid;
   final String? instructorName;
+  final TrainingSessionStatus? status;
+  final DateTime? plannedFor;
+  final DateTime? effectiveDate;
+  final DateTime? confirmedAt;
 
   final String? position;
   final String? technique;
@@ -182,6 +188,10 @@ class TrainingSession {
     this.classType,
     this.instructorUid,
     this.instructorName,
+    this.status,
+    this.plannedFor,
+    this.effectiveDate,
+    this.confirmedAt,
     this.position,
     this.technique,
     List<TrainingTechniqueEntry>? techniques,
@@ -210,6 +220,10 @@ class TrainingSession {
     String? classType,
     String? instructorUid,
     String? instructorName,
+    TrainingSessionStatus? status,
+    DateTime? plannedFor,
+    DateTime? effectiveDate,
+    DateTime? confirmedAt,
     String? position,
     String? technique,
     List<TrainingTechniqueEntry>? techniques,
@@ -234,6 +248,10 @@ class TrainingSession {
       classType: classType ?? this.classType,
       instructorUid: instructorUid ?? this.instructorUid,
       instructorName: instructorName ?? this.instructorName,
+      status: status ?? this.status,
+      plannedFor: plannedFor ?? this.plannedFor,
+      effectiveDate: effectiveDate ?? this.effectiveDate,
+      confirmedAt: confirmedAt ?? this.confirmedAt,
       position: position ?? this.position,
       technique: technique ?? this.technique,
       techniques: techniques ?? this.techniques,
@@ -262,6 +280,56 @@ class TrainingSession {
     ];
   }
 
+  TrainingSessionStatus effectiveStatus({DateTime? now}) {
+    if (status != null) return status!;
+
+    final today = _dateOnly(now ?? DateTime.now());
+    final sessionDay = _dateOnly(date);
+    if (sessionDay.isAfter(today)) return TrainingSessionStatus.planned;
+    return TrainingSessionStatus.completed;
+  }
+
+  bool isCompleted({DateTime? now}) {
+    return effectiveStatus(now: now) == TrainingSessionStatus.completed;
+  }
+
+  bool isPlanned({DateTime? now}) {
+    return effectiveStatus(now: now) == TrainingSessionStatus.planned;
+  }
+
+  bool isAwaitingConfirmation({DateTime? now}) {
+    final resolvedNow = now ?? DateTime.now();
+    return effectiveStatus(now: resolvedNow) == TrainingSessionStatus.planned &&
+        !_dateOnly(date).isAfter(_dateOnly(resolvedNow));
+  }
+
+  static TrainingSessionStatus statusFromDate(DateTime date, {DateTime? now}) {
+    return isFutureDay(date, now: now)
+        ? TrainingSessionStatus.planned
+        : TrainingSessionStatus.completed;
+  }
+
+  static bool isFutureDay(DateTime date, {DateTime? now}) {
+    return dateOnly(date).isAfter(dateOnly(now ?? DateTime.now()));
+  }
+
+  static DateTime dateOnly(DateTime value) {
+    return DateTime(value.year, value.month, value.day);
+  }
+
+  static String statusLabel(TrainingSessionStatus status) {
+    switch (status) {
+      case TrainingSessionStatus.planned:
+        return 'Planejado';
+      case TrainingSessionStatus.completed:
+        return 'Realizado';
+      case TrainingSessionStatus.missed:
+        return 'Não realizado';
+      case TrainingSessionStatus.canceled:
+        return 'Cancelado';
+    }
+  }
+
   Map<String, dynamic> toMap({
     bool includeApplicationDeletes = false,
     bool includeTechnicalDeletes = false,
@@ -283,6 +351,11 @@ class TrainingSession {
       if (classType != null) 'classType': classType,
       if (instructorUid != null) 'instructorUid': instructorUid,
       if (instructorName != null) 'instructorName': instructorName,
+      if (status != null) 'status': status!.name,
+      if (plannedFor != null) 'plannedFor': Timestamp.fromDate(plannedFor!),
+      if (effectiveDate != null)
+        'effectiveDate': Timestamp.fromDate(effectiveDate!),
+      if (confirmedAt != null) 'confirmedAt': Timestamp.fromDate(confirmedAt!),
       if (position != null)
         'position': position
       else if (includeTechnicalDeletes)
@@ -356,6 +429,10 @@ class TrainingSession {
       classType: data['classType']?.toString(),
       instructorUid: data['instructorUid']?.toString(),
       instructorName: data['instructorName']?.toString(),
+      status: _statusFromValue(data['status']),
+      plannedFor: _dateFromValue(data['plannedFor']),
+      effectiveDate: _dateFromValue(data['effectiveDate']),
+      confirmedAt: _dateFromValue(data['confirmedAt']),
       position: _optionalString(data['position']),
       technique: _optionalString(data['technique']),
       techniques: _techniqueEntriesFromValue(data['techniques']),
@@ -391,4 +468,21 @@ class TrainingSession {
     if (parsed == null || parsed < 1 || parsed > 5) return null;
     return parsed;
   }
+
+  static TrainingSessionStatus? _statusFromValue(Object? value) {
+    final clean = _optionalString(value);
+    if (clean == null) return null;
+    return TrainingSessionStatus.values.firstWhere(
+      (status) => status.name == clean,
+      orElse: () => TrainingSessionStatus.completed,
+    );
+  }
+
+  static DateTime? _dateFromValue(Object? value) {
+    if (value is Timestamp) return value.toDate();
+    if (value is DateTime) return value;
+    return DateTime.tryParse(value?.toString() ?? '');
+  }
+
+  static DateTime _dateOnly(DateTime value) => dateOnly(value);
 }

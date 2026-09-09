@@ -58,6 +58,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
   TrainingChartPeriod _period = TrainingChartPeriod.thirtyDays;
   _TrainingChartMode _selectedChartMode = _TrainingChartMode.bar;
   String? _expandedSessionId;
+  final Set<String> _lifecycleUpdatingIds = <String>{};
   final _historySearchController = TextEditingController();
   _TrainingHistoryPeriodFilter _historyPeriod =
       _TrainingHistoryPeriodFilter.all;
@@ -198,6 +199,14 @@ class _TrainingScreenState extends State<TrainingScreen> {
             ..write(session.instructorUid ?? '')
             ..write('|instructorName:')
             ..write(session.instructorName ?? '')
+            ..write('|status:')
+            ..write(session.status?.name ?? '')
+            ..write('|plannedFor:')
+            ..write(session.plannedFor?.microsecondsSinceEpoch ?? '')
+            ..write('|effectiveDate:')
+            ..write(session.effectiveDate?.microsecondsSinceEpoch ?? '')
+            ..write('|confirmedAt:')
+            ..write(session.confirmedAt?.microsecondsSinceEpoch ?? '')
             ..write('|position:')
             ..write(session.position ?? '')
             ..write('|technique:')
@@ -363,6 +372,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
             selectedPeriod: _period,
           );
           final sessions = dashboard.sortedSessions;
+          final completedSessions = dashboard.completedSessions;
           final historyItems = dashboard.historyItems;
           final chart = dashboard.chart;
           final summary = dashboard.overview;
@@ -393,13 +403,24 @@ class _TrainingScreenState extends State<TrainingScreen> {
                         ? () => _openQuickLog(
                           academyId: academyId,
                           uid: uid,
-                          sessions: sessions,
+                          sessions: completedSessions,
                         )
                         : null,
                 onAddTraining:
                     canEditTarget
-                        ? () =>
-                            _openTrainingForm(academyId: academyId, uid: uid)
+                        ? () => _openTrainingForm(
+                          academyId: academyId,
+                          uid: uid,
+                          initialStatus: TrainingSessionStatus.completed,
+                        )
+                        : null,
+                onScheduleTraining:
+                    canEditTarget
+                        ? () => _openTrainingForm(
+                          academyId: academyId,
+                          uid: uid,
+                          initialStatus: TrainingSessionStatus.planned,
+                        )
                         : null,
               ),
               const SizedBox(height: 10),
@@ -414,6 +435,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 visibleCount: _visibleHistoryCount,
                 expandedSessionId: _expandedSessionId,
                 canEdit: canEditTarget,
+                lifecycleSavingIds: _lifecycleUpdatingIds,
                 onOpenFilters: () => _showHistoryFilters(historyItems),
                 onClearSearch: _historySearchController.clear,
                 onClearPeriod: () {
@@ -471,10 +493,43 @@ class _TrainingScreenState extends State<TrainingScreen> {
                           );
                         }
                         : null,
+                onConfirm:
+                    canEditTarget
+                        ? (item) => _updateLifecycle(
+                          academyId: academyId,
+                          uid: uid,
+                          session: item.session,
+                          status: TrainingSessionStatus.completed,
+                          successMessage: 'Treino confirmado como realizado.',
+                        )
+                        : null,
+                onMarkMissed:
+                    canEditTarget
+                        ? (item) => _updateLifecycle(
+                          academyId: academyId,
+                          uid: uid,
+                          session: item.session,
+                          status: TrainingSessionStatus.missed,
+                          successMessage: 'Treino marcado como não realizado.',
+                        )
+                        : null,
+                onCancel:
+                    canEditTarget
+                        ? (item) => _updateLifecycle(
+                          academyId: academyId,
+                          uid: uid,
+                          session: item.session,
+                          status: TrainingSessionStatus.canceled,
+                          successMessage: 'Treino cancelado.',
+                        )
+                        : null,
                 onAddTraining:
                     canEditTarget
-                        ? () =>
-                            _openTrainingForm(academyId: academyId, uid: uid)
+                        ? () => _openTrainingForm(
+                          academyId: academyId,
+                          uid: uid,
+                          initialStatus: TrainingSessionStatus.completed,
+                        )
                         : null,
               ),
               const SizedBox(height: 12),
@@ -534,6 +589,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
     required String academyId,
     required String uid,
     TrainingSession? session,
+    TrainingSessionStatus initialStatus = TrainingSessionStatus.completed,
   }) {
     return Navigator.of(context).push(
       MaterialPageRoute(
@@ -542,9 +598,79 @@ class _TrainingScreenState extends State<TrainingScreen> {
               academyId: academyId,
               uid: uid,
               session: session,
+              initialStatus: initialStatus,
             ),
       ),
     );
+  }
+
+  Future<void> _updateLifecycle({
+    required String academyId,
+    required String uid,
+    required TrainingSession session,
+    required TrainingSessionStatus status,
+    required String successMessage,
+  }) async {
+    if (_lifecycleUpdatingIds.contains(session.id)) return;
+    if (status == TrainingSessionStatus.completed &&
+        session.effectiveStatus() == TrainingSessionStatus.completed) {
+      return;
+    }
+    if (status == TrainingSessionStatus.completed &&
+        !session.isAwaitingConfirmation()) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Este treino ainda nao pode ser confirmado.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _lifecycleUpdatingIds.add(session.id));
+    try {
+      final effectiveDate =
+          status == TrainingSessionStatus.completed
+              ? DateTime(
+                session.date.year,
+                session.date.month,
+                session.date.day,
+              )
+              : null;
+      await _repo.updateSessionLifecycle(
+        academyId: academyId,
+        uid: uid,
+        sessionId: session.id,
+        status: status,
+        effectiveDate: effectiveDate,
+      );
+      if (!mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(successMessage),
+          action:
+              status == TrainingSessionStatus.completed
+                  ? SnackBarAction(
+                    label: 'Complementar treino',
+                    onPressed:
+                        () => _openTrainingForm(
+                          academyId: academyId,
+                          uid: uid,
+                          session: session.copyWith(
+                            status: TrainingSessionStatus.completed,
+                            effectiveDate: effectiveDate,
+                          ),
+                        ),
+                  )
+                  : null,
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao atualizar treino: $error')),
+      );
+    }
   }
 }
 
@@ -1071,6 +1197,10 @@ class _TrainingSessionCard extends StatelessWidget {
   final bool canEdit;
   final VoidCallback onToggle;
   final Future<void> Function()? onEdit;
+  final bool lifecycleSaving;
+  final Future<void> Function()? onConfirm;
+  final Future<void> Function()? onMarkMissed;
+  final Future<void> Function()? onCancel;
 
   const _TrainingSessionCard({
     required this.item,
@@ -1078,12 +1208,18 @@ class _TrainingSessionCard extends StatelessWidget {
     required this.canEdit,
     required this.onToggle,
     required this.onEdit,
+    required this.lifecycleSaving,
+    required this.onConfirm,
+    required this.onMarkMissed,
+    required this.onCancel,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final session = item.session;
+    final status = session.effectiveStatus();
+    final awaitingConfirmation = session.isAwaitingConfirmation();
 
     return glassCard(
       context,
@@ -1156,6 +1292,16 @@ class _TrainingSessionCard extends StatelessWidget {
                 runSpacing: TitansUI.spaceXs,
                 children: [
                   _TrainingActionChip(
+                    label:
+                        awaitingConfirmation
+                            ? 'Aguardando confirmação'
+                            : TrainingSession.statusLabel(status),
+                    color:
+                        status == TrainingSessionStatus.completed
+                            ? TitansUI.successGreen
+                            : cs.primary,
+                  ),
+                  _TrainingActionChip(
                     label: item.techniqueCountLabel,
                     color: cs.secondary,
                   ),
@@ -1195,6 +1341,66 @@ class _TrainingSessionCard extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
+              if (canEdit && awaitingConfirmation) ...[
+                const SizedBox(height: 10),
+                Text(
+                  'Voce fez este treino?',
+                  style: TextStyle(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                OverflowBar(
+                  spacing: 8,
+                  overflowSpacing: 8,
+                  children: [
+                    FilledButton.icon(
+                      onPressed: lifecycleSaving ? null : onConfirm,
+                      icon:
+                          lifecycleSaving
+                              ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                              : const Icon(Icons.check_circle_outline),
+                      label: const Text('Ja treinei'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: lifecycleSaving ? null : onEdit,
+                      icon: const Icon(Icons.event_repeat_outlined),
+                      label: const Text('Reagendar'),
+                    ),
+                    TextButton.icon(
+                      onPressed: lifecycleSaving ? null : onMarkMissed,
+                      icon: const Icon(Icons.close_outlined),
+                      label: const Text('Nao fiz'),
+                    ),
+                  ],
+                ),
+              ] else if (canEdit &&
+                  status == TrainingSessionStatus.planned) ...[
+                const SizedBox(height: 10),
+                OverflowBar(
+                  spacing: 8,
+                  overflowSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: lifecycleSaving ? null : onEdit,
+                      icon: const Icon(Icons.edit_calendar_outlined),
+                      label: const Text('Editar'),
+                    ),
+                    TextButton.icon(
+                      onPressed: lifecycleSaving ? null : onCancel,
+                      icon: const Icon(Icons.cancel_outlined),
+                      label: const Text('Cancelar'),
+                    ),
+                  ],
+                ),
+              ],
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
@@ -3029,6 +3235,7 @@ class _TrainingCompactMetricsAndActions extends StatelessWidget {
   final bool canAddTraining;
   final VoidCallback? onQuickLog;
   final VoidCallback? onAddTraining;
+  final VoidCallback? onScheduleTraining;
 
   const _TrainingCompactMetricsAndActions({
     required this.summary,
@@ -3036,6 +3243,7 @@ class _TrainingCompactMetricsAndActions extends StatelessWidget {
     required this.canAddTraining,
     this.onQuickLog,
     this.onAddTraining,
+    this.onScheduleTraining,
   });
 
   @override
@@ -3110,7 +3318,9 @@ class _TrainingCompactMetricsAndActions extends StatelessWidget {
             ],
           ),
           if (canAddTraining &&
-              (onQuickLog != null || onAddTraining != null)) ...[
+              (onQuickLog != null ||
+                  onAddTraining != null ||
+                  onScheduleTraining != null)) ...[
             const SizedBox(height: 10),
             Wrap(
               spacing: 8,
@@ -3135,8 +3345,22 @@ class _TrainingCompactMetricsAndActions extends StatelessWidget {
                 if (onAddTraining != null)
                   OutlinedButton.icon(
                     onPressed: onAddTraining,
-                    icon: const Icon(Icons.add, size: 18),
+                    icon: const Icon(Icons.add_task_outlined, size: 18),
                     label: const Text('Treino completo'),
+                    style: OutlinedButton.styleFrom(
+                      visualDensity: VisualDensity.compact,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      minimumSize: const Size(0, 38),
+                    ),
+                  ),
+                if (onScheduleTraining != null)
+                  OutlinedButton.icon(
+                    onPressed: onScheduleTraining,
+                    icon: const Icon(Icons.event_outlined, size: 18),
+                    label: const Text('Planejar'),
                     style: OutlinedButton.styleFrom(
                       visualDensity: VisualDensity.compact,
                       padding: const EdgeInsets.symmetric(
@@ -3166,6 +3390,7 @@ class _TrainingHistorySection extends StatelessWidget {
   final int visibleCount;
   final String? expandedSessionId;
   final bool canEdit;
+  final Set<String> lifecycleSavingIds;
   final VoidCallback onOpenFilters;
   final VoidCallback onClearSearch;
   final VoidCallback onClearPeriod;
@@ -3176,6 +3401,9 @@ class _TrainingHistorySection extends StatelessWidget {
   final VoidCallback onLoadMore;
   final ValueChanged<TrainingSessionHistoryItem> onToggle;
   final Future<void> Function(TrainingSessionHistoryItem item)? onEdit;
+  final Future<void> Function(TrainingSessionHistoryItem item)? onConfirm;
+  final Future<void> Function(TrainingSessionHistoryItem item)? onMarkMissed;
+  final Future<void> Function(TrainingSessionHistoryItem item)? onCancel;
   final Future<void> Function()? onAddTraining;
 
   const _TrainingHistorySection({
@@ -3199,6 +3427,10 @@ class _TrainingHistorySection extends StatelessWidget {
     required this.onLoadMore,
     required this.onToggle,
     required this.onEdit,
+    required this.lifecycleSavingIds,
+    required this.onConfirm,
+    required this.onMarkMissed,
+    required this.onCancel,
     required this.onAddTraining,
   });
 
@@ -3311,6 +3543,11 @@ class _TrainingHistorySection extends StatelessWidget {
                 canEdit: canEdit,
                 onToggle: () => onToggle(item),
                 onEdit: onEdit == null ? null : () => onEdit!(item),
+                lifecycleSaving: lifecycleSavingIds.contains(item.id),
+                onConfirm: onConfirm == null ? null : () => onConfirm!(item),
+                onMarkMissed:
+                    onMarkMissed == null ? null : () => onMarkMissed!(item),
+                onCancel: onCancel == null ? null : () => onCancel!(item),
               ),
             ),
           if (filtered.length > visible.length)

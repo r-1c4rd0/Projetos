@@ -16,12 +16,14 @@ class AddTrainingSessionScreen extends StatefulWidget {
   final String academyId;
   final String uid;
   final TrainingSession? session;
+  final TrainingSessionStatus initialStatus;
 
   const AddTrainingSessionScreen({
     super.key,
     required this.academyId,
     required this.uid,
     this.session,
+    this.initialStatus = TrainingSessionStatus.completed,
   });
 
   @override
@@ -40,6 +42,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   final List<_TechniqueFormEntry> _techniqueEntries = [];
 
   bool _recurring = false;
+  late TrainingSessionStatus _intent;
 
   DateTime _singleDate = DateTime.now();
 
@@ -60,6 +63,42 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
   late final Stream<List<JiuJitsuTaxonomyItem>> _techniqueItemsStream;
 
   bool get _editing => widget.session != null;
+  bool get _isRegisteringCompleted =>
+      _intent == TrainingSessionStatus.completed;
+
+  bool get _singleDateIsFuture =>
+      TrainingSession.isFutureDay(_singleDate, now: DateTime.now());
+
+  String get _submitLabel {
+    if (_saving) return 'Salvando...';
+    return _isRegisteringCompleted ? 'Registrar treino' : 'Agendar treino';
+  }
+
+  String get _recurrenceSummary {
+    if (!_recurring) {
+      return _isRegisteringCompleted
+          ? '1 treino realizado'
+          : '1 treino agendado';
+    }
+
+    final dates = RecurrenceGenerator.generateDates(
+      start: _start,
+      end: _end,
+      weekdays: _weekdays,
+    );
+    final plannedCount =
+        _isRegisteringCompleted
+            ? _futurePlanningDates(dates).length
+            : dates.length;
+    final completedCount = _isRegisteringCompleted ? 1 : 0;
+
+    final parts = <String>[
+      if (completedCount > 0) '$completedCount treino realizado',
+      if (plannedCount > 0)
+        plannedCount == 1 ? '1 agendado' : '$plannedCount agendados',
+    ];
+    return parts.isEmpty ? 'Nenhuma ocorrencia gerada' : parts.join(' + ');
+  }
 
   @override
   void initState() {
@@ -75,6 +114,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     );
 
     final session = widget.session;
+    _intent = session?.effectiveStatus() ?? widget.initialStatus;
     _initTechniqueEntries(session);
     debugPrint(
       "[TRAINING_DEBRIEF_FORM] mode=${session == null ? 'create' : 'edit'} "
@@ -295,6 +335,26 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                         title: 'Dados do treino',
                         icon: Icons.event_available_outlined,
                         children: [
+                          SegmentedButton<TrainingSessionStatus>(
+                            segments: const [
+                              ButtonSegment(
+                                value: TrainingSessionStatus.completed,
+                                icon: Icon(Icons.check_circle_outline),
+                                label: Text('Ja treinei'),
+                              ),
+                              ButtonSegment(
+                                value: TrainingSessionStatus.planned,
+                                icon: Icon(Icons.event_outlined),
+                                label: Text('Planejar treino'),
+                              ),
+                            ],
+                            selected: {_intent},
+                            onSelectionChanged:
+                                (selection) => setState(() {
+                                  _intent = selection.single;
+                                }),
+                          ),
+                          const SizedBox(height: 12),
                           if (!_editing) ...[
                             SwitchListTile(
                               contentPadding: EdgeInsets.zero,
@@ -302,18 +362,64 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                               onChanged: (v) => setState(() => _recurring = v),
                               title: const Text('Treino recorrente'),
                               subtitle: const Text(
-                                'Criar treinos em intervalo',
+                                'Repetir como planejamento; cada ocorrencia futura precisara de confirmacao.',
                               ),
                             ),
                             const SizedBox(height: 12),
                           ],
-                          if (!_recurring)
+                          if (!_recurring) ...[
                             _DateField(
                               label: 'Data do treino',
                               value: _singleDate,
                               onPick: (d) => setState(() => _singleDate = d),
-                            )
-                          else ...[
+                              errorText:
+                                  _isRegisteringCompleted && _singleDateIsFuture
+                                      ? 'Data futura nao pode ser registrada como treino realizado.'
+                                      : null,
+                              trailingAction:
+                                  _isRegisteringCompleted && _singleDateIsFuture
+                                      ? TextButton(
+                                        onPressed:
+                                            () => setState(
+                                              () =>
+                                                  _intent =
+                                                      TrainingSessionStatus
+                                                          .planned,
+                                            ),
+                                        child: const Text(
+                                          'Mudar para planejamento',
+                                        ),
+                                      )
+                                      : null,
+                            ),
+                          ] else ...[
+                            if (_isRegisteringCompleted) ...[
+                              _DateField(
+                                label: 'Data realizada',
+                                value: _singleDate,
+                                onPick: (d) => setState(() => _singleDate = d),
+                                errorText:
+                                    _singleDateIsFuture
+                                        ? 'Data futura nao pode ser registrada como treino realizado.'
+                                        : null,
+                                trailingAction:
+                                    _singleDateIsFuture
+                                        ? TextButton(
+                                          onPressed:
+                                              () => setState(
+                                                () =>
+                                                    _intent =
+                                                        TrainingSessionStatus
+                                                            .planned,
+                                              ),
+                                          child: const Text(
+                                            'Mudar para planejamento',
+                                          ),
+                                        )
+                                        : null,
+                              ),
+                              const SizedBox(height: 12),
+                            ],
                             _ResponsiveDateFields(
                               start: _start,
                               end: _end,
@@ -331,6 +437,8 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                   }),
                             ),
                           ],
+                          const SizedBox(height: 12),
+                          _TrainingSaveSummary(text: _recurrenceSummary),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _notes,
@@ -514,7 +622,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                                       ),
                                     )
                                     : const Icon(Icons.save),
-                            label: Text(_saving ? 'Salvando...' : 'Salvar'),
+                            label: Text(_submitLabel),
                           ),
                         ],
                       ),
@@ -615,21 +723,45 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           primaryTechnique?.techniqueOutcome ?? _techniqueOutcome;
 
       if (!_recurring) {
+        if (_isRegisteringCompleted && _singleDateIsFuture) {
+          throw Exception(
+            'Data futura nao pode ser registrada como treino realizado.',
+          );
+        }
+
         final existing = widget.session;
+        final normalizedDate = DateTime(
+          _singleDate.year,
+          _singleDate.month,
+          _singleDate.day,
+        );
         final s = TrainingSession(
           id: existing?.id ?? uuid.v4(),
-          date: DateTime(_singleDate.year, _singleDate.month, _singleDate.day),
+          date: normalizedDate,
           place: existing?.place ?? TrainingPlace.academy,
           notes: notesOrNull,
           scores: existing?.scores,
-          academyId: existing?.academyId,
-          uid: existing?.uid,
+          academyId: existing?.academyId ?? widget.academyId,
+          uid: existing?.uid ?? widget.uid,
           source: existing?.source,
           attendanceSessionId: existing?.attendanceSessionId,
           attendanceCheckInUid: existing?.attendanceCheckInUid,
           classType: existing?.classType,
           instructorUid: existing?.instructorUid,
           instructorName: existing?.instructorName,
+          status: _intent,
+          plannedFor:
+              _intent == TrainingSessionStatus.planned
+                  ? normalizedDate
+                  : existing?.plannedFor,
+          effectiveDate:
+              _intent == TrainingSessionStatus.completed
+                  ? normalizedDate
+                  : existing?.effectiveDate,
+          confirmedAt:
+              _intent == TrainingSessionStatus.completed
+                  ? existing?.confirmedAt ?? DateTime.now()
+                  : existing?.confirmedAt,
           position: position,
           technique: technique,
           techniques: techniqueEntries,
@@ -660,6 +792,11 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           session: s,
         );
       } else {
+        if (_isRegisteringCompleted && _singleDateIsFuture) {
+          throw Exception(
+            'Data futura nao pode ser registrada como treino realizado.',
+          );
+        }
         if (_weekdays.isEmpty) {
           throw Exception('Selecione pelo menos um dia da semana.');
         }
@@ -670,7 +807,69 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           weekdays: _weekdays,
         );
 
-        if (dates.isEmpty) {
+        final sessions = <TrainingSession>[];
+        if (_isRegisteringCompleted) {
+          final completedDate = DateTime(
+            _singleDate.year,
+            _singleDate.month,
+            _singleDate.day,
+          );
+          sessions.add(
+            _buildSession(
+              id: uuid.v4(),
+              date: completedDate,
+              status: TrainingSessionStatus.completed,
+              notes: notesOrNull,
+              position: position,
+              technique: technique,
+              techniqueEntries: techniqueEntries,
+              successes: successes,
+              difficulties: difficulties,
+              debriefNotes: debriefNotes,
+              applicationContext: applicationContext,
+              techniqueOutcome: techniqueOutcome,
+            ),
+          );
+          for (final d in _futurePlanningDates(dates)) {
+            sessions.add(
+              _buildSession(
+                id: uuid.v4(),
+                date: d,
+                status: TrainingSessionStatus.planned,
+                notes: notesOrNull,
+                position: position,
+                technique: technique,
+                techniqueEntries: techniqueEntries,
+                successes: successes,
+                difficulties: difficulties,
+                debriefNotes: debriefNotes,
+                applicationContext: applicationContext,
+                techniqueOutcome: techniqueOutcome,
+              ),
+            );
+          }
+        } else {
+          for (final d in dates) {
+            sessions.add(
+              _buildSession(
+                id: uuid.v4(),
+                date: d,
+                status: TrainingSessionStatus.planned,
+                notes: notesOrNull,
+                position: position,
+                technique: technique,
+                techniqueEntries: techniqueEntries,
+                successes: successes,
+                difficulties: difficulties,
+                debriefNotes: debriefNotes,
+                applicationContext: applicationContext,
+                techniqueOutcome: techniqueOutcome,
+              ),
+            );
+          }
+        }
+
+        if (sessions.isEmpty) {
           throw Exception(
             'Nenhuma data gerada. Confira o intervalo e os dias.',
           );
@@ -681,9 +880,7 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           builder:
               (_) => AlertDialog(
                 title: const Text('Confirmar cadastro'),
-                content: Text(
-                  'Ser\u00e3o criados ${dates.length} treinos. Deseja continuar?',
-                ),
+                content: Text(_recurrenceSummary),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -691,7 +888,9 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
                   ),
                   FilledButton(
                     onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Confirmar'),
+                    child: Text(
+                      _isRegisteringCompleted ? 'Registrar' : 'Agendar',
+                    ),
                   ),
                 ],
               ),
@@ -703,27 +902,6 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           setState(() => _saving = false);
           return;
         }
-
-        final sessions =
-            dates
-                .map(
-                  (d) => TrainingSession(
-                    id: uuid.v4(),
-                    date: d,
-                    place: TrainingPlace.academy,
-                    notes: notesOrNull,
-                    position: position,
-                    technique: technique,
-                    techniques: techniqueEntries,
-                    successes: successes,
-                    difficulties: difficulties,
-                    intensity: _intensity,
-                    debriefNotes: debriefNotes,
-                    applicationContext: applicationContext,
-                    techniqueOutcome: techniqueOutcome,
-                  ),
-                )
-                .toList();
 
         final actor = UserScope.maybeOf(context);
         debugPrint(
@@ -754,6 +932,62 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     } finally {
       if (mounted) setState(() => _saving = false);
     }
+  }
+
+  TrainingSession _buildSession({
+    required String id,
+    required DateTime date,
+    required TrainingSessionStatus status,
+    required String? notes,
+    required String? position,
+    required String? technique,
+    required List<TrainingTechniqueEntry> techniqueEntries,
+    required String? successes,
+    required String? difficulties,
+    required String? debriefNotes,
+    required String? applicationContext,
+    required String? techniqueOutcome,
+  }) {
+    final normalizedDate = DateTime(date.year, date.month, date.day);
+    return TrainingSession(
+      id: id,
+      date: normalizedDate,
+      place: TrainingPlace.academy,
+      academyId: widget.academyId,
+      uid: widget.uid,
+      status: status,
+      plannedFor:
+          status == TrainingSessionStatus.planned ? normalizedDate : null,
+      effectiveDate:
+          status == TrainingSessionStatus.completed ? normalizedDate : null,
+      confirmedAt:
+          status == TrainingSessionStatus.completed ? DateTime.now() : null,
+      notes: notes,
+      position: position,
+      technique: technique,
+      techniques: techniqueEntries,
+      successes: successes,
+      difficulties: difficulties,
+      intensity: _intensity,
+      debriefNotes: debriefNotes,
+      applicationContext: applicationContext,
+      techniqueOutcome: techniqueOutcome,
+    );
+  }
+
+  List<DateTime> _futurePlanningDates(List<DateTime> dates) {
+    final completedDate = DateTime(
+      _singleDate.year,
+      _singleDate.month,
+      _singleDate.day,
+    );
+    final today = TrainingSession.dateOnly(DateTime.now());
+    return dates
+        .where((date) {
+          final day = TrainingSession.dateOnly(date);
+          return day.isAfter(today) && !day.isAtSameMomentAs(completedDate);
+        })
+        .toList(growable: false);
   }
 
   String? _optionalText(TextEditingController controller) {
@@ -1047,6 +1281,33 @@ String _sideLabel(TrainingTechniqueSide side) {
   }
 }
 
+class _TrainingSaveSummary extends StatelessWidget {
+  final String text;
+
+  const _TrainingSaveSummary({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.22)),
+        color: cs.primary.withValues(alpha: 0.08),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(
+          color: cs.onSurface.withValues(alpha: 0.78),
+          fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+}
+
 class _TrainingFormSection extends StatelessWidget {
   final String title;
   final IconData icon;
@@ -1335,9 +1596,9 @@ class _TrainingDebriefSelectSheetState
   bool _addSelectedToAcademy = false;
   _TechniqueQuickFilter _selectedTechniqueFilter = _TechniqueQuickFilter.all;
 
-  bool get _isTechniqueSheet => widget.title.toLowerCase().contains('técnica');
+  bool get _isTechniqueSheet => widget.title.toLowerCase().contains('cnica');
 
-  bool get _isPositionSheet => widget.title.toLowerCase().contains('posição');
+  bool get _isPositionSheet => widget.title.toLowerCase().contains('posi');
 
   String get _subtitle {
     if (_isTechniqueSheet) {
@@ -1475,7 +1736,7 @@ class _TrainingDebriefSelectSheetState
       case _TechniqueQuickFilter.all:
         return 'Todas';
       case _TechniqueQuickFilter.submissions:
-        return 'Finalizações';
+        return 'Finaliza\u00e7\u00f5es';
       case _TechniqueQuickFilter.passing:
         return 'Passagens';
       case _TechniqueQuickFilter.sweeps:
@@ -1760,7 +2021,7 @@ class _TrainingDebriefSelectSheetState
               ),
               SizedBox(height: compactHeight ? 4 : 8),
               Text(
-                'Exibindo ${filtered.length + customOptionCount} de ${widget.options.length + customOptionCount} opções encontradas.',
+                'Exibindo ${filtered.length + customOptionCount} de ${widget.options.length + customOptionCount} op\u00e7\u00f5es encontradas.',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: textTheme.labelSmall?.copyWith(
@@ -1793,8 +2054,10 @@ class _TrainingDebriefSelectSheetState
                     icon: const Icon(Icons.check),
                     label: Text(
                       valueToConfirm.trim().isEmpty
-                          ? 'Selecione uma opção'
-                          : (_isTechniqueSheet ? 'Usar técnica' : 'Usar opção'),
+                          ? 'Selecione uma op\u00e7\u00e3o'
+                          : (_isTechniqueSheet
+                              ? 'Usar t\u00e9cnica'
+                              : 'Usar op\u00e7\u00e3o'),
                     ),
                   ),
                 ],
@@ -1879,11 +2142,15 @@ class _DateField extends StatelessWidget {
   final String label;
   final DateTime value;
   final ValueChanged<DateTime> onPick;
+  final String? errorText;
+  final Widget? trailingAction;
 
   const _DateField({
     required this.label,
     required this.value,
     required this.onPick,
+    this.errorText,
+    this.trailingAction,
   });
 
   @override
@@ -1891,7 +2158,7 @@ class _DateField extends StatelessWidget {
     final text =
         '${value.day.toString().padLeft(2, '0')}/${value.month.toString().padLeft(2, '0')}/${value.year}';
 
-    return InkWell(
+    final field = InkWell(
       onTap: () async {
         final d = await showDatePicker(
           context: context,
@@ -1902,9 +2169,17 @@ class _DateField extends StatelessWidget {
         if (d != null) onPick(d);
       },
       child: InputDecorator(
-        decoration: InputDecoration(labelText: label),
+        decoration: InputDecoration(labelText: label, errorText: errorText),
         child: Text(text),
       ),
+    );
+
+    final action = trailingAction;
+    if (action == null) return field;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [field, Align(alignment: Alignment.centerLeft, child: action)],
     );
   }
 }

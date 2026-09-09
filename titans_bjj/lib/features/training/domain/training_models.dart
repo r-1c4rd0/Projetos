@@ -180,6 +180,7 @@ class TrainingChartSummary {
 
 class TrainingDashboardSummary {
   final List<TrainingSession> sortedSessions;
+  final List<TrainingSession> completedSessions;
   final List<TrainingSessionHistoryItem> historyItems;
   final List<TrainingSession> periodSessions;
   final TrainingOverviewSummary overview;
@@ -188,6 +189,7 @@ class TrainingDashboardSummary {
 
   const TrainingDashboardSummary({
     required this.sortedSessions,
+    required this.completedSessions,
     required this.historyItems,
     required this.periodSessions,
     required this.overview,

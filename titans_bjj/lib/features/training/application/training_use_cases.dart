@@ -19,27 +19,31 @@ class GetTrainingDashboardSummary {
   }) {
     final sortedSessions = List<TrainingSession>.from(sessions)
       ..sort((a, b) => a.date.compareTo(b.date));
-    final historyItems = prepareHistoryItems(sessions);
+    final completedSessions = sortedSessions
+        .where((session) => session.isCompleted(now: now))
+        .toList(growable: false);
+    final historyItems = prepareHistoryItems(sortedSessions);
     final periodSessions = filterSessionsForChartPeriod(
-      sortedSessions,
+      completedSessions,
       selectedPeriod,
       now: now,
     );
 
     return TrainingDashboardSummary(
       sortedSessions: List<TrainingSession>.unmodifiable(sortedSessions),
+      completedSessions: List<TrainingSession>.unmodifiable(completedSessions),
       historyItems: historyItems,
       periodSessions: List<TrainingSession>.unmodifiable(periodSessions),
       overview: getTrainingOverview(periodSessions),
       chart: getTrainingSeries(
-        sortedSessions,
+        completedSessions,
         selectedPeriod: selectedPeriod,
         now: now,
       ),
       lastTrainingLabel:
-          sortedSessions.isEmpty
-              ? 'Último treino: sem registro'
-              : 'Último treino: ${smartDateLabel(sortedSessions.last.date)}',
+          completedSessions.isEmpty
+              ? 'Último treino realizado: sem registro'
+              : 'Último treino realizado: ${smartDateLabel(completedSessions.last.date)}',
     );
   }
 }
@@ -177,6 +181,7 @@ TrainingSessionHistoryItem trainingSessionHistoryItemFromSession(
   final techniques = List<TrainingTechniqueDisplayEntry>.unmodifiable(
     trainingTechniqueDisplayEntries(session),
   );
+  final status = session.effectiveStatus();
   final dateLabel = smartDateLabel(session.date);
   final primaryNote = primarySessionNote(session);
   final summary =
@@ -191,6 +196,7 @@ TrainingSessionHistoryItem trainingSessionHistoryItemFromSession(
     techniques.map((entry) => entry.technique),
   );
   final searchParts = <String>[
+    TrainingSession.statusLabel(status),
     dateLabel,
     placeLabel(session.place),
     contextLabel,
@@ -217,7 +223,10 @@ TrainingSessionHistoryItem trainingSessionHistoryItemFromSession(
     id: session.id,
     date: session.date,
     dateLabel: dateLabel,
-    contextLabel: contextLabel,
+    contextLabel:
+        session.isAwaitingConfirmation()
+            ? '$contextLabel - aguardando confirmação'
+            : contextLabel,
     summary: summary,
     techniques: techniques,
     positions: positions,

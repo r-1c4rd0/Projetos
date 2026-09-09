@@ -28,7 +28,10 @@ class GetBeltProgressSummary {
     final maxDeg = rules.maxDegrees(belt).clamp(1, 12).toInt();
     final beltStart = profile.beltStartAt;
     final sessionsInBelt =
-        sessions.where((session) => !session.date.isBefore(beltStart)).length;
+        sessions
+            .where((session) => session.isCompleted())
+            .where((session) => !session.date.isBefore(beltStart))
+            .length;
     final degree = athlete.degree.clamp(0, maxDeg).toInt();
     final estimated = profile.estimatedSessionsInBelt;
     final requiredByRules = rules.requiredSessions(belt);
@@ -190,7 +193,7 @@ class PrepareProgressSessions {
     List<TrainingSession> sessions, {
     required GradingRules rules,
   }) {
-    final unique = TrainingAggregator.uniqueSessions(
+    final unique = TrainingAggregator.uniqueCompletedSessions(
       List<TrainingSession>.from(sessions),
     );
     final filtered =

@@ -5,7 +5,7 @@ import 'auth_gate.dart';
 import 'core/startup_performance_trace.dart';
 import 'core/theme_controller.dart';
 import 'core/titans_ui.dart';
-import 'firebase_options.dart';
+import 'config/firebase_environment.dart';
 import 'model/academy_models.dart';
 import 'model/app_user.dart';
 import 'repository/academy_repository.dart';
@@ -38,7 +38,9 @@ Future<void> main() async {
   await themeController.load();
   StartupPerformanceTrace.end('theme preference load');
   StartupPerformanceTrace.start('firebase initialize');
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await Firebase.initializeApp(
+    options: TitansFirebaseEnvironment.currentPlatform,
+  );
   StartupPerformanceTrace.end('firebase initialize');
   StartupPerformanceTrace.mark('runApp called');
   runApp(const TitansApp());
