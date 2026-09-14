@@ -49,13 +49,23 @@ class UserProfile {
 
 class FoodItem {
   final String name;
-  final int kcal; // por porcao simples
+  final int? kcal;
   FoodItem(this.name, this.kcal);
 
   Map<String, dynamic> toMap() => {'name': name, 'kcal': kcal};
 
   factory FoodItem.fromMap(Map<String, dynamic> map) {
-    return FoodItem((map['name'] ?? '').toString(), (map['kcal'] ?? 0).toInt());
+    final kcalValue = map['kcal'];
+    int? kcal;
+    if (kcalValue is int) {
+      kcal = kcalValue;
+    } else if (kcalValue != null) {
+      kcal = kcalValue.toInt();
+    }
+    return FoodItem(
+      (map['name'] ?? '').toString(),
+      kcal,
+    );
   }
 }
 
@@ -66,7 +76,14 @@ class MealEntry {
 
   MealEntry({required this.date, required this.mealType, required this.items});
 
-  int totalKcal() => items.fold(0, (a, b) => a + b.kcal);
+  int? totalKcal() {
+    var sum = 0;
+    for (final item in items) {
+      if (item.kcal == null) return null;
+      sum += item.kcal!;
+    }
+    return sum;
+  }
 
   Map<String, dynamic> toMap() => {
     'date': Timestamp.fromDate(date),

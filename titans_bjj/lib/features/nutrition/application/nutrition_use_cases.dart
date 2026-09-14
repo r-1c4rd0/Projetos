@@ -89,7 +89,7 @@ class GetNutritionWeeklyCalories {
       resolvedNow.month,
       resolvedNow.day,
     ).subtract(const Duration(days: 6));
-    final map = <DateTime, int>{};
+    final map = <DateTime, int?>{};
 
     for (int i = 0; i < 7; i++) {
       final date = start.add(Duration(days: i));
@@ -102,18 +102,21 @@ class GetNutritionWeeklyCalories {
           day.isAfter(start.add(const Duration(days: 6)))) {
         continue;
       }
-      map.update(
-        day,
-        (value) => value + meal.totalKcal(),
-        ifAbsent: meal.totalKcal,
-      );
+      final mealTotal = meal.totalKcal();
+      if (mealTotal == null) {
+        map[day] = null;
+        continue;
+      }
+      if (map[day] == null) {
+        map[day] = mealTotal;
+      } else {
+        map[day] = (map[day] ?? 0) + mealTotal;
+      }
     }
 
     final keys = map.keys.toList()..sort();
     return List<NutritionChartPoint>.unmodifiable(
-      keys.map(
-        (date) => NutritionChartPoint(date: date, totalKcal: map[date] ?? 0),
-      ),
+      keys.map((date) => NutritionChartPoint(date: date, totalKcal: map[date])),
     );
   }
 }

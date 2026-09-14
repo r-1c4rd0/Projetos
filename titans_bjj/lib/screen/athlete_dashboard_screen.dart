@@ -4761,7 +4761,7 @@ class _NutritionDashboardLiteCard extends StatelessWidget {
               final registeredMeals = recentMeals.length;
               final recentKcal = recentMeals.fold<int>(
                 0,
-                (sum, meal) => sum + meal.totalKcal(),
+                (sum, meal) => sum + (meal.totalKcal() ?? 0),
               );
               if (hideWhenEmpty &&
                   !isLoading &&

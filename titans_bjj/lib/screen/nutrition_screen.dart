@@ -450,7 +450,7 @@ String _itemsPreview(List<FoodItem> items) {
 }
 
 String _foodEnergyLabel(FoodItem food) {
-  if (food.kcal <= 0) return 'Energia n\u00e3o informada';
+  if (food.kcal == null) return 'Energia n\u00e3o informada';
   return '${food.kcal} kcal';
 }
 
@@ -527,7 +527,7 @@ class _NutritionDashboardStatusCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final hasMeals = !dashboard.mealLog.isEmpty;
     final registeredDays =
-        dashboard.weeklyCalories.where((point) => point.totalKcal > 0).length;
+        dashboard.weeklyCalories.where((point) => point.totalKcal != null && point.totalKcal! > 0).length;
     final accent =
         dashboard.profileStatus.hasProfile
             ? TitansUI.successGreen
@@ -1497,12 +1497,14 @@ void _showMealDetail(BuildContext context, NutritionMealLogItem item) {
 }
 
 class _MealEnergyBadge extends StatelessWidget {
-  final int kcal;
+  final int? kcal;
 
   const _MealEnergyBadge({required this.kcal});
 
   @override
   Widget build(BuildContext context) {
+    final displayText =
+        kcal == null ? 'Energia n\u00e3o informada' : '$kcal kcal';
     return ConstrainedBox(
       constraints: const BoxConstraints(minWidth: 74, maxWidth: 104),
       child: DecoratedBox(
@@ -1533,10 +1535,13 @@ class _MealEnergyBadge extends StatelessWidget {
                 fit: BoxFit.scaleDown,
                 alignment: Alignment.centerRight,
                 child: Text(
-                  '$kcal kcal',
+                  displayText,
                   textAlign: TextAlign.end,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    color: TitansUI.actionGold,
+                    color:
+                        kcal == null
+                            ? TitansUI.actionGold
+                            : TitansUI.actionGold,
                     fontWeight: FontWeight.w900,
                   ),
                 ),
@@ -1606,11 +1611,19 @@ class _DailyCaloriesChart extends StatelessWidget {
     final groups = <BarChartGroupData>[];
 
     for (int i = 0; i < points.length; i++) {
+      final kcal = points[i].totalKcal;
       groups.add(
         BarChartGroupData(
           x: i,
           barRods: [
-            BarChartRodData(toY: points[i].totalKcal.toDouble(), width: 12),
+            BarChartRodData(
+              toY: kcal?.toDouble() ?? 0,
+              width: 12,
+              color:
+                  kcal == null
+                      ? TitansUI.actionGold.withValues(alpha: 0.5)
+                      : TitansUI.successGreen,
+            ),
           ],
         ),
       );
@@ -1624,7 +1637,7 @@ class _DailyCaloriesChart extends StatelessWidget {
           const _SectionTitle(
             title: 'Gr\u00e1fico semanal',
             subtitle:
-                'Calorias registradas nos \u00faltimos 7 dias; n\u00e3o indica meta alimentar.',
+                'Calorias registradas nos \u00faltimos 7 dias; n\u00e3o indica meta alimentar. Barras douradas indicam dias com energia desconhecida.',
           ),
 
           const SizedBox(height: 12),
@@ -1703,8 +1716,14 @@ class _MealSheetState extends State<_MealSheet> {
   int _visibleFoodCount = 8;
   final List<FoodItem> _selected = [];
 
-  int get _selectedKcal =>
-      _selected.fold<int>(0, (sum, food) => sum + food.kcal);
+  int? get _selectedKcal {
+    var sum = 0;
+    for (final food in _selected) {
+      if (food.kcal == null) return null;
+      sum += food.kcal!;
+    }
+    return sum;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -2080,7 +2099,7 @@ class _FoodSuggestionList extends StatelessWidget {
 
 class _SelectedFoodSection extends StatelessWidget {
   final List<FoodItem> selected;
-  final int selectedKcal;
+  final int? selectedKcal;
   final ValueChanged<int> onRemove;
 
   const _SelectedFoodSection({
@@ -2091,6 +2110,10 @@ class _SelectedFoodSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final kcalLabel =
+        selectedKcal == null
+            ? 'Energia n\u00e3o informada'
+            : '$selectedKcal kcal registradas';
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 200),
       child:
@@ -2113,10 +2136,7 @@ class _SelectedFoodSection extends StatelessWidget {
                           style: TextStyle(fontWeight: FontWeight.w900),
                         ),
                       ),
-                      Text(
-                        '$selectedKcal kcal registradas',
-                        style: TitansTypography.caption(context),
-                      ),
+                      Text(kcalLabel, style: TitansTypography.caption(context)),
                     ],
                   ),
                   const SizedBox(height: TitansUI.spaceXs),
@@ -2241,7 +2261,7 @@ class _ManualFoodSheetState extends State<_ManualFoodSheet> {
   void _submit() {
     final name = _controller.text.trim();
     if (name.isEmpty) return;
-    Navigator.pop(context, FoodItem(name, 0));
+    Navigator.pop(context, FoodItem(name, null));
   }
 }
 

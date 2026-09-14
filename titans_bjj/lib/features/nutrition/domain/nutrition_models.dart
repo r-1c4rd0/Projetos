@@ -25,7 +25,7 @@ class NutritionMealLogItem {
   final DateTime date;
   final String mealType;
   final String itemsLabel;
-  final int totalKcal;
+  final int? totalKcal;
 
   const NutritionMealLogItem({
     required this.meal,
@@ -38,7 +38,7 @@ class NutritionMealLogItem {
 
 class NutritionChartPoint {
   final DateTime date;
-  final int totalKcal;
+  final int? totalKcal;
 
   const NutritionChartPoint({required this.date, required this.totalKcal});
 }

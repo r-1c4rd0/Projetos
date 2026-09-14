@@ -14,6 +14,8 @@ Este arquivo e o indice oficial das specs do Titans BJJ. Qualquer agente deve le
 - `membership_platform_authority_audit.md` - Auditoria de membership ativa, roles de academia e autoridade administrativa de plataforma.
 - `graduation_spec.md` - Fonte unica de graduacao por modalidade.
 - `training_spec.md` - Treinos, sessoes e agregacoes.
+- `training_core_multimodality_spec.md` - Proposta futura de Training Core multi-modalidade, BJJ-first e Sport Packs.
+- `training_bjj_field_inventory.md` - Inventario dos campos e dependencias BJJ atuais antes do Sport Core.
 - `progress_spec.md` - Progresso, indicadores e status futuro.
 - `nutrition_spec.md` - Nutricao, planos e privacidade.
 - `attendance_spec.md` - Presenca futura por manual, QR e NFC.
