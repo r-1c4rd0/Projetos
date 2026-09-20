@@ -137,28 +137,11 @@ class _ProgressScreenState extends State<ProgressScreen> {
     final target = widget.explicitTarget ?? resolverTarget;
     final canEditTarget =
         target != null && _canEditTarget(loggedUser: actor, target: target);
-    debugPrint(
-      '[PROGRESS_TARGET] screen=ProgressScreen '
-      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
-      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
-      'explicit.academyId=${widget.explicitTarget?.academyId} '
-      'resolver.uid=${resolverTarget?.uid} '
-      'resolver.academyId=${resolverTarget?.academyId} '
-      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-      'canEditTarget=$canEditTarget',
-    );
 
     final academyId = target?.academyId;
     final uid = target?.uid;
 
     if (academyId == null || uid == null) {
-      debugPrint(
-        '[PROGRESS_ACTIONS] showEditGraduation=false canEditTarget=$canEditTarget '
-        'hiddenBy=missing-target-or-academy-or-uid actor.uid=${actor?.uid} '
-        'actor.role=${actor?.role} target.uid=${target?.uid} '
-        'target.academyId=${target?.academyId}',
-      );
-
       return _wrapModule(
         appBar: AppBar(
           leading: _mainScreenLeading(context),
@@ -179,13 +162,6 @@ class _ProgressScreenState extends State<ProgressScreen> {
     }
 
     _syncStreams(academyId: academyId, uid: uid);
-
-    debugPrint(
-      '[PROGRESS_ACTIONS] showEditGraduation=$canEditTarget '
-      "canEditTarget=$canEditTarget hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
-      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
-      'target.uid=$uid target.academyId=$academyId',
-    );
 
     return _wrapModule(
       appBar: AppBar(

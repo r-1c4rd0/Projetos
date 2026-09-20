@@ -6,7 +6,9 @@ import 'package:fl_chart/fl_chart.dart';
 import '../core/titans_live_motion.dart';
 import '../core/titans_ui.dart';
 import '../features/training/application/training_use_cases.dart';
+import '../features/training/domain/training_history_focus.dart';
 import '../features/training/domain/training_models.dart';
+import '../features/training/domain/training_operation_context.dart';
 import '../main.dart';
 import '../model/app_user.dart';
 import '../model/training_session.dart';
@@ -17,6 +19,7 @@ import '../widgets/glass_card.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import '../widgets/quick_log_sheet.dart';
+import '../widgets/training_save_confirmation.dart';
 import 'add_training_session_screen.dart';
 
 class TrainingScreen extends StatefulWidget {
@@ -25,6 +28,7 @@ class TrainingScreen extends StatefulWidget {
   final TargetProfile? explicitTarget;
   final AppUser? loggedUser;
   final bool embedded;
+  final String? focusSessionId;
 
   const TrainingScreen({
     super.key,
@@ -33,6 +37,7 @@ class TrainingScreen extends StatefulWidget {
     this.explicitTarget,
     this.loggedUser,
     this.embedded = false,
+    this.focusSessionId,
   });
 
   @override
@@ -83,7 +88,16 @@ class _TrainingScreenState extends State<TrainingScreen> {
   @override
   void initState() {
     super.initState();
+    _expandedSessionId = widget.focusSessionId;
     _historySearchController.addListener(_onHistorySearchChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant TrainingScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.focusSessionId != oldWidget.focusSessionId) {
+      _expandedSessionId = widget.focusSessionId;
+    }
   }
 
   @override
@@ -295,27 +309,11 @@ class _TrainingScreenState extends State<TrainingScreen> {
     final target = widget.explicitTarget ?? resolverTarget;
     final canEditTarget =
         target != null && _canEditTarget(loggedUser: actor, target: target);
-    debugPrint(
-      '[TRAINING_TARGET] screen=TrainingScreen '
-      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
-      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
-      'explicit.academyId=${widget.explicitTarget?.academyId} '
-      'resolver.uid=${resolverTarget?.uid} '
-      'resolver.academyId=${resolverTarget?.academyId} '
-      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-      'canEditTarget=$canEditTarget',
-    );
 
     final academyId = target?.academyId;
     final uid = target?.uid;
 
     if (academyId == null || uid == null) {
-      debugPrint(
-        '[TRAINING_ACTIONS] showAddTraining=false canEditTarget=$canEditTarget '
-        'hiddenBy=missing-target-or-academy-or-uid actor.uid=${actor?.uid} '
-        'actor.role=${actor?.role} target.uid=${target?.uid} '
-        'target.academyId=${target?.academyId}',
-      );
       return _wrapModule(
         appBar: AppBar(
           leading: _mainScreenLeading(context),
@@ -336,13 +334,6 @@ class _TrainingScreenState extends State<TrainingScreen> {
     }
 
     _syncStream(academyId: academyId, uid: uid);
-
-    debugPrint(
-      '[TRAINING_ACTIONS] showAddTraining=$canEditTarget '
-      "canEditTarget=$canEditTarget hiddenBy=${canEditTarget ? 'none' : 'canEditTarget=false'} "
-      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
-      'target.uid=$uid target.academyId=$academyId',
-    );
 
     return _wrapModule(
       appBar: AppBar(
@@ -371,9 +362,19 @@ class _TrainingScreenState extends State<TrainingScreen> {
             sessions: rawSessions,
             selectedPeriod: _period,
           );
-          final sessions = dashboard.sortedSessions;
           final completedSessions = dashboard.completedSessions;
           final historyItems = dashboard.historyItems;
+          final historyVisibleCount = visibleTrainingHistoryCount(
+            orderedSessionIds: historyItems.map((item) => item.id),
+            focusedSessionId: _expandedSessionId,
+            defaultVisibleCount: _visibleHistoryCount,
+          );
+          final lifecyclePrefix = '$academyId|$uid|';
+          final currentLifecycleSavingIds = <String>{
+            for (final key in _lifecycleUpdatingIds)
+              if (key.startsWith(lifecyclePrefix))
+                key.substring(lifecyclePrefix.length),
+          };
           final chart = dashboard.chart;
           final summary = dashboard.overview;
           final lastTrainingLabel = dashboard.lastTrainingLabel;
@@ -404,6 +405,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
                           academyId: academyId,
                           uid: uid,
                           sessions: completedSessions,
+                          actorUid: actor!.uid,
                         )
                         : null,
                 onAddTraining:
@@ -432,10 +434,10 @@ class _TrainingScreenState extends State<TrainingScreen> {
                 contextFilter: _historyContext,
                 positionFilter: _historyPositionFilter,
                 techniqueFilter: _historyTechniqueFilter,
-                visibleCount: _visibleHistoryCount,
+                visibleCount: historyVisibleCount,
                 expandedSessionId: _expandedSessionId,
                 canEdit: canEditTarget,
-                lifecycleSavingIds: _lifecycleUpdatingIds,
+                lifecycleSavingIds: currentLifecycleSavingIds,
                 onOpenFilters: () => _showHistoryFilters(historyItems),
                 onClearSearch: _historySearchController.clear,
                 onClearPeriod: () {
@@ -570,18 +572,43 @@ class _TrainingScreenState extends State<TrainingScreen> {
         (loggedUser.uid == target.uid || canManage);
   }
 
-  Future<bool?> _openQuickLog({
+  Future<void> _openQuickLog({
     required String academyId,
     required String uid,
     required List<TrainingSession> sessions,
-  }) {
-    return showQuickLogSheet(
+    required String actorUid,
+  }) async {
+    final operationContext = TrainingOperationContext(
+      actorUid: actorUid,
+      academyId: academyId,
+      targetUid: uid,
+    );
+    final savedResult = await showQuickLogSheet(
       context: context,
       academyId: academyId,
       uid: uid,
       recentSessions: sessions,
       canSave: true,
       onOpenFullForm: () => _openTrainingForm(academyId: academyId, uid: uid),
+    );
+    if (!mounted ||
+        savedResult == null ||
+        !_isTrainingContextCurrent(operationContext)) {
+      return;
+    }
+
+    final savedSession = savedResult.session;
+    _focusTraining(savedSession.id);
+    showTrainingSaveConfirmation(
+      context: context,
+      session: savedSession,
+      kind: TrainingSaveConfirmationKind.created,
+      visibleDetails: quickLogConfirmationDetails(savedResult),
+      onViewTraining: () {
+        if (_isTrainingContextCurrent(operationContext)) {
+          _focusTraining(savedSession.id);
+        }
+      },
     );
   }
 
@@ -611,7 +638,15 @@ class _TrainingScreenState extends State<TrainingScreen> {
     required TrainingSessionStatus status,
     required String successMessage,
   }) async {
-    if (_lifecycleUpdatingIds.contains(session.id)) return;
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    if (actor == null) return;
+    final operationContext = TrainingOperationContext(
+      actorUid: actor.uid,
+      academyId: academyId,
+      targetUid: uid,
+    );
+    final operationKey = operationContext.sessionKey(session.id);
+    if (_lifecycleUpdatingIds.contains(operationKey)) return;
     if (status == TrainingSessionStatus.completed &&
         session.effectiveStatus() == TrainingSessionStatus.completed) {
       return;
@@ -626,7 +661,7 @@ class _TrainingScreenState extends State<TrainingScreen> {
       return;
     }
 
-    setState(() => _lifecycleUpdatingIds.add(session.id));
+    setState(() => _lifecycleUpdatingIds.add(operationKey));
     try {
       final effectiveDate =
           status == TrainingSessionStatus.completed
@@ -643,34 +678,68 @@ class _TrainingScreenState extends State<TrainingScreen> {
         status: status,
         effectiveDate: effectiveDate,
       );
-      if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Text(successMessage),
-          action:
-              status == TrainingSessionStatus.completed
-                  ? SnackBarAction(
-                    label: 'Complementar treino',
-                    onPressed:
-                        () => _openTrainingForm(
-                          academyId: academyId,
-                          uid: uid,
-                          session: session.copyWith(
-                            status: TrainingSessionStatus.completed,
-                            effectiveDate: effectiveDate,
-                          ),
-                        ),
-                  )
-                  : null,
-        ),
-      );
+      if (!mounted || !_isTrainingContextCurrent(operationContext)) return;
+      if (status == TrainingSessionStatus.completed) {
+        final confirmedSession = session.copyWith(
+          status: TrainingSessionStatus.completed,
+          effectiveDate: effectiveDate,
+        );
+        _focusTraining(session.id);
+        showTrainingSaveConfirmation(
+          context: context,
+          session: confirmedSession,
+          kind: TrainingSaveConfirmationKind.plannedSessionConfirmed,
+          onViewTraining: () {
+            if (_isTrainingContextCurrent(operationContext)) {
+              _focusTraining(session.id);
+            }
+          },
+        );
+      } else {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(successMessage)));
+      }
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || !_isTrainingContextCurrent(operationContext)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao atualizar treino: $error')),
       );
+    } finally {
+      if (mounted) {
+        setState(() => _lifecycleUpdatingIds.remove(operationKey));
+      }
     }
+  }
+
+  void _focusTraining(String sessionId) {
+    if (_historySearchController.text.isNotEmpty) {
+      _historySearchController.clear();
+    }
+    setState(() {
+      _historyPeriod = _TrainingHistoryPeriodFilter.all;
+      _historyResult = _TrainingHistoryResultFilter.all;
+      _historyContext = _TrainingHistoryContextFilter.all;
+      _historyPositionFilter = null;
+      _historyTechniqueFilter = null;
+      _visibleHistoryCount = 20;
+      _expandedSessionId = sessionId;
+    });
+  }
+
+  bool _isTrainingContextCurrent(TrainingOperationContext operationContext) {
+    if (!mounted) return false;
+    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
+    final target = TargetResolver.maybeOf(
+      context,
+      mode: widget.targetMode,
+      explicitTarget: widget.explicitTarget,
+    );
+    return operationContext.matches(
+      actorUid: actor?.uid,
+      academyId: target?.academyId,
+      targetUid: target?.uid,
+    );
   }
 }
 

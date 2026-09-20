@@ -145,22 +145,7 @@ class _NutritionScreenState extends State<NutritionScreen> {
       final canEditNutrition =
           target != null &&
           _canEditNutrition(loggedUser: actor, target: target);
-      debugPrint(
-        '[NUTRITION_TARGET] screen=NutritionScreen '
-        'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
-        'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
-        'explicit.academyId=${widget.explicitTarget?.academyId} '
-        'resolver.uid=${resolverTarget?.uid} '
-        'resolver.academyId=${resolverTarget?.academyId} '
-        'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-        'canEditNutrition=$canEditNutrition',
-      );
       if (target == null) {
-        debugPrint(
-          '[NUTRITION_ACTIONS] showAddMeal=false showEditNutritionProfile=false '
-          'canEditNutrition=$canEditNutrition hiddenBy=missing-target '
-          'actor.uid=${actor?.uid} actor.role=${actor?.role}',
-        );
         return _wrapModule(
           appBar: AppBar(
             leading: _mainScreenLeading(context),
@@ -190,21 +175,6 @@ class _NutritionScreenState extends State<NutritionScreen> {
         target != null &&
         _isStaff(actor) &&
         !_isSelfTarget(loggedUser: actor, target: target);
-    debugPrint(
-      '[NUTRITION_ACTIONS] showAddMeal=$canEditNutrition '
-      'showEditNutritionProfile=$canEditNutrition canEditNutrition=$canEditNutrition '
-      "hiddenBy=${canEditNutrition ? 'none' : 'canEditNutrition=false'} "
-      'actor.uid=${actor?.uid} actor.role=${actor?.role} '
-      'target.uid=${target?.uid} target.academyId=${target?.academyId}',
-    );
-    debugPrint(
-      '[NUTRITION_TARGET] screen=NutritionScreen '
-      'targetMode=${widget.targetMode} actor.uid=${actor?.uid} '
-      'actor.role=${actor?.role} explicit.uid=${widget.explicitTarget?.uid} '
-      'explicit.academyId=${widget.explicitTarget?.academyId} '
-      'target.uid=${target?.uid} target.academyId=${target?.academyId} '
-      'canEditNutrition=$canEditNutrition',
-    );
 
     return _wrapModule(
       appBar: AppBar(
@@ -527,7 +497,9 @@ class _NutritionDashboardStatusCard extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     final hasMeals = !dashboard.mealLog.isEmpty;
     final registeredDays =
-        dashboard.weeklyCalories.where((point) => point.totalKcal != null && point.totalKcal! > 0).length;
+        dashboard.weeklyCalories
+            .where((point) => point.totalKcal != null && point.totalKcal! > 0)
+            .length;
     final accent =
         dashboard.profileStatus.hasProfile
             ? TitansUI.successGreen

@@ -1,9 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class TitansLogo extends StatelessWidget {
-  static const AssetImage _assetImage = AssetImage('assets/logo_icon.png');
+  static const String _assetPath = 'assets/logo_icon.svg';
 
   final double? size;
   final double opacity;
@@ -28,22 +29,19 @@ class TitansLogo extends StatelessWidget {
     required this.fit,
   });
 
-  const TitansLogo.icon({
-    Key? key,
-    double size = 72,
-    double opacity = 1,
-  }) : this._(
-          key: key,
-          size: size,
-          opacity: opacity,
-          alignment: Alignment.center,
-          responsive: false,
-          sizeFactor: 1,
-          minSize: size,
-          maxSize: size,
-          maxDecodePx: 512,
-          fit: BoxFit.contain,
-        );
+  const TitansLogo.icon({Key? key, double size = 72, double opacity = 1})
+    : this._(
+        key: key,
+        size: size,
+        opacity: opacity,
+        alignment: Alignment.center,
+        responsive: false,
+        sizeFactor: 1,
+        minSize: size,
+        maxSize: size,
+        maxDecodePx: 512,
+        fit: BoxFit.contain,
+      );
 
   const TitansLogo.watermark({
     Key? key,
@@ -54,17 +52,17 @@ class TitansLogo extends StatelessWidget {
     double maxSize = 620,
     int maxDecodePx = 1400,
   }) : this._(
-          key: key,
-          size: null,
-          opacity: opacity,
-          alignment: alignment,
-          responsive: true,
-          sizeFactor: sizeFactor,
-          minSize: minSize,
-          maxSize: maxSize,
-          maxDecodePx: maxDecodePx,
-          fit: BoxFit.contain,
-        );
+         key: key,
+         size: null,
+         opacity: opacity,
+         alignment: alignment,
+         responsive: true,
+         sizeFactor: sizeFactor,
+         minSize: minSize,
+         maxSize: maxSize,
+         maxDecodePx: maxDecodePx,
+         fit: BoxFit.contain,
+       );
 
   @override
   Widget build(BuildContext context) {
@@ -73,7 +71,6 @@ class TitansLogo extends StatelessWidget {
         logicalSize: size ?? minSize,
         opacity: opacity,
         fit: fit,
-        maxDecodePx: maxDecodePx,
       );
     }
 
@@ -84,9 +81,8 @@ class TitansLogo extends StatelessWidget {
             constraints.maxWidth.isFinite ? constraints.maxWidth : maxSize,
             constraints.maxHeight.isFinite ? constraints.maxHeight : maxSize,
           );
-          final logicalSize = (shortestSide * sizeFactor)
-              .clamp(minSize, maxSize)
-              .toDouble();
+          final logicalSize =
+              (shortestSide * sizeFactor).clamp(minSize, maxSize).toDouble();
 
           return Align(
             alignment: alignment,
@@ -94,7 +90,6 @@ class TitansLogo extends StatelessWidget {
               logicalSize: logicalSize,
               opacity: opacity,
               fit: fit,
-              maxDecodePx: maxDecodePx,
             ),
           );
         },
@@ -107,33 +102,20 @@ class _LogoImage extends StatelessWidget {
   final double logicalSize;
   final double opacity;
   final BoxFit fit;
-  final int maxDecodePx;
 
   const _LogoImage({
     required this.logicalSize,
     required this.opacity,
     required this.fit,
-    required this.maxDecodePx,
   });
 
   @override
   Widget build(BuildContext context) {
-    final dpr = MediaQuery.of(context).devicePixelRatio;
-    final decodePx = (logicalSize * dpr).round().clamp(1, maxDecodePx).toInt();
-
     return Opacity(
       opacity: opacity,
       child: SizedBox.square(
         dimension: logicalSize,
-        child: Image(
-          image: ResizeImage(
-            TitansLogo._assetImage,
-            width: decodePx,
-            height: decodePx,
-          ),
-          fit: fit,
-          filterQuality: FilterQuality.high,
-        ),
+        child: SvgPicture.asset(TitansLogo._assetPath, fit: fit),
       ),
     );
   }

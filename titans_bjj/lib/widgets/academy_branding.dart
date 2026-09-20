@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../model/academy_models.dart';
 import 'titans_logo.dart';
 
 class AcademyBrandingAssets {
-  static const String titansLogo = 'assets/logo_icon.png';
+  static const String titansLogo = 'assets/logo_icon.svg';
 
   static String? logoAssetPath(String assetKey) {
     return _knownAssetPath(assetKey);
@@ -21,6 +22,7 @@ class AcademyBrandingAssets {
       case 'titans-logo':
       case 'logo_icon':
       case 'logo-icon':
+      case 'assets/logo_icon.svg':
       case 'assets/logo_icon.png':
         return titansLogo;
     }
@@ -84,6 +86,10 @@ class AcademyBrandLogo extends StatelessWidget {
     }
 
     if (assetPath != null) {
+      if (assetPath == AcademyBrandingAssets.titansLogo) {
+        return TitansLogo.icon(size: size, opacity: opacity);
+      }
+
       return Opacity(
         opacity: opacity,
         child: Image.asset(
@@ -119,13 +125,41 @@ class AcademyLoginBackground extends StatelessWidget {
     final assetPath = AcademyBrandingAssets.loginBackgroundAssetPath(
       branding.loginBackgroundAssetKey,
     );
+    final surface = Theme.of(context).colorScheme.surface;
 
     if (isHttpsBrandingUrl(backgroundUrl)) {
-      return _BrandingBackgroundImage(image: NetworkImage(backgroundUrl));
+      return _BrandingBackgroundImage(
+        image: Image.network(
+          backgroundUrl,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          errorBuilder:
+              (_, __, ___) =>
+                  DecoratedBox(decoration: BoxDecoration(color: surface)),
+        ),
+      );
     }
 
     if (assetPath != null) {
-      return _BrandingBackgroundImage(image: AssetImage(assetPath));
+      final image =
+          assetPath.toLowerCase().endsWith('.svg')
+              ? SvgPicture.asset(
+                assetPath,
+                fit: BoxFit.cover,
+                errorBuilder:
+                    (_, __, ___) =>
+                        DecoratedBox(decoration: BoxDecoration(color: surface)),
+              )
+              : Image.asset(
+                assetPath,
+                fit: BoxFit.cover,
+                filterQuality: FilterQuality.high,
+                errorBuilder:
+                    (_, __, ___) =>
+                        DecoratedBox(decoration: BoxDecoration(color: surface)),
+              );
+
+      return _BrandingBackgroundImage(image: image);
     }
 
     return fallback;
@@ -133,7 +167,7 @@ class AcademyLoginBackground extends StatelessWidget {
 }
 
 class _BrandingBackgroundImage extends StatelessWidget {
-  final ImageProvider image;
+  final Widget image;
 
   const _BrandingBackgroundImage({required this.image});
 
@@ -143,14 +177,7 @@ class _BrandingBackgroundImage extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        Image(
-          image: image,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.high,
-          errorBuilder:
-              (_, __, ___) =>
-                  DecoratedBox(decoration: BoxDecoration(color: cs.surface)),
-        ),
+        image,
         DecoratedBox(
           decoration: BoxDecoration(
             gradient: LinearGradient(

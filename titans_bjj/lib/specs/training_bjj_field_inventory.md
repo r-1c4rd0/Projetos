@@ -12,6 +12,7 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 
 - `lib/model/training_session.dart`
 - `lib/repository/training_repository.dart`
+- `lib/repository/attendance_repository.dart`
 - `lib/service/training_aggregator.dart`
 - `lib/service/training_batch.dart`
 - `lib/widgets/quick_log_sheet.dart`
@@ -30,6 +31,7 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 - `lib/features/progress/application/progress_use_cases.dart`
 - `lib/features/technical_domain/domain/technical_models.dart`
 - `lib/features/technical_domain/domain/technical_taxonomy.dart`
+- `lib/features/technical_domain/application/technical_domain_use_cases.dart`
 - `lib/model/jiu_jitsu_taxonomy_item.dart`
 - `lib/repository/jiu_jitsu_taxonomy_repository.dart`
 - `lib/model/coach_evaluation.dart`
@@ -124,6 +126,14 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 - `updateSessionLifecycle` altera apenas status/datas/auditoria, sem mexer em tecnica.
 - `attendanceLinkedSessionId` e dedupe por presenca amarram aula/check-in a treino individual.
 
+### Attendance derivado
+
+- `AttendanceRepository.addManualCheckIn` cria `TrainingSession` individual derivada de presenca manual, com `id` deterministico via `attendanceLinkedSessionId`.
+- A sessao derivada persiste `date`, `place: academy`, `notes`, `academyId`, `uid`, `source: attendance`, `attendanceSessionId`, `attendanceCheckInUid`, `classType`, `instructorUid` e `instructorName`.
+- Essa criacao nao preenche `status`, `position`, `technique`, `techniques`, `applicationContext` nem `techniqueOutcome`.
+- Por compatibilidade, uma sessao derivada sem `status` e com data ate hoje e lida como `completed`; portanto pode contar em metricas gerais de treino mesmo sem evidencia tecnica BJJ.
+- `removeCheckIn` remove a `TrainingSession` derivada pelo mesmo id deterministico.
+
 ### Historico de treino
 
 - `TrainingScreen` usa `GetTrainingDashboardSummary` e `TrainingSessionHistoryItem`.
@@ -152,6 +162,7 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 - Usa `applicationContext`, `techniqueOutcome`, `successes`, `difficulties`, `intensity` e contagem de sessoes para status tecnico.
 - `SkillsScreen` navega por categorias, tecnicas e posicoes; `SkillDetailScreen` detalha evidencias por tecnica.
 - Depende de skill ids de `JiuJitsuTaxonomy`; nao ha conceito multi-modalidade.
+- `technical_domain_use_cases.dart` apenas encapsula `TrainingAggregator` para Game Map, Skill Matrix, Skill Evidence e Technical Evidence; ele nao separa modalidades.
 
 ### Radar tecnico
 
@@ -271,6 +282,7 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 - Conversao de `uid` para `targetUid` em camada de dominio, mantendo path atual ate migration aprovada.
 - Conversao de `date`/`plannedFor`/`effectiveDate` para semantica temporal explicita.
 - Conversao de `technique`, `position`, `applicationContext`, `techniqueOutcome`, `successes`, `difficulties` e `debriefNotes` para payload BJJ.
+- Conversao de sessoes `source: attendance` sem tecnica para evidencia de frequencia/aula, sem promover automaticamente para evidencia tecnica BJJ.
 - Separacao de sessoes por modalidade antes de alimentar Game Map, Skill Matrix, Radar e graduacao.
 - Protecao para Progress/Home nao contarem outra modalidade como frequencia BJJ sem regra explicita.
 
@@ -281,6 +293,7 @@ Conclusao: nao ha bloqueio conceitual para especificar um BJJ Sport Pack, mas ha
 - Quebrar Progress ao contar corrida/forca como treino valido para graduacao BJJ.
 - Quebrar actor/target se `uid` for renomeado sem mapear target e sem preservar actor real.
 - Misturar corrida/forca com taxonomia BJJ por preencher `technique` ou `position` com termos genericos.
+- Contar sessoes derivadas de presenca, ou futuras sessoes de outra modalidade, como frequencia BJJ sem regra explicita.
 - Migration prematura criando `sportId`/payload sem SportCapabilities validado.
 - Payload generico demais, sem semantica, virar deposito de campos e quebrar Evidence Engine.
 - Perder compatibilidade com sessoes legadas que usam top-level `technique`/`position`.

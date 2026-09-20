@@ -78,26 +78,13 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     if (!_recurring) {
       return _isRegisteringCompleted
           ? '1 treino realizado'
-          : '1 treino agendado';
+          : '1 treino planejado';
     }
 
-    final dates = RecurrenceGenerator.generateDates(
-      start: _start,
-      end: _end,
-      weekdays: _weekdays,
+    return _sessionCountSummary(
+      count: _recurringOccurrenceDates(now: DateTime.now()).length,
+      status: _intent,
     );
-    final plannedCount =
-        _isRegisteringCompleted
-            ? _futurePlanningDates(dates).length
-            : dates.length;
-    final completedCount = _isRegisteringCompleted ? 1 : 0;
-
-    final parts = <String>[
-      if (completedCount > 0) '$completedCount treino realizado',
-      if (plannedCount > 0)
-        plannedCount == 1 ? '1 agendado' : '$plannedCount agendados',
-    ];
-    return parts.isEmpty ? 'Nenhuma ocorrencia gerada' : parts.join(' + ');
   }
 
   @override
@@ -792,33 +779,42 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
           session: s,
         );
       } else {
-        if (_isRegisteringCompleted && _singleDateIsFuture) {
-          throw Exception(
-            'Data futura nao pode ser registrada como treino realizado.',
-          );
-        }
         if (_weekdays.isEmpty) {
           throw Exception('Selecione pelo menos um dia da semana.');
         }
-
-        final dates = RecurrenceGenerator.generateDates(
-          start: _start,
-          end: _end,
-          weekdays: _weekdays,
-        );
-
-        final sessions = <TrainingSession>[];
-        if (_isRegisteringCompleted) {
-          final completedDate = DateTime(
-            _singleDate.year,
-            _singleDate.month,
-            _singleDate.day,
+        if (TrainingSession.dateOnly(
+          _start,
+        ).isAfter(TrainingSession.dateOnly(_end))) {
+          throw Exception(
+            'Data inicial deve ser anterior ou igual a data final.',
           );
-          sessions.add(
+        }
+
+        final occurrenceDates = _recurringOccurrenceDates(now: DateTime.now());
+        if (occurrenceDates.isEmpty) {
+          throw Exception(
+            'Nenhuma ocorrência encontrada para o intervalo e dias selecionados.',
+          );
+        }
+
+        final status = _intent;
+        final timeSource = _recurringTimeSource;
+        final sessions = <TrainingSession>[
+          for (final occurrenceDate in occurrenceDates)
             _buildSession(
-              id: uuid.v4(),
-              date: completedDate,
-              status: TrainingSessionStatus.completed,
+              id: _recurringSessionId(
+                occurrenceDate: _withTimeFrom(occurrenceDate, timeSource),
+                status: status,
+                techniqueEntries: techniqueEntries,
+                notes: notesOrNull,
+                successes: successes,
+                difficulties: difficulties,
+                debriefNotes: debriefNotes,
+                applicationContext: applicationContext,
+                techniqueOutcome: techniqueOutcome,
+              ),
+              date: _withTimeFrom(occurrenceDate, timeSource),
+              status: status,
               notes: notesOrNull,
               position: position,
               technique: technique,
@@ -829,58 +825,18 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
               applicationContext: applicationContext,
               techniqueOutcome: techniqueOutcome,
             ),
-          );
-          for (final d in _futurePlanningDates(dates)) {
-            sessions.add(
-              _buildSession(
-                id: uuid.v4(),
-                date: d,
-                status: TrainingSessionStatus.planned,
-                notes: notesOrNull,
-                position: position,
-                technique: technique,
-                techniqueEntries: techniqueEntries,
-                successes: successes,
-                difficulties: difficulties,
-                debriefNotes: debriefNotes,
-                applicationContext: applicationContext,
-                techniqueOutcome: techniqueOutcome,
-              ),
-            );
-          }
-        } else {
-          for (final d in dates) {
-            sessions.add(
-              _buildSession(
-                id: uuid.v4(),
-                date: d,
-                status: TrainingSessionStatus.planned,
-                notes: notesOrNull,
-                position: position,
-                technique: technique,
-                techniqueEntries: techniqueEntries,
-                successes: successes,
-                difficulties: difficulties,
-                debriefNotes: debriefNotes,
-                applicationContext: applicationContext,
-                techniqueOutcome: techniqueOutcome,
-              ),
-            );
-          }
-        }
-
-        if (sessions.isEmpty) {
-          throw Exception(
-            'Nenhuma data gerada. Confira o intervalo e os dias.',
-          );
-        }
+        ];
+        final confirmationSummary = _sessionCountSummary(
+          count: sessions.length,
+          status: status,
+        );
 
         final ok = await showDialog<bool>(
           context: context,
           builder:
               (_) => AlertDialog(
                 title: const Text('Confirmar cadastro'),
-                content: Text(_recurrenceSummary),
+                content: Text(confirmationSummary),
                 actions: [
                   TextButton(
                     onPressed: () => Navigator.pop(context, false),
@@ -948,18 +904,15 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     required String? applicationContext,
     required String? techniqueOutcome,
   }) {
-    final normalizedDate = DateTime(date.year, date.month, date.day);
     return TrainingSession(
       id: id,
-      date: normalizedDate,
+      date: date,
       place: TrainingPlace.academy,
       academyId: widget.academyId,
       uid: widget.uid,
       status: status,
-      plannedFor:
-          status == TrainingSessionStatus.planned ? normalizedDate : null,
-      effectiveDate:
-          status == TrainingSessionStatus.completed ? normalizedDate : null,
+      plannedFor: status == TrainingSessionStatus.planned ? date : null,
+      effectiveDate: status == TrainingSessionStatus.completed ? date : null,
       confirmedAt:
           status == TrainingSessionStatus.completed ? DateTime.now() : null,
       notes: notes,
@@ -975,19 +928,116 @@ class _AddTrainingSessionScreenState extends State<AddTrainingSessionScreen> {
     );
   }
 
-  List<DateTime> _futurePlanningDates(List<DateTime> dates) {
-    final completedDate = DateTime(
-      _singleDate.year,
-      _singleDate.month,
-      _singleDate.day,
+  List<DateTime> _recurringOccurrenceDates({required DateTime now}) {
+    final today = TrainingSession.dateOnly(now);
+    return generateRecurringDates(
+      startDate: _start,
+      endDate: _end,
+      selectedWeekdays: _weekdays,
+      earliestDate: _isRegisteringCompleted ? null : today,
+      latestDate: _isRegisteringCompleted ? today : null,
     );
-    final today = TrainingSession.dateOnly(DateTime.now());
-    return dates
-        .where((date) {
-          final day = TrainingSession.dateOnly(date);
-          return day.isAfter(today) && !day.isAtSameMomentAs(completedDate);
-        })
-        .toList(growable: false);
+  }
+
+  DateTime get _recurringTimeSource {
+    return _isRegisteringCompleted ? _singleDate : _start;
+  }
+
+  DateTime _withTimeFrom(DateTime date, DateTime timeSource) {
+    return DateTime(
+      date.year,
+      date.month,
+      date.day,
+      timeSource.hour,
+      timeSource.minute,
+      timeSource.second,
+      timeSource.millisecond,
+      timeSource.microsecond,
+    );
+  }
+
+  String _sessionCountSummary({
+    required int count,
+    required TrainingSessionStatus status,
+  }) {
+    final label =
+        status == TrainingSessionStatus.completed ? 'realizado' : 'planejado';
+    final plural = count == 1 ? label : '${label}s';
+    return '$count ${count == 1 ? 'treino' : 'treinos'} $plural';
+  }
+
+  String _recurringSessionId({
+    required DateTime occurrenceDate,
+    required TrainingSessionStatus status,
+    required List<TrainingTechniqueEntry> techniqueEntries,
+    required String? notes,
+    required String? successes,
+    required String? difficulties,
+    required String? debriefNotes,
+    required String? applicationContext,
+    required String? techniqueOutcome,
+  }) {
+    final fingerprint = _stableHash(
+      _recurringFingerprint(
+        status: status,
+        techniqueEntries: techniqueEntries,
+        notes: notes,
+        successes: successes,
+        difficulties: difficulties,
+        debriefNotes: debriefNotes,
+        applicationContext: applicationContext,
+        techniqueOutcome: techniqueOutcome,
+      ),
+    );
+    final timestamp = occurrenceDate.microsecondsSinceEpoch;
+    return 'rec_${_docSafe(widget.academyId)}_${_docSafe(widget.uid)}_${status.name}_${timestamp}_$fingerprint';
+  }
+
+  String _recurringFingerprint({
+    required TrainingSessionStatus status,
+    required List<TrainingTechniqueEntry> techniqueEntries,
+    required String? notes,
+    required String? successes,
+    required String? difficulties,
+    required String? debriefNotes,
+    required String? applicationContext,
+    required String? techniqueOutcome,
+  }) {
+    final parts = <String>[
+      status.name,
+      _intensity?.toString() ?? '',
+      notes ?? '',
+      successes ?? '',
+      difficulties ?? '',
+      debriefNotes ?? '',
+      applicationContext ?? '',
+      techniqueOutcome ?? '',
+      for (final entry in techniqueEntries) ...[
+        entry.position ?? '',
+        entry.technique,
+        entry.category ?? '',
+        entry.side.name,
+        entry.applicationContext ?? '',
+        entry.techniqueOutcome ?? '',
+        entry.notes ?? '',
+      ],
+    ];
+    return parts.join('|');
+  }
+
+  String _stableHash(String value) {
+    const fnvOffset = 0x811c9dc5;
+    const fnvPrime = 0x01000193;
+    var hash = fnvOffset;
+    for (final codeUnit in value.codeUnits) {
+      hash ^= codeUnit;
+      hash = (hash * fnvPrime) & 0xffffffff;
+    }
+    return hash.toRadixString(16).padLeft(8, '0');
+  }
+
+  String _docSafe(String value) {
+    return value.trim().replaceAll(RegExp(r'[^A-Za-z0-9_-]+'), '_');
   }
 
   String? _optionalText(TextEditingController controller) {

@@ -5,7 +5,33 @@ import '../core/titans_ui.dart';
 import '../model/training_session.dart';
 import '../repository/training_repository.dart';
 
-Future<bool?> showQuickLogSheet({
+typedef QuickLogSessionSaver =
+    Future<void> Function({
+      required String academyId,
+      required String uid,
+      required TrainingSession session,
+    });
+
+enum QuickLogInputField {
+  technique,
+  position,
+  place,
+  intensity,
+  outcome,
+  notes,
+}
+
+class QuickLogSaveResult {
+  final TrainingSession session;
+  final Set<QuickLogInputField> explicitlyProvidedFields;
+
+  QuickLogSaveResult({
+    required this.session,
+    required Set<QuickLogInputField> explicitlyProvidedFields,
+  }) : explicitlyProvidedFields = Set.unmodifiable(explicitlyProvidedFields);
+}
+
+Future<QuickLogSaveResult?> showQuickLogSheet({
   required BuildContext context,
   required String academyId,
   required String uid,
@@ -16,7 +42,7 @@ Future<bool?> showQuickLogSheet({
   final sessions = List<TrainingSession>.from(recentSessions)
     ..sort((a, b) => b.date.compareTo(a.date));
 
-  return showModalBottomSheet<bool>(
+  return showModalBottomSheet<QuickLogSaveResult>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
@@ -38,6 +64,7 @@ class QuickLogSheet extends StatefulWidget {
   final List<TrainingSession> recentSessions;
   final bool canSave;
   final VoidCallback? onOpenFullForm;
+  final QuickLogSessionSaver? saveSession;
 
   const QuickLogSheet({
     super.key,
@@ -46,6 +73,7 @@ class QuickLogSheet extends StatefulWidget {
     required this.recentSessions,
     required this.canSave,
     this.onOpenFullForm,
+    this.saveSession,
   });
 
   @override
@@ -56,13 +84,14 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
   final _notesController = TextEditingController();
   final _customTechniqueController = TextEditingController();
   final _customPositionController = TextEditingController();
-  final _repository = TrainingRepository.instance;
+  TrainingRepository get _repository => TrainingRepository.instance;
 
   late TrainingPlace _place;
   late int _intensity;
   late String _outcome;
   late String? _technique;
   late String? _position;
+  final Set<QuickLogInputField> _explicitlyProvidedFields = {};
   bool _saving = false;
 
   TrainingSession? get _lastSession =>
@@ -190,7 +219,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                       options: recentTechniques,
                       selected: _technique,
                       fallbackLabel: 'Sem técnica recente',
-                      onSelected: (value) => setState(() => _technique = value),
+                      onSelected:
+                          (value) => setState(() {
+                            _technique = value;
+                            _explicitlyProvidedFields.add(
+                              QuickLogInputField.technique,
+                            );
+                          }),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -200,7 +235,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                       options: recentPositions,
                       selected: _position,
                       fallbackLabel: 'Sem posição recente',
-                      onSelected: (value) => setState(() => _position = value),
+                      onSelected:
+                          (value) => setState(() {
+                            _position = value;
+                            _explicitlyProvidedFields.add(
+                              QuickLogInputField.position,
+                            );
+                          }),
                     ),
                   ),
                   if (!hasLast) ...[
@@ -228,7 +269,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                           _QuickChoiceChip(
                             label: _placeLabel(place),
                             selected: _place == place,
-                            onTap: () => setState(() => _place = place),
+                            onTap:
+                                () => setState(() {
+                                  _place = place;
+                                  _explicitlyProvidedFields.add(
+                                    QuickLogInputField.place,
+                                  );
+                                }),
                           ),
                       ],
                     ),
@@ -244,7 +291,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                           _QuickChoiceChip(
                             label: value.toString(),
                             selected: _intensity == value,
-                            onTap: () => setState(() => _intensity = value),
+                            onTap:
+                                () => setState(() {
+                                  _intensity = value;
+                                  _explicitlyProvidedFields.add(
+                                    QuickLogInputField.intensity,
+                                  );
+                                }),
                           ),
                       ],
                     ),
@@ -262,11 +315,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                               _outcome ==
                               TrainingSession.techniqueOutcomeWorked,
                           onTap:
-                              () => setState(
-                                () =>
-                                    _outcome =
-                                        TrainingSession.techniqueOutcomeWorked,
-                              ),
+                              () => setState(() {
+                                _outcome =
+                                    TrainingSession.techniqueOutcomeWorked;
+                                _explicitlyProvidedFields.add(
+                                  QuickLogInputField.outcome,
+                                );
+                              }),
                         ),
                         _QuickChoiceChip(
                           label: 'Precisa ajuste',
@@ -274,11 +329,13 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
                               _outcome ==
                               TrainingSession.techniqueOutcomeFailed,
                           onTap:
-                              () => setState(
-                                () =>
-                                    _outcome =
-                                        TrainingSession.techniqueOutcomeFailed,
-                              ),
+                              () => setState(() {
+                                _outcome =
+                                    TrainingSession.techniqueOutcomeFailed;
+                                _explicitlyProvidedFields.add(
+                                  QuickLogInputField.outcome,
+                                );
+                              }),
                         ),
                       ],
                     ),
@@ -380,6 +437,14 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
       final position =
           _clean(_position) ?? _clean(_customPositionController.text);
       final notes = _clean(_notesController.text);
+      final explicitlyProvidedFields = <QuickLogInputField>{
+        ..._explicitlyProvidedFields,
+        if (_clean(_customTechniqueController.text) != null)
+          QuickLogInputField.technique,
+        if (_clean(_customPositionController.text) != null)
+          QuickLogInputField.position,
+        if (notes != null) QuickLogInputField.notes,
+      };
       if (technique == null && position == null && notes == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -422,17 +487,19 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
         techniqueOutcome: _outcome,
       );
 
-      await _repository.addSession(
+      final saveSession = widget.saveSession ?? _repository.addSession;
+      await saveSession(
         academyId: widget.academyId,
         uid: widget.uid,
         session: session,
       );
 
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.of(context);
-      Navigator.of(context).pop(true);
-      messenger.showSnackBar(
-        const SnackBar(content: Text('Treino registrado.')),
+      Navigator.of(context).pop(
+        QuickLogSaveResult(
+          session: session,
+          explicitlyProvidedFields: explicitlyProvidedFields,
+        ),
       );
     } catch (error) {
       if (!mounted) return;
@@ -445,7 +512,7 @@ class _QuickLogSheetState extends State<QuickLogSheet> {
   }
 
   void _openFullForm() {
-    Navigator.of(context).pop(false);
+    Navigator.of(context).pop();
     widget.onOpenFullForm?.call();
   }
 
