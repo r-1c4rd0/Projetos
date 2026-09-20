@@ -26,6 +26,7 @@ import '../service/user_session.dart';
 import '../widgets/athlete_dashboard/athlete_account_menu.dart';
 import '../widgets/athlete_dashboard/athlete_cockpit_hero.dart';
 import '../widgets/athlete_dashboard/athlete_identity_cards.dart';
+import '../widgets/athlete_dashboard/athlete_self_home_sections.dart';
 import '../widgets/athlete_dashboard/coach_lite_modules.dart';
 import '../widgets/athlete_dashboard/coach_summary_cards.dart';
 import '../widgets/athlete_dashboard/dashboard_formatters.dart';
@@ -50,6 +51,7 @@ import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
+import 'progress_screen.dart';
 import 'skill_detail_screen.dart';
 import 'skills_screen.dart';
 import 'training_screen.dart';
@@ -517,6 +519,20 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
+                      void openProgress() {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (_) => ProgressScreen(
+                                  titleOverride: 'Progresso',
+                                  targetMode: widget.targetMode,
+                                  explicitTarget: target,
+                                  loggedUser: actor,
+                                ),
+                          ),
+                        );
+                      }
+
                       void openGameMap() {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -622,12 +638,8 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                                 pendingConfirmation,
                                               ),
                                       onRegisterTraining: openQuickLog,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    AthleteMinimalMetricsCard(
-                                      cs: cs,
-                                      frequency: frequency,
-                                      metrics: metrics,
+                                      onOpenFullTraining: openRegisterTraining,
+                                      onOpenTrainingHistory: openTraining,
                                     ),
                                     const SizedBox(height: 12),
                                     AthleteMinimalIdentityCard(
@@ -831,29 +843,39 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                                       ),
                                     ] else ...[
                                       if (isAthleteSelfView) ...[
-                                        HomeIntelligenceDeck(
+                                        AthleteHomeHistorySummaryCard(
                                           cs: cs,
-                                          dashboard: homeViewModel,
-                                          radar: technicalRadar,
-                                          beltProgress: beltProgress,
-                                          onOpenMap: openGameMap,
+                                          frequency: frequency,
+                                          metrics: metrics,
+                                          lastSession:
+                                              lastSessions.isEmpty
+                                                  ? null
+                                                  : lastSessions.first,
                                           onOpenTraining: openTraining,
-                                          onRegisterTraining:
-                                              openRegisterTraining,
+                                          onOpenTrainingSession:
+                                              openTrainingSession,
+                                        ),
+                                        const SizedBox(height: 12),
+                                        AthleteHomeDestinationsCard(
+                                          cs: cs,
+                                          onOpenTraining: openTraining,
+                                          onOpenProgress: openProgress,
+                                          onOpenGameMap: openGameMap,
+                                          onOpenSkills: openSkills,
                                         ),
                                         if (lastSessions.isNotEmpty) ...[
                                           const SizedBox(height: 12),
-                                          RecentActivityTimelineCard(
-                                            cs: cs,
-                                            items: lastSessions,
-                                            compact: true,
-                                            onOpenTraining: openTraining,
-                                            onRegisterTraining:
-                                                openRegisterTraining,
-                                            onOpenTrainingSession:
-                                                openTrainingSession,
-                                            onOpenTechnique:
-                                                openTechniqueDetail,
+                                          AthleteHomeExpandableDetails(
+                                            child: HomeIntelligenceDeck(
+                                              cs: cs,
+                                              dashboard: homeViewModel,
+                                              radar: technicalRadar,
+                                              beltProgress: beltProgress,
+                                              onOpenMap: openGameMap,
+                                              onOpenTraining: openTraining,
+                                              onRegisterTraining:
+                                                  openRegisterTraining,
+                                            ),
                                           ),
                                         ],
                                       ] else ...[
