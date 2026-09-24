@@ -2,16 +2,22 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../features/technical_domain/application/technical_domain_use_cases.dart';
+import '../features/technical_domain/domain/technical_context.dart';
+import '../features/technical_domain/presentation/skills_library.dart';
+import '../features/technical_domain/presentation/skills_library_model.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../repository/training_repository.dart';
 import '../service/training_aggregator.dart';
+import '../service/target_resolver.dart';
+import '../service/user_session.dart';
 import '../widgets/titans_expandable_section.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 import 'skill_detail_screen.dart';
+import 'training_screen.dart';
 
 class SkillsScreen extends StatefulWidget {
   final String academyId;
@@ -20,6 +26,10 @@ class SkillsScreen extends StatefulWidget {
   final String? targetName;
   final AppUser? loggedUser;
   final bool embedded;
+  final Stream<List<TrainingSession>>? sessionsStream;
+  final Stream<List<CoachEvaluation>>? coachEvaluationsStream;
+  final String? initialPosition;
+  final String? initialSkillId;
 
   const SkillsScreen({
     super.key,
@@ -29,6 +39,10 @@ class SkillsScreen extends StatefulWidget {
     this.targetName,
     this.loggedUser,
     this.embedded = false,
+    this.sessionsStream,
+    this.coachEvaluationsStream,
+    this.initialPosition,
+    this.initialSkillId,
   });
 
   @override
@@ -39,8 +53,10 @@ class _SkillsScreenState extends State<SkillsScreen> {
   late final TrainingRepository _repository = TrainingRepository.instance;
   late final CoachEvaluationRepository _coachEvaluationRepository =
       CoachEvaluationRepository.instance;
-  late final Stream<List<TrainingSession>> _sessionsStream;
-  late final Stream<List<CoachEvaluation>> _coachEvaluationsStream;
+  Stream<List<TrainingSession>>? _sessionsStream;
+  Stream<List<CoachEvaluation>>? _coachEvaluationsStream;
+  String? _contextKey;
+  bool _hasAlignedAcademyContext = true;
   late final GetSkillMatrixSummary _getSkillMatrixSummary =
       const GetSkillMatrixSummary();
   late final GetGameMapEvidenceSummary _getGameMapEvidenceSummary =
@@ -49,22 +65,119 @@ class _SkillsScreenState extends State<SkillsScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionsStream = _repository.watchSessions(
-      academyId: widget.academyId,
-      uid: widget.uid,
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncContext();
+  }
+
+  @override
+  void didUpdateWidget(covariant SkillsScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncContext();
+  }
+
+  AppUser? get _actor => UserScope.maybeOf(context) ?? widget.loggedUser;
+
+  UserScope? get _userScope => UserScope.maybeScopeOf(context);
+
+  TechnicalScreenContext _resolveContext() {
+    final actor = _actor;
+    final scope = _userScope;
+    final activeAcademyId = scope?.activeAcademyId.trim();
+    final workspaceAcademyId =
+        activeAcademyId == null || activeAcademyId.isEmpty
+            ? widget.academyId.trim()
+            : activeAcademyId;
+    final membership = scope?.activeMembership;
+    final membershipState = [
+      scope?.membershipSnapshot.status.name ?? 'legacy',
+      membership?.academyId ?? '',
+      membership?.role.name ?? '',
+      membership?.isActive.toString() ?? '',
+    ].join(':');
+
+    return TechnicalScreenContext(
+      actorUid: actor?.uid.trim() ?? '',
+      actorRole: actor?.role.name ?? '',
+      targetUid: widget.uid.trim(),
+      targetAcademyId: widget.academyId.trim(),
+      workspaceKey: 'academy:$workspaceAcademyId',
+      membershipState: membershipState,
     );
-    _coachEvaluationsStream = _coachEvaluationRepository.watchEvaluations(
-      academyId: widget.academyId,
-      athleteUid: widget.uid,
+  }
+
+  bool get _canOpenTargetHistory {
+    final actor = _actor;
+    if (actor?.uid.trim() == widget.uid.trim()) return true;
+    final scope = _userScope;
+    return CoachEvaluationAuthorization.canEvaluate(
+      actor: actor,
+      targetUid: widget.uid,
+      targetAcademyId: widget.academyId,
+      activeAcademyId: scope?.activeAcademyId,
+      activeMembership: scope?.activeMembership,
+      membershipSnapshot: scope?.membershipSnapshot,
     );
+  }
+
+  void _syncContext() {
+    final resolvedContext = _resolveContext();
+    if (_contextKey == resolvedContext.key) return;
+
+    final activeAcademyId = _userScope?.activeAcademyId.trim();
+    _hasAlignedAcademyContext =
+        activeAcademyId == null ||
+        activeAcademyId.isEmpty ||
+        activeAcademyId == widget.academyId.trim();
+    _contextKey = resolvedContext.key;
+
+    if (!_hasAlignedAcademyContext) {
+      _sessionsStream = null;
+      _coachEvaluationsStream = null;
+      return;
+    }
+
+    _sessionsStream =
+        widget.sessionsStream ??
+        _repository.watchSessions(academyId: widget.academyId, uid: widget.uid);
+    _coachEvaluationsStream =
+        widget.coachEvaluationsStream ??
+        _coachEvaluationRepository.watchEvaluations(
+          academyId: widget.academyId,
+          athleteUid: widget.uid,
+        );
   }
 
   @override
   Widget build(BuildContext context) {
+    final contextKey = _contextKey ?? _resolveContext().key;
+    if (!_hasAlignedAcademyContext) {
+      return _wrapModule(
+        appBar: AppBar(title: Text(widget.title ?? 'Skills')),
+        body: const TitansStateView.error(
+          title: 'Contexto de academia alterado',
+          message: 'Abra novamente Skills no workspace ativo.',
+        ),
+      );
+    }
+
+    final sessionsStream = _sessionsStream;
+    final coachEvaluationsStream = _coachEvaluationsStream;
+    if (sessionsStream == null || coachEvaluationsStream == null) {
+      return _wrapModule(
+        appBar: AppBar(title: Text(widget.title ?? 'Skills')),
+        body: const TitansStateView.loading(),
+      );
+    }
+
     return _wrapModule(
       appBar: AppBar(title: Text(widget.title ?? 'Skills')),
       body: StreamBuilder<List<TrainingSession>>(
-        stream: _sessionsStream,
+        key: ValueKey('skills-sessions:$contextKey'),
+        stream: sessionsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const TitansSkeletonCard(lines: 5);
@@ -81,7 +194,8 @@ class _SkillsScreenState extends State<SkillsScreen> {
           final entries = _getGameMapEvidenceSummary(sessions, limit: 20);
 
           return StreamBuilder<List<CoachEvaluation>>(
-            stream: _coachEvaluationsStream,
+            key: ValueKey('skills-evaluations:$contextKey'),
+            stream: coachEvaluationsStream,
             builder: (context, evaluationSnapshot) {
               final evaluations =
                   evaluationSnapshot.data ?? const <CoachEvaluation>[];
@@ -90,19 +204,27 @@ class _SkillsScreenState extends State<SkillsScreen> {
                 categories: skillMatrix,
                 evaluations: evaluations,
               );
+              final libraryModel = SkillsLibraryModel.from(
+                sessions: sessions,
+                evaluations: evaluations,
+              );
 
-              void openSkillDetail(_SkillNavigationTarget skill) {
+              void openSkillDetail(SkillsLibraryTechnique skill) {
+                if (_contextKey != contextKey) return;
                 Navigator.of(context).push(
                   MaterialPageRoute(
                     builder:
                         (_) => SkillDetailScreen(
                           academyId: widget.academyId,
                           uid: widget.uid,
-                          loggedUser: widget.loggedUser,
+                          loggedUser: _actor,
                           skillId: skill.skillId,
-                          displayName: skill.displayName,
+                          displayName: skill.name,
                           category: skill.category,
-                          preferredPosition: skill.position,
+                          preferredPosition:
+                              skill.positions.isEmpty
+                                  ? null
+                                  : skill.positions.first,
                           sessions: sessions,
                           evaluations: evaluations,
                         ),
@@ -111,6 +233,7 @@ class _SkillsScreenState extends State<SkillsScreen> {
               }
 
               return ListView(
+                key: ValueKey('skills-content:$contextKey'),
                 padding:
                     widget.embedded
                         ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
@@ -135,13 +258,23 @@ class _SkillsScreenState extends State<SkillsScreen> {
                   ),
                   const SizedBox(height: 12),
                   TitansExpandableSection(
-                    title: 'Matriz de repertório',
-                    subtitle: _explorerSectionSummary(entries),
+                    title: 'Biblioteca técnica',
+                    subtitle:
+                        'Posição ou categoria → técnica → registros e avaliação.',
                     initiallyExpanded: true,
-                    child: _SkillsExplorer(
-                      entries: entries,
-                      categories: skillMatrix,
-                      onOpenTechnique: openSkillDetail,
+                    child: SkillsLibrary(
+                      key: ValueKey('skills-library:$contextKey'),
+                      model: libraryModel,
+                      contextKey: contextKey,
+                      initialPosition: widget.initialPosition,
+                      initialSkillId: widget.initialSkillId,
+                      onOpenRecord:
+                          (record) => _openTrainingRecord(
+                            record,
+                            actor: _actor,
+                            expectedContextKey: contextKey,
+                          ),
+                      onOpenTechniqueDetail: openSkillDetail,
                     ),
                   ),
                 ],
@@ -149,6 +282,35 @@ class _SkillsScreenState extends State<SkillsScreen> {
             },
           );
         },
+      ),
+    );
+  }
+
+  void _openTrainingRecord(
+    SkillsLibraryRecord record, {
+    required AppUser? actor,
+    required String expectedContextKey,
+  }) {
+    if (!record.canOpen ||
+        actor == null ||
+        _contextKey != expectedContextKey ||
+        !_canOpenTargetHistory) {
+      return;
+    }
+    final isSelf = actor.uid.trim() == widget.uid.trim();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => TrainingScreen(
+              titleOverride: isSelf ? 'Treinos' : 'Treinos do aluno',
+              targetMode: isSelf ? TargetMode.self : TargetMode.selectedStudent,
+              explicitTarget: TargetProfile(
+                uid: widget.uid,
+                academyId: widget.academyId,
+              ),
+              loggedUser: actor,
+              focusSessionId: record.sessionId,
+            ),
       ),
     );
   }
@@ -226,7 +388,7 @@ class _SkillsLibraryHero extends StatelessWidget {
                 if (hasData) ...[
                   const SizedBox(height: 4),
                   Text(
-                    '$techniquesCount técnicas registradas em $categoriesCount categorias · $positionsCount posições',
+                    '$techniquesCount técnicas e $categoriesCount categorias nas últimas 50 concluídas · $positionsCount posições nas últimas 20',
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -260,22 +422,22 @@ class _SkillsMetricRail extends StatelessWidget {
         spacing: TitansUI.spaceXs,
         children: [
           TitansCompactMetricCard(
-            label: 'TÉCNICAS',
+            label: 'TÉCNICAS · 50',
             value: summary.registeredTechniques.toString(),
             color: cs.primary,
           ),
           TitansCompactMetricCard(
-            label: 'CATEGORIAS',
+            label: 'CATEGORIAS · 50',
             value: summary.mappedCategories.toString(),
             color: Colors.lightGreenAccent,
           ),
           TitansCompactMetricCard(
-            label: 'POSIÇÕES',
+            label: 'POSIÇÕES · 20',
             value: summary.mappedPositions.toString(),
             color: TitansUI.technicalBlue,
           ),
           TitansCompactMetricCard(
-            label: 'REGISTROS',
+            label: 'APLICADAS · 50',
             value: summary.appliedTechniques.toString(),
             color: Colors.amber,
           ),
@@ -448,11 +610,15 @@ enum _ExplorerMode { position, category }
 class _SkillsExplorer extends StatefulWidget {
   final List<GameMapEntry> entries;
   final List<SkillMatrixCategoryEntry> categories;
+  final String? initialPosition;
+  final String? initialSkillId;
   final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
   const _SkillsExplorer({
     required this.entries,
     required this.categories,
+    required this.initialPosition,
+    required this.initialSkillId,
     required this.onOpenTechnique,
   });
 
@@ -470,7 +636,9 @@ class _SkillsExplorerState extends State<_SkillsExplorer> {
         _mode == _ExplorerMode.position
             ? _positionMatrixNodes(widget.entries)
             : _categoryMatrixNodes(widget.categories);
-    final selectedNode = _selectedMatrixNode(nodes, _selectedNodeKey);
+    final selectedKey =
+        _selectedNodeKey ?? _initialMatrixNodeKey(nodes, widget);
+    final selectedNode = _selectedMatrixNode(nodes, selectedKey);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -494,6 +662,7 @@ class _SkillsExplorerState extends State<_SkillsExplorer> {
                     mode: _mode,
                     nodes: nodes,
                     selectedNode: selectedNode,
+                    selectedSkillId: widget.initialSkillId,
                     onSelectNode:
                         (node) => setState(() => _selectedNodeKey = node.key),
                     onOpenTechnique: widget.onOpenTechnique,
@@ -508,6 +677,7 @@ class _SkillsMatrixExplorer extends StatelessWidget {
   final _ExplorerMode mode;
   final List<_SkillsMatrixNode> nodes;
   final _SkillsMatrixNode? selectedNode;
+  final String? selectedSkillId;
   final ValueChanged<_SkillsMatrixNode> onSelectNode;
   final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
@@ -516,6 +686,7 @@ class _SkillsMatrixExplorer extends StatelessWidget {
     required this.mode,
     required this.nodes,
     required this.selectedNode,
+    required this.selectedSkillId,
     required this.onSelectNode,
     required this.onOpenTechnique,
   });
@@ -537,7 +708,9 @@ class _SkillsMatrixExplorer extends StatelessWidget {
           _SkillsMatrixHint(mode: mode)
         else
           _SkillsMatrixDetailPanel(
+            mode: mode,
             node: selected,
+            selectedSkillId: selectedSkillId,
             onOpenTechnique: onOpenTechnique,
           ),
       ],
@@ -762,11 +935,15 @@ class _SkillsMatrixHint extends StatelessWidget {
 }
 
 class _SkillsMatrixDetailPanel extends StatelessWidget {
+  final _ExplorerMode mode;
   final _SkillsMatrixNode node;
+  final String? selectedSkillId;
   final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
   const _SkillsMatrixDetailPanel({
+    required this.mode,
     required this.node,
+    required this.selectedSkillId,
     required this.onOpenTechnique,
   });
 
@@ -774,12 +951,13 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final techniques = node.techniques;
     final totalTechniques = techniques.length;
-    final totalSessions = techniques.fold<int>(0, (sum, t) => sum + t.count);
+    final totalSessions = node.evidenceCount;
     final lastTrained =
         techniques.isNotEmpty
             ? techniques.map((t) => t.lastRegisteredLabel).first
             : 'Sem registros';
     final topTechnique = techniques.isNotEmpty ? techniques.first.name : '—';
+    final selectedTechnique = _techniqueForSkillId(techniques, selectedSkillId);
 
     return TitansCard(
       accent: TitansUI.actionGold,
@@ -789,6 +967,24 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _PositionDetailHeader(node: node),
+          const SizedBox(height: 4),
+          Text(
+            node.scopeLabel,
+            style: TextStyle(
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.58),
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          if (selectedTechnique != null) ...[
+            const SizedBox(height: 8),
+            _CanonicalTechniqueSelection(
+              technique: selectedTechnique,
+              onOpenTechnique: onOpenTechnique,
+            ),
+          ],
           const SizedBox(height: 10),
           _PositionSummaryMetrics(
             totalTechniques: totalTechniques,
@@ -803,9 +999,9 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
               onOpenTechnique: onOpenTechnique,
             ),
           ],
-          if (_hasDistributionData(techniques)) ...[
+          if (_hasDistributionData(techniques, mode)) ...[
             const SizedBox(height: 10),
-            _TechniqueDistribution(techniques: techniques),
+            _TechniqueDistribution(mode: mode, techniques: techniques),
           ],
           if (techniques.length > 4) ...[
             const SizedBox(height: 10),
@@ -821,9 +1017,14 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
     );
   }
 
-  bool _hasDistributionData(List<_SkillsMatrixTechnique> techniques) {
-    final categories = techniques.map((t) => t.detail).toSet();
-    return categories.length > 1;
+  bool _hasDistributionData(
+    List<_SkillsMatrixTechnique> techniques,
+    _ExplorerMode mode,
+  ) {
+    final dimensions = techniques.map(
+      (technique) => technique.distributionLabel(mode),
+    );
+    return dimensions.toSet().length > 1;
   }
 
   void _openAllTechniques(
@@ -837,10 +1038,53 @@ class _SkillsMatrixDetailPanel extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder:
           (context) => _AllTechniquesBottomSheet(
+            mode: mode,
             techniques: techniques,
             positionTitle: node.title,
             onOpenTechnique: onOpenTechnique,
           ),
+    );
+  }
+}
+
+class _CanonicalTechniqueSelection extends StatelessWidget {
+  final _SkillsMatrixTechnique technique;
+  final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
+
+  const _CanonicalTechniqueSelection({
+    required this.technique,
+    required this.onOpenTechnique,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Container(
+      key: ValueKey('skills-canonical-${technique.target.skillId}'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: cs.primary.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: cs.primary.withValues(alpha: 0.20)),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.link_rounded, size: 16, color: cs.primary),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'Seleção preservada: ${technique.name}',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800),
+            ),
+          ),
+          TextButton(
+            onPressed: () => onOpenTechnique(technique.target),
+            child: const Text('Abrir'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -942,7 +1186,7 @@ class _PositionSummaryMetrics extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: _MiniMetricBox(
-            label: 'SESSÕES',
+            label: 'SESSÕES ÚNICAS',
             value: totalSessions.toString(),
             color: TitansUI.technicalBlue,
           ),
@@ -1214,22 +1458,23 @@ class _TopTechniqueRow extends StatelessWidget {
 }
 
 class _TechniqueDistribution extends StatelessWidget {
+  final _ExplorerMode mode;
   final List<_SkillsMatrixTechnique> techniques;
 
-  const _TechniqueDistribution({required this.techniques});
+  const _TechniqueDistribution({required this.mode, required this.techniques});
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
 
-    final categoryCounts = <String, int>{};
-    for (final t in techniques) {
-      final cat = t.detail.isNotEmpty ? t.detail : 'Sem categoria';
-      categoryCounts[cat] = (categoryCounts[cat] ?? 0) + t.count;
+    final dimensionCounts = <String, int>{};
+    for (final technique in techniques) {
+      final label = technique.distributionLabel(mode);
+      dimensionCounts[label] = (dimensionCounts[label] ?? 0) + technique.count;
     }
 
     final sortedEntries =
-        categoryCounts.entries.toList()
+        dimensionCounts.entries.toList()
           ..sort((a, b) => b.value.compareTo(a.value));
 
     final maxCount = sortedEntries.isNotEmpty ? sortedEntries.first.value : 1;
@@ -1239,7 +1484,9 @@ class _TechniqueDistribution extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Distribuição por categoria',
+          mode == _ExplorerMode.position
+              ? 'Distribuição por categoria'
+              : 'Distribuição por posição',
           style: TextStyle(
             color: cs.onSurface.withValues(alpha: 0.5),
             fontSize: 9,
@@ -1260,6 +1507,7 @@ class _TechniqueDistribution extends StatelessWidget {
                   flex: 3,
                   child: Text(
                     entry.key,
+                    key: ValueKey('skills-distribution-${entry.key}'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -1346,11 +1594,13 @@ class _ViewAllTechniquesCta extends StatelessWidget {
 }
 
 class _AllTechniquesBottomSheet extends StatelessWidget {
+  final _ExplorerMode mode;
   final List<_SkillsMatrixTechnique> techniques;
   final String positionTitle;
   final ValueChanged<_SkillNavigationTarget> onOpenTechnique;
 
   const _AllTechniquesBottomSheet({
+    required this.mode,
     required this.techniques,
     required this.positionTitle,
     required this.onOpenTechnique,
@@ -1421,7 +1671,7 @@ class _AllTechniquesBottomSheet extends StatelessWidget {
                     rank: index + 1,
                     name: technique.name,
                     count: technique.count,
-                    detail: technique.detail,
+                    detail: technique.secondaryLabel(mode),
                     lastRegistered: technique.lastRegisteredLabel,
                     maxCount: maxCount,
                     onTap: () {
@@ -1599,6 +1849,7 @@ class _SkillsMatrixNode {
   final List<String> preview;
   final int evidenceCount;
   final String evidenceLabel;
+  final String scopeLabel;
   final List<_SkillsMatrixTechnique> techniques;
 
   const _SkillsMatrixNode({
@@ -1612,6 +1863,7 @@ class _SkillsMatrixNode {
     required this.preview,
     required this.evidenceCount,
     required this.evidenceLabel,
+    required this.scopeLabel,
     required this.techniques,
   });
 }
@@ -1619,19 +1871,34 @@ class _SkillsMatrixNode {
 class _SkillsMatrixTechnique {
   final String name;
   final int count;
-  final String detail;
+  final String categoryLabel;
+  final String? positionLabel;
+  final DateTime lastRegisteredAt;
   final String evidenceLabel;
-  final String lastRegisteredLabel;
   final _SkillNavigationTarget target;
 
   const _SkillsMatrixTechnique({
     required this.name,
     required this.count,
-    required this.detail,
+    required this.categoryLabel,
+    required this.positionLabel,
+    required this.lastRegisteredAt,
     required this.evidenceLabel,
-    required this.lastRegisteredLabel,
     required this.target,
   });
+
+  String get lastRegisteredLabel =>
+      'Último registro ${_formatShortDate(lastRegisteredAt)}';
+
+  String distributionLabel(_ExplorerMode mode) {
+    if (mode == _ExplorerMode.position) return categoryLabel;
+    return positionLabel ?? 'Posição não informada';
+  }
+
+  String secondaryLabel(_ExplorerMode mode) {
+    if (mode == _ExplorerMode.position) return categoryLabel;
+    return positionLabel ?? 'Posição não informada';
+  }
 }
 
 List<_SkillsMatrixNode> _positionMatrixNodes(List<GameMapEntry> entries) {
@@ -1653,17 +1920,22 @@ List<_SkillsMatrixNode> _positionMatrixNodes(List<GameMapEntry> entries) {
         evidenceLabel: TrainingAggregator.sessionCountLabel(
           entry.sessionsCount,
         ),
+        scopeLabel: 'Últimas 20 sessões concluídas · sessões únicas',
         techniques: [
           for (final technique in entry.techniques)
             _SkillsMatrixTechnique(
               name: technique.technique,
               count: technique.sessionsCount,
-              detail: _formatShortDate(technique.lastTrainedAt),
+              categoryLabel:
+                  JiuJitsuTaxonomy.categoryFor(
+                    position: entry.position,
+                    technique: technique.technique,
+                  ).displayLabel,
+              positionLabel: entry.position,
+              lastRegisteredAt: technique.lastTrainedAt,
               evidenceLabel: TrainingAggregator.sessionCountLabel(
                 technique.sessionsCount,
               ),
-              lastRegisteredLabel:
-                  'Último registro ${_formatShortDate(technique.lastTrainedAt)}',
               target: _SkillNavigationTarget.fromGameMap(
                 technique: technique,
                 position: entry.position,
@@ -1696,17 +1968,18 @@ List<_SkillsMatrixNode> _categoryMatrixNodes(
         evidenceLabel: TrainingAggregator.sessionCountLabel(
           category.sessionsCount,
         ),
+        scopeLabel: 'Últimas 50 sessões concluídas · sessões únicas',
         techniques: [
           for (final technique in category.techniques)
             _SkillsMatrixTechnique(
               name: technique.technique,
               count: technique.sessionsCount,
-              detail: technique.position ?? 'Posicao nao informada',
+              categoryLabel: category.category.displayLabel,
+              positionLabel: technique.position,
+              lastRegisteredAt: technique.lastTrainedAt,
               evidenceLabel: TrainingAggregator.sessionCountLabel(
                 technique.sessionsCount,
               ),
-              lastRegisteredLabel:
-                  'Último registro ${_formatShortDate(technique.lastTrainedAt)}',
               target: _SkillNavigationTarget.fromSkillMatrix(technique),
             ),
         ],
@@ -1721,6 +1994,41 @@ _SkillsMatrixNode? _selectedMatrixNode(
   if (selectedKey == null) return null;
   for (final node in nodes) {
     if (node.key == selectedKey) return node;
+  }
+  return null;
+}
+
+String? _initialMatrixNodeKey(
+  List<_SkillsMatrixNode> nodes,
+  _SkillsExplorer explorer,
+) {
+  final initialPosition = explorer.initialPosition?.trim();
+  if (initialPosition != null && initialPosition.isNotEmpty) {
+    final normalizedPosition = JiuJitsuTaxonomy.normalizedKey(initialPosition);
+    for (final node in nodes) {
+      if (JiuJitsuTaxonomy.normalizedKey(node.title) == normalizedPosition) {
+        return node.key;
+      }
+    }
+  }
+
+  final initialSkillId = explorer.initialSkillId?.trim();
+  if (initialSkillId == null || initialSkillId.isEmpty) return null;
+  for (final node in nodes) {
+    if (_techniqueForSkillId(node.techniques, initialSkillId) != null) {
+      return node.key;
+    }
+  }
+  return null;
+}
+
+_SkillsMatrixTechnique? _techniqueForSkillId(
+  List<_SkillsMatrixTechnique> techniques,
+  String? skillId,
+) {
+  if (skillId == null || skillId.isEmpty) return null;
+  for (final technique in techniques) {
+    if (technique.target.skillId == skillId) return technique;
   }
   return null;
 }
@@ -1968,13 +2276,4 @@ String _formatShortDate(DateTime date) {
   final day = date.day.toString().padLeft(2, '0');
   final month = date.month.toString().padLeft(2, '0');
   return '$day/$month';
-}
-
-String _explorerSectionSummary(List<GameMapEntry> entries) {
-  final techniquesCount = entries.fold<int>(
-    0,
-    (sum, entry) => sum + entry.techniques.length,
-  );
-  if (entries.isEmpty) return 'Nenhuma posição mapeada ainda.';
-  return '${TrainingAggregator.techniqueCountLabel(techniquesCount)} em ${entries.length} posições.';
 }

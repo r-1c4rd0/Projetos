@@ -247,7 +247,12 @@ class _HomeRadarSignalChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
+    final maxChipWidth =
+        (MediaQuery.sizeOf(context).width - 86)
+            .clamp(0.0, double.infinity)
+            .toDouble();
     return Container(
+      constraints: BoxConstraints(maxWidth: maxChipWidth),
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
@@ -259,10 +264,7 @@ class _HomeRadarSignalChip extends StatelessWidget {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 6),
-          ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.sizeOf(context).width - 96,
-            ),
+          Flexible(
             child: Text(
               label,
               maxLines: 1,

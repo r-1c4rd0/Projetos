@@ -167,6 +167,7 @@ class DashboardInsightBadge extends StatelessWidget {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 160),
       curve: Curves.easeOutCubic,
+      constraints: BoxConstraints(maxWidth: maxBadgeWidth),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(999),
@@ -178,8 +179,7 @@ class DashboardInsightBadge extends StatelessWidget {
         children: [
           Icon(icon, size: 10, color: resolvedColor),
           const SizedBox(width: 7),
-          ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: maxBadgeWidth),
+          Flexible(
             child: Text(
               label,
               maxLines: 1,

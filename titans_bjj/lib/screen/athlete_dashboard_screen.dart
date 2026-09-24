@@ -23,25 +23,12 @@ import '../repository/user_repository.dart';
 import '../service/target_resolver.dart';
 import '../service/training_aggregator.dart';
 import '../service/user_session.dart';
-import '../widgets/athlete_dashboard/athlete_account_menu.dart';
-import '../widgets/athlete_dashboard/athlete_cockpit_hero.dart';
-import '../widgets/athlete_dashboard/athlete_identity_cards.dart';
-import '../widgets/athlete_dashboard/athlete_self_home_sections.dart';
-import '../widgets/athlete_dashboard/coach_lite_modules.dart';
-import '../widgets/athlete_dashboard/coach_summary_cards.dart';
+import '../widgets/athlete_dashboard/athlete_dashboard_content.dart';
 import '../widgets/athlete_dashboard/dashboard_formatters.dart';
-import '../widgets/athlete_dashboard/dashboard_metrics_cards.dart';
-import '../widgets/athlete_dashboard/dashboard_primary_action_card.dart';
-import '../widgets/athlete_dashboard/dashboard_quick_actions_card.dart';
 import '../widgets/athlete_dashboard/dashboard_states.dart';
-import '../widgets/athlete_dashboard/game_map_lite_card.dart';
-import '../widgets/athlete_dashboard/home_intelligence_deck.dart';
 import '../widgets/athlete_dashboard/home_view_models.dart';
-import '../widgets/athlete_dashboard/next_training_card.dart';
-import '../widgets/athlete_dashboard/nutrition_dashboard_card.dart';
-import '../widgets/athlete_dashboard/recent_activity_timeline_card.dart';
-import '../widgets/athlete_dashboard/recommended_focus_card.dart';
-import '../widgets/athlete_dashboard/skill_matrix_summary_card.dart';
+import '../widgets/athlete_dashboard/recent_activity_timeline_card.dart'
+    show HomeTechniqueNavigationTarget;
 import '../widgets/quick_log_sheet.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
@@ -51,7 +38,6 @@ import 'add_training_session_screen.dart';
 import 'athlete_registration_screen.dart';
 import 'game_map_screen.dart';
 import 'nutrition_screen.dart';
-import 'progress_screen.dart';
 import 'skill_detail_screen.dart';
 import 'skills_screen.dart';
 import 'training_screen.dart';
@@ -519,20 +505,6 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
-                      void openProgress() {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (_) => ProgressScreen(
-                                  titleOverride: 'Progresso',
-                                  targetMode: widget.targetMode,
-                                  explicitTarget: target,
-                                  loggedUser: actor,
-                                ),
-                          ),
-                        );
-                      }
-
                       void openGameMap() {
                         Navigator.of(context).push(
                           MaterialPageRoute(
@@ -561,461 +533,106 @@ class _AthleteDashboardScreenState extends State<AthleteDashboardScreen> {
                         );
                       }
 
-                      if (coachHomeState == _CoachStudentHomeState.empty) {
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            final content = SingleChildScrollView(
-                              padding:
-                                  widget.embedded
-                                      ? TitansUI.listPadding(
-                                        context,
-                                        extra: TitansUI.spaceMd,
-                                      )
-                                      : TitansUI.listPadding(
-                                        context,
-                                        extra: 96,
-                                      ),
-                              child: ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  minHeight: constraints.maxHeight,
-                                ),
-                                child: CoachStudentEmptyCard(
-                                  cs: cs,
-                                  studentName: headerName,
-                                  onRegisterTraining: openRegisterTraining,
-                                ),
-                              ),
-                            );
-                            return widget.embedded
-                                ? content
-                                : SafeArea(bottom: false, child: content);
-                          },
+                      final contentMode =
+                          coachHomeState == _CoachStudentHomeState.empty
+                              ? AthleteDashboardContentMode.coachEmpty
+                              : coachHomeState ==
+                                  _CoachStudentHomeState.foundation
+                              ? AthleteDashboardContentMode.coachFoundation
+                              : isStaffViewingStudent
+                              ? AthleteDashboardContentMode.coachActive
+                              : isAthleteSelfView
+                              ? AthleteDashboardContentMode.athleteSelf
+                              : AthleteDashboardContentMode.standard;
+
+                      if (contentMode !=
+                              AthleteDashboardContentMode.athleteSelf &&
+                          contentMode !=
+                              AthleteDashboardContentMode.coachEmpty) {
+                        debugPrint(
+                          '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
+                          'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
+                          'actor.role=${actor?.role} target.uid=$uid '
+                          'target.academyId=$academyId',
                         );
                       }
-                      return LayoutBuilder(
-                        builder: (context, constraints) {
-                          final content = SingleChildScrollView(
-                            padding:
-                                widget.embedded
-                                    ? TitansUI.listPadding(
-                                      context,
-                                      extra: TitansUI.spaceMd,
-                                    )
-                                    : TitansUI.listPadding(context, extra: 96),
-                            child: ConstrainedBox(
-                              constraints: BoxConstraints(
-                                minHeight: constraints.maxHeight,
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (isAthleteSelfView) ...[
-                                    AthleteMinimalHeader(
-                                      onChangeTheme:
-                                          () => showTitansThemePicker(context),
-                                      onSignOut:
-                                          () => FirebaseAuth.instance.signOut(),
-                                    ),
-                                    const SizedBox(height: 12),
-                                    AthleteHomeCockpitHero(
-                                      cs: cs,
-                                      focus: recommendedFocus,
-                                      nextTraining: nextTraining,
-                                      lastSession:
-                                          lastSessions.isEmpty
-                                              ? null
-                                              : lastSessions.first,
-                                      pendingConfirmation: pendingConfirmation,
-                                      confirmingPending:
-                                          pendingConfirmation != null &&
-                                          _trainingLifecycleSavingIds.contains(
-                                            '$academyId|$uid|${pendingConfirmation.id}',
-                                          ),
-                                      onConfirmPending:
-                                          pendingConfirmation == null
-                                              ? null
-                                              : () => confirmPendingTraining(
-                                                pendingConfirmation,
-                                              ),
-                                      onRegisterTraining: openQuickLog,
-                                      onOpenFullTraining: openRegisterTraining,
-                                      onOpenTrainingHistory: openTraining,
-                                    ),
-                                    const SizedBox(height: 12),
-                                    AthleteMinimalIdentityCard(
-                                      cs: cs,
-                                      name: headerName,
-                                      email: headerEmail,
-                                      uid: uid,
-                                      belt: beltProgress.belt,
-                                      degree: beltProgress.degree,
-                                      maxDegree: beltProgress.maxDegree,
-                                      percentToNext:
-                                          beltProgress.percentToNextBelt,
-                                      sessionsInBelt:
-                                          beltProgress.sessionsInBelt,
-                                      sessionsRequired:
-                                          beltProgress.sessionsRequired,
-                                      hasOfficialRule:
-                                          beltProgress.hasOfficialRule,
-                                    ),
-                                  ] else ...[
-                                    if (isSelfProfile) ...[
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: AthleteHomeAccountMenu(
-                                          onChangeTheme:
-                                              () => showTitansThemePicker(
-                                                context,
-                                              ),
-                                          onSignOut:
-                                              () =>
-                                                  FirebaseAuth.instance
-                                                      .signOut(),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                    LayoutBuilder(
-                                      builder: (context, _) {
-                                        debugPrint(
-                                          '[DASHBOARD_EDIT] showEditProfile=$canEditTarget '
-                                          'canEditTarget=$canEditTarget actor.uid=${actor?.uid} '
-                                          'actor.role=${actor?.role} target.uid=$uid '
-                                          'target.academyId=$academyId',
-                                        );
-                                        final athleteCard = AthleteCard(
-                                          name: headerName,
-                                          email: headerEmail,
-                                          uid: uid,
-                                          belt: beltProgress.belt,
-                                          degree: beltProgress.degree,
-                                          maxDegree: beltProgress.maxDegree,
-                                          percentToNext:
-                                              beltProgress.percentToNextBelt,
-                                          sessionsInBelt:
-                                              beltProgress.sessionsInBelt,
-                                          sessionsRequired:
-                                              beltProgress.sessionsRequired,
-                                          hasOfficialRule:
-                                              beltProgress.hasOfficialRule,
-                                          onEditProfile:
-                                              canEditTarget
-                                                  ? () {
-                                                    debugPrint(
-                                                      '[DASHBOARD_EDIT_CLICK] clicked=true '
-                                                      'athleteUid=$uid academyId=$academyId',
-                                                    );
-                                                    Navigator.of(context).push(
-                                                      MaterialPageRoute(
-                                                        builder:
-                                                            (
-                                                              _,
-                                                            ) => AthleteRegistrationScreen(
-                                                              academyId:
-                                                                  academyId,
-                                                              athleteUid: uid,
-                                                              mode:
-                                                                  isSelfProfile
-                                                                      ? AthleteRegistrationMode
-                                                                          .editSelf
-                                                                      : AthleteRegistrationMode
-                                                                          .editStudent,
-                                                            ),
-                                                      ),
-                                                    );
-                                                  }
-                                                  : null,
-                                          onEditGraduation:
-                                              canEditTarget
-                                                  ? () => _showGraduationDialog(
-                                                    academyId: academyId,
-                                                    uid: uid,
-                                                    athlete: athlete,
-                                                    rules: rules,
-                                                  )
-                                                  : null,
-                                        );
 
-                                        return athleteCard;
-                                      },
-                                    ),
-                                  ],
-                                  const SizedBox(height: 12),
-                                  if (coachHomeState ==
-                                      _CoachStudentHomeState.foundation) ...[
-                                    CoachStudentFoundationCard(
-                                      cs: cs,
-                                      studentName: headerName,
-                                      belt: beltProgress.belt,
-                                      degree: beltProgress.degree,
-                                      metrics: metrics,
-                                      lastSession:
-                                          lastSessions.isEmpty
-                                              ? null
-                                              : lastSessions.first,
-                                      onRegisterTraining: openRegisterTraining,
-                                    ),
-                                    if (recommendedFocus.hasRecommendation ||
-                                        nextTraining.hasRecommendation) ...[
-                                      const SizedBox(height: 12),
-                                      CoachTechnicalFocusCard(
-                                        cs: cs,
-                                        focus: recommendedFocus,
-                                        nextTraining: nextTraining,
-                                        compact: true,
-                                        onOpenEvidence: openTraining,
-                                        onOpenSkills: openSkills,
-                                      ),
-                                    ],
-                                    const SizedBox(height: 12),
-                                    RecentActivityTimelineCard(
-                                      cs: cs,
-                                      items: lastSessions,
-                                      onOpenTraining: openTraining,
-                                      onRegisterTraining: openRegisterTraining,
-                                      onOpenTrainingSession:
-                                          openTrainingSession,
-                                      onOpenTechnique: openTechniqueDetail,
-                                    ),
-                                  ] else ...[
-                                    if (isStaffViewingStudent) ...[
-                                      CoachStudentActiveSummaryCard(
-                                        cs: cs,
-                                        studentName: headerName,
-                                        belt: beltProgress.belt,
-                                        degree: beltProgress.degree,
-                                        metrics: metrics,
-                                        frequency: frequency,
-                                        lastSession:
-                                            lastSessions.isEmpty
-                                                ? null
-                                                : lastSessions.first,
-                                        focus: recommendedFocus,
-                                        onOpenEvidence: openTraining,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      CoachTechnicalFocusCard(
-                                        cs: cs,
-                                        focus: recommendedFocus,
-                                        nextTraining: nextTraining,
-                                        compact: false,
-                                        onOpenEvidence: openTraining,
-                                        onOpenSkills: openSkills,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      HomeIntelligenceDeck(
-                                        cs: cs,
-                                        dashboard: homeViewModel,
-                                        radar: technicalRadar,
-                                        beltProgress: beltProgress,
-                                        onOpenMap: openGameMap,
-                                        onOpenTraining: openTraining,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      CoachActiveLiteModules(
-                                        cs: cs,
-                                        metrics: metrics,
-                                        frequency: frequency,
-                                        insights: debriefInsights,
-                                        skillMatrix: skillMatrix,
-                                        gameMap: gameMapLite,
-                                        profileStream: _nutritionProfileStream,
-                                        mealsStream: _nutritionMealsStream,
-                                        isNutritionFallback:
-                                            _nutritionFallbackToMock,
-                                        hasNutritionLoadError:
-                                            _nutritionLoadError != null,
-                                        onOpenSkills: openSkills,
-                                        onOpenGameMap: openGameMap,
-                                        onOpenNutrition: openNutrition,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      RecentActivityTimelineCard(
-                                        cs: cs,
-                                        items: lastSessions,
-                                        onOpenTraining: openTraining,
-                                        onRegisterTraining:
-                                            openRegisterTraining,
-                                        onOpenTrainingSession:
-                                            openTrainingSession,
-                                        onOpenTechnique: openTechniqueDetail,
-                                      ),
-                                    ] else ...[
-                                      if (isAthleteSelfView) ...[
-                                        AthleteHomeHistorySummaryCard(
-                                          cs: cs,
-                                          frequency: frequency,
-                                          metrics: metrics,
-                                          lastSession:
-                                              lastSessions.isEmpty
-                                                  ? null
-                                                  : lastSessions.first,
-                                          onOpenTraining: openTraining,
-                                          onOpenTrainingSession:
-                                              openTrainingSession,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        AthleteHomeDestinationsCard(
-                                          cs: cs,
-                                          onOpenTraining: openTraining,
-                                          onOpenProgress: openProgress,
-                                          onOpenGameMap: openGameMap,
-                                          onOpenSkills: openSkills,
-                                        ),
-                                        if (lastSessions.isNotEmpty) ...[
-                                          const SizedBox(height: 12),
-                                          AthleteHomeExpandableDetails(
-                                            child: HomeIntelligenceDeck(
-                                              cs: cs,
-                                              dashboard: homeViewModel,
-                                              radar: technicalRadar,
-                                              beltProgress: beltProgress,
-                                              onOpenMap: openGameMap,
-                                              onOpenTraining: openTraining,
-                                              onRegisterTraining:
-                                                  openRegisterTraining,
-                                            ),
-                                          ),
-                                        ],
-                                      ] else ...[
-                                        NextTrainingCard(
-                                          cs: cs,
-                                          recommendation: nextTraining,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        DashboardPrimaryActionCard(
-                                          cs: cs,
-                                          nextTraining: nextTraining,
-                                          pendingConfirmation:
-                                              pendingConfirmation,
-                                          confirmingPending:
-                                              pendingConfirmation != null &&
-                                              _trainingLifecycleSavingIds
-                                                  .contains(
-                                                    pendingConfirmation.id,
-                                                  ),
-                                          onConfirmPending:
-                                              pendingConfirmation == null
-                                                  ? null
-                                                  : () =>
-                                                      confirmPendingTraining(
-                                                        pendingConfirmation,
-                                                      ),
-                                          onRegisterTraining:
-                                              openRegisterTraining,
-                                          onOpenTraining: openTraining,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        RecommendedFocusCard(
-                                          cs: cs,
-                                          focus: recommendedFocus,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        DashboardQuickActionsCard(
-                                          cs: cs,
-                                          onOpenGameMap: openGameMap,
-                                          onOpenSkills: openSkills,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        HomeIntelligenceDeck(
-                                          cs: cs,
-                                          dashboard: homeViewModel,
-                                          radar: technicalRadar,
-                                          beltProgress: beltProgress,
-                                          onOpenMap: openGameMap,
-                                          onOpenTraining: openTraining,
-                                          onRegisterTraining:
-                                              openRegisterTraining,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        LayoutBuilder(
-                                          builder: (context, c) {
-                                            final isWide = c.maxWidth >= 980;
-                                            final left = StatsCard(
-                                              cs: cs,
-                                              frequency: frequency,
-                                              metrics: metrics,
-                                            );
-                                            final right = DebriefInsightsCard(
-                                              cs: cs,
-                                              insights: debriefInsights,
-                                            );
-
-                                            if (isWide) {
-                                              return Row(
-                                                crossAxisAlignment:
-                                                    CrossAxisAlignment.start,
-                                                children: [
-                                                  Expanded(
-                                                    flex: 4,
-                                                    child: left,
-                                                  ),
-                                                  const SizedBox(width: 12),
-                                                  Expanded(
-                                                    flex: 6,
-                                                    child: right,
-                                                  ),
-                                                ],
-                                              );
-                                            }
-
-                                            return Column(
-                                              children: [
-                                                left,
-                                                const SizedBox(height: 12),
-                                                right,
-                                              ],
-                                            );
-                                          },
-                                        ),
-                                        const SizedBox(height: 12),
-                                        NutritionDashboardLiteCard(
-                                          cs: cs,
-                                          profileStream:
-                                              _nutritionProfileStream,
-                                          mealsStream: _nutritionMealsStream,
-                                          isStudentView: isStaffViewingStudent,
-                                          isFallback: _nutritionFallbackToMock,
-                                          hasLoadError:
-                                              _nutritionLoadError != null,
-                                          hideWhenEmpty: isStaffViewingStudent,
-                                          onOpenNutrition: openNutrition,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        SkillMatrixSummaryCard(
-                                          cs: cs,
-                                          entries: skillMatrix,
-                                          onOpenSkillMatrix: openGameMap,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        GameMapLiteCard(
-                                          cs: cs,
-                                          entries: gameMapLite,
-                                          onOpenFullMap: openGameMap,
-                                        ),
-                                        const SizedBox(height: 12),
-                                        RecentActivityTimelineCard(
-                                          cs: cs,
-                                          items: lastSessions,
-                                          onOpenTraining: openTraining,
-                                          onRegisterTraining:
-                                              openRegisterTraining,
-                                          onOpenTrainingSession:
-                                              openTrainingSession,
-                                          onOpenTechnique: openTechniqueDetail,
-                                        ),
-                                      ],
-                                    ],
-                                  ],
-                                ],
-                              ),
+                      return AthleteDashboardContent(
+                        key: ValueKey(
+                          'athlete-dashboard-content-$academyId-$uid-'
+                          '${contentMode.name}',
+                        ),
+                        mode: contentMode,
+                        embedded: widget.embedded,
+                        isSelfProfile: isSelfProfile,
+                        canEditTarget: canEditTarget,
+                        athleteName: headerName,
+                        athleteEmail: headerEmail,
+                        athleteUid: uid,
+                        dashboard: homeViewModel,
+                        beltProgress: beltProgress,
+                        nutritionProfileStream: _nutritionProfileStream,
+                        nutritionMealsStream: _nutritionMealsStream,
+                        nutritionFallbackToMock: _nutritionFallbackToMock,
+                        hasNutritionLoadError: _nutritionLoadError != null,
+                        cockpitConfirmingPending:
+                            pendingConfirmation != null &&
+                            _trainingLifecycleSavingIds.contains(
+                              '$academyId|$uid|${pendingConfirmation.id}',
                             ),
-                          );
-                          return widget.embedded
-                              ? content
-                              : SafeArea(bottom: false, child: content);
-                        },
+                        primaryActionConfirmingPending:
+                            pendingConfirmation != null &&
+                            _trainingLifecycleSavingIds.contains(
+                              pendingConfirmation.id,
+                            ),
+                        onChangeTheme: () => showTitansThemePicker(context),
+                        onSignOut: () => FirebaseAuth.instance.signOut(),
+                        onEditProfile:
+                            canEditTarget
+                                ? () {
+                                  debugPrint(
+                                    '[DASHBOARD_EDIT_CLICK] clicked=true '
+                                    'athleteUid=$uid academyId=$academyId',
+                                  );
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder:
+                                          (_) => AthleteRegistrationScreen(
+                                            academyId: academyId,
+                                            athleteUid: uid,
+                                            mode:
+                                                isSelfProfile
+                                                    ? AthleteRegistrationMode
+                                                        .editSelf
+                                                    : AthleteRegistrationMode
+                                                        .editStudent,
+                                          ),
+                                    ),
+                                  );
+                                }
+                                : null,
+                        onEditGraduation:
+                            canEditTarget
+                                ? () => _showGraduationDialog(
+                                  academyId: academyId,
+                                  uid: uid,
+                                  athlete: athlete,
+                                  rules: rules,
+                                )
+                                : null,
+                        onConfirmPending:
+                            pendingConfirmation == null
+                                ? null
+                                : () =>
+                                    confirmPendingTraining(pendingConfirmation),
+                        onQuickLog: openQuickLog,
+                        onRegisterTraining: openRegisterTraining,
+                        onOpenTraining: openTraining,
+                        onOpenGameMap: openGameMap,
+                        onOpenSkills: openSkills,
+                        onOpenNutrition: openNutrition,
+                        onOpenTrainingSession: openTrainingSession,
+                        onOpenTechnique: openTechniqueDetail,
                       );
                     },
                   );

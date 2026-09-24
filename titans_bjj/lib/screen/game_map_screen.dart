@@ -4,18 +4,25 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../features/technical_domain/application/technical_domain_use_cases.dart';
+import '../features/technical_domain/domain/technical_context.dart';
+import '../features/technical_domain/presentation/game_map_explorer.dart';
+import '../features/technical_domain/presentation/game_map_explorer_model.dart';
+import '../features/technical_domain/presentation/technical_axis_palette.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../repository/training_repository.dart';
 import '../service/training_aggregator.dart';
+import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../widgets/charts/titans_technical_radar.dart';
+import '../widgets/game_map_screen_sections.dart';
 import '../widgets/titans_feedback.dart';
 import '../widgets/titans_scaffold.dart';
 
 import 'skills_screen.dart';
+import 'training_screen.dart';
 
 class GameMapScreen extends StatefulWidget {
   final String academyId;
@@ -24,6 +31,8 @@ class GameMapScreen extends StatefulWidget {
   final String? targetName;
   final AppUser? loggedUser;
   final bool embedded;
+  final Stream<List<TrainingSession>>? sessionsStream;
+  final Stream<List<CoachEvaluation>>? coachEvaluationsStream;
 
   const GameMapScreen({
     super.key,
@@ -33,6 +42,8 @@ class GameMapScreen extends StatefulWidget {
     this.targetName,
     this.loggedUser,
     this.embedded = false,
+    this.sessionsStream,
+    this.coachEvaluationsStream,
   });
 
   @override
@@ -98,8 +109,14 @@ class _GameMapScreenState extends State<GameMapScreen> {
   late final TrainingRepository _repository = TrainingRepository.instance;
   late final CoachEvaluationRepository _coachEvaluationRepository =
       CoachEvaluationRepository.instance;
-  late final Stream<List<TrainingSession>> _sessionsStream;
-  late final Stream<List<CoachEvaluation>> _coachEvaluationsStream;
+  Stream<List<TrainingSession>>? _sessionsStream;
+  Stream<List<CoachEvaluation>>? _coachEvaluationsStream;
+  String? _contextKey;
+  bool _hasAlignedAcademyContext = true;
+  final GlobalKey _explorerKey = GlobalKey();
+  TechnicalRadarAxis? _selectedRadarAxis;
+  GameMapExplorerSelection _explorerSelection =
+      const GameMapExplorerSelection();
   late final GetTechnicalRadarSummary _getTechnicalRadarSummary =
       const GetTechnicalRadarSummary();
   late final GetSkillMatrixSummary _getSkillMatrixSummary =
@@ -112,22 +129,103 @@ class _GameMapScreenState extends State<GameMapScreen> {
   @override
   void initState() {
     super.initState();
-    _sessionsStream = _repository.watchSessions(
-      academyId: widget.academyId,
-      uid: widget.uid,
-    );
-    _coachEvaluationsStream = _coachEvaluationRepository.watchEvaluations(
-      academyId: widget.academyId,
-      athleteUid: widget.uid,
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncContext();
+  }
+
+  @override
+  void didUpdateWidget(covariant GameMapScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncContext();
+  }
+
+  AppUser? get _actor => UserScope.maybeOf(context) ?? widget.loggedUser;
+
+  UserScope? get _userScope => UserScope.maybeScopeOf(context);
+
+  TechnicalScreenContext _resolveContext() {
+    final actor = _actor;
+    final scope = _userScope;
+    final activeAcademyId = scope?.activeAcademyId.trim();
+    final workspaceAcademyId =
+        activeAcademyId == null || activeAcademyId.isEmpty
+            ? widget.academyId.trim()
+            : activeAcademyId;
+    final membership = scope?.activeMembership;
+    final membershipState = [
+      scope?.membershipSnapshot.status.name ?? 'legacy',
+      membership?.academyId ?? '',
+      membership?.role.name ?? '',
+      membership?.isActive.toString() ?? '',
+    ].join(':');
+
+    return TechnicalScreenContext(
+      actorUid: actor?.uid.trim() ?? '',
+      actorRole: actor?.role.name ?? '',
+      targetUid: widget.uid.trim(),
+      targetAcademyId: widget.academyId.trim(),
+      workspaceKey: 'academy:$workspaceAcademyId',
+      membershipState: membershipState,
     );
   }
 
+  void _syncContext() {
+    final resolvedContext = _resolveContext();
+    if (_contextKey == resolvedContext.key) return;
+
+    final activeAcademyId = _userScope?.activeAcademyId.trim();
+    _hasAlignedAcademyContext =
+        activeAcademyId == null ||
+        activeAcademyId.isEmpty ||
+        activeAcademyId == widget.academyId.trim();
+    _contextKey = resolvedContext.key;
+    _selectedRadarAxis = null;
+    _explorerSelection = const GameMapExplorerSelection();
+
+    if (!_hasAlignedAcademyContext) {
+      _sessionsStream = null;
+      _coachEvaluationsStream = null;
+      return;
+    }
+
+    _sessionsStream =
+        widget.sessionsStream ??
+        _repository.watchSessions(academyId: widget.academyId, uid: widget.uid);
+    _coachEvaluationsStream =
+        widget.coachEvaluationsStream ??
+        _coachEvaluationRepository.watchEvaluations(
+          academyId: widget.academyId,
+          athleteUid: widget.uid,
+        );
+  }
+
+  bool get _canEditCoachEvaluation {
+    final scope = _userScope;
+    return CoachEvaluationAuthorization.canEvaluate(
+      actor: _actor,
+      targetUid: widget.uid,
+      targetAcademyId: widget.academyId,
+      activeAcademyId: scope?.activeAcademyId,
+      activeMembership: scope?.activeMembership,
+      membershipSnapshot: scope?.membershipSnapshot,
+    );
+  }
+
+  bool _isCurrentContext(String? operationContextKey) =>
+      mounted &&
+      operationContextKey != null &&
+      _contextKey == operationContextKey;
+
   Future<void> _openCoachEvaluationSheet({
-    required AppUser actor,
     required List<TechnicalEvidenceSummary> techniques,
     required List<CoachEvaluation> evaluations,
   }) async {
-    if (techniques.isEmpty) return;
+    if (techniques.isEmpty || !_canEditCoachEvaluation) return;
+    final operationContextKey = _contextKey;
 
     final draft = await _showGameMapSheet<_CoachEvaluationDraft>(
       context: context,
@@ -137,7 +235,14 @@ class _GameMapScreenState extends State<GameMapScreen> {
             evaluations: evaluations,
           ),
     );
-    if (!mounted || draft == null) return;
+    if (draft == null ||
+        !_isCurrentContext(operationContextKey) ||
+        !_canEditCoachEvaluation) {
+      return;
+    }
+
+    final actor = _actor;
+    if (actor == null) return;
 
     final evaluation = CoachEvaluation(
       skillId: draft.technique.skillId,
@@ -157,11 +262,13 @@ class _GameMapScreenState extends State<GameMapScreen> {
     try {
       await _coachEvaluationRepository.upsertEvaluation(evaluation);
       if (!mounted) return;
+      if (!_isCurrentContext(operationContextKey)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Avaliação humana registrada.')),
       );
     } catch (error) {
       if (!mounted) return;
+      if (!_isCurrentContext(operationContextKey)) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao registrar avaliação: $error')),
       );
@@ -171,11 +278,25 @@ class _GameMapScreenState extends State<GameMapScreen> {
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final actor = widget.loggedUser ?? UserScope.maybeOf(context);
-    final isStaffActor =
-        actor?.role == UserRole.admin || actor?.role == UserRole.professor;
-    final isViewingAnotherUser = actor != null && actor.uid != widget.uid;
-    final canEditCoachEvaluation = isStaffActor && isViewingAnotherUser;
+    final actor = _actor;
+    final canEditCoachEvaluation = _canEditCoachEvaluation;
+    final contextKey = _contextKey ?? _resolveContext().key;
+
+    if (!_hasAlignedAcademyContext) {
+      return _wrapModule(
+        appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
+        body: const GameMapContextChangedState(),
+      );
+    }
+
+    final sessionsStream = _sessionsStream;
+    final coachEvaluationsStream = _coachEvaluationsStream;
+    if (sessionsStream == null || coachEvaluationsStream == null) {
+      return _wrapModule(
+        appBar: AppBar(title: Text(widget.title ?? 'Game Map')),
+        body: const GameMapLoadingState(),
+      );
+    }
 
     return _wrapModule(
       appBar: AppBar(
@@ -185,16 +306,14 @@ class _GameMapScreenState extends State<GameMapScreen> {
         surfaceTintColor: Colors.transparent,
       ),
       body: StreamBuilder<List<TrainingSession>>(
-        stream: _sessionsStream,
+        key: ValueKey('game-map-sessions:$contextKey'),
+        stream: sessionsStream,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
-            return const TitansSkeletonCard(lines: 5);
+            return const GameMapLoadingState(skeleton: true);
           }
           if (snapshot.hasError) {
-            return TitansStateView.error(
-              title: 'Erro ao carregar Game Map',
-              message: snapshot.error.toString(),
-            );
+            return GameMapErrorState(error: snapshot.error!);
           }
 
           final sessions = snapshot.data ?? const <TrainingSession>[];
@@ -217,7 +336,8 @@ class _GameMapScreenState extends State<GameMapScreen> {
           final technicalEvidence = _getTechnicalEvidenceSummary(sessions);
 
           return StreamBuilder<List<CoachEvaluation>>(
-            stream: _coachEvaluationsStream,
+            key: ValueKey('game-map-evaluations:$contextKey'),
+            stream: coachEvaluationsStream,
             builder: (context, evaluationSnapshot) {
               final coachEvaluations =
                   evaluationSnapshot.data ?? const <CoachEvaluation>[];
@@ -230,37 +350,41 @@ class _GameMapScreenState extends State<GameMapScreen> {
                     radarSummary,
                     coachEvaluationCount: coachEvaluatedCount,
                   );
+              final explorerModel = GameMapExplorerModel.from(
+                sessions: sessions,
+                evaluations: coachEvaluations,
+              );
 
               return ListView(
+                key: ValueKey('game-map-content:$contextKey'),
                 padding:
                     widget.embedded
                         ? TitansUI.listPadding(context, extra: TitansUI.spaceMd)
                         : TitansUI.listPadding(context),
                 children: [
                   if (!widget.embedded) ...[
-                    _HeaderCard(colorScheme: cs, targetName: widget.targetName),
+                    GameMapHeaderCard(targetName: widget.targetName),
                     const SizedBox(height: 12),
                   ],
-                  TitansCard(
-                    accent: cs.tertiary,
-                    child: TitansTechnicalRadar(
-                      subtitle: technicalRadar.subtitle,
-                      stateLabel: technicalRadar.stateLabel,
-                      evidences: technicalRadar.evidences,
-                      axisEvidence: technicalRadar.axisEvidence,
-                      classifiedEvidenceCount:
-                          technicalRadar.classifiedEvidenceCount,
-                      awaitingClassificationCount:
-                          technicalRadar.awaitingClassificationCount,
-                      interactive: true,
-                      showMetrics: false,
-                      contained: false,
-                      enableHolographicMode: true,
-                      enablePerspectiveControls: true,
-                      initialPerspective: TitansRadarPerspective.live,
-                      enableSweep: true,
-                      enableHudDetails: true,
-                    ),
+                  GameMapRadarPanel(
+                    subtitle: technicalRadar.subtitle,
+                    stateLabel: technicalRadar.stateLabel,
+                    evidences: technicalRadar.evidences,
+                    axisEvidence: technicalRadar.axisEvidence,
+                    classifiedEvidenceCount:
+                        technicalRadar.classifiedEvidenceCount,
+                    awaitingClassificationCount:
+                        technicalRadar.awaitingClassificationCount,
+                    selectedAxis: _selectedRadarAxis,
+                    onAxisChanged: (axis) {
+                      if (_selectedRadarAxis == axis) return;
+                      setState(() {
+                        _selectedRadarAxis = axis;
+                        _explorerSelection = GameMapExplorerSelection(
+                          axis: axis,
+                        );
+                      });
+                    },
                   ),
                   const SizedBox(height: 12),
                   _GameMapClientReadingSection(
@@ -274,15 +398,53 @@ class _GameMapScreenState extends State<GameMapScreen> {
                     coachEvaluations: coachEvaluations,
                     canEditCoachEvaluation: canEditCoachEvaluation,
                     actor: actor,
+                    selectedAxis: _selectedRadarAxis,
+                    onExploreGame: _scrollToExplorer,
                     onOpenCoachEvaluationSheet:
-                        actor == null
+                        !canEditCoachEvaluation
                             ? null
                             : () => _openCoachEvaluationSheet(
-                              actor: actor,
                               techniques: technicalEvidence,
                               evaluations: coachEvaluations,
                             ),
-                    onOpenSkills: () => _openSkillsScreen(actor),
+                    onOpenSkills:
+                        () => _openSkillsScreen(
+                          actor,
+                          selection: _explorerSelection,
+                        ),
+                  ),
+                  const SizedBox(height: 12),
+                  GameMapExplorer(
+                    key: _explorerKey,
+                    model: explorerModel,
+                    contextKey: contextKey,
+                    initialAxis: _selectedRadarAxis,
+                    canEditEvaluation: canEditCoachEvaluation,
+                    onSelectionChanged: (selection) {
+                      setState(() {
+                        _explorerSelection = selection;
+                        _selectedRadarAxis = selection.axis;
+                      });
+                    },
+                    onOpenRecord:
+                        (record) => _openTrainingRecord(record, actor),
+                    onEditEvaluation:
+                        !canEditCoachEvaluation
+                            ? null
+                            : (technique) {
+                              final evidence =
+                                  technicalEvidence
+                                      .where(
+                                        (item) =>
+                                            item.skillId == technique.skillId,
+                                      )
+                                      .toList();
+                              if (evidence.isEmpty) return;
+                              _openCoachEvaluationSheet(
+                                techniques: evidence,
+                                evaluations: coachEvaluations,
+                              );
+                            },
                   ),
                 ],
               );
@@ -293,7 +455,43 @@ class _GameMapScreenState extends State<GameMapScreen> {
     );
   }
 
-  void _openSkillsScreen(AppUser? actor) {
+  void _scrollToExplorer() {
+    final explorerContext = _explorerKey.currentContext;
+    if (explorerContext == null) return;
+    Scrollable.ensureVisible(
+      explorerContext,
+      duration: const Duration(milliseconds: 260),
+      curve: Curves.easeOutCubic,
+      alignment: 0.04,
+    );
+  }
+
+  void _openTrainingRecord(GameMapExplorerRecord record, AppUser? actor) {
+    if (!record.canOpen || actor == null) return;
+    final isSelf = actor.uid.trim() == widget.uid.trim();
+    if (!isSelf && !_canEditCoachEvaluation) return;
+
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => TrainingScreen(
+              titleOverride: isSelf ? 'Treinos' : 'Treinos do aluno',
+              targetMode: isSelf ? TargetMode.self : TargetMode.selectedStudent,
+              explicitTarget: TargetProfile(
+                uid: widget.uid,
+                academyId: widget.academyId,
+              ),
+              loggedUser: actor,
+              focusSessionId: record.sessionId,
+            ),
+      ),
+    );
+  }
+
+  void _openSkillsScreen(
+    AppUser? actor, {
+    GameMapExplorerSelection selection = const GameMapExplorerSelection(),
+  }) {
     Navigator.of(context).push(
       MaterialPageRoute(
         builder:
@@ -303,6 +501,11 @@ class _GameMapScreenState extends State<GameMapScreen> {
               title: 'Skills',
               targetName: widget.targetName,
               loggedUser: actor,
+              initialPosition: selection.position?.label,
+              initialSkillId:
+                  selection.technique?.hasCanonicalIdentity == true
+                      ? selection.technique?.skillId
+                      : null,
             ),
       ),
     );
@@ -334,6 +537,8 @@ class _GameMapClientReadingSection extends StatelessWidget {
   final List<CoachEvaluation> coachEvaluations;
   final bool canEditCoachEvaluation;
   final AppUser? actor;
+  final TechnicalRadarAxis? selectedAxis;
+  final VoidCallback onExploreGame;
   final VoidCallback? onOpenCoachEvaluationSheet;
   final VoidCallback onOpenSkills;
 
@@ -348,6 +553,8 @@ class _GameMapClientReadingSection extends StatelessWidget {
     required this.coachEvaluations,
     required this.canEditCoachEvaluation,
     required this.actor,
+    required this.selectedAxis,
+    required this.onExploreGame,
     required this.onOpenCoachEvaluationSheet,
     required this.onOpenSkills,
   });
@@ -409,8 +616,9 @@ class _GameMapClientReadingSection extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           // Mini boxes row
-          _ClientReadingMiniBoxes(
-            stats: stats,
+          GameMapIndicatorRail(
+            positionsCount: stats.positions,
+            techniquesCount: stats.techniques,
             topAxisLabel: topAxisLabel,
             needsReviewCount: needsReviewCount,
             coachEvaluationsCount: coachEvaluations.length,
@@ -434,6 +642,8 @@ class _GameMapClientReadingSection extends StatelessWidget {
             positionAxisMatrix: positionAxisMatrix,
             evidenceDistribution: evidenceDistribution,
             coachEvaluations: coachEvaluations,
+            selectedAxis: selectedAxis,
+            onExploreGame: onExploreGame,
           ),
         ],
       ),
@@ -509,134 +719,6 @@ class _GameMapClientReadingSection extends StatelessWidget {
   }
 }
 
-class _ClientReadingMiniBoxes extends StatelessWidget {
-  final _GameMapStats stats;
-  final String topAxisLabel;
-  final int needsReviewCount;
-  final int coachEvaluationsCount;
-
-  const _ClientReadingMiniBoxes({
-    required this.stats,
-    required this.topAxisLabel,
-    required this.needsReviewCount,
-    required this.coachEvaluationsCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Row(
-      children: [
-        Expanded(
-          child: _MiniBox(
-            label: 'Posições',
-            value: stats.positions.toString(),
-            icon: Icons.place_outlined,
-            color: cs.primary,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MiniBox(
-            label: 'Técnicas',
-            value: stats.techniques.toString(),
-            icon: Icons.sports_mma_outlined,
-            color: TitansUI.successGreen,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MiniBox(
-            label: 'Eixo principal',
-            value: topAxisLabel,
-            icon: Icons.radar_outlined,
-            color: TitansUI.actionGold,
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: _MiniBox(
-            label:
-                coachEvaluationsCount > 0 ? 'Observações' : 'Sem observações',
-            value:
-                needsReviewCount > 0
-                    ? '$needsReviewCount p/ revisar'
-                    : 'Em dia',
-            icon: Icons.rate_review_outlined,
-            color:
-                needsReviewCount > 0
-                    ? TitansUI.alertRed
-                    : TitansUI.successGreen,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _MiniBox extends StatelessWidget {
-  final String label;
-  final String value;
-  final IconData icon;
-  final Color color;
-
-  const _MiniBox({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.18)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: 14, color: color),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.58),
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: color,
-              fontSize: 16,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ClientReadingMiniCharts extends StatelessWidget {
   final List<_AxisBarData> axisBarsData;
   final List<_TopPositionItem> topPositions;
@@ -657,7 +739,7 @@ class _ClientReadingMiniCharts extends StatelessWidget {
       children: [
         // Axis bars
         Text(
-          'Registros por eixo',
+          'Evidências por eixo',
           style: TextStyle(
             color: cs.onSurface.withValues(alpha: 0.58),
             fontSize: 11,
@@ -938,6 +1020,8 @@ class _ClientReadingActions extends StatelessWidget {
   final _PositionAxisMatrixViewModel positionAxisMatrix;
   final _EvidenceDistributionViewModel evidenceDistribution;
   final List<CoachEvaluation> coachEvaluations;
+  final TechnicalRadarAxis? selectedAxis;
+  final VoidCallback onExploreGame;
 
   const _ClientReadingActions({
     required this.visualMap,
@@ -949,53 +1033,31 @@ class _ClientReadingActions extends StatelessWidget {
     required this.positionAxisMatrix,
     required this.evidenceDistribution,
     required this.coachEvaluations,
+    required this.selectedAxis,
+    required this.onExploreGame,
   });
 
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    final actions = <Widget>[];
-
-    // Explorar mapa
-    if (visualMap.nodes.isNotEmpty) {
-      actions.add(
-        _ActionChip(
-          label: 'Explorar mapa',
-          icon: Icons.account_tree_outlined,
-          color: cs.primary,
-          onTap: () => _showVisualMapBottomSheet(context),
-        ),
-      );
-    }
-
-    // Ver detalhes técnicos
-    if (technicalEvidence.isNotEmpty) {
-      actions.add(
-        _ActionChip(
-          label: 'Ver detalhes técnicos',
-          icon: Icons.fact_check_outlined,
-          color: cs.secondary,
-          onTap:
-              () => _showAllTechnicalEvidences(
-                context,
-                technicalEvidence,
-                coachEvaluations,
-              ),
-        ),
-      );
-    }
-
-    // Ver repertório
-    if (rtcaEvidence.items.isNotEmpty) {
-      actions.add(
-        _ActionChip(
-          label: 'Ver repertório',
-          icon: Icons.inventory_2_outlined,
-          color: cs.tertiary,
-          onTap: () => _showRepertoireBottomSheet(context),
-        ),
-      );
-    }
+    final actions = <Widget>[
+      _ActionChip(
+        label:
+            selectedAxis == null
+                ? 'Explorar meu jogo'
+                : 'Explorar meu jogo · ${selectedAxis!.displayLabel}',
+        icon: Icons.account_tree_outlined,
+        color: cs.primary,
+        onTap: onExploreGame,
+        isPrimary: true,
+      ),
+      _ActionChip(
+        label: 'Abrir biblioteca técnica',
+        icon: Icons.psychology_alt_outlined,
+        color: cs.secondary,
+        onTap: onOpenSkills,
+      ),
+    ];
 
     // Registrar avaliação
     if (canEditCoachEvaluation &&
@@ -1011,60 +1073,30 @@ class _ClientReadingActions extends StatelessWidget {
       );
     }
 
-    // Skills CTA
-    actions.add(
-      _ActionChip(
-        label: 'Ver repertório técnico',
-        icon: Icons.psychology_alt_outlined,
-        color: cs.primary,
-        onTap: onOpenSkills,
-        isPrimary: true,
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Wrap(spacing: 8, runSpacing: 8, children: actions),
+        const SizedBox(height: 8),
+        GameMapIndicatorsHelp(
+          hasVisualMap: visualMap.nodes.isNotEmpty,
+          hasTechnicalEvidence: technicalEvidence.isNotEmpty,
+          hasRepertoire: rtcaEvidence.items.isNotEmpty,
+          onOpenVisualMap: () => _showVisualMapBottomSheet(context),
+          onOpenTechnicalSummary:
+              () => _showAllTechnicalEvidences(
+                context,
+                technicalEvidence,
+                coachEvaluations,
+              ),
+          onOpenRepertoire: () => _showRepertoireBottomSheet(context),
+        ),
+      ],
     );
-
-    if (actions.isEmpty) return const SizedBox.shrink();
-
-    return Wrap(spacing: 8, runSpacing: 8, children: actions);
   }
 
   void _showVisualMapBottomSheet(BuildContext context) {
-    _showGameMapSheet<void>(
-      context: context,
-      draggable: true,
-      builder: (sheetContext) {
-        final cs = Theme.of(sheetContext).colorScheme;
-
-        return Padding(
-          padding: EdgeInsets.fromLTRB(
-            16,
-            14,
-            16,
-            16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
-              const SizedBox(height: 16),
-              Text(
-                'Mapa visual de posi\u00e7\u00f5es',
-                style: Theme.of(
-                  sheetContext,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 16),
-              Flexible(
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: _GameMapPositionClusterGraph(viewModel: visualMap),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
+    _showGameMapVisualMap(context, visualMap);
   }
 
   void _showRepertoireBottomSheet(BuildContext context) {
@@ -1160,6 +1192,48 @@ class _ClientReadingActions extends StatelessWidget {
   }
 }
 
+void _showGameMapVisualMap(
+  BuildContext context,
+  _GameMapVisualViewModel visualMap,
+) {
+  _showGameMapSheet<void>(
+    context: context,
+    draggable: true,
+    builder: (sheetContext) {
+      final cs = Theme.of(sheetContext).colorScheme;
+      return Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          14,
+          16,
+          16 + MediaQuery.viewInsetsOf(sheetContext).bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _GameMapSheetHandle(color: cs.onSurface.withValues(alpha: 0.18)),
+            const SizedBox(height: 16),
+            Text(
+              'Mapa visual de posições',
+              style: Theme.of(
+                sheetContext,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: _GameMapPositionClusterGraph(viewModel: visualMap),
+              ),
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
 class _ActionChip extends StatelessWidget {
   final String label;
   final IconData icon;
@@ -1253,68 +1327,6 @@ class _AxisBarData {
     required this.count,
     required this.maxCount,
   });
-}
-
-class _HeaderCard extends StatelessWidget {
-  final ColorScheme colorScheme;
-  final String? targetName;
-
-  const _HeaderCard({required this.colorScheme, required this.targetName});
-
-  @override
-  Widget build(BuildContext context) {
-    final name =
-        (targetName?.trim().isNotEmpty ?? false)
-            ? targetName!.trim()
-            : 'Atleta';
-
-    return Container(
-      constraints: const BoxConstraints(minHeight: 56),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: TitansUI.surfaceColor(context).withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(TitansUI.radiusSmall),
-        border: Border.all(color: TitansUI.borderColor(context, alpha: 0.25)),
-      ),
-      child: Row(
-        children: [
-          Icon(
-            Icons.account_tree_outlined,
-            size: 20,
-            color: colorScheme.primary,
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  'Game Map',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: colorScheme.onSurface.withValues(alpha: 0.54),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 class _CompactHeader extends StatelessWidget {
@@ -2115,8 +2127,11 @@ class _PositionAxisMatrixViewModel {
 
   factory _PositionAxisMatrixViewModel.from(List<TrainingSession> sessions) {
     final accumulators = <String, _PositionAxisRowAccumulator>{};
+    final completedSessions = TrainingAggregator.uniqueCompletedSessions(
+      sessions,
+    );
 
-    for (final session in sessions) {
+    for (final session in completedSessions) {
       for (final entry in session.effectiveTechniqueEntries) {
         final position = _cleanTechnicalLabel(
           entry.position ?? session.position,
@@ -2152,7 +2167,7 @@ class _PositionAxisMatrixViewModel {
       subtitle:
           rows.isEmpty
               ? 'A matriz aparece quando h\u00e1 posi\u00e7\u00e3o e t\u00e9cnica classific\u00e1vel nos treinos.'
-              : 'Eixo t\u00e9cnico inferido pelos registros de treino; sem percentual ou nota.',
+              : 'Hist\u00f3rico de sess\u00f5es conclu\u00eddas; eixo inferido sem percentual ou nota.',
       rows: rows,
     );
   }
@@ -2228,7 +2243,8 @@ class _PositionAxisRowAccumulator {
     return _PositionAxisMatrixRow(
       position: position,
       sessionCount: sessionKeys.length,
-      countLabel: TrainingAggregator.sessionCountLabel(sessionKeys.length),
+      countLabel:
+          '${TrainingAggregator.sessionCountLabel(sessionKeys.length)} conclu\u00eddas',
       cells: cells,
     );
   }
@@ -2258,7 +2274,8 @@ class _PositionAxisCellAccumulator {
     return _PositionAxisMatrixCell(
       axis: axis,
       sessionCount: sessionKeys.length,
-      countLabel: TrainingAggregator.sessionCountLabel(sessionKeys.length),
+      countLabel:
+          '${TrainingAggregator.sessionCountLabel(sessionKeys.length)} conclu\u00eddas',
       sessionKeys: sessionKeys,
       details: [
         for (final detail in details.take(6))
@@ -2279,18 +2296,10 @@ String? _cleanTechnicalLabel(String? value) {
 
 Color _axisColor(BuildContext context, TechnicalRadarAxis axis) {
   final cs = Theme.of(context).colorScheme;
-  switch (axis) {
-    case TechnicalRadarAxis.retention:
-      return cs.primary;
-    case TechnicalRadarAxis.transition:
-      return TitansUI.technicalBlue;
-    case TechnicalRadarAxis.control:
-      return TitansUI.successGreen;
-    case TechnicalRadarAxis.attack:
-      return TitansUI.actionGold;
-    case TechnicalRadarAxis.unclassified:
-      return cs.onSurface.withValues(alpha: 0.46);
-  }
+  return technicalAxisColor(
+    axis,
+    unclassifiedColor: cs.onSurface.withValues(alpha: 0.46),
+  );
 }
 
 class _EvidenceDistributionViewModel {
@@ -2582,7 +2591,7 @@ class _TechnicalRadarPreviewViewModel {
 
     return _TechnicalRadarPreviewViewModel(
       subtitle:
-          'Distribuição de evidências registradas, sem nota ou desempenho.',
+          'Evidências das últimas 100 sessões concluídas, sem nota ou desempenho.',
       stateLabel: stateLabel,
       axisEvidence: axisEvidence,
       classifiedEvidenceCount: classified,
@@ -2654,15 +2663,18 @@ class _RtcaEvidenceViewModel {
     required List<GameMapEntry> entries,
     required List<SkillMatrixCategoryEntry> skillMatrix,
   }) {
+    final completedSessions = TrainingAggregator.uniqueCompletedSessions(
+      sessions,
+    );
     final techniques = skillMatrix.expand((entry) => entry.techniques).toList();
     final recurring =
         entries
             .expand((entry) => entry.techniques)
             .where((technique) => technique.sessionsCount >= 3)
             .length;
-    final trainingDays = _recentTrainingDays(sessions, days: 84);
+    final trainingDays = _recentTrainingDays(completedSessions, days: 84);
     final applications =
-        sessions.where(_hasMeasuredTechniqueApplication).length;
+        completedSessions.where(_hasMeasuredTechniqueApplication).length;
 
     return _RtcaEvidenceViewModel(
       title: 'Repertório registrado',
@@ -2673,7 +2685,7 @@ class _RtcaEvidenceViewModel {
           code: '1',
           label: 'Recorrência',
           value: _techniquePlural(recurring, 'recorrente'),
-          helper: 'Técnicas que você praticou várias vezes.',
+          helper: 'Técnicas recorrentes nas últimas 20 sessões concluídas.',
           icon: Icons.repeat_outlined,
           statusLabel: _statusForCount(recurring),
         ),
@@ -2681,7 +2693,7 @@ class _RtcaEvidenceViewModel {
           code: '2',
           label: 'Técnicas registradas',
           value: TrainingAggregator.techniqueCountLabel(techniques.length),
-          helper: 'Técnicas que apareceram nos seus treinos.',
+          helper: 'Técnicas nas últimas 50 sessões concluídas.',
           icon: Icons.sports_mma_outlined,
           statusLabel: _statusForCount(techniques.length),
         ),
@@ -2689,7 +2701,7 @@ class _RtcaEvidenceViewModel {
           code: '3',
           label: 'Consistência',
           value: _dayPlural(trainingDays),
-          helper: 'Dias com treino nos últimos 84 dias.',
+          helper: 'Dias com sessão concluída nos últimos 84 dias.',
           icon: Icons.calendar_month_outlined,
           statusLabel: _statusForCount(trainingDays),
         ),
@@ -2697,7 +2709,7 @@ class _RtcaEvidenceViewModel {
           code: '4',
           label: 'Aplicação registrada',
           value: _applicationPlural(applications),
-          helper: 'Treinos com contexto e resultado anotados.',
+          helper: 'Sessões concluídas com contexto e resultado anotados.',
           icon: Icons.fact_check_outlined,
           statusLabel: _statusForCount(applications),
         ),
@@ -2810,7 +2822,7 @@ class _GameMapVisualViewModel {
     if (entries.isEmpty) {
       return const _GameMapVisualViewModel(
         title: 'Posições e técnicas registradas',
-        subtitle: 'Baseado nos treinos registrados.',
+        subtitle: 'Baseado nas últimas 20 sessões concluídas.',
         nodes: [],
         highlights: [],
         emptyStateLabel:
@@ -2844,7 +2856,7 @@ class _GameMapVisualViewModel {
     return _GameMapVisualViewModel(
       title: 'Posições e técnicas registradas',
       subtitle:
-          'Clusters por recorrência nos debriefs; peso visual não indica desempenho.',
+          'Clusters das últimas 20 sessões concluídas; peso visual não indica desempenho.',
       nodes: nodes,
       highlights: [
         _GameMapHighlight(

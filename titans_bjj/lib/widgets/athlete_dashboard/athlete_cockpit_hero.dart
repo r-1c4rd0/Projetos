@@ -15,8 +15,6 @@ class AthleteHomeCockpitHero extends StatelessWidget {
   final bool confirmingPending;
   final Future<void> Function()? onConfirmPending;
   final VoidCallback onRegisterTraining;
-  final VoidCallback onOpenFullTraining;
-  final VoidCallback onOpenTrainingHistory;
 
   const AthleteHomeCockpitHero({
     super.key,
@@ -28,8 +26,6 @@ class AthleteHomeCockpitHero extends StatelessWidget {
     required this.confirmingPending,
     required this.onConfirmPending,
     required this.onRegisterTraining,
-    required this.onOpenFullTraining,
-    required this.onOpenTrainingHistory,
   });
 
   @override
@@ -52,7 +48,7 @@ class AthleteHomeCockpitHero extends StatelessWidget {
             : nextTraining.hasRecommendation
             ? nextTraining.subtitle
             : 'Registre treinos e debriefs para alimentar seu próximo passo.';
-    final explanation =
+    final support =
         pending != null
             ? 'Confirme a ocorrência existente sem criar outro registro.'
             : _supportText();
@@ -126,19 +122,17 @@ class AthleteHomeCockpitHero extends StatelessWidget {
               fontWeight: FontWeight.w800,
             ),
           ),
-          if (pending != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              explanation,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.60),
-                fontSize: 12,
-                fontWeight: FontWeight.w700,
-              ),
+          const SizedBox(height: 4),
+          Text(
+            support,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: cs.onSurface.withValues(alpha: 0.60),
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
             ),
-          ],
+          ),
           const SizedBox(height: 8),
           Wrap(
             spacing: 6,
@@ -156,94 +150,53 @@ class AthleteHomeCockpitHero extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton.icon(
-              onPressed:
-                  confirmingPending
-                      ? null
-                      : pending != null
-                      ? () => onConfirmPending?.call()
-                      : onRegisterTraining,
-              icon:
-                  confirmingPending
-                      ? SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor: AlwaysStoppedAnimation<Color>(
-                            cs.onPrimary,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              return SizedBox(
+                width:
+                    constraints.maxWidth < 360
+                        ? double.infinity
+                        : constraints.maxWidth.clamp(180.0, 260.0),
+                child: FilledButton.icon(
+                  onPressed:
+                      pending != null
+                          ? () => onConfirmPending?.call()
+                          : onRegisterTraining,
+                  icon:
+                      confirmingPending
+                          ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                cs.onPrimary,
+                              ),
+                            ),
+                          )
+                          : Icon(
+                            pending != null
+                                ? Icons.check_circle_outline
+                                : Icons.add_rounded,
+                            size: 18,
                           ),
-                        ),
-                      )
-                      : Icon(
-                        pending != null
-                            ? Icons.check_circle_outline
-                            : Icons.add_rounded,
-                        size: 18,
-                      ),
-              label: Text(
-                pending != null
-                    ? 'Já treinei'
-                    : lastSession == null
-                    ? 'Registrar primeiro treino'
-                    : 'Registro rápido',
-              ),
-              style: FilledButton.styleFrom(
-                backgroundColor: TitansUI.actionGold,
-                foregroundColor: Colors.black,
-                minimumSize: const Size.fromHeight(44),
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Wrap(
-            spacing: 4,
-            runSpacing: 0,
-            children: [
-              if (pending != null)
-                TextButton(
-                  onPressed: onRegisterTraining,
-                  child: const Text('Registro rápido'),
-                ),
-              TextButton(
-                onPressed: onOpenFullTraining,
-                child: const Text('Treino completo'),
-              ),
-              TextButton(
-                onPressed: onOpenTrainingHistory,
-                child: const Text('Ver treinos'),
-              ),
-            ],
-          ),
-          if (pending == null && explanation.trim().isNotEmpty)
-            Theme(
-              data: Theme.of(
-                context,
-              ).copyWith(dividerColor: Colors.transparent),
-              child: ExpansionTile(
-                tilePadding: EdgeInsets.zero,
-                childrenPadding: const EdgeInsets.only(bottom: 4),
-                title: const Text(
-                  'Por que este foco?',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
-                ),
-                children: [
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      explanation,
-                      style: TextStyle(
-                        color: cs.onSurface.withValues(alpha: 0.66),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                      ),
+                  label: Text(
+                    pending != null ? 'Já treinei' : 'Registro rápido',
+                  ),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: TitansUI.actionGold,
+                    foregroundColor: Colors.black,
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 38),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
                     ),
                   ),
-                ],
-              ),
-            ),
+                ),
+              );
+            },
+          ),
         ],
       ),
     );

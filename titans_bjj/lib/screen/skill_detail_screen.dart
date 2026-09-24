@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../core/titans_ui.dart';
 import '../features/technical_domain/application/technical_domain_use_cases.dart';
+import '../features/technical_domain/domain/technical_context.dart';
 import '../model/app_user.dart';
 import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../service/training_aggregator.dart';
+import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
 
 class SkillDetailScreen extends StatefulWidget {
@@ -44,19 +46,79 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     widget.evaluations,
   );
   bool _isSavingEvaluation = false;
+  String? _contextKey;
+  bool _hasAlignedAcademyContext = true;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncContext();
+  }
+
+  @override
+  void didUpdateWidget(covariant SkillDetailScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _syncContext();
+  }
+
+  AppUser? get _actor => UserScope.maybeOf(context) ?? widget.loggedUser;
+
+  UserScope? get _userScope => UserScope.maybeScopeOf(context);
+
+  TechnicalScreenContext _resolveContext() {
+    final actor = _actor;
+    final scope = _userScope;
+    final activeAcademyId = scope?.activeAcademyId.trim();
+    final workspaceAcademyId =
+        activeAcademyId == null || activeAcademyId.isEmpty
+            ? widget.academyId.trim()
+            : activeAcademyId;
+    final membership = scope?.activeMembership;
+
+    return TechnicalScreenContext(
+      actorUid: actor?.uid.trim() ?? '',
+      actorRole: actor?.role.name ?? '',
+      targetUid: widget.uid.trim(),
+      targetAcademyId: widget.academyId.trim(),
+      workspaceKey: 'academy:$workspaceAcademyId',
+      membershipState: [
+        scope?.membershipSnapshot.status.name ?? 'legacy',
+        membership?.academyId ?? '',
+        membership?.role.name ?? '',
+        membership?.isActive.toString() ?? '',
+      ].join(':'),
+    );
+  }
+
+  void _syncContext() {
+    final resolvedContext = _resolveContext();
+    if (_contextKey == resolvedContext.key) return;
+
+    final activeAcademyId = _userScope?.activeAcademyId.trim();
+    _hasAlignedAcademyContext =
+        activeAcademyId == null ||
+        activeAcademyId.isEmpty ||
+        activeAcademyId == widget.academyId.trim();
+    _contextKey = resolvedContext.key;
+    _evaluations = List<CoachEvaluation>.from(widget.evaluations);
+    _isSavingEvaluation = false;
+  }
 
   bool get _canEditCoachEvaluation {
-    final actor = widget.loggedUser;
-    if (actor == null) return false;
-    final isStaff =
-        actor.role == UserRole.admin || actor.role == UserRole.professor;
-    return isStaff &&
-        actor.uid != widget.uid &&
-        actor.academyId == widget.academyId;
+    final scope = _userScope;
+    return CoachEvaluationAuthorization.canEvaluate(
+      actor: _actor,
+      targetUid: widget.uid,
+      targetAcademyId: widget.academyId,
+      activeAcademyId: scope?.activeAcademyId,
+      activeMembership: scope?.activeMembership,
+      membershipSnapshot: scope?.membershipSnapshot,
+    );
   }
 
   Future<void> _openEvaluationSheet(_SkillDetailViewModel vm) async {
     if (!_canEditCoachEvaluation || _isSavingEvaluation) return;
+    final operationContextKey = _contextKey;
 
     final draft = await showModalBottomSheet<_CoachEvaluationDraft>(
       context: context,
@@ -67,9 +129,14 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
             existing: vm.evaluation,
           ),
     );
-    if (draft == null || !mounted) return;
+    if (draft == null ||
+        !mounted ||
+        _contextKey != operationContextKey ||
+        !_canEditCoachEvaluation) {
+      return;
+    }
 
-    final actor = widget.loggedUser;
+    final actor = _actor;
     if (actor == null) return;
 
     final evaluation = CoachEvaluation(
@@ -90,7 +157,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     setState(() => _isSavingEvaluation = true);
     try {
       await _coachEvaluationRepository.upsertEvaluation(evaluation);
-      if (!mounted) return;
+      if (!mounted || _contextKey != operationContextKey) return;
       setState(() {
         _evaluations = [
           evaluation,
@@ -102,7 +169,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
         const SnackBar(content: Text('Avaliação do professor salva.')),
       );
     } catch (error) {
-      if (!mounted) return;
+      if (!mounted || _contextKey != operationContextKey) return;
       setState(() => _isSavingEvaluation = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Erro ao salvar avaliação: $error')),
@@ -112,6 +179,16 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!_hasAlignedAcademyContext) {
+      return TitansScaffold(
+        appBar: AppBar(title: Text(widget.displayName)),
+        body: const TitansStateView.error(
+          title: 'Contexto de academia alterado',
+          message: 'Abra novamente esta técnica no workspace ativo.',
+        ),
+      );
+    }
+
     final vm = _SkillDetailViewModel.from(
       skillId: widget.skillId,
       displayName: widget.displayName,
@@ -124,6 +201,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     return TitansScaffold(
       appBar: AppBar(title: Text(vm.displayName)),
       body: ListView(
+        key: ValueKey('skill-detail:${_contextKey ?? _resolveContext().key}'),
         padding: TitansUI.listPadding(context),
         children: [
           _SkillDetailHeader(vm: vm),
@@ -1359,9 +1437,17 @@ class _SkillDetailViewModel {
     required List<TrainingSession> sessions,
     required List<CoachEvaluation> evaluations,
   }) {
+    final seenEvidence = <String>{};
     final evidences =
         const GetSkillEvidences()(sessions, limit: sessions.length)
             .where((evidence) => evidence.skillId == skillId)
+            .where((evidence) {
+              final sourceKey =
+                  evidence.sourceId ?? evidence.practicedAt.toIso8601String();
+              return seenEvidence.add(
+                '${evidence.sourceType}:$sourceKey:${evidence.skillId}',
+              );
+            })
             .toList();
     final history = _buildHistory(sessions, skillId);
     final positionCounts = <String, int>{};
@@ -1456,15 +1542,18 @@ List<_SkillHistoryItem> _buildHistory(
   String skillId,
 ) {
   final items = <_SkillHistoryItem>[];
-  final ordered = List<TrainingSession>.from(sessions)
+  final ordered = TrainingAggregator.uniqueCompletedSessions(sessions)
     ..sort((a, b) => b.date.compareTo(a.date));
 
   for (final session in ordered) {
+    var sessionAdded = false;
     for (final entry in session.effectiveTechniqueEntries) {
       final technique = _cleanText(entry.technique);
       if (technique == null || _skillIdForTechnique(technique) != skillId) {
         continue;
       }
+      if (sessionAdded) continue;
+      sessionAdded = true;
 
       items.add(
         _SkillHistoryItem(
