@@ -30,7 +30,12 @@ Definir o modulo de treinos como registro, consulta e agregacao de sessoes de tr
 ## Regras de negocio
 - Athlete so cria/ve treinos proprios, salvo regras de compartilhamento.
 - Professor cria/consulta treinos dos alunos da academia.
-- Treino deve pertencer a academia e modalidade.
+- Treino institucional deve pertencer a academia e modalidade.
+- Treino pessoal independente pertence ao owner autenticado em Personal
+  Workspace, sem `academyId`; o contrato detalhado esta em
+  `personal_mode_context_spec.md`.
+- Local fisico nao define ownership: `place: academy` pode continuar pessoal e
+  `place: home` pode continuar institucional.
 - Agregados nao devem ser calculados de forma duplicada em varias telas.
 
 - O painel atual de evidencias R/T/C/A no Game Map representa dados operacionais de treino, nao o futuro Radar Tecnico.
@@ -68,6 +73,8 @@ Enquanto a revisao nao existir, a UI futura deve exibir Radar Preview com a copy
 - Streams em build podem afetar performance.
 - `academyId` default impacta queries de treino.
 - Presenca futura precisa se integrar sem duplicar sessao.
+- Repository e telas atuais ainda exigem `academyId`; Personal Mode permanece
+  documental ate a fatia vertical autorizada.
 
 ## Arquitetura desejada
 Feature futura:
@@ -107,6 +114,46 @@ features/training/
 - Agregacao tem destino futuro claro.
 - Integracao com presenca e progresso esta prevista.
 - Nenhum treino foi alterado nesta etapa.
+
+## TITANS-TRAINING-SESSION-COMPOSITION-001
+
+### Contrato persistido
+
+Uma TrainingSession continua representando um treino, independentemente da
+quantidade de rolas. A composição opcional usa:
+
+- totalDurationMinutes: inteiro positivo com o total do treino em minutos;
+- totalDurationIsEstimated: booleano presente somente quando há duração;
+- studiedTechniques: lista deduplicada de {catalogId, label};
+- rolls: bloco {count, roundDurationMinutes}, ambos inteiros positivos;
+- notes: observação opcional já existente, com o mesmo significado.
+
+studiedTechniques é separado de techniques. Estudo não comprova aplicação,
+sucesso ou domínio e, por isso, não alimenta os agregadores técnicos existentes.
+catalogId usa o identificador do item customizado da academia quando disponível
+e o identificador normalizado da taxonomia estática nos demais casos.
+
+### Ausência, cálculo e edição
+
+- Campo ausente permanece desconhecido; não é convertido em zero.
+- totalDurationIsEstimated ausente permanece desconhecido em registros antigos.
+- O bloco de rolas só existe quando quantidade e duração por round estão completas.
+- Tempo de combate é derivado como count * roundDurationMinutes e é exibido
+  separadamente; não é somado a totalDurationMinutes.
+- Tempo de combate não pode superar a duração total quando ambos existirem.
+- Upsert completo de edição envia deletes explícitos para composição removida.
+- Operações parciais, incluindo confirmação de planejado, omitem esses campos e
+  preservam a composição no mesmo documento.
+- copyWith diferencia omissão de remoção explícita por flags de limpeza.
+
+### Interface
+
+- O formulário completo apresenta a composição em seção própria.
+- O registro rápido mantém a composição dentro de “Adicionar detalhes”.
+- A interface informa que todos os rounds do bloco compartilham a mesma duração.
+- Técnica e rola continuam opcionais.
+- O histórico exibe duração total, indicação de estimativa, tempo de combate,
+  configuração dos rolas e técnicas estudadas persistidas.
 ## TITANS-TRAINING-LIFECYCLE-AND-CLASS-SESSION-001
 
 ### Ciclo de vida individual implementado

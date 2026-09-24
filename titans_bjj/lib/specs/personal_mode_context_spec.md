@@ -2,9 +2,9 @@
 
 Task: `PERSONAL-MODE-CONTEXT-CONTRACT-001`
 
-Status: contrato documental, sem implementacao funcional.
+Status: contrato de implementacao revisado, sem implementacao funcional.
 
-Data: 2026-09-06.
+Data: 2026-09-20. Auditoria inicial: 2026-09-06.
 
 ## Objetivo
 Fechar o contrato tecnico para separar dois mundos antes de qualquer implementacao:
@@ -20,7 +20,10 @@ Este documento nao altera runtime, schema, rules, repositories, use cases ou dad
 - Branch: `master`.
 - Commit base observado: `d94e36279dd58d98c4b496ecb7af42c447d6d29e`.
 - Worktree ja estava suja antes desta tarefa; alteracoes preexistentes nao foram revertidas.
-- Nenhum documento previo com `PERSONAL-MODE-CONTEXT-CONTRACT-001`, `Personal Workspace` ou `personalContexts` foi encontrado em busca local.
+- Na auditoria inicial de 2026-09-06, nenhum documento anterior com
+  `PERSONAL-MODE-CONTEXT-CONTRACT-001`, `Personal Workspace` ou
+  `personalContexts` havia sido encontrado. Este arquivo passou a ser o
+  contrato canonico e deve ser atualizado, sem criar uma spec concorrente.
 
 Arquivos observados para este contrato:
 
@@ -165,7 +168,7 @@ Alternativas rejeitadas nesta fase:
 Contexto             Actor/target          Leitura             Escrita
 Personal privado     self/self             self                treino/progresso pessoal
 Personal privado     staff/student         proibido            proibido
-Academy aluno        self/self             membership active   treino pessoal permitido
+Academy aluno        self/self             membership active   treino institucional proprio
 Academy staff        staff/student         membership active   avaliacoes oficiais permitidas
 Academy staff        staff/staff           limitado            sem avaliacao de staff
 Sem membership       qualquer              sem dados academy   sem escrita academy
@@ -179,7 +182,10 @@ Levantamento atual:
 - `training_sessions` e `progress` permitem self ou staff em paths de academia.
 - `coach_evaluations` concentra escrita em staff.
 - `academyMemberships` sob `users/{uid}` permite leitura mas bloqueia escrita direta.
-- `acceptAcademyInvite` em `functions/index.js` cria/vincula perfil em academia e copia dados, mas o audit nao confirmou criacao do documento `users/{uid}/academyMemberships/{academyId}`.
+- A auditoria inicial nao confirmou provisioning de membership no convite. A
+  implementacao posterior `MEMBERSHIP-PROVISIONING-COMPATIBILITY-001` passou a
+  criar/vincular `users/{uid}/academyMemberships/{academyId}` no aceite
+  server-side validado; o cliente ainda mantem o aceite desabilitado.
 
 Transicao esperada:
 - Personal privado ganha branch propria baseada em `isSelf(uid)`.
@@ -203,25 +209,320 @@ Estrategia proposta:
 - Treino e evidencia tecnica nao sao nota nem graduacao.
 - Game Map mostra leitura tecnica derivada de evidencias, nao desempenho absoluto.
 
+## Reconciliacao com o codigo em 2026-09-20
+
+O contrato continua valido, mas a implementacao atual avancou parcialmente:
+
+- `MembershipQuerySnapshot` ja distingue `confirmedEmpty`,
+  `confirmedActive`, `unavailable`, `permissionDenied` e `error`.
+- `MembershipSessionResolver` bloqueia contexto de academia em erro, mas
+  `confirmedNoActiveMembership` ainda permite o fallback legado.
+- `AuthGate` ainda chama `ensureUserDoc` com uma academia resolvida e nao cria
+  sessao pessoal.
+- `UserScope` ainda exige `activeAcademyId` nao anulavel.
+- `TargetProfile` ainda exige `academyId` e, portanto, nao representa self em
+  Personal Workspace.
+- `TrainingRepository`, `UserProgressRepository` e as telas Home/Treinos ainda
+  leem exclusivamente paths sob `academies/{academyId}`.
+- Home e Treinos ja reutilizam streams e caches fora de `build`, mas suas
+  chaves sao baseadas em `academyId|uid`; falta incluir o tipo e a identidade
+  do workspace.
+- `TrainingOperationContext` protege resultados atrasados por
+  `actorUid|academyId|targetUid`; ele precisa aceitar uma chave de workspace
+  para oferecer a mesma protecao no Personal.
+- As rules atuais negam `users/{uid}/personalContexts/**` pelo catch-all. A
+  persistencia pessoal so pode ser ativada depois de rules especificas serem
+  validadas e publicadas em uma etapa autorizada.
+
+Nenhum desses pontos autoriza tratar erro de membership como ausencia ou usar
+`defaultAcademyId` para criar um contexto pessoal.
+
+## Contrato normativo da primeira fatia: treino pessoal BJJ
+
+### Eixos independentes
+
+A resolucao de um treino combina tres eixos, sem inferencia entre eles:
+
+1. `WorkspaceContext`: ownership institucional ou pessoal.
+2. `TargetContext`: actor e target autorizados.
+3. `SportContext`: modalidade e capacidades do formulario/agregadores.
+
+Consequencias obrigatorias:
+
+- `TrainingPlace.academy`, `home` ou `other` descreve somente o local fisico.
+- Um treino pessoal pode ter `place: academy` sem pertencer a essa academia.
+- Um treino institucional pode ter `place: home` sem deixar o Academy
+  Workspace.
+- `classType` nao representa modalidade nem ownership.
+- A primeira fatia permanece BJJ-first. Nao deve persistir `sportId` nem criar
+  seletor multi-esporte antes do contrato de Sport Pack autorizar isso.
+- Quando modalidade for implementada, ela deve compor o contexto e a chave de
+  cache; nunca deve ser derivada de `place` ou `academyId`.
+
+### Representacao runtime
+
+Contrato minimo, discriminado por tipo:
+
+```text
+WorkspaceContext.personal(ownerUid)
+  key = personal:{ownerUid}
+
+WorkspaceContext.academy(academyId, activeMembership)
+  key = academy:{academyId}
+```
+
+Invariantes:
+
+- Personal: `actorUid == targetUid == ownerUid == auth.uid`.
+- Academy self: `actorUid == targetUid` e membership ativa na academia.
+- Academy student: `actorUid != targetUid`, actor staff e target atleta na
+  mesma academia.
+- Personal nunca recebe `selectedStudent`, role da academia ou capabilities de
+  staff.
+- `WorkspaceContext` deve ser imutavel e a chave deve participar de streams,
+  caches, operacoes pendentes, foco de historico e deduplicacao de UI.
+- O contexto selecionado pode ser persistido localmente, mas deve ser
+  revalidado em cada sessao. Uma academia revogada nao pode ser restaurada.
+
+Estados de resolucao:
+
+```text
+membership loading              -> nao iniciar stream institucional
+confirmedEmpty                  -> Personal disponivel e selecionado
+confirmedActive                 -> Personal e academias ativas selecionaveis
+unavailable                     -> Personal disponivel; Academy indisponivel
+permissionDenied                -> Personal disponivel; Academy negado
+error                           -> Personal disponivel; Academy com erro
+```
+
+O acesso ao Personal depende de Auth e ownership, nao da consulta de
+membership. A UI deve preservar a diferenca entre indisponibilidade, acesso
+negado e ausencia confirmada, sem apresentar qualquer um deles como academia
+vazia ou default.
+
+### Destino de armazenamento
+
+Mantem-se a escolha ja feita neste contrato:
+
+```text
+users/{ownerUid}/personalContexts/main/training_sessions/{sessionId}
+```
+
+Regras do documento na primeira fatia:
+
+- Reutilizar o formato atual de `TrainingSession` e seu adapter de leitura.
+- `uid` deve ser igual a `{ownerUid}` para compatibilidade com o target legado.
+- `academyId` deve estar ausente.
+- `attendanceSessionId` e `attendanceCheckInUid` devem estar ausentes.
+- `source` pessoal nao pode declarar origem oficial de presenca/aula.
+- `place` continua obrigatorio pelo modelo atual, mas nao escolhe o path.
+- O path e o `WorkspaceContext`, nao um campo de local, definem ownership.
+- A primeira fatia nao cria documento de academia artificial nem copia o
+  treino para uma academia.
+
+O documento `personalContexts/main` pode receber metadados em etapa futura,
+mas nao e pre-requisito para consultar a subcolecao de treinos.
+
+### Autorizacao futura
+
+As rules a validar em etapa propria devem garantir:
+
+- somente `request.auth.uid == ownerUid` le, cria, altera ou remove treino
+  pessoal;
+- staff de qualquer academia nao recebe acesso implicito;
+- create/update validam `uid == ownerUid` e ausencia de `academyId`;
+- campos de presenca oficial nao podem ser introduzidos no path pessoal;
+- listagem ocorre somente dentro do path do proprio owner;
+- membership e entitlement comercial nao ampliam ownership pessoal.
+
+Academy Workspace continua sujeito a membership ativa e suas rules proprias.
+Nenhuma rule deve usar existencia de treino pessoal como presenca, credito de
+graduacao ou vinculo institucional.
+
+### Repository e operacoes
+
+`TrainingRepository` permanece a fonte unica do dominio, mas deve receber um
+contexto de armazenamento explicito em novos metodos. Os metodos atuais com
+`academyId` permanecem como wrappers de compatibilidade durante a migracao.
+
+Contrato esperado:
+
+```text
+watchSessions(workspace, targetUid)
+getSession(workspace, targetUid, sessionId)
+createSession(workspace, targetUid, session)
+replaceSession(workspace, targetUid, session)
+updateSessionLifecycle(workspace, targetUid, sessionId, patch)
+```
+
+O resolver interno escolhe um dos dois paths permitidos; a screen nao acessa
+Firestore nem monta path. `createSession`, substituicao completa e patch
+parcial devem continuar semanticamente separados.
+
+`TrainingOperationContext` deve passar a guardar `workspaceKey` em vez de
+assumir `academyId`. Todo retorno async deve ser descartado quando actor,
+target, workspace ou geracao nao corresponderem mais ao contexto atual.
+
+### Home, Treinos e resumos
+
+- Home e Treinos devem assinar somente o stream do workspace selecionado.
+- Alternar workspace deve trocar a key do subtree/stream, limpar caches de
+  resumo, filtros, foco de sessao e conjuntos de operacoes pendentes.
+- Callback atrasado do workspace anterior nao pode abrir, confirmar ou focar
+  uma sessao no workspace novo.
+- Cache e IDs de operacao devem usar ao menos
+  `workspaceKey|targetUid|sessionId`; `sessionId` isolado nao e global.
+- `GetHomeDashboardSummary` e `GetTrainingDashboardSummary` continuam sendo
+  reutilizados com a lista ja isolada pelo repository.
+- A primeira fatia nao concatena listas Personal e Academy. Assim, frequencia,
+  historico e evidencias nao duplicam contagens.
+- Uma eventual visao Todos exige use case proprio e dedupe por
+  `(workspaceKey, sessionId)`; nao faz parte da primeira implementacao.
+- Home pessoal nao consulta regras de graduacao, presenca, avaliacao oficial ou
+  perfil de progresso da academia. Deve mostrar somente identidade propria e
+  resumos derivados dos treinos pessoais disponiveis.
+- Game Map/Skills pessoais podem consumir apenas evidencias BJJ pessoais, sem
+  incorporar avaliacoes oficiais do professor. Sua ativacao visual pode ficar
+  para uma fatia posterior.
+
+### Registros antigos
+
+- Nenhum documento sob `academies/{academyId}` sera movido, copiado ou
+  reinterpretado automaticamente.
+- Registros antigos permanecem institucionais por localizacao, inclusive os
+  criados pelo proprio atleta ou com `place: home`.
+- Ausencia de `academyId` dentro de um documento antigo de academia nao o torna
+  pessoal; o path continua sendo a origem.
+- Registros pessoais novos nao aparecem no historico da academia e nao geram
+  presenca, graduacao ou avaliacao oficial.
+- Uma futura acao de copiar/mover exigira consentimento, idempotencia,
+  auditoria de origem e uma task de migracao separada.
+
+## Auditoria da serializacao de TrainingSession
+
+Consumidores verificados antes deste contrato:
+
+- Criacao e edicao completa: `TrainingRepository.addSession` delega hoje para
+  `upsertSession`, que usa `toMap(includeTechnicalDeletes: true)` com merge.
+  Em documento novo, os deletes mantem opcionais ausentes; em documento
+  existente, um opcional limpo e removido.
+- Batch completo: `upsertSessionsBatch` usa a mesma semantica de substituicao
+  dos campos editaveis.
+- Atualizacao parcial de lifecycle: `updateSessionLifecycle` escreve somente
+  status, datas e auditoria; observacao e campos tecnicos sao preservados.
+- Sessao derivada de presenca: `setAttendanceDerivedSessionInBatch` usa
+  `toMap()` com merge; campos ausentes sao omitidos, preservando complementos
+  pessoais ja existentes no documento derivado.
+
+Para `notes`, `toMap()` omite `null`, enquanto
+`toMap(includeTechnicalDeletes: true)` envia `FieldValue.delete()`. Portanto,
+limpar uma observacao no formulario completo remove o valor persistido; uma
+atualizacao parcial nao o apaga. O teste direcionado
+`full upsert explicitly removes a cleared observation` fixa esse contrato.
+
+Divida tecnica conhecida: o nome `addSession` tambem cobre edicao completa.
+Na fatia pessoal, separar `createSession` de `replaceSession` deve tornar a
+intencao explicita sem mudar a leitura de registros antigos.
+
+## Arquivos previstos e sequencia de implementacao
+
+### Etapa 1 - contexto de sessao
+
+- `lib/model/workspace_context.dart`: value object discriminado e chave.
+- `lib/service/membership_session_resolver.dart`: resolver Personal/Academy sem
+  fallback autorizado.
+- `lib/service/user_session.dart`: expor `WorkspaceContext` selecionado.
+- `lib/auth_gate.dart`: permitir Personal e selecao explicita de workspace.
+- testes de resolver e troca de usuario/contexto.
+
+### Etapa 2 - fatia vertical de treino
+
+- `lib/features/training/domain/training_operation_context.dart`: usar
+  `workspaceKey`.
+- `lib/repository/training_repository.dart`: rotear paths e separar create,
+  replace e patch.
+- `lib/service/target_resolver.dart`: self pessoal sem `academyId`; aluno
+  selecionado somente em Academy.
+- `lib/widgets/quick_log_sheet.dart` e
+  `lib/screen/add_training_session_screen.dart`: receber contexto explicito.
+- testes de repository/path, ownership, serializacao e operacao atrasada.
+
+### Etapa 3 - Home e Treinos
+
+- `lib/screen/training_screen.dart`: stream/cache/foco por workspace.
+- `lib/screen/athlete_dashboard_screen.dart`: composicao pessoal sem
+  repositories institucionais obrigatorios.
+- manter `GetHomeDashboardSummary` e `GetTrainingDashboardSummary` como
+  agregadores da lista isolada.
+- testes de alternancia, streams, cache, IDs iguais em workspaces diferentes e
+  falhas distintas de membership/rede/permissao.
+
+### Etapa 4 - seguranca coordenada
+
+- `firestore.rules`: adicionar branch pessoal owner-only e validacoes de
+  payload.
+- testes de rules/emulator para self, outro usuario e staff.
+- publicar rules somente em entrega autorizada, antes de habilitar escrita na
+  UI de producao.
+
+## Decisoes ainda pendentes
+
+- UX exata do seletor quando houver varias academias e Personal; o contrato
+  exige selecao explicita e revalidada, mas nao define layout.
+- Persistencia local da ultima escolha e politica de expiracao.
+- Se perfil/progresso pessoal tera documento proprio na primeira fatia seguinte
+  ou se Home pessoal exibira apenas resumo de treinos.
+- Momento de ativar Game Map e Skills no Personal sem misturar avaliacao
+  oficial.
+- Contrato de `sportId`/Sport Pack. A primeira fatia e BJJ e nao deve resolver
+  multi-modalidade por conta propria.
+- Deploy, rollout e rollback das rules pessoais.
+
+Essas pendencias nao bloqueiam implementar repository + Treinos pessoais,
+desde que Home pessoal nao dependa de progresso/graduacao institucional e que
+as rules owner-only sejam validadas antes da ativacao.
+
+## Criterios de aceite da proxima etapa
+
+- Usuario autenticado com `confirmedEmpty` entra em Personal sem academia
+  sintetica.
+- Usuario com membership ativa pode alternar para Personal explicitamente.
+- `unavailable`, `permissionDenied` e `confirmedEmpty` continuam estados
+  observavelmente distintos.
+- Treino pessoal e gravado e relido apenas no path do owner, sem `academyId`.
+- Outro usuario, professor ou admin nao le nem altera esse treino.
+- `place` nao muda workspace; Personal em academia continua pessoal.
+- Treino pessoal nao cria presenca nem conta para graduacao oficial.
+- Troca de workspace substitui streams/caches e descarta callbacks atrasados.
+- Home/Treinos contam somente a lista do workspace atual.
+- Registros antigos permanecem no path original e continuam legiveis.
+- Criacao, substituicao completa, patch parcial e remocao explicita de campo
+  possuem testes separados.
+
 ## Dependencias de implementacao
 Ordem recomendada:
 
-1. Fechar este contrato documental.
-2. Auditar AuthGate, memberships, invite e rules para membership ativa.
-3. Corrigir bootstrap para nao sobrescrever dado real.
-4. Corrigir convite para criar/vincular Auth, membership ativa e perfil.
-5. Criar `WorkspaceContext` e `TargetContext` sem mudar telas amplamente.
-6. Migrar fatia vertical: treino pessoal + progresso pessoal.
-7. Introduzir rules do Personal privado.
-8. Remover fallback silencioso de `defaultAcademyId`.
+1. Contrato documental: concluido e reconciliado neste arquivo.
+2. Snapshot de membership, provisionamento de convite e inventario de
+   backfill: bases ja documentadas/implementadas; manter revisao operacional.
+3. Criar `WorkspaceContext` e adaptar `UserScope`/`TargetContext`, removendo o
+   fallback como autorizacao para ausencia confirmada.
+4. Implementar repository de treino por workspace e rules pessoais owner-only
+   com testes locais, sem habilitar UI antes da seguranca estar disponivel.
+5. Migrar Treinos e a parte de treino da Home para a fonte selecionada.
+6. Validar alternancia de contexto, callbacks atrasados, cache e isolamento.
+7. Planejar progresso pessoal em fatia propria; nao reutilizar graduacao da
+   academia.
+8. Remover os usos residuais de `defaultAcademyId` somente depois que todos os
+   destinos de sessao estiverem explicitos.
 
 ## QA matrix
 
 ```text
 Cenario                                      Esperado
 Usuario novo sem academia                    entra em Personal privado ou estado sem academy, nunca em default autorizado
-Usuario com 1 membership ativa               entra na academy correta
-Usuario com varias memberships ativas        exige selecao ou usa selecao persistida revalidada
+Usuario com 1 membership ativa               oferece Personal e academy valida sem mistura
+Usuario com varias memberships ativas        exige escolha ou usa selecao persistida revalidada
 Membership revogada                          perde acesso academy no proximo refresh
 Professor vendo aluno                        actor != target
 Professor em Meu Perfil                      actor == target

@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show HapticFeedback;
 
+import '../../features/technical_domain/presentation/technical_axis_palette.dart';
 import '../../service/jiu_jitsu_taxonomy.dart';
 import '../titans_feedback.dart';
 
@@ -2188,10 +2189,10 @@ const _axisOrder = <TechnicalRadarAxis>[
 ];
 
 const _axisColors = <Color>[
-  Color(0xFF4CC9F0),
-  Color(0xFFE9C46A),
-  Color(0xFFB026FF),
-  Color(0xFF2D6BFF),
+  technicalRetentionColor,
+  technicalTransitionColor,
+  technicalControlColor,
+  technicalAttackColor,
 ];
 
 const _distributionAxisOrder = <TechnicalRadarAxis>[
@@ -2202,8 +2203,8 @@ const _distributionAxisOrder = <TechnicalRadarAxis>[
 ];
 
 const _distributionAxisColors = <Color>[
-  Color(0xFF2D6BFF),
-  Color(0xFF4CC9F0),
-  Color(0xFFE9C46A),
-  Color(0xFFB026FF),
+  technicalAttackColor,
+  technicalRetentionColor,
+  technicalTransitionColor,
+  technicalControlColor,
 ];

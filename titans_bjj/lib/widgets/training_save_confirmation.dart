@@ -6,7 +6,13 @@ import 'quick_log_sheet.dart';
 
 enum TrainingSaveConfirmationKind { created, plannedSessionConfirmed }
 
-enum TrainingConfirmationDetail { technique, position, intensity }
+enum TrainingConfirmationDetail {
+  technique,
+  position,
+  intensity,
+  applicationContext,
+  outcome,
+}
 
 Set<TrainingConfirmationDetail> quickLogConfirmationDetails(
   QuickLogSaveResult result,
@@ -19,6 +25,10 @@ Set<TrainingConfirmationDetail> quickLogConfirmationDetails(
       TrainingConfirmationDetail.position,
     if (fields.contains(QuickLogInputField.intensity))
       TrainingConfirmationDetail.intensity,
+    if (fields.contains(QuickLogInputField.applicationContext))
+      TrainingConfirmationDetail.applicationContext,
+    if (fields.contains(QuickLogInputField.outcome))
+      TrainingConfirmationDetail.outcome,
   };
 }
 
@@ -89,6 +99,20 @@ String trainingSaveConfirmationSummary(
   if (visibleDetails.contains(TrainingConfirmationDetail.intensity) &&
       session.intensity != null) {
     details.add('Intensidade ${session.intensity}/5');
+  }
+  if (visibleDetails.contains(TrainingConfirmationDetail.applicationContext) &&
+      session.applicationContext != null) {
+    details.add(
+      applicationContextLabel(session.applicationContext) ??
+          session.applicationContext!,
+    );
+  }
+  if (visibleDetails.contains(TrainingConfirmationDetail.outcome) &&
+      session.techniqueOutcome != null) {
+    details.add(
+      techniqueOutcomeLabel(session.techniqueOutcome) ??
+          session.techniqueOutcome!,
+    );
   }
   if (details.length == 1) details.add('Salvo no histórico');
   return details.join(' • ');

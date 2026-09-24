@@ -135,7 +135,10 @@ class TrainingRepository {
       uid: uid,
       sessionId: session.id,
     ).set(
-      session.toMap(includeTechnicalDeletes: true),
+      session.toMap(
+        includeTechnicalDeletes: true,
+        includeCompositionDeletes: true,
+      ),
       SetOptions(merge: true),
     );
   }
@@ -161,7 +164,10 @@ class TrainingRepository {
     for (final session in sessions) {
       batch.set(
         session.id.isEmpty ? col.doc() : col.doc(session.id),
-        session.toMap(includeTechnicalDeletes: true),
+        session.toMap(
+          includeTechnicalDeletes: true,
+          includeCompositionDeletes: true,
+        ),
         SetOptions(merge: true),
       );
     }

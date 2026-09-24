@@ -33,7 +33,10 @@ Documentar o schema desejado de Firebase/Firestore para suportar multi-academia,
 - `GradingRulesRepository`
 
 ## Regras de negocio
-- Todo documento de dominio deve ter `academyId` ou estar sob o path da academia.
+- Todo documento institucional deve ter `academyId` ou estar sob o path da
+  academia.
+- Dados privados do Personal Workspace ficam sob o owner autenticado, conforme
+  `personal_mode_context_spec.md`, sem academia sintetica ou fallback default.
 - Admin acessa a academia administrada.
 - Professor acessa alunos e operacoes das academias permitidas.
 - Athlete acessa primariamente seu proprio perfil e dados derivados.
@@ -65,8 +68,14 @@ academies/{academyId}
 users/{uid}
   private/profile
   academyMemberships/{academyId}
+  personalContexts/main
+    training_sessions/{sessionId}
 
 ```
+
+O path pessoal e owner-only e nao concede presenca, graduacao oficial ou
+acesso a professor/admin. Sua inclusao aqui e documental; as rules atuais ainda
+o bloqueiam e nao devem ser publicadas sem implementacao/testes coordenados.
 
 
 Campos comuns:
@@ -76,6 +85,44 @@ Campos comuns:
 - `createdBy`
 - `updatedBy`
 - `status`
+
+## Composicao opcional de TrainingSession
+
+TITANS-TRAINING-SESSION-COMPOSITION-001 acrescenta campos opcionais aos
+documentos existentes de treino, sem criar uma segunda sessao para cada rola:
+
+```text
+totalDurationMinutes: int positivo
+totalDurationIsEstimated: bool
+studiedTechniques: [
+  {
+    catalogId: string
+    label: string
+  }
+]
+rolls: {
+  count: int positivo
+  roundDurationMinutes: int positivo
+}
+```
+
+Semantica:
+- campos ausentes permanecem desconhecidos e nao equivalem a zero;
+- `totalDurationIsEstimated` so deve existir quando
+  `totalDurationMinutes` existir;
+- `studiedTechniques` registra estudo e nao comprova aplicacao, sucesso ou
+  dominio; os campos tecnicos de evidencia permanecem separados;
+- `rolls` so deve existir com quantidade e duracao por round completas;
+- todos os rounds do bloco usam a mesma duracao no MVP;
+- tempo de combate e derivado por
+  `rolls.count * rolls.roundDurationMinutes`, nao e persistido e nao e somado
+  novamente a duracao total;
+- quando total e rolas coexistirem, o combate nao pode superar o total;
+- criacao e patches parciais omitem opcionais ausentes;
+- substituicao completa de edicao usa remocao explicita para opcionais limpos;
+- atualizacao parcial de lifecycle, inclusive confirmacao de planejado, preserva
+  a composicao no mesmo documento e no mesmo id;
+- documentos antigos continuam legiveis sem migracao obrigatoria.
 
 ## Academia como contexto de treino
 

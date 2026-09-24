@@ -24,12 +24,16 @@ O core nao tenta modelar todos os esportes diretamente. Ele deve conter apenas c
 
 - `sportId`: identificador do esporte principal, como `bjj`, `running` ou `strength`.
 - `disciplineId`: recorte opcional dentro do esporte, como `gi`, `noGi`, `trail`, `road`, `hypertrophy` ou `conditioning`.
-- `academyId`: academia ativa quando a sessao pertence ao Academy Workspace.
+- `workspaceContext`: Personal ou Academy resolvido separadamente; quando for
+  Academy, contem a `academyId` e a membership ativa.
 - `actorUid`: usuario logado que executa a acao.
 - `targetUid`: usuario visualizado/editado pela acao.
 - capabilities ativas: quais campos, taxonomias, evidencias e visualizacoes podem aparecer.
 
-O `SportContext` nunca substitui actor/target. Atleta comum continua criando e vendo dados proprios. Professor/admin continua operando apenas o aluno alvo autorizado dentro da academia ativa.
+O `SportContext` nunca substitui workspace nem actor/target. Atleta comum
+continua criando e vendo dados proprios. Professor/admin continua operando
+apenas o aluno alvo autorizado dentro da academia ativa. Modalidade, local
+fisico e vinculo institucional sao eixos independentes.
 
 ### SportPack
 

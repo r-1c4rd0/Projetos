@@ -39,7 +39,10 @@ Definir o produto Titans BJJ como plataforma para gestao de academias, professor
 - AUTH-REAL-USERS: atletas/professores convidados so devem ganhar acesso real apos aceitar convite e criar/usar conta propria do Firebase Auth vinculada ao cadastro da academia; mestre/professor nao define senha do aluno.
 - O convite AUTH-REAL-USERS usa `academies/{academyId}/invites/{inviteId}` com status `pending`, `accepted`, `expired` ou `revoked`.
 - O UUID atual do cadastro legado deve ser tratado como `pendingProfileId`; apos aceite, o Firebase Auth UID vira identidade principal em `academies/{academyId}/users/{firebaseUser.uid}`.
-- Todo dado operacional deve pertencer a uma academia.
+- Todo dado operacional institucional deve pertencer a uma academia.
+- Diario e treino privados podem pertencer ao Personal Workspace owner-only,
+  sem acesso automatico de professor/admin e sem efeito em presenca ou
+  graduacao oficial, conforme `personal_mode_context_spec.md`.
 - Toda regra sensivel deve ser refletida em Firestore Rules no futuro.
 - TITANS-FREEMIUM-ENTITLEMENTS-SPEC-001: registro rapido e historico proprio sao gratuitos; Titans Plus aprofunda leituras; cortesia administrativa sem vencimento automatico e concessao comercial independente de autorizacao.
 

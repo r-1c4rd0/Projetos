@@ -6,6 +6,60 @@ enum TrainingTechniqueSide { left, right, both, notApplicable, unknown }
 
 enum TrainingSessionStatus { planned, completed, missed, canceled }
 
+class TrainingStudiedTechnique {
+  final String catalogId;
+  final String label;
+
+  const TrainingStudiedTechnique({
+    required this.catalogId,
+    required this.label,
+  });
+
+  static TrainingStudiedTechnique? fromMap(Object? value) {
+    if (value is! Map) return null;
+
+    final catalogId = TrainingSession._optionalString(value['catalogId']);
+    final label = TrainingSession._optionalString(value['label']);
+    if (catalogId == null || label == null) return null;
+
+    return TrainingStudiedTechnique(catalogId: catalogId, label: label);
+  }
+
+  Map<String, dynamic> toMap() => {'catalogId': catalogId, 'label': label};
+}
+
+class TrainingRollsBlock {
+  final int count;
+  final int roundDurationMinutes;
+
+  const TrainingRollsBlock({
+    required this.count,
+    required this.roundDurationMinutes,
+  });
+
+  int get combatDurationMinutes => count * roundDurationMinutes;
+
+  static TrainingRollsBlock? fromMap(Object? value) {
+    if (value is! Map) return null;
+
+    final count = TrainingSession._positiveInt(value['count']);
+    final roundDurationMinutes = TrainingSession._positiveInt(
+      value['roundDurationMinutes'],
+    );
+    if (count == null || roundDurationMinutes == null) return null;
+
+    return TrainingRollsBlock(
+      count: count,
+      roundDurationMinutes: roundDurationMinutes,
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+    'count': count,
+    'roundDurationMinutes': roundDurationMinutes,
+  };
+}
+
 class TrainingTechniqueEntry {
   final String technique;
   final String? position;
@@ -147,6 +201,10 @@ class TrainingSession {
   final DateTime date;
   final TrainingPlace place;
   final String? notes;
+  final int? totalDurationMinutes;
+  final bool? totalDurationIsEstimated;
+  final List<TrainingStudiedTechnique> studiedTechniques;
+  final TrainingRollsBlock? rolls;
 
   /// Mapa alunoId -> pontuacao 1..5
   final Map<String, int> scores;
@@ -179,6 +237,10 @@ class TrainingSession {
     required this.date,
     required this.place,
     this.notes,
+    this.totalDurationMinutes,
+    this.totalDurationIsEstimated,
+    List<TrainingStudiedTechnique>? studiedTechniques,
+    this.rolls,
     Map<String, int>? scores,
     this.academyId,
     this.uid,
@@ -202,6 +264,9 @@ class TrainingSession {
     this.applicationContext,
     this.techniqueOutcome,
   }) : scores = scores ?? const {},
+       studiedTechniques = List.unmodifiable(
+         studiedTechniques ?? const <TrainingStudiedTechnique>[],
+       ),
        techniques =
            techniques == null
                ? const <TrainingTechniqueEntry>[]
@@ -211,6 +276,13 @@ class TrainingSession {
     DateTime? date,
     TrainingPlace? place,
     String? notes,
+    int? totalDurationMinutes,
+    bool? totalDurationIsEstimated,
+    List<TrainingStudiedTechnique>? studiedTechniques,
+    TrainingRollsBlock? rolls,
+    bool clearTotalDuration = false,
+    bool clearRolls = false,
+    bool clearStudiedTechniques = false,
     Map<String, int>? scores,
     String? academyId,
     String? uid,
@@ -239,6 +311,19 @@ class TrainingSession {
       date: date ?? this.date,
       place: place ?? this.place,
       notes: notes ?? this.notes,
+      totalDurationMinutes:
+          clearTotalDuration
+              ? null
+              : totalDurationMinutes ?? this.totalDurationMinutes,
+      totalDurationIsEstimated:
+          clearTotalDuration
+              ? null
+              : totalDurationIsEstimated ?? this.totalDurationIsEstimated,
+      studiedTechniques:
+          clearStudiedTechniques
+              ? const <TrainingStudiedTechnique>[]
+              : studiedTechniques ?? this.studiedTechniques,
+      rolls: clearRolls ? null : rolls ?? this.rolls,
       scores: scores ?? this.scores,
       academyId: academyId ?? this.academyId,
       uid: uid ?? this.uid,
@@ -278,6 +363,29 @@ class TrainingSession {
         techniqueOutcome: _optionalString(techniqueOutcome),
       ),
     ];
+  }
+
+  int? get combatDurationMinutes => rolls?.combatDurationMinutes;
+
+  String? compositionValidationError() {
+    final duration = totalDurationMinutes;
+    if (duration != null && duration <= 0) {
+      return 'A duração total deve ser maior que zero.';
+    }
+    if (totalDurationIsEstimated != null && duration == null) {
+      return 'A estimativa só pode ser indicada com duração total.';
+    }
+
+    final rollsBlock = rolls;
+    if (rollsBlock != null) {
+      if (rollsBlock.count <= 0 || rollsBlock.roundDurationMinutes <= 0) {
+        return 'Quantidade e duração dos rolas devem ser maiores que zero.';
+      }
+      if (duration != null && rollsBlock.combatDurationMinutes > duration) {
+        return 'O tempo de combate não pode superar a duração total.';
+      }
+    }
+    return null;
   }
 
   TrainingSessionStatus effectiveStatus({DateTime? now}) {
@@ -333,13 +441,34 @@ class TrainingSession {
   Map<String, dynamic> toMap({
     bool includeApplicationDeletes = false,
     bool includeTechnicalDeletes = false,
+    bool includeCompositionDeletes = false,
   }) {
     final includeDeletes = includeApplicationDeletes || includeTechnicalDeletes;
 
     return {
       'date': Timestamp.fromDate(date),
       'place': place.name,
-      'notes': notes,
+      if (notes != null)
+        'notes': notes
+      else if (includeTechnicalDeletes)
+        'notes': FieldValue.delete(),
+      if (totalDurationMinutes != null)
+        'totalDurationMinutes': totalDurationMinutes
+      else if (includeCompositionDeletes)
+        'totalDurationMinutes': FieldValue.delete(),
+      if (totalDurationMinutes != null && totalDurationIsEstimated != null)
+        'totalDurationIsEstimated': totalDurationIsEstimated
+      else if (includeCompositionDeletes)
+        'totalDurationIsEstimated': FieldValue.delete(),
+      if (studiedTechniques.isNotEmpty)
+        'studiedTechniques':
+            studiedTechniques.map((technique) => technique.toMap()).toList()
+      else if (includeCompositionDeletes)
+        'studiedTechniques': FieldValue.delete(),
+      if (rolls != null)
+        'rolls': rolls!.toMap()
+      else if (includeCompositionDeletes)
+        'rolls': FieldValue.delete(),
       'scores': scores,
       if (academyId != null) 'academyId': academyId,
       if (uid != null) 'uid': uid,
@@ -420,6 +549,13 @@ class TrainingSession {
       date: date,
       place: place,
       notes: notes,
+      totalDurationMinutes: _positiveInt(data['totalDurationMinutes']),
+      totalDurationIsEstimated:
+          data['totalDurationMinutes'] == null
+              ? null
+              : _optionalBool(data['totalDurationIsEstimated']),
+      studiedTechniques: _studiedTechniquesFromValue(data['studiedTechniques']),
+      rolls: TrainingRollsBlock.fromMap(data['rolls']),
       scores: scores,
       academyId: data['academyId']?.toString(),
       uid: data['uid']?.toString(),
@@ -450,11 +586,27 @@ class TrainingSession {
   ) {
     if (value is! Iterable) return const <TrainingTechniqueEntry>[];
 
-    return List.unmodifiable(
-      value
-          .map(TrainingTechniqueEntry.fromMap)
-          .whereType<TrainingTechniqueEntry>(),
-    );
+    final entries = <TrainingTechniqueEntry>[];
+    for (final item in value) {
+      final entry = TrainingTechniqueEntry.fromMap(item);
+      if (entry != null) entries.add(entry);
+    }
+    return List.unmodifiable(entries);
+  }
+
+  static List<TrainingStudiedTechnique> _studiedTechniquesFromValue(
+    Object? value,
+  ) {
+    if (value is! Iterable) return const <TrainingStudiedTechnique>[];
+
+    final techniques = <TrainingStudiedTechnique>[];
+    final catalogIds = <String>{};
+    for (final item in value) {
+      final technique = TrainingStudiedTechnique.fromMap(item);
+      if (technique == null || !catalogIds.add(technique.catalogId)) continue;
+      techniques.add(technique);
+    }
+    return List.unmodifiable(techniques);
   }
 
   static String? _optionalString(Object? value) {
@@ -467,6 +619,16 @@ class TrainingSession {
     final parsed = value is int ? value : int.tryParse(value?.toString() ?? '');
     if (parsed == null || parsed < 1 || parsed > 5) return null;
     return parsed;
+  }
+
+  static int? _positiveInt(Object? value) {
+    final parsed = value is int ? value : int.tryParse(value?.toString() ?? '');
+    return parsed != null && parsed > 0 ? parsed : null;
+  }
+
+  static bool? _optionalBool(Object? value) {
+    if (value is bool) return value;
+    return null;
   }
 
   static TrainingSessionStatus? _statusFromValue(Object? value) {
