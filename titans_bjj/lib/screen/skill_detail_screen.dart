@@ -8,8 +8,14 @@ import '../model/coach_evaluation.dart';
 import '../model/training_session.dart';
 import '../repository/coach_evaluation_repository.dart';
 import '../service/training_aggregator.dart';
+import '../service/target_resolver.dart';
 import '../service/user_session.dart';
 import '../widgets/titans_scaffold.dart';
+import 'training_screen.dart';
+
+part '../widgets/skill_detail/skill_detail_evaluation.dart';
+part '../widgets/skill_detail/skill_detail_history.dart';
+part '../widgets/skill_detail/skill_detail_overview.dart';
 
 class SkillDetailScreen extends StatefulWidget {
   final String academyId;
@@ -21,6 +27,8 @@ class SkillDetailScreen extends StatefulWidget {
   final String? preferredPosition;
   final List<TrainingSession> sessions;
   final List<CoachEvaluation> evaluations;
+  final ValueChanged<String>? onOpenTrainingRecord;
+  final Future<void> Function(CoachEvaluation)? onSaveCoachEvaluation;
 
   const SkillDetailScreen({
     super.key,
@@ -33,6 +41,8 @@ class SkillDetailScreen extends StatefulWidget {
     this.loggedUser,
     this.category,
     this.preferredPosition,
+    this.onOpenTrainingRecord,
+    this.onSaveCoachEvaluation,
   });
 
   @override
@@ -40,8 +50,6 @@ class SkillDetailScreen extends StatefulWidget {
 }
 
 class _SkillDetailScreenState extends State<SkillDetailScreen> {
-  final CoachEvaluationRepository _coachEvaluationRepository =
-      CoachEvaluationRepository.instance;
   late List<CoachEvaluation> _evaluations = List<CoachEvaluation>.from(
     widget.evaluations,
   );
@@ -58,7 +66,9 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
   @override
   void didUpdateWidget(covariant SkillDetailScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    _syncContext();
+    _syncContext(
+      refreshEvaluations: !identical(oldWidget.evaluations, widget.evaluations),
+    );
   }
 
   AppUser? get _actor => UserScope.maybeOf(context) ?? widget.loggedUser;
@@ -90,16 +100,18 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     );
   }
 
-  void _syncContext() {
+  void _syncContext({bool refreshEvaluations = false}) {
     final resolvedContext = _resolveContext();
-    if (_contextKey == resolvedContext.key) return;
+    final detailContextKey =
+        '${resolvedContext.key}|skill:${widget.skillId.trim()}';
+    if (_contextKey == detailContextKey && !refreshEvaluations) return;
 
     final activeAcademyId = _userScope?.activeAcademyId.trim();
     _hasAlignedAcademyContext =
         activeAcademyId == null ||
         activeAcademyId.isEmpty ||
         activeAcademyId == widget.academyId.trim();
-    _contextKey = resolvedContext.key;
+    _contextKey = detailContextKey;
     _evaluations = List<CoachEvaluation>.from(widget.evaluations);
     _isSavingEvaluation = false;
   }
@@ -108,6 +120,20 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     final scope = _userScope;
     return CoachEvaluationAuthorization.canEvaluate(
       actor: _actor,
+      targetUid: widget.uid,
+      targetAcademyId: widget.academyId,
+      activeAcademyId: scope?.activeAcademyId,
+      activeMembership: scope?.activeMembership,
+      membershipSnapshot: scope?.membershipSnapshot,
+    );
+  }
+
+  bool get _canOpenTargetHistory {
+    final actor = _actor;
+    if (actor?.uid.trim() == widget.uid.trim()) return true;
+    final scope = _userScope;
+    return CoachEvaluationAuthorization.canEvaluate(
+      actor: actor,
       targetUid: widget.uid,
       targetAcademyId: widget.academyId,
       activeAcademyId: scope?.activeAcademyId,
@@ -156,7 +182,12 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
 
     setState(() => _isSavingEvaluation = true);
     try {
-      await _coachEvaluationRepository.upsertEvaluation(evaluation);
+      final onSaveCoachEvaluation = widget.onSaveCoachEvaluation;
+      if (onSaveCoachEvaluation != null) {
+        await onSaveCoachEvaluation(evaluation);
+      } else {
+        await CoachEvaluationRepository.instance.upsertEvaluation(evaluation);
+      }
       if (!mounted || _contextKey != operationContextKey) return;
       setState(() {
         _evaluations = [
@@ -189,6 +220,8 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       );
     }
 
+    final contextKey = _contextKey ?? _resolveContext().key;
+
     final vm = _SkillDetailViewModel.from(
       skillId: widget.skillId,
       displayName: widget.displayName,
@@ -201,7 +234,7 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
     return TitansScaffold(
       appBar: AppBar(title: Text(vm.displayName)),
       body: ListView(
-        key: ValueKey('skill-detail:${_contextKey ?? _resolveContext().key}'),
+        key: ValueKey('skill-detail:$contextKey'),
         padding: TitansUI.listPadding(context),
         children: [
           _SkillDetailHeader(vm: vm),
@@ -210,7 +243,14 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
           const SizedBox(height: 12),
           _PositionsContextCard(vm: vm),
           const SizedBox(height: 12),
-          _SkillHistoryCard(vm: vm),
+          _SkillHistoryCard(
+            vm: vm,
+            onOpenRecord:
+                (sessionId) => _openTrainingRecord(
+                  sessionId,
+                  expectedContextKey: contextKey,
+                ),
+          ),
           const SizedBox(height: 12),
           _CoachEvaluationDetailCard(
             vm: vm,
@@ -235,926 +275,41 @@ class _SkillDetailScreenState extends State<SkillDetailScreen> {
       ),
     );
   }
-}
 
-class _SkillDetailHeader extends StatelessWidget {
-  final _SkillDetailViewModel vm;
-
-  const _SkillDetailHeader({required this.vm});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final topPosition =
-        vm.positionCounts.isNotEmpty
-            ? vm.positionCounts.keys.first
-            : vm.preferredPosition;
-
-    return TitansCard(
-      accent: cs.primary,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: cs.primary.withValues(alpha: 0.1),
-              border: Border.all(color: cs.primary.withValues(alpha: 0.25)),
-            ),
-            child: Icon(
-              Icons.psychology_alt_outlined,
-              color: cs.primary,
-              size: 20,
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  vm.displayName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  vm.categoryLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    color: cs.primary,
-                    fontWeight: FontWeight.w800,
-                    fontSize: 12,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Evidências registradas nos treinos.',
-                  style: TextStyle(
-                    color: cs.onSurface.withValues(alpha: 0.6),
-                    fontWeight: FontWeight.w700,
-                    fontSize: 11,
-                  ),
-                ),
-                if (vm.lastPracticedAt != null || topPosition != null) ...[
-                  const SizedBox(height: 4),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 2,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    children: [
-                      if (vm.lastPracticedAt != null)
-                        _HeaderMeta(
-                          icon: Icons.schedule_outlined,
-                          text: 'Última: ${vm.lastPracticedLabel}',
-                        ),
-                      if (topPosition != null)
-                        _HeaderMeta(
-                          icon: Icons.account_tree_outlined,
-                          text: topPosition,
-                        ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _HeaderMeta extends StatelessWidget {
-  final IconData icon;
-  final String text;
-
-  const _HeaderMeta({required this.icon, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 11, color: cs.onSurface.withValues(alpha: 0.45)),
-        const SizedBox(width: 3),
-        Text(
-          text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-            color: cs.onSurface.withValues(alpha: 0.55),
-            fontSize: 10,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _EvidenceSummaryCard extends StatelessWidget {
-  final _SkillDetailViewModel vm;
-
-  const _EvidenceSummaryCard({required this.vm});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return TitansCard(
-      accent: cs.secondary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _DetailEyebrow('RESUMO DE EVIDÊNCIAS'),
-          const SizedBox(height: 8),
-          TitansCompactMetricGrid(
-            spacing: 8,
-            children: [
-              TitansCompactMetricCard(
-                label: 'REGISTROS',
-                value: vm.evidenceCount.toString(),
-                color: cs.primary,
-              ),
-              TitansCompactMetricCard(
-                label: 'SESSÕES',
-                value: vm.sessionCount.toString(),
-                color: cs.secondary,
-              ),
-              TitansCompactMetricCard(
-                label: 'ÚLTIMA',
-                value: vm.lastPracticedLabel,
-                color: Colors.lightGreenAccent,
-              ),
-              TitansCompactMetricCard(
-                label: 'CONTEXTOS',
-                value: vm.contextCount.toString(),
-                color: Colors.amber,
-              ),
-            ],
-          ),
-          if (vm.resultLabels.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _ChipWrap(labels: vm.resultLabels),
-          ],
-          if (vm.evidenceCount > 0 && vm.evidenceCount < 3) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Pouca evidência registrada. Mais treinos ajudam a formar uma leitura mais consistente.',
-              style: TextStyle(
-                color: cs.onSurface.withValues(alpha: 0.66),
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _PositionsContextCard extends StatelessWidget {
-  final _SkillDetailViewModel vm;
-
-  const _PositionsContextCard({required this.vm});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final entries = vm.positionCounts.entries.toList();
-    final maxCount = entries.isNotEmpty ? entries.first.value : 1;
-    final displayEntries = entries.take(3).toList();
-    final hasMore = entries.length > 3;
-
-    return TitansCard(
-      accent: Colors.lightGreenAccent,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const _DetailEyebrow('POSIÇÕES E CONTEXTOS'),
-              const Spacer(),
-              if (hasMore)
-                TextButton(
-                  onPressed:
-                      () => _showAllPositions(context, entries, maxCount),
-                  child: Text(
-                    'Ver todas (${entries.length})',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (entries.isEmpty)
-            const TitansStateView.empty(
-              title: 'Sem posição suficiente',
-              message:
-                  'Registre posição/contexto nos treinos para refinar esta visão.',
-              compact: true,
-            )
-          else
-            Column(
-              children: [
-                for (var i = 0; i < displayEntries.length; i++) ...[
-                  _PositionBar(
-                    label: displayEntries[i].key,
-                    count: displayEntries[i].value,
-                    maxCount: maxCount,
-                    color: _positionColor(i),
-                  ),
-                  if (i != displayEntries.length - 1) const SizedBox(height: 6),
-                ],
-              ],
-            ),
-          if (vm.contextLabels.isNotEmpty) ...[
-            const SizedBox(height: 8),
-            _ChipWrap(labels: vm.contextLabels),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Color _positionColor(int index) {
-    switch (index) {
-      case 0:
-        return Colors.amber;
-      case 1:
-        return const Color(0xFFB0BEC5);
-      case 2:
-        return const Color(0xFFCD7F32);
-      default:
-        return TitansUI.technicalBlue;
+  void _openTrainingRecord(
+    String sessionId, {
+    required String expectedContextKey,
+  }) {
+    final recordId = sessionId.trim();
+    final actor = _actor;
+    if (recordId.isEmpty ||
+        actor == null ||
+        _contextKey != expectedContextKey ||
+        !_canOpenTargetHistory) {
+      return;
     }
-  }
 
-  void _showAllPositions(
-    BuildContext context,
-    List<MapEntry<String, int>> entries,
-    int maxCount,
-  ) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder:
-          (context) =>
-              _AllPositionsBottomSheet(entries: entries, maxCount: maxCount),
-    );
-  }
-}
-
-class _PositionBar extends StatelessWidget {
-  final String label;
-  final int count;
-  final int maxCount;
-  final Color color;
-
-  const _PositionBar({
-    required this.label,
-    required this.count,
-    required this.maxCount,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final fraction =
-        maxCount <= 0 ? 0.0 : (count / maxCount).clamp(0.0, 1.0).toDouble();
-
-    return Row(
-      children: [
-        Expanded(
-          flex: 3,
-          child: Text(
-            label,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          flex: 5,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: fraction,
-              minHeight: 4,
-              color: color,
-              backgroundColor: cs.onSurface.withValues(alpha: 0.05),
-            ),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          '${count}x',
-          style: TextStyle(
-            color: cs.onSurface.withValues(alpha: 0.6),
-            fontSize: 10,
-            fontWeight: FontWeight.w800,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _AllPositionsBottomSheet extends StatelessWidget {
-  final List<MapEntry<String, int>> entries;
-  final int maxCount;
-
-  const _AllPositionsBottomSheet({
-    required this.entries,
-    required this.maxCount,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.6,
-        ),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    'Posições e contextos',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${entries.length} posições',
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shrinkWrap: true,
-                itemCount: entries.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 6),
-                itemBuilder: (context, index) {
-                  final entry = entries[index];
-                  final color = _positionColor(index);
-
-                  return _PositionBar(
-                    label: entry.key,
-                    count: entry.value,
-                    maxCount: maxCount,
-                    color: color,
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _positionColor(int index) {
-    switch (index) {
-      case 0:
-        return Colors.amber;
-      case 1:
-        return const Color(0xFFB0BEC5);
-      case 2:
-        return const Color(0xFFCD7F32);
-      default:
-        return TitansUI.technicalBlue;
+    final onOpenTrainingRecord = widget.onOpenTrainingRecord;
+    if (onOpenTrainingRecord != null) {
+      onOpenTrainingRecord(recordId);
+      return;
     }
-  }
-}
 
-class _SkillHistoryCard extends StatelessWidget {
-  final _SkillDetailViewModel vm;
-
-  const _SkillHistoryCard({required this.vm});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    const previewCount = 8;
-    final displayHistory = vm.history.take(previewCount).toList();
-    final hasMore = vm.history.length > previewCount;
-
-    return TitansCard(
-      accent: cs.primary,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const _DetailEyebrow('HISTÓRICO'),
-              const Spacer(),
-              if (hasMore)
-                TextButton(
-                  onPressed: () => _showFullHistory(context, vm.history),
-                  child: Text(
-                    'Ver completo (${vm.history.length})',
-                    style: TextStyle(
-                      color: cs.primary,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w800,
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          if (vm.history.isEmpty)
-            const TitansStateView.empty(
-              title: 'Sem evidência registrada',
-              message:
-                  'Esta técnica ainda não apareceu nos treinos carregados.',
-              compact: true,
-            )
-          else
-            Column(
-              children: [
-                for (var i = 0; i < displayHistory.length; i++) ...[
-                  _HistoryRow(item: displayHistory[i]),
-                  if (i != displayHistory.length - 1)
-                    Divider(
-                      color: cs.onSurface.withValues(alpha: 0.06),
-                      height: 1,
-                    ),
-                ],
-              ],
+    final isSelf = actor.uid.trim() == widget.uid.trim();
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder:
+            (_) => TrainingScreen(
+              titleOverride: isSelf ? 'Treinos' : 'Treinos do aluno',
+              targetMode: isSelf ? TargetMode.self : TargetMode.selectedStudent,
+              explicitTarget: TargetProfile(
+                uid: widget.uid,
+                academyId: widget.academyId,
+              ),
+              loggedUser: actor,
+              focusSessionId: recordId,
             ),
-        ],
       ),
-    );
-  }
-
-  void _showFullHistory(BuildContext context, List<_SkillHistoryItem> history) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _FullHistoryBottomSheet(history: history),
-    );
-  }
-}
-
-class _FullHistoryBottomSheet extends StatelessWidget {
-  final List<_SkillHistoryItem> history;
-
-  const _FullHistoryBottomSheet({required this.history});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-
-    return SafeArea(
-      child: Container(
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.75,
-        ),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: cs.onSurface.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  Text(
-                    'Histórico completo',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '${history.length} registros',
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.5),
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 8),
-            Flexible(
-              child: ListView.separated(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                shrinkWrap: true,
-                itemCount: history.length,
-                separatorBuilder:
-                    (_, __) => Divider(
-                      color: cs.onSurface.withValues(alpha: 0.06),
-                      height: 1,
-                    ),
-                itemBuilder: (context, index) {
-                  return _HistoryRow(item: history[index]);
-                },
-              ),
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HistoryRow extends StatelessWidget {
-  final _SkillHistoryItem item;
-
-  const _HistoryRow({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final details = <String>[
-      if (item.position != null) item.position!,
-      if (item.context != null) item.context!,
-      if (item.outcome != null) item.outcome!,
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 54,
-            child: Text(
-              _formatTimelineDate(item.date),
-              style: TextStyle(
-                color: cs.primary,
-                fontSize: 12,
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  details.isEmpty ? 'Registro técnico' : details.join(' · '),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w900),
-                ),
-                if (item.note != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    item.note!,
-                    maxLines: 3,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: cs.onSurface.withValues(alpha: 0.68),
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _CoachEvaluationDetailCard extends StatelessWidget {
-  final _SkillDetailViewModel vm;
-  final bool canEdit;
-  final bool isSaving;
-  final VoidCallback onEdit;
-
-  const _CoachEvaluationDetailCard({
-    required this.vm,
-    required this.canEdit,
-    required this.isSaving,
-    required this.onEdit,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final evaluation = vm.evaluation;
-    final actionLabel =
-        evaluation == null ? 'Registrar avaliação' : 'Editar avaliação';
-
-    return TitansCard(
-      accent: Colors.amber,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const _DetailEyebrow('AVALIAÇÃO DO PROFESSOR'),
-          const SizedBox(height: 12),
-          if (evaluation == null)
-            const TitansStateView.empty(
-              title: 'Nenhuma avaliação registrada ainda.',
-              message:
-                  'A avaliação do professor aparecerá aqui quando existir.',
-              compact: true,
-            )
-          else ...[
-            _ChipWrap(labels: vm.evaluationLabels),
-            if (_cleanText(evaluation.note) != null) ...[
-              const SizedBox(height: 12),
-              _TextBlock(label: 'Observação', text: evaluation.note!),
-            ],
-            if (_cleanText(evaluation.recommendation) != null) ...[
-              const SizedBox(height: 12),
-              _TextBlock(
-                label: 'Recomendação',
-                text: evaluation.recommendation!,
-              ),
-            ],
-          ],
-          if (canEdit) ...[
-            const SizedBox(height: 12),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: FilledButton.icon(
-                onPressed: isSaving ? null : onEdit,
-                icon: Icon(
-                  evaluation == null
-                      ? Icons.rate_review_outlined
-                      : Icons.edit_note_outlined,
-                  size: 18,
-                ),
-                label: Text(isSaving ? 'Salvando...' : actionLabel),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _CoachEvaluationDraft {
-  final CoachEvaluationLevel? knowledgeLevel;
-  final CoachEvaluationLevel? drillLevel;
-  final CoachEvaluationLevel? applicationLevel;
-  final CoachEvaluationLevel? consistencyLevel;
-  final String? note;
-  final String? recommendation;
-  final bool needsReview;
-
-  const _CoachEvaluationDraft({
-    required this.knowledgeLevel,
-    required this.drillLevel,
-    required this.applicationLevel,
-    required this.consistencyLevel,
-    required this.note,
-    required this.recommendation,
-    required this.needsReview,
-  });
-}
-
-class _CoachEvaluationSheet extends StatefulWidget {
-  final String displayName;
-  final CoachEvaluation? existing;
-
-  const _CoachEvaluationSheet({
-    required this.displayName,
-    required this.existing,
-  });
-
-  @override
-  State<_CoachEvaluationSheet> createState() => _CoachEvaluationSheetState();
-}
-
-class _CoachEvaluationSheetState extends State<_CoachEvaluationSheet> {
-  CoachEvaluationLevel? _knowledgeLevel;
-  CoachEvaluationLevel? _drillLevel;
-  CoachEvaluationLevel? _applicationLevel;
-  CoachEvaluationLevel? _consistencyLevel;
-  bool _needsReview = false;
-  final _noteController = TextEditingController();
-  final _recommendationController = TextEditingController();
-
-  @override
-  void initState() {
-    super.initState();
-    final existing = widget.existing;
-    if (existing == null) return;
-    _knowledgeLevel = existing.knowledgeLevel;
-    _drillLevel = existing.drillLevel;
-    _applicationLevel = existing.applicationLevel;
-    _consistencyLevel = existing.consistencyLevel;
-    _needsReview = existing.needsReview;
-    _noteController.text = existing.note ?? '';
-    _recommendationController.text = existing.recommendation ?? '';
-  }
-
-  @override
-  void dispose() {
-    _noteController.dispose();
-    _recommendationController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final bottomInset = MediaQuery.viewInsetsOf(context).bottom;
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(16, 16, 16, 16 + bottomInset),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                widget.existing == null
-                    ? 'Registrar avaliação'
-                    : 'Editar avaliação',
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.displayName,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.68),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 16),
-              _CoachLevelDropdown(
-                label: 'Conhecimento',
-                value: _knowledgeLevel,
-                onChanged: (value) => setState(() => _knowledgeLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Execução em drill',
-                value: _drillLevel,
-                onChanged: (value) => setState(() => _drillLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Aplicação',
-                value: _applicationLevel,
-                onChanged: (value) => setState(() => _applicationLevel = value),
-              ),
-              const SizedBox(height: 12),
-              _CoachLevelDropdown(
-                label: 'Recorrência',
-                value: _consistencyLevel,
-                onChanged: (value) => setState(() => _consistencyLevel = value),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _noteController,
-                decoration: const InputDecoration(labelText: 'Observação'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _recommendationController,
-                decoration: const InputDecoration(labelText: 'Recomendação'),
-                maxLines: 2,
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Precisa revisar'),
-                value: _needsReview,
-                onChanged: (value) => setState(() => _needsReview = value),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    child: const Text('Cancelar'),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton.icon(
-                    onPressed: () {
-                      Navigator.of(context).pop(
-                        _CoachEvaluationDraft(
-                          knowledgeLevel: _knowledgeLevel,
-                          drillLevel: _drillLevel,
-                          applicationLevel: _applicationLevel,
-                          consistencyLevel: _consistencyLevel,
-                          note: _cleanText(_noteController.text),
-                          recommendation: _cleanText(
-                            _recommendationController.text,
-                          ),
-                          needsReview: _needsReview,
-                        ),
-                      );
-                    },
-                    icon: const Icon(Icons.save_outlined, size: 18),
-                    label: const Text('Salvar avaliação'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _CoachLevelDropdown extends StatelessWidget {
-  final String label;
-  final CoachEvaluationLevel? value;
-  final ValueChanged<CoachEvaluationLevel?> onChanged;
-
-  const _CoachLevelDropdown({
-    required this.label,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return DropdownButtonFormField<CoachEvaluationLevel>(
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
-      items: [
-        const DropdownMenuItem<CoachEvaluationLevel>(
-          value: null,
-          child: Text('Não informado'),
-        ),
-        for (final level in CoachEvaluationLevel.values)
-          DropdownMenuItem(value: level, child: Text(_coachLevelLabel(level))),
-      ],
-      onChanged: onChanged,
     );
   }
 }
@@ -1363,6 +518,8 @@ class _DetailEyebrow extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
     return Text(
       label,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
       style: TextStyle(
         color: cs.onSurface.withValues(alpha: 0.58),
         fontSize: 11,
